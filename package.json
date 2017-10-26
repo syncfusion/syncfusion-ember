@@ -1,6 +1,6 @@
 {
   "name": "syncfusion-ember",
-  "version": "15.4.15",
+  "version": "15.4.12",
   "description": "The default blueprint for ember-cli addons.",
   "repository": {
     "type": "git",
@@ -11,7 +11,8 @@
     "ember-addon",
 	"syncfusion-ember",
 	"syncfusion-ember-cli",
-	"syncfusion-embercli"
+	"syncfusion-embercli",
+	"ember-addon"
   ],
   "license": "SEE LICENSE IN README.md",
   "author": "Syncfusion Inc.",
