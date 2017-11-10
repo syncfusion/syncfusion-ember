@@ -1,7 +1,7 @@
 {
   "name": "syncfusion-ember",
-  "version": "15.4.15",
-  "description": "The default blueprint for ember-cli addons.",
+  "version": "15.4.17",
+  "description": "This ember add-on provides the support to use our Syncfusion controls in any Ember CLI application.",
   "repository": {
     "type": "git",
     "url": "https://github.com/syncfusion/syncfusion-ember.git"

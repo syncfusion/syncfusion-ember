@@ -28,7 +28,7 @@ This ember addon project provides the support to use our Syncfusion controls in 
 
 ## Documentation
 
-For complete Syncfusion Ember documentation, please visit [http://help.syncfusion.com/ember/](http://help.syncfusion.com/ember/# "")
+For complete Syncfusion Ember documentation, please visit [http://help.syncfusion.com/emberjs/](http://help.syncfusion.com/emberjs/# "")
 
 ## Demos
 
@@ -36,7 +36,7 @@ For complete Syncfusion Ember documentation, please visit [http://help.syncfusio
 
 Take a look at the Syncfusion Ember live demos.
 
-* [Web](http://emberjq.syncfusion.com"")
+* [Web](http://emberjq.syncfusion.com)
 
 ### Offline Demos
 
@@ -48,7 +48,7 @@ In case of any questions regarding the use of Syncfusion JavaScript, please [con
 
 ## Release Notes
 
-Refer the Syncfusion JavaScript Product Release Notes in [online Release Notes at Syncfusion](http://help.syncfusion.com/ember/release-notes/# "").
+Refer the Syncfusion JavaScript Product Release Notes in [online Release Notes at Syncfusion](http://help.syncfusion.com/emberjs/release-notes/# "").
 
 ## License Information
 
