@@ -48,7 +48,7 @@ In case of any questions regarding the use of Syncfusion JavaScript, please [con
 
 ## Release Notes
 
-Refer the Syncfusion JavaScript Product Release Notes in [online Release Notes at Syncfusion](http://help.syncfusion.com/emberjs/release-notes/# "").
+Refer the Syncfusion JavaScript Product Release Notes in [online Release Notes at Syncfusion](http://help.syncfusion.com/emberjs/release-notes/16.3.0.17 "").
 
 ## License Information
 
