@@ -8,6 +8,7 @@
         this._hasPvtField = false;
         this._displayActPanel = true;
         this.names = {};
+        this._valueFieldName = "";
     };
 
     ej.spreadsheetFeatures.pivot.prototype = {
@@ -18,7 +19,7 @@
 			   tableName = name;
 			   name = name.replace(regx, '').replace(/ /g, "_");
 			   }
-            if (!xlObj.model.enablePivotTable || xlObj.model.isReadOnly)
+            if (!xlObj.model.enablePivotTable || (xlObj.getSheet()._isLoaded && xlObj.model.isReadOnly))
                 return;
             var xlRibbon = xlObj.XLRibbon, sheetIdx = xlObj.getActiveSheetIndex(), pvtRange = [], dataSheetName, datasource, details;
             var temp, left = 0, top = 0, pvtObj;
@@ -27,7 +28,7 @@
             dataSheetName = xlObj.model.sheets[temp[0]].sheetInfo.text;
             range = xlObj.getRangeIndices(temp[1]);
             datasource = xlObj.getRangeDataAsJSON({ rowIndex: range[0], colIndex: range[1] }, { rowIndex: range[2], colIndex: range[3] }, false, temp[0]);
-            if ($("#" + xlObj._id + "_dlg_existsheet").data("ejRadioButton").model.checked || xlObj.isImport || !xlObj.getSheet(sheetIdx)._isLoaded) {
+            if ($("#" + xlObj._id + "_dlg_existsheet").data("ejRadioButton").model.checked || xlObj.isImport || xlObj.model.isImport || !xlObj.getSheet(sheetIdx)._isLoaded) {
                 temp = xlRibbon._getAddrFromDollarAddr(location);
                 pvtRange = xlObj.getRangeIndices(temp[1]);
                 if (!xlObj._isExport && (sheetIdx !== temp[0])) {
@@ -204,7 +205,7 @@
                 var xlObj = this.XLObj, xlFormat = xlObj.XLFormat, sheetIdx;
                 xlObj.insertSheet();
                 sheetIdx = xlObj.getActiveSheetIndex();
-                xlObj.updateRange(sheetIdx, { dataSource: args.selectedData, startCell: "A1", showHeader: true });
+                xlObj._updateRangeValue(sheetIdx, { dataSource: args.selectedData, startCell: "A1", showHeader: true }, false);
                 xlFormat.createTable({ "header": true, name: "Table" + xlObj._tableCnt, "format": xlFormat._getTableLayoutFromName("TableStyleMedium9").format, "formatName": "TableStyleMedium9" }, "A1:" + xlObj._generateHeaderText(xlObj.getObjectLength(args.selectedData[0])) + (args.selectedData.length + 1));
             }
         },
@@ -313,13 +314,121 @@
         },
 
         _pivotMouseUp: function (e) {
-            var xlObj = this.XLObj, $trgt = $(e.target), robj = $('#' + xlObj._id + '_Ribbon').data("ejRibbon");
+            var xlObj = this.XLObj, $trgt = $(e.target), robj = $('#' + xlObj._id + '_Ribbon').data("ejRibbon"), menuObj, actPvt = xlObj._getContent(xlObj.getActiveSheetIndex()).find(".e-ss-activepivot"),
+                menuElem = actPvt.length == 1 ? $("#" + xlObj._id + "_PivotTableSchema_" + actPvt[0].id + "_pivotTreeContextMenu") : null,
+                elem = ej.isNullOrUndefined(menuElem) ? null : menuElem.find("#" + xlObj._id + "_fieldSettings")[0];
             if (xlObj.model.showRibbon) {              
                 if (xlObj._getContent(xlObj.getActiveSheetIndex()).find(".e-ss-activepivot").length && ($trgt.hasClass("e-ss-pivot") || $trgt.parents(".e-ss-pivot").length))
                     xlObj.XLRibbon._analyzeTabUpdate();
                 else if (!xlObj._getContent(xlObj.getActiveSheetIndex()).find(".e-ss-activepivot").length && (robj.model.selectedItemIndex === xlObj.XLRibbon._getTabIndex("analyze") || robj.isVisible("Analyze")))
                     xlObj.XLRibbon._toggleAnalyzeTab();
             }
+            this._valueFieldName = e.target.textContent;
+            menuObj = ej.isNullOrUndefined(menuElem) ? null : menuElem.data("ejMenu")
+            if (menuObj && $(e.target).parents().eq(2).hasClass("e-schemaValue") && $(e.target).hasClass("e-pvtBtn")) {
+                if (!elem) {
+                    menuObj.insert([{ id: xlObj._id + "_fieldSettings", parentId: null, text: "Value Field Settings " }], "#" + menuElem[0].id);
+                    elem = menuElem.find("#" + xlObj._id + "_fieldSettings")[0];
+                    if (xlObj._browserDetails.name == "msie" && xlObj._browserDetails.version == "8.0")
+                        $(elem)[0].attachEvent("onclick", this._cmenuclick, true);
+                    else
+                        $(elem)[0].addEventListener("click", this._cmenuclick, true);
+                }
+                else 
+                    menuObj.showItems(["#" + elem.id]);
+            }
+            else if (!ej.isNullOrUndefined(elem) && !$(e.target).parents().eq(2).hasClass("e-schemaValue"))
+                menuObj.hideItems(["#" + elem.id]);
+        },
+
+        _cmenuclick: function(event)
+        {
+            var xlObj = $("#" + event.currentTarget.id.split("_fieldSettings")[0]).data("ejSpreadsheet"),
+                xlId = xlObj._id, dlgId = xlId + "_fielddlg", $dlg = $("#" + xlId + "_fielddlg");
+            if ($dlg.hasClass("e-dialog")) {
+                $dlg.ejDialog("open");
+                xlObj.XLPivot._refreshSummaryList();
+            }
+            else
+                xlObj.XLPivot._renderFieldSettingDlg();
+        },
+
+        _renderFieldSettingDlg: function()
+        {
+            var xlObj = this.XLObj, xlId = xlObj._id, dlgId = xlId + "_fielddlg", $dlg, $tab, $ctnr, $ul, $summaryTag, $contentdiv, $li,
+            $maindiv, $fieldValueLabel, $fieldNameValueLabel, $topdiv1, $fieldNameLabel, $bottomdiv, $btndiv, $btnctnr, $okBtn, $canBtn, $listSummary,
+            summarySrc = [{ value: "sum", text: "Sum" }, { value: "count", text: "Count" }, { value: "average", text: "Average" }, { value: "max", text: "Max" }, { value: "min", text: "Min" }];
+                $dlg = ej.buildTag("div#" + dlgId);
+                $tab = ej.buildTag("div#" + dlgId + "_fieldtab");
+                $ctnr = ej.buildTag("div.e-dlg-fields e-dlgctndiv");
+                $maindiv = ej.buildTag("div.e-ss-maindiv");
+                $topdiv1 = ej.buildTag("div.e-ss-topmaindiv");
+                $fieldNameLabel = ej.buildTag("label", xlObj._getLocStr("FieldValue"), "", { id: dlgId + "_fieldnamelabel" });
+                $fieldNameValueLabel = ej.buildTag("label#" + dlgId + "_fieldnamevaluelabel.e-dlg-fieldlabel");
+                $fieldNameValueLabel.text(this._valueFieldName);
+                $topdiv1.append($fieldNameLabel, $fieldNameValueLabel);
+                $dlg.append($topdiv1);
+                $bottomdiv = ej.buildTag("div");
+                $fieldValueLabel = ej.buildTag("label#" + dlgId + "_fieldvallabel.e-dlg-fieldvaluelabel", xlObj._getLocStr("SummarizeChooseType"));
+                $listSummary = ej.buildTag("ul#" + dlgId + "_summarylist","", { width: "150px", height:"150px" })
+                $bottomdiv.append($fieldValueLabel, $listSummary);
+                $maindiv.append($bottomdiv);
+                $ul = ej.buildTag("ul .e-ul");
+                $summaryTag = ej.buildTag("a", xlObj._getLocStr("SummarizeValue"), {}, { href: "#" + dlgId + "_summary" });
+                $li = ej.buildTag("li", $summaryTag);
+                $listSummary.ejListBox({
+                    selectedItemIndex: "0", width: "150px", height: "150px", dataSource: summarySrc,
+                    fields: { text: "text", value: "value" },
+                    allowMultiSelection: false
+                });
+                $ul.append($li);
+                $tab.append($ul);
+                $ctnr.append($tab);
+                //create button content
+                $btndiv = ej.buildTag("div.e-dlg-btnfields");
+                $btnctnr = ej.buildTag("div.e-dlg-btnctnr");
+                $okBtn = ej.buildTag("input#" + dlgId + "_okbtn");
+                $canBtn = ej.buildTag("input#" + dlgId + "_cantn");
+                $okBtn.ejButton({ text: xlObj._getLocStr("Ok"), showRoundedCorner: true, width: 60, click: ej.proxy(this._fielddlgOk, this) , cssClass: "e-ss-okbtn"});
+                $canBtn.ejButton({ text: xlObj._getLocStr("Cancel"), showRoundedCorner: true, width: 60, click: ej.proxy(this._fielddlgCancel, this) });
+                $btndiv.append($btnctnr.append($okBtn, $canBtn));
+                xlObj.element.append($dlg.append($ctnr, $btndiv));
+                $tab.ejTab({ width: "100%", height: "auto", cssClass: "e-ss-dlgtab", allowKeyboardNavigation: false });
+                $contentdiv = $("#" + dlgId + "_summary");
+                $contentdiv.append($maindiv);
+                $dlg.ejDialog({ enableModal: true, showOnInit: false, enableResize: false, allowKeyboardNavigation: false, title: xlObj._getLocStr("ValueFieldSettings"), width: "auto", height: "auto", cssClass: "e-ss-dialog e-ss-mattab e-ss-fcdlg e-" + xlObj._id + "-dlg", open: function () { $("#" + xlObj._id + "_formatdlg_okbtn").focus(); } });
+                $dlg.ejDialog("open");
+                this._refreshSummaryList();
+        },
+
+        _refreshSummaryList: function () {
+            var xlObj = this.XLObj, xlId = xlObj._id, dlgId = xlId + "_fielddlg", $fieldNameValueLabel, listObj, tabObj, i, sheetIdx = xlObj.getActiveSheetIndex(),
+            pvtID = xlObj._getContent(sheetIdx).find(".e-ss-activepivot")[0].id, pivotGrid = $("#" + pvtID).data("ejPivotGrid"), len = pivotGrid.model.dataSource.values.length,
+                dataSrc = pivotGrid.model.dataSource, summarytype;
+            for (i = 0; i < len; i++)
+                if (dataSrc.values[i].fieldName == this._valueFieldName)
+                    summarytype = ej.isNullOrUndefined(dataSrc.values[i].summaryType) ? "sum" : dataSrc.values[i].summaryType;
+            $fieldNameValueLabel = $("#"+ dlgId + "_fieldnamevaluelabel");
+            $fieldNameValueLabel.text(this._valueFieldName);
+            listObj = $("#" + dlgId + "_summarylist").data("ejListBox");
+            listObj.selectItemByValue(summarytype);
+            tabObj = $("#" + xlId + "_fielddlg_fieldtab").data("ejTab");
+            tabObj && tabObj._refresh();
+        },
+
+        _fielddlgOk: function () {
+            var xlObj = this.XLObj, sheetIdx = xlObj.getActiveSheetIndex(), xlId = xlObj._id, dlgId = xlId + "_fielddlg", listObj = $("#" + dlgId + "_summarylist").data("ejListBox"),
+                pvtID = xlObj._getContent(sheetIdx).find(".e-ss-activepivot")[0].id, pivotGrid = $("#" + pvtID).data("ejPivotGrid"), i, dataSrc = pivotGrid.model.dataSource, 
+                len = dataSrc.values.length, selValue = listObj.getSelectedItems()[0].text;
+            for (i = 0; i < len; i++)
+                if (dataSrc.values[i].fieldName == this._valueFieldName)
+                    dataSrc.values[i].summaryType = ej.PivotAnalysis.SummaryType[selValue];
+                pivotGrid.refreshControl();
+            $("#" + dlgId).ejDialog("close");
+        },
+
+        _fielddlgCancel: function(){
+            $("#" + this.XLObj._id + "_fielddlg").ejDialog("close");
         },
 
         _changePvtName: function () {

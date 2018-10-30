@@ -42,12 +42,17 @@ var InternalContext = (function () {
         $(ul).find("li.e-column.e-visiblecolumn").append(subul);
         if (kObj.model.fields.swimlaneKey) {
             subul = ej.buildTag('ul', "", {}, { id: kObj._id + '_SubContext_Swimlane' });
-            var query = new ej.Query().select([kObj.model.fields.swimlaneKey]);
-            if (kObj._dataManager.dataSource.offline)
-                data = kObj._dataManager.executeLocal(query);
-            else
-                data = kObj._contextSwimlane.executeLocal(query);
-            data = ej.dataUtil.mergeSort(ej.dataUtil.distinct(data));
+            if (this.kanbanObj.model.swimlaneSettings.headers.length > 0) {
+                data = kObj._slText;
+            }
+            else {
+                var query = new ej.Query().select([kObj.model.fields.swimlaneKey]);
+                if (kObj._dataManager.dataSource.offline)
+                    data = kObj._dataManager.executeLocal(query);
+                else
+                    data = kObj._contextSwimlane.executeLocal(query);
+                data = ej.dataUtil.mergeSort(ej.dataUtil.distinct(data));
+            }
             if (data.length == 0)
                 kObj.model.initiallyEmptyDataSource = true;
             for (i = 0; i < data.length; i++) {
@@ -164,7 +169,13 @@ var InternalContext = (function () {
                     var id = c.closest(".e-kanbancard").attr("id");
                     kObj._hiddenColumns = [];
                     var data = new ej.DataManager(kObj._currentJsonData).executeLocal(new ej.Query().where(kObj.model.fields.primaryKey, ej.FilterOperators.equal, id))[0];
-                    data[kObj.model.fields.swimlaneKey] = sender.text;
+                    var swimKey = kObj.model.fields.swimlaneKey;
+                    if (!ej.isNullOrUndefined(swimKey) && kObj.model.swimlaneSettings.headers.length > 0) {
+                        var slKey = new ej.DataManager(kObj.currentViewData).executeLocal(new ej.Query().where('slHeader', ej.FilterOperators.equal, sender.text))[0];
+                        data[swimKey] = slKey.key;
+                    }
+                    else
+                        data[swimKey] = sender.text;
                     var args = { data: data, requestType: "save", primaryKeyValue: data[kObj.model.fields.primaryKey] };
                     kObj._saveArgs = args;
                     kObj.updateCard(id, data);
@@ -315,7 +326,7 @@ var InternalContext = (function () {
                         if (kObj.model.showColumnWhenEmpty && kObj.model.initiallyEmptyDataSource) {
                             data = ej.dataUtil.mergeSort(ej.dataUtil.distinct(kObj._kbnSwimLaneData));
                             for (i = 0; i < data.length; i++) {
-                                if (data[i] == cardData.Assignee)
+                                if (data[i] == cardData[kObj.model.fields.swimlaneKey])
                                     context.find(".e-move.e-swimlane").find("li").eq(i).hide();
                             }
                         }

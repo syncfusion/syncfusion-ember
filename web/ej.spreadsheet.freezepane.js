@@ -230,9 +230,10 @@
 
         _frozenScrollHandler: function(args) {
             var count, retVal, i = 0, xlObj = this.XLObj, xlScroll = xlObj.XLScroll, sheet = xlObj.getSheet(),
-                sheetIdx = xlObj.getActiveSheetIndex(), vScroll = xlScroll._vScroller(sheetIdx), hScroll = xlScroll._hScroller(sheetIdx);
+                sheetIdx = xlObj.getActiveSheetIndex(), vScroll = xlScroll._vScroller(sheetIdx), hScroll = xlScroll._hScroller(sheetIdx), clientRect;
             if (args.model.orientation === ej.ScrollBar.Orientation.Vertical) {
-                args["reachedEnd"] = Math.ceil(parseFloat(vScroll.element.find(".e-vhandle").css('top'))) + Math.ceil(parseFloat(vScroll.element.find(".e-vhandle").height())) >= vScroll.element.find(".e-vhandlespace").height() - 2;
+                clientRect = vScroll.element.find(".e-vhandle")[0].getBoundingClientRect();
+                args["reachedEnd"] = (clientRect.top + clientRect.height) >= vScroll.element.find(".e-vhandlespace").height() - 2;
                 if (args.scrollData.up || args.reachedEnd && xlObj.model.scrollSettings.scrollMode === ej.Spreadsheet.scrollMode.Infinite) {
                     count = ((args.scrollTop - sheet._scrollTop) / sheet.rowHeight);
                     if (sheet._bottomRow.idx + count >= sheet.rowCount - 1) {
@@ -249,8 +250,8 @@
                             }
 						    }
                         }
+	                    xlObj.XLScroll._refreshScroller(sheetIdx, "refresh", "vertical");
                     }
-                    xlObj.XLScroll._refreshScroller(sheetIdx, "refresh", "vertical");
                 }
                 if (xlScroll._isIntrnlScroll) {
                     this._scrollFreeze(xlScroll._scrollIdx);
@@ -337,8 +338,10 @@
                     this._showFreezeRow(rowIdx, idx);
                     this._refreshShape(rowIdx, idx, true);
                 }
-                if (xlObj.model.scrollSettings.allowVirtualScrolling)
-                    xlObj.refreshContent();
+                if (xlObj.model.scrollSettings.allowVirtualScrolling){
+                    xlObj._refreshContent(sheetIdx, true);
+                    !xlObj.XLScroll._isScrollToCell && $("#" + xlObj._id + "_content").scrollLeft(sheet._scrollLeft);
+                }
                 while (idx >= rowIdx) {
                     if(sheet._fHMergeRows.indexOf(idx) > -1){
                         sheet._fHMergeRows.splice(sheet._fHMergeRows.length - 1, 1);
@@ -348,6 +351,11 @@
                 }
                 sheet._ftopRowIdx = rowIdx;
                 sheet.paneTopLeftCell = xlObj.getAlphaRange(rowIdx, sheet._fleftColIdx);
+				if (xlObj.model.scrollSettings.allowScrolling) {
+					xlObj.XLScroll._getRowHeights(sheetIdx, 1, null, true);
+					xlObj.XLScroll._refreshScroller(sheetIdx, "refresh", "vertical");
+					xlObj.XLScroll._getFirstRow(sheetIdx);
+				}
              }
              else if (colIdx && sheet._fleftColIdx !== colIdx) {
                  if (sheet._fleftColIdx < colIdx) {
@@ -369,11 +377,6 @@
                  }
                  sheet._fleftColIdx = colIdx;
                  sheet.paneTopLeftCell = xlObj.getAlphaRange(sheet._ftopRowIdx, colIdx);
-             }
-            if (xlObj.model.scrollSettings.allowScrolling) {
-                xlObj.XLScroll._getRowHeights(sheetIdx, 1);
-                xlObj.XLScroll._refreshScroller(sheetIdx, "refresh", "vertical");
-                xlObj.XLScroll._getFirstRow(sheetIdx);
             }
             this._refreshSelection();
          },
@@ -573,8 +576,8 @@
                 while (i--)
                     xlObj._removeClass(cells[i], hide);
             }
-            hdrTable.width(diff);
-            cont.find(".e-table").width(diff);
+			hdrTable[0].style.width = diff + "px";
+            cont.find("table")[0].width = diff + "px";
         },
 
         _refreshSelection: function () {

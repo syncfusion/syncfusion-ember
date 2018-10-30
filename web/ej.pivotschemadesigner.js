@@ -36,8 +36,9 @@
                 showKpi: false,
                 showNamedSets: false,
             },
+            enableMemberEditorSorting:false,
             enableWrapper: false,
-			enableDragDrop: true,
+            enableDragDrop: true,
             serviceMethods: {
                 fetchMembers: "FetchMembers", nodeStateModified: "NodeStateModified",
                 nodeDropped: "NodeDropped", removeButton: "RemoveButton",
@@ -100,12 +101,13 @@
             this._nodeCheck = false;
             this._isFiltered = false;
             this._curFocus = { tree: null, node: null, tab: null, button: null };
-            this._index = { tree: 0, node: 0, tab: 0, button: 0};
+            this._index = { tree: 0, node: 0, tab: 0, button: 0 };
             this._selectedFieldName = "";
             this._selectedFieldCaption = "";
             this._selectedFieldAxis = "";
             this._isDropAction = false;
             this._ascdes = "";
+            this._sortType = "";
             this._pivotClientObj = null;
             this._memberPageSettings = {
                 currentMemeberPage: 1,
@@ -191,25 +193,25 @@
                     ((this.model.pivotControl != null && this.model.pivotControl.model.operationalMode == ej.Pivot.OperationalMode.ClientMode && this.model.pivotControl.model.analysisMode == ej.Pivot.AnalysisMode.Olap && this.model.layout == ej.PivotSchemaDesigner.Layouts.OneByOne) ? ej.buildTag("div.e-cubelists", ej.buildTag("input#cubeList.cubeList").attr("type", "text")[0].outerHTML)[0].outerHTML : "") +
                     ej.buildTag("div.parentSchemaFieldTree", ej.buildTag("div.e-schemaFieldTree#" + this._id + "_schemaFieldTree", {}, { "width": "100%" })[0].outerHTML)[0].outerHTML)[0].outerHTML;
 
-                    var filterAxis =
-                    ej.buildTag("div.e-axisTd1", ej.buildTag("div.e-pivotHeader", ej.buildTag("span.headerText", this._getLocalizedLabels("ReportFilter"), {})[0].outerHTML, {})[0].outerHTML +
-                    ej.buildTag("div.e-schemaFilter", this._createPivotButtons("filters", this.model.filters)).attr("aria-label", "report filter").attr("aria-dropeffect", "none").attr("aria-selected", "false")[0].outerHTML, {})[0].outerHTML;
+                var filterAxis =
+                ej.buildTag("div.e-axisTd1", ej.buildTag("div.e-pivotHeader", ej.buildTag("span.headerText", this._getLocalizedLabels("ReportFilter"), {})[0].outerHTML, {})[0].outerHTML +
+                ej.buildTag("div.e-schemaFilter", this._createPivotButtons("filters", this.model.filters)).attr("aria-label", "report filter").attr("aria-dropeffect", "none").attr("aria-selected", "false")[0].outerHTML, {})[0].outerHTML;
 
-                    var columnAxis =
-                    ej.buildTag("div.e-axisTd2", ej.buildTag("div.e-rPivotHeader", ej.buildTag("span.headerText", this._getLocalizedLabels("ColumnLabel"), {})[0].outerHTML, {})[0].outerHTML +
-                    ej.buildTag("div.e-schemaColumn", this._createPivotButtons("columns", this.model.pivotColumns) +
-                (this._dataModel != "XMLA" || this.model.pivotCalculations.length == 0 ? "" : (this.model.pivotCalculations[0]["measures"] != undefined && this.model.pivotCalculations[0]["measures"].length > 0 && this.model.pivotCalculations[0]["axis"] != undefined && this.model.pivotCalculations[0]["axis"] == "columns" ? this._createPivotButtons("columns", [{ fieldName: "Measures", fieldCaption: this._getLocalizedLabels("Measures") }]) : "")), {})[0].outerHTML, {}).attr("aria-label", "column label").attr("aria-dropeffect", "none").attr("aria-selected", "false")[0].outerHTML;
+                var columnAxis =
+                ej.buildTag("div.e-axisTd2", ej.buildTag("div.e-rPivotHeader", ej.buildTag("span.headerText", this._getLocalizedLabels("ColumnLabel"), {})[0].outerHTML, {})[0].outerHTML +
+                ej.buildTag("div.e-schemaColumn", this._createPivotButtons("columns", this.model.pivotColumns) +
+            (this._dataModel != "XMLA" || this.model.pivotCalculations.length == 0 ? "" : (this.model.pivotCalculations[0]["measures"] != undefined && this.model.pivotCalculations[0]["measures"].length > 0 && this.model.pivotCalculations[0]["axis"] != undefined && this.model.pivotCalculations[0]["axis"] == "columns" ? this._createPivotButtons("columns", [{ fieldName: "Measures", fieldCaption: this._getLocalizedLabels("Measures") }]) : "")), {})[0].outerHTML, {}).attr("aria-label", "column label").attr("aria-dropeffect", "none").attr("aria-selected", "false")[0].outerHTML;
 
-                    var rowAxis =
-                    ej.buildTag("div.e-axisTd1#axisTd", ej.buildTag("div.e-pivotHeader", ej.buildTag("span.headerText", this._getLocalizedLabels("RowLabel"), {})[0].outerHTML, {})[0].outerHTML +
-                    ej.buildTag("div.e-schemaRow", this._createPivotButtons("rows", this.model.pivotRows) +
-                (this._dataModel != "XMLA" || this.model.pivotCalculations.length == 0 ? "" : (this.model.pivotCalculations[0]["measures"] != undefined && this.model.pivotCalculations[0]["measures"].length > 0 && this.model.pivotCalculations[0]["axis"] != undefined && this.model.pivotCalculations[0]["axis"] == "rows" ? this._createPivotButtons("rows", [{ fieldName: "Measures", fieldCaption: this._getLocalizedLabels("Measures") }]) : "")), {})[0].outerHTML, {}).attr("aria-label", "row label").attr("aria-dropeffect", "none").attr("aria-selected", "false")[0].outerHTML;
+                var rowAxis =
+                ej.buildTag("div.e-axisTd1#axisTd", ej.buildTag("div.e-pivotHeader", ej.buildTag("span.headerText", this._getLocalizedLabels("RowLabel"), {})[0].outerHTML, {})[0].outerHTML +
+                ej.buildTag("div.e-schemaRow", this._createPivotButtons("rows", this.model.pivotRows) +
+            (this._dataModel != "XMLA" || this.model.pivotCalculations.length == 0 ? "" : (this.model.pivotCalculations[0]["measures"] != undefined && this.model.pivotCalculations[0]["measures"].length > 0 && this.model.pivotCalculations[0]["axis"] != undefined && this.model.pivotCalculations[0]["axis"] == "rows" ? this._createPivotButtons("rows", [{ fieldName: "Measures", fieldCaption: this._getLocalizedLabels("Measures") }]) : "")), {})[0].outerHTML, {}).attr("aria-label", "row label").attr("aria-dropeffect", "none").attr("aria-selected", "false")[0].outerHTML;
 
-                    var values =
-                    ej.buildTag("div.e-axisTd2#axisTd3", ej.buildTag("div.e-rPivotHeader", ej.buildTag("span.headerText", this._getLocalizedLabels("Values"), {})[0].outerHTML, {})[0].outerHTML +
-                ej.buildTag("div.e-schemaValue", this._createPivotButtons("values", this.model.pivotCalculations), {}).attr("aria-label", "values").attr("aria-dropeffect", "none").attr("aria-selected", "false")[0].outerHTML, {})[0].outerHTML;
+                var values =
+                ej.buildTag("div.e-axisTd2#axisTd3", ej.buildTag("div.e-rPivotHeader", ej.buildTag("span.headerText", this._getLocalizedLabels("Values"), {})[0].outerHTML, {})[0].outerHTML +
+            ej.buildTag("div.e-schemaValue", this._createPivotButtons("values", this.model.pivotCalculations), {}).attr("aria-label", "values").attr("aria-dropeffect", "none").attr("aria-selected", "false")[0].outerHTML, {})[0].outerHTML;
 
-                    var axisTable = ej.buildTag("div.e-axisTable", (this.model.layout == "onebyone" ? (columnAxis + rowAxis + filterAxis + values) : (ej.buildTag("div", filterAxis + columnAxis, {})[0].outerHTML + ej.buildTag("div", rowAxis + values, {})[0].outerHTML)), (this.model.enableRTL && this.model.layout == "onebyone" ? { "position": "relative", "left":this._pivotClientObj.model.enableSplitter?"": "7px" } : {}))[0].outerHTML;
+                var axisTable = ej.buildTag("div.e-axisTable", (this.model.layout == "onebyone" ? (columnAxis + rowAxis + filterAxis + values) : (ej.buildTag("div", filterAxis + columnAxis, {})[0].outerHTML + ej.buildTag("div", rowAxis + values, {})[0].outerHTML)), (this.model.enableRTL && this.model.layout == "onebyone" ? { "position": "relative", "left": this._pivotClientObj.model.enableSplitter ? "" : "7px" } : {}))[0].outerHTML;
 
                 var deferUpdate = ej.buildTag("div.deferUpdateLayout", ej.buildTag("input.chkDeferUpdate", "", {}).attr("type", "checkbox")[0].outerHTML + ej.buildTag("button.btnDeferUpdate", this._getLocalizedLabels("Update"), {}).attr("type", "button")[0].outerHTML)[0].outerHTML;
                 var htmlTag;
@@ -225,9 +227,9 @@
                 if (this.element.parents(".e-pivotclient").length > 0 && !this._pivotClientObj.model.enableSplitter) {
                     if (this._pivotClientObj.model.isResponsive)
                         this.element.find(".e-fieldTable").addClass("addedFieldTable");
-                    if(!this.model.enableRTL)
-                    this.element.find(".e-fieldTable").addClass("e-fieldDisSplitTable");
-                 }
+                    if (!this.model.enableRTL)
+                        this.element.find(".e-fieldTable").addClass("e-fieldDisSplitTable");
+                }
                 if (this.element.parents(".e-pivotclient").length > 0 && this._pivotClientObj.model.enableSplitter) {
                     this.element.find(".e-fieldTable").addClass("e-fieldEnSplitTable");
                 }
@@ -237,7 +239,7 @@
                     if (this.element.parents(".e-pivotclient").length > 0 && this._pivotClientObj.model.enableSplitter) {
                         this.element.find(".e-axisTable").addClass("e-clientAxisSplitterTable");
                     }
-                                
+
                 }
                 if (this.model.pivotControl != null) {
                     if (this.model.pivotControl.model.operationalMode == ej.Pivot.OperationalMode.ClientMode || this.model.pivotControl.element.hasClass("e-pivotclient"))
@@ -255,55 +257,55 @@
                 else {
                     this._setFilters(report.Filters);
                     this._refreshPivotButtons();
-                if (this.model.pivotControl.model.operationalMode == ej.PivotGrid.OperationalMode.ServerMode)
-                    if (this.element.find(".deferUpdateLayout").length == 0)
-                        this.element.append(ej.buildTag("div.deferUpdateLayout", ej.buildTag("input.chkDeferUpdate", "", {}).attr("type", "checkbox")[0].outerHTML + ej.buildTag("button.btnDeferUpdate", this._getLocalizedLabels("Update"), {}).attr("type", "button")[0].outerHTML)[0].outerHTML);
+                    if (this.model.pivotControl.model.operationalMode == ej.PivotGrid.OperationalMode.ServerMode)
+                        if (this.element.find(".deferUpdateLayout").length == 0)
+                            this.element.append(ej.buildTag("div.deferUpdateLayout", ej.buildTag("input.chkDeferUpdate", "", {}).attr("type", "checkbox")[0].outerHTML + ej.buildTag("button.btnDeferUpdate", this._getLocalizedLabels("Update"), {}).attr("type", "button")[0].outerHTML)[0].outerHTML);
                     if (this.model.pivotControl != null) {
-                if (this.model.enableDragDrop) {
-                    this.element.find(".e-pivotButton .e-pvtBtn").ejButton({ size: "normal", type: ej.ButtonType.Button, enableRTL: this.model.enableRTL }).ejDraggable({
-						handle: 'button', clone: true,
-						cursorAt: { left: -5, top: -5 },
-						dragStart: ej.proxy(function (args) {
-							this._isDragging = true;
-						}, this),
+                        if (this.model.enableDragDrop) {
+                            this.element.find(".e-pivotButton .e-pvtBtn").ejButton({ size: "normal", type: ej.ButtonType.Button, enableRTL: this.model.enableRTL }).ejDraggable({
+                                handle: 'button', clone: true,
+                                cursorAt: { left: -5, top: -5 },
+                                dragStart: ej.proxy(function (args) {
+                                    this._isDragging = true;
+                                }, this),
                                 dragStop: ej.proxy(this.model.pivotControl.model.operationalMode == ej.Pivot.OperationalMode.ServerMode ? this._pvtBtnDropped : this._clientOnPvtBtnDropped, this),
-						helper: ej.proxy(function (event, ui) {
-						    $(event.element).addClass("dragHover");
-							if (event.sender.target.className.indexOf("e-btn") > -1) {
-								var btnClone = $(event.sender.target).clone().attr("id",this._id+"_dragClone").appendTo('body');
-								$("#"+this._id + "_dragClone").removeAttr("style").height($(event.sender.target).height());
-								return btnClone;            
-							}
-							else
-								return false;
-						}, this)
-					});
+                                helper: ej.proxy(function (event, ui) {
+                                    $(event.element).addClass("dragHover");
+                                    if (event.sender.target.className.indexOf("e-btn") > -1) {
+                                        var btnClone = $(event.sender.target).clone().attr("id", this._id + "_dragClone").appendTo('body');
+                                        $("#" + this._id + "_dragClone").removeAttr("style").height($(event.sender.target).height());
+                                        return btnClone;
+                                    }
+                                    else
+                                        return false;
+                                }, this)
+                            });
                         }
                     }
                 }
                 this._reSizeHandler();
             }
-			
-			if (this.model.enableDragDrop && this.model.pivotControl) {
-			    this.element.find(".e-pivotButton .e-pvtBtn").ejButton({ size: "normal", type: ej.ButtonType.Button, enableRTL: this.model.enableRTL }).ejDraggable({
-					handle: 'button', clone: true,
-					cursorAt: { left: -5, top: -5 },
-					dragStart: ej.proxy(function (args) {
-						this._isDragging = true;
-					}, this),
+
+            if (this.model.enableDragDrop && this.model.pivotControl) {
+                this.element.find(".e-pivotButton .e-pvtBtn").ejButton({ size: "normal", type: ej.ButtonType.Button, enableRTL: this.model.enableRTL }).ejDraggable({
+                    handle: 'button', clone: true,
+                    cursorAt: { left: -5, top: -5 },
+                    dragStart: ej.proxy(function (args) {
+                        this._isDragging = true;
+                    }, this),
                     dragStop: ej.proxy(this.model.pivotControl.model.operationalMode == ej.Pivot.OperationalMode.ServerMode ? this._pvtBtnDropped : this._clientOnPvtBtnDropped, this),
-					helper: ej.proxy(function (event, ui) {
-					    $(event.element).addClass("dragHover");
-						if (event.sender.target.className.indexOf("e-btn") > -1) {
-							var btnClone = $(event.sender.target).clone().attr("id",this._id+"_dragClone").appendTo('body');
-                            $("#"+this._id + "_dragClone").removeAttr("style").height($(event.sender.target).height());
-                            return btnClone;            
+                    helper: ej.proxy(function (event, ui) {
+                        $(event.element).addClass("dragHover");
+                        if (event.sender.target.className.indexOf("e-btn") > -1) {
+                            var btnClone = $(event.sender.target).clone().attr("id", this._id + "_dragClone").appendTo('body');
+                            $("#" + this._id + "_dragClone").removeAttr("style").height($(event.sender.target).height());
+                            return btnClone;
                         }
-						else
-							return false;
-					}, this)
-				});
-			}
+                        else
+                            return false;
+                    }, this)
+                });
+            }
             this.element.find(".e-pivotButton .filterBtn").ejButton({
                 size: "normal",
                 enableRTL: this.model.enableRTL,
@@ -311,7 +313,7 @@
                 contentType: "imageonly",
                 prefixIcon: "filter"
             });
-            if (this.model.pivotControl && this.model.pivotControl.model.operationalMode==ej.Pivot.OperationalMode.ClientMode && this.model.pivotControl.model.analysisMode==ej.Pivot.AnalysisMode.Olap&& this.model.layout==ej.PivotSchemaDesigner.Layouts.OneByOne) {
+            if (this.model.pivotControl && this.model.pivotControl.model.operationalMode == ej.Pivot.OperationalMode.ClientMode && this.model.pivotControl.model.analysisMode == ej.Pivot.AnalysisMode.Olap && this.model.layout == ej.PivotSchemaDesigner.Layouts.OneByOne) {
                 var parms = { url: this.model.pivotControl.model.dataSource.data, cube: this.model.pivotControl.model.dataSource.cube, catalog: this.model.pivotControl.model.dataSource.catalog, request: "MDSCHEMA_CUBES" };
                 ej.Pivot._getTreeData(parms, ej.Pivot.getCubeList, { pvtCtrldObj: this, action: "loadcubelist", hierarchy: this._selectedField });
                 this.element.find(".cubeList").ejDropDownList({
@@ -319,7 +321,7 @@
                     enableRTL: this.model.enableRTL,
                     fields: { text: "name", value: "name" },
                     width: "100%",
-                    height:"27px",
+                    height: "27px",
                     change: ej.proxy(this._cubeChanged, this),
                     create: function () { $(this.wrapper.find('.e-input')).focus(function () { $(this).blur(); }) }
                 });
@@ -360,7 +362,7 @@
             if (this.model.enableRTL)
                 this.element.addClass("e-rtl");
             this._createContextMenu();
-            if(this._waitingPopup) this._waitingPopup.hide();
+            if (this._waitingPopup) this._waitingPopup.hide();
             this._setPivotBtnWidth();
             if (this.element.parents(".e-pivotclient").length == 0 && this.model.pivotControl != null && this.model.pivotControl.model.operationalMode == ej.PivotGrid.OperationalMode.ClientMode)
                 this._setFilterIcons();
@@ -406,7 +408,7 @@
             if (this.model.pivotControl.model.dataSource.cube != args.selectedValue) {
                 var obj = this, index = -1, dIndex = 0, data, dList = [];
                 var reportList = this.model.pivotControl.element.find('#reportList').data("ejDropDownList");
-                var curRep = { "CubeName": this.model.pivotControl.model.dataSource.cube, "CurrentReport": jQuery.extend(true, {}, this.model.pivotControl.model.dataSource), "Reports": JSON.parse(JSON.stringify(this.model.pivotControl._clientReportCollection)), "ReportIndex": reportList.selectedIndexValue, "ReportList": JSON.parse(JSON.stringify(reportList .model.dataSource))};
+                var curRep = { "CubeName": this.model.pivotControl.model.dataSource.cube, "CurrentReport": jQuery.extend(true, {}, this.model.pivotControl.model.dataSource), "Reports": JSON.parse(JSON.stringify(this.model.pivotControl._clientReportCollection)), "ReportIndex": reportList.selectedIndexValue, "ReportList": JSON.parse(JSON.stringify(reportList.model.dataSource)), "calculatedMembers": this.model.pivotControl.model.calculatedMembers };
 
                 $.map(this._repCollection, function (value, index) {
                     if (value.CubeName == obj.model.pivotControl.model.dataSource.cube)
@@ -422,14 +424,16 @@
                 this.model.pivotControl.model.dataSource.reportName = "Default";
                 this.model.pivotControl.model.dataSource.rows = this.model.pivotControl.model.dataSource.columns = this.model.pivotControl.model.dataSource.values = this.model.pivotControl.model.dataSource.filters = [];
                 this.model.pivotControl._clientReportCollection = [];
+                obj.model.pivotControl.model.calculatedMembers = [];
                 $.map(this._repCollection, function (value, index) {
                     if (value.CubeName == obj.model.pivotControl.model.dataSource.cube) {
                         obj.model.pivotControl.model.dataSource = value.CurrentReport;
+                        obj.model.pivotControl.model.calculatedMembers = value.calculatedMembers;
                         dList = value.Reports;
                         dIndex = value.ReportIndex;
                         data = value.ReportList;
                     }
-                });            
+                });
                 delete this.model.pivotControl._fieldData;
                 this.element.find(".e-pivotButton").remove();
                 this.element.find(".e-schemaFieldTree").empty();
@@ -437,7 +441,7 @@
                 this._pivotClientObj.refreshControl();
                 if (dList.length > 0)
                     this.model.pivotControl._clientReportCollection = dList;
-                else{
+                else {
                     data = [{ name: "Default" }];
                     this.model.pivotControl._clientReportCollection.push(this.model.pivotControl.model.dataSource);
                 }
@@ -480,8 +484,8 @@
         },
 
         _onContextOpen: function (args) {
-		if (!$(args.target).hasClass("e-removeClientPivotBtn"))
-            ej.Pivot._contextMenuOpen(args, this);
+            if (!$(args.target).hasClass("e-removeClientPivotBtn"))
+                ej.Pivot._contextMenuOpen(args, this);
         },
 
         _contextClick: function (args) {
@@ -497,14 +501,28 @@
             else
                 this.model.pivotControl._waitingPopup.show();
             var droppedPosition = args.text == this._getLocalizedLabels("AddToColumn") ? this.element.find(".e-schemaColumn") : args.text == this._getLocalizedLabels("AddToRow") ? this.element.find(".e-schemaRow") : args.text == this._getLocalizedLabels("AddToValues") ? this.element.find(".e-schemaValue") : args.text == this._getLocalizedLabels("AddToFilter") ? this.element.find(".e-schemaFilter") : "";
-            var params = { element: this._selectedMember, target: droppedPosition[0], cancel: false };
-            if (this.model.pivotControl.model.operationalMode == ej.Pivot.OperationalMode.ServerMode)
-                this._pvtBtnDropped(params);
+            if (droppedPosition != "") {
+                var params = { element: this._selectedMember, target: droppedPosition[0], cancel: false };
+                if (this.model.pivotControl.model.operationalMode == ej.Pivot.OperationalMode.ServerMode)
+                    this._pvtBtnDropped(params);
+                else
+                    this._clientOnPvtBtnDropped(params);
+            }
             else
-                this._clientOnPvtBtnDropped(params);
+                this.model.pivotControl._waitingPopup.hide();
         },
 
         _createTreeView: function (args, dataSourceInfo) {
+            if (this.model.pivotControl.model.operationalMode == ej.PivotGrid.OperationalMode.ClientMode && this.model.pivotControl.model.analysisMode == ej.Pivot.AnalysisMode.Olap && this.model.pivotControl != null && this.model.pivotControl.element.hasClass("e-pivotclient") && this.model.pivotControl.model.toolbarIconSettings.enableCalculatedMember) {
+                var calcTreeItems = [{ id: "_0", name: "Calculated Members", hasChildren: true, spriteCssClass: "e-calcMemberGroupCDB e-icon", tag: "" }];
+                if (dataSourceInfo[0].id != "_0") {
+                    dataSourceInfo.splice(0, 0, calcTreeItems[0]);
+                }
+                $.map(this.model.pivotControl.model.calculatedMembers, function (args) {
+                    var tag = !ej.isNullOrUndefined(args.tag) ? args.tag : ((!ej.isNullOrUndefined(args.memberType) && args.memberType.toLowerCase().indexOf("measure") > -1) ? "[measures].[" + args.caption + "]" : args.caption);
+                    dataSourceInfo.push({ "id": args.caption, "pid": "_0", "name": args.caption, "hasChildren": false, "spriteCssClass": "e-calcMemberCDB e-icon", "tag": tag, "expression": args.expression, "formatString": args.formatString, "nodeType": 0, "hierarchyUniqueName": args.memberType == "Measure" ? "" : !ej.isNullOrUndefined(args.hierarchyUniqueName) ? args.hierarchyUniqueName : "" });
+                });
+            }
             this.element.find(".e-schemaFieldTree").ejTreeView({
                 showCheckbox: this.model.layout == "onebyone" ? false : true,
                 fields: { id: "id", parentId: "pid", text: (this.model.pivotControl.model.operationalMode == ej.PivotGrid.OperationalMode.ServerMode || this.model.pivotControl.model.analysisMode == ej.Pivot.AnalysisMode.Olap) ? "name" : "caption", isChecked: "isSelected", spriteCssClass: "spriteCssClass", dataSource: dataSourceInfo, parentUniqueName: "parentUniqueName" },
@@ -523,7 +541,7 @@
             });
             var treeViewElements = [], isMon = this.model.pivotControl.model.dataSource.providerName == ej.olap.Providers.Mondrian;
             this._tableTreeObj = this.element.find(".e-schemaFieldTree").data("ejTreeView");
-            this._tableTreeObj.element.find(".e-ul").css({"width":"100%","height":"100%"});
+            this._tableTreeObj.element.find(".e-ul").css({ "width": "100%", "height": "100%" });
             this._tableTreeObj.element.find(".e-measureGroupCDB").parent().siblings(".e-chkbox-wrap").remove();
             this._tableTreeObj.element.find(".e-kpiCDB, .e-kpiRootCDB, .e-kpiGoalCDB, .e-kpiStatusCDB, .e-kpiTrendCDB, .e-kpiValueCDB").parents().siblings(".e-chkbox-wrap").remove();
             this._tableTreeObj.element.find(".e-folderCDB").parent().siblings(".e-chkbox-wrap").remove();
@@ -534,19 +552,19 @@
                 else
                     this._tableTreeObj.element.find(".e-measureGroupCDB").parents("li").append(ej.buildTag("span.e-elementSeparator")[0].outerHTML);
                 this._tableTreeObj.element.find(".e-kpiRootCDB, .e-dimensionCDB").parents("li").append(ej.buildTag("span.e-elementSeparator")[0].outerHTML);
-			}
-			if (this.model.layout == ej.PivotSchemaDesigner.Layouts.OneByOne) {
-			    treeViewElements = this._tableTreeObj.element;
-			    $.map(dataSourceInfo, function (obj, index) { if (obj["defaultHierarchy"]) $(treeViewElements).find("li[id='" + obj.tag + "']").attr("data-defaultHierarchy", obj["defaultHierarchy"]); });			    
-			}
-			treeViewElements = this._tableTreeObj.element.find("li");
+            }
+            if (this.model.layout == ej.PivotSchemaDesigner.Layouts.OneByOne) {
+                treeViewElements = this._tableTreeObj.element;
+                $.map(dataSourceInfo, function (obj, index) { if (obj["defaultHierarchy"]) $(treeViewElements).find("li[id='" + obj.tag + "']").attr("data-defaultHierarchy", obj["defaultHierarchy"]); });
+            }
+            treeViewElements = this._tableTreeObj.element.find("li");
             for (var i = 0; i < treeViewElements.length; i++) {
                 var tagValue = this.model.pivotControl.model.operationalMode == ej.PivotGrid.OperationalMode.ClientMode ? (isMon ? $(treeViewElements[i]).attr("id").split("~#^")[0] : $(treeViewElements[i]).attr("id")) : this.model.pivotTableFields[i].tag;
                 treeViewElements[i].setAttribute("data-tag", tagValue);
                 if (!ej.isNullOrUndefined(dataSourceInfo[i].parentUniqueName) && dataSourceInfo[i].parentUniqueName != "")
                     treeViewElements[i].setAttribute("data-parentUniqueName", !ej.isNullOrUndefined(dataSourceInfo[i].parentUniqueName) ? dataSourceInfo[i].parentUniqueName.split(">>||>>")[1] : "");
                 if (this.model.pivotControl.model.operationalMode == ej.PivotGrid.OperationalMode.ClientMode && !ej.isNullOrUndefined(treeViewElements[i].id))
-                      treeViewElements[i].id = $(treeViewElements[i]).attr("id").replace(/ /g, "_");
+                    treeViewElements[i].id = $(treeViewElements[i]).attr("id").replace(/ /g, "_");
                 var checkedBoxNode = $(treeViewElements[i]).find(".e-chkbox-wrap");
                 if (this.element.find(".e-pvtBtn[data-fieldName=KPI]").length > 0) {
                     if ($($(treeViewElements[i])).find(".e-folderCDB").length > 0 && $(treeViewElements[i]).attr("data-tag") == "KPI") {
@@ -556,10 +574,10 @@
                 }
                 if ($(checkedBoxNode[0]).attr("aria-checked") == "true" && $($(treeViewElements[i])).find(".e-folderCDB").length <= 0 && $(treeViewElements[i]).attr("data-tag").toLowerCase().indexOf("[measures]") == -1) {
                     if (this.model.pivotControl._dataModel == "XMLA") {
-                        if ($(treeViewElements[i]).parents("li:eq(0)").length>0 && $(treeViewElements[i]).parents("li:eq(0)").attr("data-tag").toLowerCase().indexOf("[measures]") == -1) {
+                        if ($(treeViewElements[i]).parents("li:eq(0)").length > 0 && $(treeViewElements[i]).parents("li:eq(0)").attr("data-tag").toLowerCase().indexOf("[measures]") == -1) {
                             var currentItem = (ej.Pivot.getReportItemByFieldName(($(treeViewElements[i]).attr("data-tag")), this.model.pivotControl.model.dataSource, this._dataModel)).item;
                             if (!ej.isNullOrUndefined(currentItem) > 0 && (currentItem["isNamedSets"] == undefined || !currentItem["isNamedSets"])) {
-                                var dropSpan = ej.buildTag("span.e-icon").css("display", "inline-block").addClass("treeDrop").attr("role","button").attr("aria-label","filter button")[0].outerHTML;
+                                var dropSpan = ej.buildTag("span.e-icon").css("display", "inline-block").addClass("treeDrop").attr("role", "button").attr("aria-label", "filter button")[0].outerHTML;
                                 $($(treeViewElements[i]).find(".e-text")[0]).after(dropSpan);
                             }
                         }
@@ -584,10 +602,17 @@
             if (this._tableTreeObj.element.find(".e-plus").length == 0) {
                 this._tableTreeObj.element.find(".e-item").css("padding", "0px");
             }
+            if (this.model.pivotControl != null && this.model.pivotControl.element.hasClass("e-pivotclient") && this.model.pivotControl.model.operationalMode == ej.PivotGrid.OperationalMode.ClientMode && this.model.pivotControl.model.analysisMode == ej.Pivot.AnalysisMode.Olap) {
+                ej.Pivot._refreshFieldList(this);
+            }
             this.element.find(".e-schemaFilter, .e-schemaColumn, .e-schemaRow, .e-schemaValue").ejDroppable({
             });
             if (this.model.pivotControl != null) {
-                var contextTag = ej.buildTag("ul.pivotTreeContext#pivotTreeContext", ej.buildTag("li", ej.buildTag("a", this._getLocalizedLabels("AddToFilter"))[0].outerHTML)[0].outerHTML + ej.buildTag("li", ej.buildTag("a", this._getLocalizedLabels("AddToRow"))[0].outerHTML)[0].outerHTML + ej.buildTag("li", ej.buildTag("a", this._getLocalizedLabels("AddToColumn"))[0].outerHTML)[0].outerHTML + ej.buildTag("li", ej.buildTag("a", this._getLocalizedLabels("AddToValues"))[0].outerHTML)[0].outerHTML)[0].outerHTML;
+                var contextTag = ej.buildTag("ul.pivotTreeContext#pivotTreeContext",
+                    ej.buildTag("li", ej.buildTag("a", this._getLocalizedLabels("AddToFilter"))[0].outerHTML)[0].outerHTML + ej.buildTag("li", ej.buildTag("a", this._getLocalizedLabels("AddToRow"))[0].outerHTML)[0].outerHTML + ej.buildTag("li", ej.buildTag("a", this._getLocalizedLabels("AddToColumn"))[0].outerHTML)[0].outerHTML +
+                    ej.buildTag("li", ej.buildTag("a", this._getLocalizedLabels("AddToValues"))[0].outerHTML)[0].outerHTML +
+                    ej.buildTag("li#e-remove", ej.buildTag("a", this._getLocalizedLabels("Remove"))[0].outerHTML)[0].outerHTML
+                    )[0].outerHTML;
                 $(this.element).append(contextTag);
                 $("#pivotTreeContext").ejMenu({
                     menuType: ej.MenuType.ContextMenu,
@@ -599,7 +624,7 @@
                     close: ej.proxy(ej.Pivot.closePreventPanel, this)
                 });
             }
-            
+
             if (this.model.pivotControl != null) {
                 var deferCheck = false;
                 if (this.model.pivotControl.model.enableDeferUpdate)
@@ -624,7 +649,7 @@
         _nodeDraged: function (args) {
             var controlObj = this.model.pivotControl;
             var minusIcon = (!(ej.isNullOrUndefined(controlObj)) && (controlObj.model.operationalMode == "clientmode" && (!(args.target.hasClass("e-schemaValue")) && !(args.target.parents().hasClass("e-schemaValue")))) || (controlObj.model.operationalMode == "servermode" && !(args.target.hasClass("e-schemaRow") || args.target.hasClass("e-schemaColumn")) && !(args.target.parents().hasClass("e-schemaRow") || args.target.parents().hasClass("e-schemaColumn")))) && ($(".pivotTreeViewDragedNode .e-dropedStatus").hasClass("e-plus")) && (args.draggedElementData.id.indexOf("Measures") >= 0);
-             if (minusIcon) {
+            if (minusIcon) {
                 document.body.style.cursor = 'not-allowed';
                 $(".pivotTreeViewDragedNode .e-dropedStatus").removeClass().addClass("e-dropedStatus e-icon e-minus");
             }
@@ -658,13 +683,11 @@
                         break;
                     }
                     case "olap": {
-                        debugger
                         this.model.olap = ($.extend({}, this.model.olap, options[key]));
                         this._load();
                         break;
                     }
                     case "enableRTL": {
-                        debugger
                         this.model.enableRTL = options[key];
                         this._load();
                         break;
@@ -685,7 +708,7 @@
 
         _wireEvents: function () {
             this._on($(document), 'keydown', this._keyDownPress);
-            this._on($(document), 'keyup', ej.proxy(function(e){
+            this._on($(document), 'keyup', ej.proxy(function (e) {
                 if (e.keyCode === 93)
                     e.preventDefault();
             }));
@@ -696,7 +719,7 @@
                         $(evt.target).find("button").removeClass("e-hoverBtn").addClass("e-hoverBtn");
                 }, this));
                 this._on(this.element, "mouseleave", ".e-pivotButton .pvtBtnDiv", ej.proxy(function (evt) {
-                        $(evt.target).find("button").length > 0 ? $(evt.target).find("button").removeClass("e-hoverBtn") : $(evt.target).removeClass("e-hoverBtn");
+                    $(evt.target).find("button").length > 0 ? $(evt.target).find("button").removeClass("e-hoverBtn") : $(evt.target).removeClass("e-hoverBtn");
                 }, this));
                 this._on(this.element, "mouseover", ".filter,.sorting,.e-removeBtn", ej.proxy(function (evt) {
                     if (!this._isDragging)
@@ -707,10 +730,10 @@
                 }, this));
             }
             this._on(this.element, "mouseover", ".pvtBtnDiv .e-pvtBtn", ej.proxy(function (evt) {
-                    if (this._isDragging) {
-                        this.element.find(".e-dropIndicator").removeClass("e-dropIndicatorHover");
-                        $(evt.target).parent().siblings(".e-dropIndicator").addClass("e-dropIndicatorHover");
-                    }
+                if (this._isDragging) {
+                    this.element.find(".e-dropIndicator").removeClass("e-dropIndicatorHover");
+                    $(evt.target).parent().siblings(".e-dropIndicator").addClass("e-dropIndicatorHover");
+                }
             }, this));
             this._on(this.element, "click", "#preventDiv", ej.proxy(function (evt) {
                 if (this.element.find(".e-dialog.e-advancedFilterDlg:visible").length > 0) {
@@ -720,12 +743,12 @@
             }, this));
 
             this._on(this.element, "mouseleave", ".e-pivotButton", ej.proxy(function (evt) { if (this._isDragging) $(evt.target).siblings(".e-dropIndicator").removeClass("e-dropIndicatorHover"); }, this));
-            this._on(this.element, "mouseover", ".e-pivotButton", ej.proxy(function (evt) { $(evt.target).attr("title", evt.target.textContent);}, this));
+            this._on(this.element, "mouseover", ".e-pivotButton", ej.proxy(function (evt) { $(evt.target).attr("title", evt.target.textContent); }, this));
             this._tableTreeObj.element.find("li").mouseover(ej.proxy(function (evt) {
                 var margin;
                 if ($(evt.target).siblings("span.e-icon.filter:eq(0)").length > 0 || $(evt.target).find("span.e-icon.filter:eq(0)").length > 0 || $(evt.target).parentsUntil("li").find("span.e-icon.filter:eq(0)").length > 0) {
                     margin = "-31px";
-                    this.element.find("span.e-icon.filter").attr("role","button").attr("aria-label","filtered");
+                    this.element.find("span.e-icon.filter").attr("role", "button").attr("aria-label", "filtered");
                 }
                 else {
                     margin = "-20px";
@@ -733,14 +756,14 @@
                 }
                 var left = ($(evt.target).siblings("span.e-icon.filter:eq(0)").length > 0 || $(evt.target).find("span.e-icon.filter:eq(0)").length > 0 || $(evt.target).parentsUntil("li").find("span.e-icon.filter:eq(0)").length > 0) ? 10 : 5;
                 if (this.model.enableRTL) {
-                   if (this.model.pivotControl.model.analysisMode != ej.Pivot.AnalysisMode.Pivot)
+                    if (this.model.pivotControl.model.analysisMode != ej.Pivot.AnalysisMode.Pivot)
                         $(evt.target).siblings("span.e-icon.treeDrop:eq(0)").length > 0 ? $(evt.target).siblings("span.e-icon.treeDrop:eq(0)").css({ display: "inline-block", "position": "absolute", "top": ($(evt.target).hasClass("filter") ? $(evt.target).position().top - 22 : $(evt.target).position().top + 2), "left": ($(evt.target).hasClass("filter") ? ($(evt.target).position().left + (6 - left)) : (($(evt.target).attr("role") == "" ? $(evt.target).position().left : -2) + (5 - left))) }) : $(evt.target).find("span.e-icon.treeDrop:eq(0)").length > 0 ? $(evt.target).find("span.e-icon.treeDrop:eq(0)").css({ "display": "inline-block", "position": "absolute" }) : $(evt.target).parentsUntil("li").find("span.e-icon.treeDrop:eq(0)").css({ "display": "inline-block", "position": "absolute" });
                     else
                         $(evt.target).siblings("span.e-icon.treeDrop:eq(0)").length > 0 ? $(evt.target).siblings("span.e-icon.treeDrop:eq(0)").css({ display: "inline-block", "position": "absolute", "top": ($(evt.target).hasClass("filter") ? $(evt.target).position().top - 22 : $(evt.target).position().top + 2), "left": ($(evt.target).hasClass("filter") ? $(evt.target).position().left + (7 - left) : $(evt.target).position().left + (10 - left)) }) : $(evt.target).find("span.e-icon.treeDrop:eq(0)").length > 0 ? $(evt.target).find("span.e-icon.treeDrop:eq(0)").css({ "display": "inline-block", "position": "absolute" }) : $(evt.target).parentsUntil("li").find("span.e-icon.treeDrop:eq(0)").css({ "display": "inline-block", "position": "absolute" });
                 }
                 else
-                    $(evt.target).siblings("span.e-icon.treeDrop:eq(0)").length > 0 ? $(evt.target).siblings("span.e-icon.treeDrop:eq(0)").css({ display: "inline-block", "position": "static", "margin-left": margin}) : $(evt.target).find("span.e-icon.treeDrop:eq(0)").length > 0 ? $(evt.target).find("span.e-icon.treeDrop:eq(0)").css({ "display": "inline-block", "position": "static" }) : $(evt.target).parentsUntil("li").find("span.e-icon.treeDrop:eq(0)").css({ "display": "inline-block", "position": "static" });
-                if ($(evt.target).parent().find(".e-measureGroupCDB, .e-folderCDB",(this.model.layout==ej.PivotSchemaDesigner.Layouts.OneByOne?"":".e-dimensionCDB") ).length > 0)
+                    $(evt.target).siblings("span.e-icon.treeDrop:eq(0)").length > 0 ? $(evt.target).siblings("span.e-icon.treeDrop:eq(0)").css({ display: "inline-block", "position": "static", "margin-left": margin }) : $(evt.target).find("span.e-icon.treeDrop:eq(0)").length > 0 ? $(evt.target).find("span.e-icon.treeDrop:eq(0)").css({ "display": "inline-block", "position": "static" }) : $(evt.target).parentsUntil("li").find("span.e-icon.treeDrop:eq(0)").css({ "display": "inline-block", "position": "static" });
+                if ($(evt.target).parent().find(".e-measureGroupCDB, .e-folderCDB", (this.model.layout == ej.PivotSchemaDesigner.Layouts.OneByOne ? "" : ".e-dimensionCDB")).length > 0)
                     $(evt.target).css("cursor", "default");
             }, this))
           .mouseout(ej.proxy(function (evt) {
@@ -752,7 +775,7 @@
             this._on(this.element, "click", ".e-pvtBtn", ej.proxy(this._filterBtnClickCommon, this));
 
             this._on(this._tableTreeObj.element, "click", ".treeDrop", ej.proxy(this._filterBtnClickCommon, this));
-
+            this._on(this.element, "click", ".e-memberAscendingIcon, .e-memberDescendingIcon", ej.proxy(ej.Pivot._memberSortBtnClick, this));
             this._on(this.element, "click", ".e-removeClientPivotBtn", ej.proxy(this._removeBtnClick, this));
             this._on(this.element, "click", ".e-removePivotBtn", ej.proxy(this._removeBtnClick, this));
 
@@ -763,15 +786,15 @@
             this._on(this.element, "click", ".e-searchEditorTree", ej.proxy(function (evt) {
                 ej.Pivot._searchEditorTreeNodes(evt, this);
             }, this));
-           if (!(this.element.parents(".e-pivotclient").length > 0))
-             $(window).on('resize', $.proxy(this._reSizeHandler, this));
+            if (!(this.element.parents(".e-pivotclient").length > 0))
+                $(window).on('resize', $.proxy(this._reSizeHandler, this));
         },
-        
+
         _navigateTreeData: function (args) {
-                ej.Pivot.editorTreeNavigatee(args, this);
+            ej.Pivot.editorTreeNavigatee(args, this);
         },
         _filterBtnClickCommon: function (args) {
-            if(($(args.target).hasClass("e-pvtBtn") && (this.element.parents(".e-pivotclient").length > 0)) || $(args.target).hasClass("treeDrop") || $(args.target).hasClass("filter")){
+            if (($(args.target).hasClass("e-pvtBtn") && (this.element.parents(".e-pivotclient").length > 0)) || $(args.target).hasClass("treeDrop") || $(args.target).hasClass("filter")) {
                 if (this.model.pivotControl.model.operationalMode == ej.Pivot.OperationalMode.ClientMode)
                     this._clientOnFilterBtnClick(args);
                 else {
@@ -783,7 +806,7 @@
                     else
                         this._filterBtnClick(args);
                 }
-			}
+            }
         },
 
         _unWireEvents: function () {
@@ -795,6 +818,7 @@
             this._off(this.element, "mouseover", ".e-pivotButton");
             this._off(this.element, "mouseover", ".e-pivotButton .e-pvtBtn");
             this._off(this.element, "mouseleave", ".e-pivotButton");
+            this._off(this.element, "click", ".e-memberAscendingIcon, .e-memberDescendingIcon");
             this._off(this.element, "click", ".sorting");
             this._off(this.element, "click", ".filter");
             this._off(this.element, "click", ".e-removeBtn,.e-removeClientPivotBtn");
@@ -811,7 +835,7 @@
             this._off(this.element, "click", ".e-nextPage, .e-prevPage, .e-firstPage, .e-lastPage");
             this._off(this.element, "click", ".e-searchEditorTree");
         },
-        _keyDownPress: function (e) {           
+        _keyDownPress: function (e) {
             if ((e.keyCode === 40 || e.which === 38) && ((!ej.isNullOrUndefined(this.model.pivotControl._curFocus.tab) && this.model.pivotControl._curFocus.tab.hasClass("e-text")) || $("#" + this._id).find(".e-schemaFieldList .e-text:visible").hasClass("e-hoverCell")) && !$(".e-editorTreeView:visible").length > 0 && !$(".pivotTree:visible,.pivotTreeContext:visible,.pivotTreeContextMenu:visible").length > 0) {
                 $("#" + this._id).find(".e-hoverCell").removeClass("e-hoverCell");
                 this.model.pivotControl._curFocus.tab.mouseleave();
@@ -877,13 +901,13 @@
                 }
                 else {
                     this._index.node = e.which == 40 ? 1 : e.which == 38 ? td.length - 1 : 0;
-                    this._curFocus.node = td.eq(this._index.node).attr("tabindex", "-1");             
+                    this._curFocus.node = td.eq(this._index.node).attr("tabindex", "-1");
                 }
                 this._curFocus.node.focus().addClass("e-hoverCell");
                 $(".e-node-focus").removeClass("e-node-focus");
             }
             if ((e.which === 39 || e.which === 37) && ($("#" + this._id).find(".e-schemaFieldTree .e-text:visible").hasClass("e-hoverCell")) && !$(".e-editorTreeView:visible").length > 0) {
-                    $("#" + this._id).find(".e-schemaFieldTree .e-hoverCell").parent().find(".e-plus,.e-minus").click();
+                $("#" + this._id).find(".e-schemaFieldTree .e-hoverCell").parent().find(".e-plus,.e-minus").click();
             }
             else if ((e.which === 39 || e.which === 37) && ($("#" + this._id).find(".e-editorTreeView .e-text:visible").hasClass("e-hoverCell"))) {
                 $("#" + this._id).find(".e-editorTreeView .e-hoverCell").parent().find(".e-plus,.e-minus").click();
@@ -973,7 +997,7 @@
                         $("#" + this._id).find(".e-dialogCancelBtn:visible").click();
                     }
                 }
-                this._index.node = 0;             
+                this._index.node = 0;
                 $("#" + this._id).find(".e-hoverCell").removeClass("e-hoverCell");
                 if (!ej.isNullOrUndefined(this._curFocus.tree)) {
                     this._curFocus.tree.attr("tabindex", "-1").focus().mouseover().addClass("e-hoverCell");
@@ -1023,14 +1047,17 @@
             return headers;
         },
 
-        _contextOpen: function (args) {            
+        _contextOpen: function (args) {
             if ($(args.target.parentElement).find(".e-measureGroupCDB").length > 0 || $(args.target.parentElement).find(".e-folderCDB").length > 0 || (!(this.element.parents(".e-pivotclient").length > 0) && $(args.target.parentElement).find(".e-dimensionCDB").length > 0) || !$(args.target).hasClass("e-text"))
                 return false;
             ej.Pivot.openPreventPanel(this);
             this._selectedMember = $(args.target);
-            
-            if (this.model.pivotControl.model.analysisMode==ej.Pivot.AnalysisMode.Olap) {
-                var menuObj = $("#pivotTreeContext").data('ejMenu');
+            var menuObj = $("#pivotTreeContext").data('ejMenu');
+            if (menuObj)
+                menuObj.hideItems(["#e-remove"]);
+            if (this.model.pivotControl.model.analysisMode == ej.Pivot.AnalysisMode.Olap) {
+                if ($(args.target).find(".e-calcMemberCDB").length > 0)
+                    menuObj.showItems(["#e-remove"]);
                 if ($(args.target).parents("li:eq(0)").attr("data-tag").toLowerCase().indexOf("[measures]") >= 0) {
                     menuObj.disableItem(this._getLocalizedLabels("AddToFilter"));
                     menuObj.disableItem(this._getLocalizedLabels("AddToRow"));
@@ -1047,8 +1074,8 @@
             else if (this._dataModel == "Pivot") {
                 var targetText = args.target.textContent;
                 if ($(args.target).hasClass("e-text") && ($(this.element).parents(".e-pivotclient").length > 0 || $.grep(this.model.pivotControl._calculatedField, function (value) { return value.name == targetText; }).length == 0)) {
-                        var menuObj = $("#pivotTreeContext").data('ejMenu');
-                        menuObj.enable();
+                    var menuObj = $("#pivotTreeContext").data('ejMenu');
+                    menuObj.enable();
                 }
                 else {
                     var menuObj = $("#pivotTreeContext").data('ejMenu');
@@ -1120,10 +1147,15 @@
         _generateMembers: function (customArgs, args) {
             var data = $(args).find("Axis:eq(0) Tuple"), treeViewData = [], treeNodeInfo = {};
             treeViewData.push({ id: "All", name: "All", checkedStatus: true, tag: "" });
+            var reportItem = ej.Pivot.getReportItemByFieldName(this._selectedFieldName, this.model.pivotControl.model.dataSource).item;
+            var fitlerItems = (!ej.isNullOrUndefined(reportItem) && !ej.isNullOrUndefined(reportItem.filterItems))  ? reportItem.filterItems.values : [];
             for (var i = 0; i < data.length; i++) {
                 var memberUqName = $($(args).find("Axis:eq(0) Tuple:eq(" + i + ")").children().children()[0]).text(),
-                    memberName = $($(args).find("Axis:eq(0) Tuple:eq(" + i + ")").children().children()[1]).text() == "" ? "(Blank)" : $($(args).find("Axis:eq(0) Tuple:eq(" + i + ")").children().children()[1]).text();
-                treeNodeInfo = { hasChildren: $(data[i]).find("CHILDREN_CARDINALITY").text() != "0", checkedStatus: true, id: memberUqName.replace(/\]*\]/g, '-').replace(/\[*\[/g, '-').replace(/ /g, "_"), name: memberName, tag: memberUqName, level: parseInt($(data[i]).find("LNum").text()) };
+                    memberName = $($(args).find("Axis:eq(0) Tuple:eq(" + i + ")").children().children()[1]).text() == "" ? "(Blank)" : $($(args).find("Axis:eq(0) Tuple:eq(" + i + ")").children().children()[1]).text(),
+                    checkedStatus = (fitlerItems.length > 0) ? (($.inArray(memberUqName.replace('&', "&amp;"), fitlerItems) > -1) ? true : false): true;
+                treeNodeInfo = {
+                    hasChildren: $(data[i]).find("CHILDREN_CARDINALITY").text() != "0", checkedStatus: checkedStatus,
+                    id: memberUqName.replace(/\]*\]/g, '-').replace(/\[*\[/g, '-').replace(/ /g, "_"), name: memberName, tag: memberUqName, level: parseInt($(data[i]).find("LNum").text()) };
                 treeViewData.push(treeNodeInfo);
             }
             if (!ej.isNullOrUndefined(this._waitingPopup)) {
@@ -1142,7 +1174,7 @@
                 this._fetchMemberSuccess({ EditorTreeInfo: JSON.stringify(treeViewData) });
 
         },
-        _generateChildMembers: function (customArgs,args) {
+        _generateChildMembers: function (customArgs, args) {
             var data = $(args).find("Axis:eq(0) Tuple"), treeViewData = [];
             var pNode = this.element.find("[data-tag='" + customArgs.currentNode.replace(/&amp;/g, "&") + "']");
             for (var i = 0; i < data.length; i++) {
@@ -1165,7 +1197,7 @@
         _sortField: function (args) {
             ej.Pivot.closePreventPanel(this);
             this.element.find(".e-dialog, .e-clientDialog").remove();
-                       
+
             if (($(args.element).attr("id") == "descOrder" || $(args.element).attr("id") == "ascOrder")) {
                 var reportItem = ej.Pivot.getReportItemByFieldName(this._selectedFieldName, this.model.pivotControl.model.dataSource).item;
                 if (!ej.isNullOrUndefined(reportItem))
@@ -1185,36 +1217,82 @@
             var schemaObj = this;
             this._isAllMemberChecked = true;
             var pivotClientObj = ($(this.element).parents(".e-pivotclient").length > 0) ? $(this.element).parents(".e-pivotclient").data("ejPivotClient") : null;
-            if (!ej.isNullOrUndefined(pivotClientObj)) {
-                pivotClientObj._isTimeOut = true;
-                setTimeout(function () {
-                    if (pivotClientObj._isTimeOut)
-                        schemaObj._waitingPopup.show();
-                }, 800);
-            }
-            else
-                this._waitingPopup.show();
+
             if (this.model.pivotControl.model.analysisMode == ej.Pivot.AnalysisMode.Olap) {
                 if ($(args.target).parents().hasClass("e-pivotButton") && $(args.target).parents(".e-pivotButton").attr("data-tag").indexOf(":[") >= 0 && !($(args.target).parents(".e-pivotButton").attr("data-tag").toLowerCase().indexOf("[measures]") >= 0)) {
                     this._selectedFieldName = $(args.target).parents(".e-pivotButton").attr("data-tag").split(":")[1];
                 }
                 else if ($(args.target).parents().attr("data-tag") != null && ($(args.target).parents().attr("data-tag").split(":")[1] == "Measures" || $(args.target).parent().attr("data-tag").toLowerCase().indexOf("[measures]") >= 0)) {
                     ej.Pivot.closePreventPanel(this);
-                    if (!ej.isNullOrUndefined(pivotClientObj)) pivotClientObj._isTimeOut = false;
+
+                    if (!ej.isNullOrUndefined(pivotClientObj)) {
+                        pivotClientObj._isTimeOut = false;
+                        var name = ($(args.target).parents().hasClass("e-pivotButton") && $(args.target).parents(".e-pivotButton").attr("data-tag")) ? $(args.target).parents(".e-pivotButton").attr("data-tag").split(":")[1] : "";
+                        if (name) {
+                            name = name.split("].[").length > 1 ? name.split("].[")[1].replace("]", "") : "";
+                            var calcMember = $.map((this.model.pivotControl.model.calculatedMembers), function (item) {
+                                if ((name.indexOf("[")>-1 && name.indexOf(item.caption) > -1)|| (item.caption == name))
+                                    return item
+                            });
+                            if (calcMember.length > 0) {
+                                pivotClientObj._selectedCalcMember = calcMember[0].caption;
+                                var treeData = this.element.find(".e-schemaFieldTree").data("ejTreeView").model.fields.dataSource, blankNode = [];
+                                treeData = $.grep(treeData, function (item, index) {
+                                    if (item.id)
+                                        item.id = item.id.replace(/\]/g, '_').replace(/\[/g, '_').replace(/\./g, '_').replace(/ /g, '_');
+                                    if (item.pid)
+                                        item.pid = item.pid.replace(/\]/g, '_').replace(/\[/g, '_').replace(/\./g, '_').replace(/ /g, '_');
+                                    if (item.spriteCssClass.indexOf("e-level") > -1) {
+                                        blankNode.push({ id: item.id + "_1", pid: item.id, name: "(Blank)", hasChildren: false, spriteCssClass: "" });
+                                    }
+                                    return item;
+                                });
+                                treeData = $.merge(blankNode, treeData);
+                                this._selectedFieldName = $(args.currentTarget).attr("data-fieldname");
+                                var calcTreeview = { CubeTreeInfo: JSON.stringify(treeData) };
+                                ej.Pivot._createCalcMemberDialog(calcTreeview, this.model.pivotControl);
+                            }
+                        }
+                        clearTimeout(null);
+                        schemaObj._waitingPopup.hide();
+                    }
                     return false;
                 }
                 else {
                     this._selectedLevel = $($(args.target).parents("li:eq(0)")).attr("data-tag");
                     this._selectedFieldName = ($(args.target).parents("li:eq(0)").children("div:eq(0)").find(".levels").length > 0) ? $($(args.target).parents("li:eq(1)")).attr("data-tag") : $($(args.target).parents("li:eq(0)")).attr("data-tag");
                 }
-               
+
+                var isCalcMember = false;
+                if (!ej.isNullOrUndefined(pivotClientObj)) {
+                    var name = ($(args.target).parents().hasClass("e-pivotButton") && $(args.target).parents(".e-pivotButton").attr("data-tag")) ? $(args.target).parents(".e-pivotButton").attr("data-tag").split(":")[1] : "";
+                    var calcMember = $.map((this.model.pivotControl.model.calculatedMembers), function (item) {
+                        if ((name.indexOf("[")>-1 && name.indexOf(item.caption) > -1)||(item.caption == name))
+                            return item
+                    });
+                    if (calcMember.length > 0) {
+                        isCalcMember = true;
+                        this._selectedFieldName = name;
+                    }
+                    if (!isCalcMember) {
+                        pivotClientObj._isTimeOut = true;
+                        setTimeout(function () {
+                            if (pivotClientObj._isTimeOut)
+                                schemaObj._waitingPopup.show();
+                        }, 800);
+                    }
+                }
+                else
+                    this._waitingPopup.show();
+
+
                 if (ej.isNullOrUndefined(this._selectedFieldName) || this._selectedFieldName.toLocaleLowerCase().indexOf("measures") >= 0)
                     return false;
-                
+
                 var hierarchyName = this._selectedFieldName, currentDataSrc = this.model.pivotControl.model.dataSource, pageSettings;
-                var filteredData= $.map(this.model.pivotControl._currentReportItems, function (obj, index) {
+                var filteredData = $.map(this.model.pivotControl._currentReportItems, function (obj, index) {
                     if (obj["fieldName"] == hierarchyName && (ej.isNullOrUndefined(obj.dataSrc) || (obj.dataSrc.cube == currentDataSrc.cube && obj.dataSrc.reportName == currentDataSrc.reportName))) {
-                        pageSettings = obj.pageSettings;                        
+                        pageSettings = obj.pageSettings;
                         return $.map(obj.filterItems, function (itm) { if (itm.expanded) itm.expanded = false; return itm; });
                     }
                 });
@@ -1226,7 +1304,7 @@
                     this._memberPageSettings.startPage = 0;
                     this._memberPageSettings.currentMemeberPage = 1;
                 }
-                if (filteredData.length > 0) {
+                if (filteredData.length > 0 && !isCalcMember) {
                     this._editorTreeData = filteredData;
                     if (this.model.pivotControl.model.enableMemberEditorPaging) {
                         this._memberCount = ej.DataManager(this._editorTreeData).executeLocal(ej.Query().where(ej.Predicate("pid", "equal", null).and("id", "notequal", "All"))).length;
@@ -1234,16 +1312,47 @@
                     }
                     this._fetchMemberSuccess({ EditorTreeInfo: JSON.stringify(filteredData) });
                 }
-                else
-                    ej.olap._mdxParser.getMembers(this.model.pivotControl.model.dataSource, this._selectedFieldName, this);
+                else {
+                    var fieldName = this._selectedFieldName;
+                    if ($(this.element).parents(".e-pivotclient").length > 0 && this.model.pivotControl.model.calculatedMembers.length > 0) {
+                        var calcMember = $.map((this.model.pivotControl.model.calculatedMembers), function (item) {
+                            if ((fieldName.indexOf("[")>-1 && fieldName.indexOf(item.caption) > -1)|| (item.caption == fieldName))
+                                return item
+                        });
+                        if (calcMember.length > 0) {
+                            this._selectedFieldName = ($(args.target).parents().hasClass("e-pivotButton") && $(args.target).parents(".e-pivotButton").attr("data-tag")) ? $(args.target).parents(".e-pivotButton").attr("data-tag").split(":")[1] : "";
+                            this.model.pivotControl._selectedCalcMember = calcMember[0].caption;
+                            var treeData = this.element.find(".e-schemaFieldTree").data("ejTreeView").model.fields.dataSource, blankNode = [];
+                            treeData = $.grep(treeData, function (item, index) {
+                                if (item.id)
+                                    item.id = item.id.replace(/\]/g, '_').replace(/\[/g, '_').replace(/\./g, '_').replace(/ /g, '_');
+                                if (item.pid)
+                                    item.pid = item.pid.replace(/\]/g, '_').replace(/\[/g, '_').replace(/\./g, '_').replace(/ /g, '_');
+                                if (item.spriteCssClass.indexOf("e-level") > -1) {
+                                    blankNode.push({ id: item.id + "_1", pid: item.id, name: "(Blank)", hasChildren: false, spriteCssClass: "" });
+                                }
+                                return item;
+                            });
+                            treeData = $.merge(blankNode, treeData);
+                            this._selectedFieldName = $(args.currentTarget).attr("data-fieldname");
+                            var calcTreeview = { CubeTreeInfo: JSON.stringify(treeData) };
+                            ej.Pivot._createCalcMemberDialog(calcTreeview, this.model.pivotControl);
+                            return false;
+                        }
+                        else
+                            ej.olap._mdxParser.getMembers(this.model.pivotControl.model.dataSource, this._selectedFieldName, this);
+                    }
+                    else
+                        ej.olap._mdxParser.getMembers(this.model.pivotControl.model.dataSource, this._selectedFieldName, this);
+                }
             }
             else {
                 if (($(args.target).parent().hasClass("e-pivotButton") || $(args.target).parent().hasClass("pvtBtnDiv")) && $(args.target).parent().attr("data-tag").indexOf(":") >= 0)
                     this._selectedFieldName = $.grep(this.model.pivotTableFields, function (item) { return item.name == $(args.target).parent().attr("data-tag").split(":")[1]; })[0].name;
                 else
-                    this._selectedFieldName = $.grep(this.model.pivotTableFields, function (item) { return item.id == $($(args.target).closest("li")).attr("id"); })[0].name;
+                    this._selectedFieldName = $.grep(this.model.pivotTableFields, function (item) { return item.id.replace(/ /g, '_') == $($(args.target).closest("li")).attr("id"); })[0].name;
             }
-            var pivotBtn= $(this.element.find(".e-pivotButton button[data-fieldName='" + this._selectedFieldName + "']"));
+            var pivotBtn = $(this.element.find(".e-pivotButton button[data-fieldName='" + this._selectedFieldName + "']"));
             this._dialogHead = this._selectedFieldCaption = pivotBtn.attr("data-fieldCaption") || pivotBtn.attr("data-fieldName");;
             this._selectedFieldAxis = pivotBtn.parents().hasClass("e-schemaRow") ? "rows" : pivotBtn.parents().hasClass("e-schemaColumn") ? "columns" : pivotBtn.parents().hasClass("e-schemaValue") ? "values" : "filters";
 
@@ -1358,7 +1467,7 @@
                             selectedNd = $(args.target).parents("li")[0];
                         }
                         else {
-                            selectedNd = $(args.target).parents("li").attr("data-tag")=="KPI"?$(args.target).parents("li"):$(args.target).parents("li")[1];
+                            selectedNd = $(args.target).parents("li").attr("data-tag") == "KPI" ? $(args.target).parents("li") : $(args.target).parents("li")[1];
                         }
                     }
                 }
@@ -1369,7 +1478,7 @@
                         selectedNd = this._tableTreeObj.element.find("li:contains('" + $($(args.target).parent()).attr("data-tag").split(":")[1] + "')");
                 this._selectedTreeNode = selectedNd;
                 if (args.target.tagName.toLowerCase() == "span" || args.target.tagName.toLowerCase() == "button") {
-                    this.model.layout != "excel" && $(args.target).attr("class").indexOf("filter") > -1 ? this._curFilteredText = $($(args.target).parents(".e-pivotButton")).attr("data-tag").split(":")[1].replace(/\]/g, '').replace(/\[/g, '') : this._curFilteredText = this._dataModel == "Olap" ? $(selectedNd).attr("data-tag").replace(/\]/g, '').replace(/\[/g, '') : $(selectedNd).attr("id"); 
+                    this.model.layout != "excel" && $(args.target).attr("class").indexOf("filter") > -1 ? this._curFilteredText = $($(args.target).parents(".e-pivotButton")).attr("data-tag").split(":")[1].replace(/\]/g, '').replace(/\[/g, '') : this._curFilteredText = this._dataModel == "Olap" ? $(selectedNd).attr("data-tag").replace(/\]/g, '').replace(/\[/g, '') : $(selectedNd).attr("id");
                     if ($(this.element).parents(".e-pivotclient").length > 0) this._curFilteredText = $($(args.target).parents(".e-pivotButton")).attr("data-tag").split(":")[1].replace(/\]/g, '').replace(/\[/g, '');
                     if ($(args.target).parents("li:eq(1)").find("div:first>a>span").hasClass("e-hierarchyCDB")) {
                         this._curFilteredText = $(args.target).parents("li:eq(1)").find("div:first>a").text();
@@ -1406,8 +1515,9 @@
                     }
                     var sortedHeaders = this._getSortedHeaders();
                     this._isFilterBtnClick = true;
-                    if (this.model.beforeServiceInvoke != null && this.model.pivotControl.model.operationalMode == ej.PivotGrid.OperationalMode.ServerMode)
-                        this._trigger("beforeServiceInvoke", { action: "fetchMembers", element: this.element, customObject: this.model.pivotControl.model.customObject });                    
+                    var controlObj = !ej.isNullOrUndefined(pivotClientObj) ? pivotClientObj : this;
+                    if (controlObj.model.beforeServiceInvoke != null && this.model.pivotControl.model.operationalMode == ej.PivotGrid.OperationalMode.ServerMode)
+                        controlObj._trigger("beforeServiceInvoke", { action: "fetchMembers", element: controlObj.element, customObject: this.model.pivotControl.model.customObject });
                     var eventArgs = JSON.stringify({ "action": "fetchMembers", "headerTag": (this._dialogTitle + ((this.model.pivotControl.model.analysisMode == ej.Pivot.AnalysisMode.Olap) && this.model.pivotControl.model.enableAdvancedFilter ? "##true" : "")) || "UniqueName##" + $(selectedNd).attr("data-tag"), "sortedHeaders": this.model.pivotControl._ascdes, "currentReport": report, "valueSorting": JSON.stringify(this.model.pivotControl.model.valueSortSettings), "customObject": JSON.stringify(this.model.pivotControl.model.customObject) });
                     if (!ej.isNullOrUndefined(pivotClientObj)) {
                         pivotClientObj._isTimeOut = true;
@@ -1423,7 +1533,7 @@
                 }
             }
         },
- 
+
         _removeBtnClick: function (args) {
             var schemaObj = this;
             var pivotClientObj = ($(this.element).parents(".e-pivotclient").length > 0) ? $(this.element).parents(".e-pivotclient").data("ejPivotClient") : null;
@@ -1470,8 +1580,9 @@
                     delete this.model.pivotControl._fieldSelectedMembers[tagText.split(':')[tagText.split(':').length - 1]];
                 }
                 this._clearFilterData(headerText);
-                if (this.model.beforeServiceInvoke != null && this.model.pivotControl.model.operationalMode == ej.PivotGrid.OperationalMode.ServerMode)
-                    this._trigger("beforeServiceInvoke", { action: "nodeStateModified", element: this.element, customObject: this.model.pivotControl.model.customObject });
+                var controlObj = !ej.isNullOrUndefined(pivotClientObj) ? pivotClientObj : this;
+                if (controlObj.model.beforeServiceInvoke != null && this.model.pivotControl.model.operationalMode == ej.PivotGrid.OperationalMode.ServerMode)
+                    controlObj._trigger("beforeServiceInvoke", { action: "nodeStateModified", element: controlObj.element, customObject: this.model.pivotControl.model.customObject });
                 if (this.model.pivotControl.model.analysisMode == ej.Pivot.AnalysisMode.Pivot && $(this.element).parents(".e-pivotclient").length > 0) {
                     var report;
                     try { report = JSON.parse(this.model.pivotControl.getOlapReport()).Report; }
@@ -1497,7 +1608,10 @@
                 var schemaObj = this;
                 var treeElement = this.element.find(".e-editorTreeView");
                 var searchElement = null;
-                if ((args.id.toLowerCase() == "(all)_0" || args.id.toLowerCase() == "all") && args.type == "nodeUncheck") {
+                var isUnChecked = (!ej.isNullOrUndefined(args.model.id) && args.model.id.toLowerCase() == "allelement" && !args.isChecked) || ((!ej.isNullOrUndefined(args.id) && (args.id.toLowerCase() == "(all)_0" || args.id.toLowerCase() == "all")) && (!ej.isNullOrUndefined(args.type) && (args.type == "nodeUncheck")));
+                var isChecked = (!ej.isNullOrUndefined(args.model.id) && args.model.id.toLowerCase() == "allelement" && args.isChecked) || ((!ej.isNullOrUndefined(args.id) && (args.id.toLowerCase() == "(all)_0" || args.id.toLowerCase() == "all")) && (!ej.isNullOrUndefined(args.type) && (args.type == "nodeCheck")));
+                
+                if (isUnChecked) {
                     this._memberTreeObj.model.nodeCheck = "";
                     this._memberTreeObj.model.nodeUncheck = "";
                     if (this._isOptionSearch) {
@@ -1548,7 +1662,7 @@
                     }
 
                 }
-                else if ((args.id.toLowerCase() == "(all)_0" || args.id.toLowerCase() == "all") && args.type == "nodeCheck") {
+                else if (isChecked) {
                     this._memberTreeObj.model.nodeCheck = "";
                     this._memberTreeObj.model.nodeUncheck = "";
                     if (this._isOptionSearch) {
@@ -1593,7 +1707,7 @@
                 else if (args.id.toLowerCase() == "searchfilterselection") {
                     ej.Pivot._updateSearchFilterSelection(args, treeElement, schemaObj);
                 }
-                else if ((args.id.toLowerCase() == "(all)_0" || args.id.toLowerCase() != "all") && !ej.isNullOrUndefined(this.model.pivotControl) && (this.model.pivotControl.model.enableMemberEditorPaging || this._editorTreeData.length > 0)) {
+                else if (((!ej.isNullOrUndefined(args.model.id) && args.model.id.toLowerCase() == "allelement") || (!ej.isNullOrUndefined(args.id) && (args.id.toLowerCase() == "(all)_0" || args.id.toLowerCase() != "all"))) && !ej.isNullOrUndefined(this.model.pivotControl) && (this.model.pivotControl.model.enableMemberEditorPaging || this._editorTreeData.length > 0)) {
                     if (args.type == "nodeUncheck") {
                         this.model.pivotControl._isMembersFiltered = true;
                         var temp = "";
@@ -1607,9 +1721,11 @@
                             this.element.find(".e-dialogOKBtn").attr('disabled', 'disabled');
                             this._isAllMemberChecked = false;
                             firstNode.removeClass("e-stop").removeClass("e-checkmark").addClass("e-chk-inact");
+                            this.element.find(".e-checkAllBox").find("span.e-chk-image").removeClass("e-stop").removeClass("e-checkmark").addClass("e-chk-inact");
                         }
                         else {
                             $(this._memberTreeObj.element.find("li:first")).find("span.e-chk-image").removeClass("e-stop").addClass("e-checkmark");
+                            this.element.find(".e-checkAllBox").find("span.e-chk-image").removeClass("e-stop").addClass("e-checkmark");
                             $(this._editorTreeData).each(function (index, item) {
                                 if (item.checkedStatus) {
                                     this._isAllMemberChecked = false;
@@ -1626,6 +1742,7 @@
                         this.element.find(".e-dialogOKBtn").removeAttr("disabled");
                         this._isAllMemberChecked = true;
                         $(this._memberTreeObj.element.find("li:first")).find("span.e-chk-image").removeClass("e-stop").addClass("e-checkmark");
+                        this.element.find(".e-checkAllBox").find("span.e-chk-image").removeClass("e-stop").addClass("e-checkmark");
                         $(this._editorTreeData).each(function (index, item) {
                             if (!item.checkedStatus) {
                                 this._isAllMemberChecked = false;
@@ -1635,21 +1752,27 @@
                         });
                     }
                 }
-                else if (args.id.toLowerCase() == "(all)_0" || args.id.toLowerCase() != "all") {
+                else if (((!ej.isNullOrUndefined(args.model.id) && args.model.id.toLowerCase() == "allElement") || (!ej.isNullOrUndefined(args.id) && (args.id.toLowerCase() == "(all)_0" || args.id.toLowerCase() != "all")))) {
                     var uncheckedNodes = this._memberTreeObj.element.find(":input:gt(0).nodecheckbox:not(:checked)"),
                     firstNode = $(this._memberTreeObj.element.find("li:first")).find("span.e-chk-image");
                     if (uncheckedNodes.length == 0 || (uncheckedNodes.length == 1 && uncheckedNodes[0].id[uncheckedNodes[0].id.length - 1] == 0)) {
                         $(firstNode).parent().removeClass("e-chk-inact").removeClass("e-chk-ind").addClass("e-chk-act");
                         firstNode.removeClass("e-stop").addClass("e-checkmark");
+                        this.element.find(".e-checkAllBox").find("span.e-chk-image").removeClass("e-stop").addClass("e-checkmark");
                     }
-                    else if (args.type == "nodeCheck" && uncheckedNodes.length == 1 && uncheckedNodes[0].id[uncheckedNodes[0].id.length - 1] == 0)
+                    else if (args.type == "nodeCheck" && uncheckedNodes.length == 1 && uncheckedNodes[0].id[uncheckedNodes[0].id.length - 1] == 0) {
                         firstNode.removeClass("e-stop").addClass("e-checkmark");
-                    else if (uncheckedNodes.length > 0)
+                        this.element.find(".e-checkAllBox").find("span.e-chk-image").removeClass("e-stop").addClass("e-checkmark");
+                    }
+                    else if (uncheckedNodes.length > 0) {
                         firstNode.removeClass("e-checkmark").addClass("e-stop");
+                        this.element.find(".e-checkAllBox").find("span.e-chk-image").removeClass("e-checkmark").addClass("e-stop");
+                    }
                     this._dialogOKBtnObj.enable();
                     if (args.type == "nodeUncheck") {
                         if (uncheckedNodes.length + 1 == this._memberTreeObj.element.find("li").length || (this._isOptionSearch && ($(treeElement).find("li span.e-searchfilterselection").closest("li").find("span.e-checkmark").length > 0) && this._memberTreeObj.element.find(":input:gt(0).nodecheckbox:checked").length == 1)) {
                             firstNode.removeClass("e-checkmark").removeClass("e-stop");
+                            this.element.find(".e-checkAllBox").find("span.e-chk-image").removeClass("e-checkmark").removeClass("e-stop");
                             this._dialogOKBtnObj.disable();
                         }
                     }
@@ -1701,11 +1824,11 @@
                 if (!ej.isNullOrUndefined(this.model.pivotControl.getOlapReport))
                     report = this.model.pivotControl.getOlapReport();
             }
-            if (isClientMode == "XMLA"&&report == "") {
+            if (isClientMode == "XMLA" && report == "") {
                 report = this.model.pivotControl.model.dataSource;
                 this._selectedMember = headerName;
                 this._selectedTreeNode = $(args.currentElement);
-                this.model.pivotControl.dataSource = this.model.pivotControl._clearDrilledItems(this.model.pivotControl.model.dataSource, {action:"nodeStateModefied"});
+                this.model.pivotControl.dataSource = this.model.pivotControl._clearDrilledItems(this.model.pivotControl.model.dataSource, { action: "nodeStateModefied" });
             }
             var dropAxis = this._droppedClass != "" ? this._droppedClass : headerTag.pivotType != undefined ? headerTag.pivotType == "PivotItem" ? "e-schemaRow" : "e-schemaValue" : "e-schemaRow", eventArgs, axisName, params;
             this._droppedClass = "";
@@ -1720,8 +1843,8 @@
                     droppedItem = $(args.currentElement).find(".e-namedSetCDB").length > 0 ? { fieldName: $(args.currentElement).attr("data-tag"), fieldCaption: $(args.currentElement).text(), isNamedSets: true } : ej.olap.base._getCaption({ fieldName: headerName, fieldCaption: headerCaption }, this.model.pivotControl._fieldData.hierarchy);
                 }
                 else {
-                $(args.currentElement.find(".e-text")[0]).after(ej.buildTag("span.e-icon").css("display", "none").addClass("treeDrop")[0].outerHTML);
-                droppedItem = { fieldName: headerName, fieldCaption: headerCaption };
+                    $(args.currentElement.find(".e-text")[0]).after(ej.buildTag("span.e-icon").css("display", "none").addClass("treeDrop")[0].outerHTML);
+                    droppedItem = { fieldName: headerName, fieldCaption: headerCaption };
                 }
                 dropAxis = dropAxis == "" ? "row" : dropAxis == "e-schemaColumn" ? "column" : dropAxis == "e-schemaRow" ? "row" : dropAxis == "e-schemaValue" ? "value" : dropAxis == "e-schemaFilter" ? "filter" : "";
 
@@ -1747,19 +1870,19 @@
                     this.model.pivotControl.model.dataSource.values[0]["measures"].push(droppedItem)
                 }
                 else {
-                if ($.grep(this.model.pivotControl.model.dataSource.values, function (value) { return value.fieldName == droppedItem.fieldName; }).length == 0)
-                    dropAxis == "row" ? this.model.pivotControl.model.dataSource.rows.push(droppedItem) : dropAxis == "column" ? this.model.pivotControl.model.dataSource.columns.push(droppedItem) : dropAxis == "filter" ? this.model.pivotControl.model.dataSource.filters.push(droppedItem) : this.model.pivotControl.model.dataSource.values.push(droppedItem);
+                    if ($.grep(this.model.pivotControl.model.dataSource.values, function (value) { return value.fieldName == droppedItem.fieldName; }).length == 0)
+                        dropAxis == "row" ? this.model.pivotControl.model.dataSource.rows.push(droppedItem) : dropAxis == "column" ? this.model.pivotControl.model.dataSource.columns.push(droppedItem) : dropAxis == "filter" ? this.model.pivotControl.model.dataSource.filters.push(droppedItem) : this.model.pivotControl.model.dataSource.values.push(droppedItem);
                 }
                 if (isClientMode == "XMLA") {
                     if (!ej.isNullOrUndefined(this.model.pivotControl._ogridWaitingPopup))
                         this.model.pivotControl._ogridWaitingPopup.show();
                     ej.olap.base.getJSONData({ action: "nodeCheck" }, this.model.pivotControl.model.dataSource, this.model.pivotControl);
                 }
-                else{
-                this._trigger("fieldItemDropped", { axis: dropAxis, fieldItem: args.currentElement });
-                this.model.pivotControl.model.editCellsInfo = {};
-                this.model.pivotControl._populatePivotGrid();
-            }
+                else {
+                    this._trigger("fieldItemDropped", { axis: dropAxis, fieldItem: args.currentElement });
+                    this.model.pivotControl.model.editCellsInfo = {};
+                    this.model.pivotControl._populatePivotGrid();
+                }
             }
             else if (args.type == "nodeUncheck") {
                 $(args.currentElement).removeClass("filter").find(".filter").remove();
@@ -1774,12 +1897,12 @@
                         this.element.find("div[data-tag='" + (this.model.pivotControl.model.dataSource.values[0]["axis"] == "columns" ? "Columns" : "Rows") + ":Measures" + "']").remove();
                 }
                 else {
-                this.model.pivotControl.model.dataSource.values = $.grep(valueElements, function (value) { return value.fieldName != headerName; });
-                if (this.model.pivotControl._calculatedField.length > 0) {
-                    var removeElement = $.grep(this.model.pivotControl.model.dataSource.values, function (value) { return value.isCalculatedField == true && value.formula.indexOf(headerName) > -1; });
-                    for (var i = 0; i < removeElement.length; i++)
-                        this._tableTreeObj.uncheckNode(removeElement[i].fieldName);
-                }
+                    this.model.pivotControl.model.dataSource.values = $.grep(valueElements, function (value) { return value.fieldName != headerName; });
+                    if (this.model.pivotControl._calculatedField.length > 0) {
+                        var removeElement = $.grep(this.model.pivotControl.model.dataSource.values, function (value) { return value.isCalculatedField == true && value.formula.indexOf(headerName) > -1; });
+                        for (var i = 0; i < removeElement.length; i++)
+                            this._tableTreeObj.uncheckNode(removeElement[i].fieldName);
+                    }
                 }
                 this.model.pivotControl.model.dataSource.filters = $.grep(this.model.pivotControl.model.dataSource.filters, function (value) { return value.fieldName != headerName; });
 
@@ -1789,11 +1912,11 @@
                     ej.olap.base.getJSONData({ action: "nodeUncheck" }, this.model.pivotControl.model.dataSource, this.model.pivotControl);
                 }
                 else {
-                dropAxis = dropAxis == "" ? "row" : dropAxis == "e-schemaColumn" ? "column" : dropAxis == "e-schemaRow" ? "row" : dropAxis == "e-schemaValue" ? "value" : dropAxis == "e-schemaFilter" ? "filter" : "";
-                this._trigger("fieldItemDropped", { axis: dropAxis, fieldItem: args.currentElement });
-                this.model.pivotControl.model.editCellsInfo = {};
-                this.model.pivotControl._populatePivotGrid();
-            }
+                    dropAxis = dropAxis == "" ? "row" : dropAxis == "e-schemaColumn" ? "column" : dropAxis == "e-schemaRow" ? "row" : dropAxis == "e-schemaValue" ? "value" : dropAxis == "e-schemaFilter" ? "filter" : "";
+                    this._trigger("fieldItemDropped", { axis: dropAxis, fieldItem: args.currentElement });
+                    this.model.pivotControl.model.editCellsInfo = {};
+                    this.model.pivotControl._populatePivotGrid();
+                }
             }
             this._setPivotBtnWidth();
         },
@@ -1819,73 +1942,73 @@
 
         _checkedStateModified: function (args) {
             this.model.pivotControl._isUpdateRequired = true;
-                if (this._isMeasureBtnRemove == true) {
+            if (this._isMeasureBtnRemove == true) {
                 this._isMeasureBtnRemove = false;
                 return false;
-                }
-                if(this._nodeCheck == true){
+            }
+            if (this._nodeCheck == true) {
                 this._nodeCheck = false;
                 return false;
-                }
-                var headerText = $(args.currentElement).find("a")[0].textContent, filterTag = "", filterItems = "", selectedElement = "", headerTag = "", uniqueName = "";
-                if (this._dataModel == "Pivot" && args.type == "nodeCheck") {
-                    var dropItem = $.grep(this.model.pivotControl._calculatedField, function (value) { return value.name == $(args.currentElement).attr("id"); });
-                    if (this._calculatedFieldItems(dropItem))
-                        return;
-                }
+            }
+            var headerText = $(args.currentElement).find("a")[0].textContent, filterTag = "", filterItems = "", selectedElement = "", headerTag = "", uniqueName = "";
+            if (this._dataModel == "Pivot" && args.type == "nodeCheck") {
+                var dropItem = $.grep(this.model.pivotControl._calculatedField, function (value) { return value.name == $(args.currentElement).attr("id"); });
+                if (this._calculatedFieldItems(dropItem))
+                    return;
+            }
             if (this._dataModel == "Olap") {
-                    var curElement;
-                    if (!args.currentElement[0].id.indexOf("[Measures]") > -1)
-                        for (var i = 0; i < this.element.find(".e-pivotButton").length; i++) {
-                            if (args.type == "nodeCheck" && !ej.isNullOrUndefined($(args.currentElement).attr("data-parentuniquename")) && !ej.isNullOrUndefined($(this.element.find(".e-pivotButton")[i]).find(".e-btn")) && !ej.isNullOrUndefined($(this.element.find(".e-pivotButton")[i]).find(".e-btn").attr("data-parentuniquename")) && $(this.element.find(".e-pivotButton")[i]).find(".e-btn").attr("data-parentuniquename") == $(args.currentElement).attr("data-parentuniquename")) {
-                                var dlgContent = this._getLocalizedLabels("NamedSetAlert").replace("<Set 1>", $(this.element.find(".e-pivotButton")[i]).find(".e-btn").text()).replace("<Set 2>", $(args.currentElement).find(".e-text").text());
-                                var dialogElem = ej.buildTag("div.data-namedSetDialog#NamedSetDialog", ej.buildTag("div.data-namedSetDialogContent", dlgContent)[0].outerHTML + ej.buildTag("div", ej.buildTag("button#OKBtn.e-okBtn", "OK", { "margin": "20px 0 10px 120px" }).attr("title", "OK")[0].outerHTML + ej.buildTag("button#CancelBtn.e-cancelBtn", "Cancel", { "margin": "20px 0 10px 10px" }).attr("title", "Cancel")[0].outerHTML)[0].outerHTML).attr("title", "Warning")[0].outerHTML;
-                                this.model.pivotControl.element.append(dialogElem);
-                                var removeEle = $(this.element.find(".e-pivotButton")[i]);
-                                this.model.pivotControl.element.find(".data-namedSetDialog").ejDialog({
-                                    target: "#" + this.model.pivotControl._id, enableResize: false, enableRTL: false, width: "400px", close: function (arg) {
-                                        controlObj._nodeCheck = true;
-                                        controlObj._tableTreeObj.uncheckNode(args.currentElement);
-                                    }
-                                });
-                                var controlObj = this;
-                                this.model.pivotControl.element.find(".e-okBtn,.e-cancelBtn").ejButton({ type: ej.ButtonType.Button, width: "70px" });
-                                this.model.pivotControl.element.find(".e-cancelBtn").on(ej.eventType.click, function (e) {
+                var curElement;
+                if (!args.currentElement[0].id.indexOf("[Measures]") > -1)
+                    for (var i = 0; i < this.element.find(".e-pivotButton").length; i++) {
+                        if (args.type == "nodeCheck" && !ej.isNullOrUndefined($(args.currentElement).attr("data-parentuniquename")) && !ej.isNullOrUndefined($(this.element.find(".e-pivotButton")[i]).find(".e-btn")) && !ej.isNullOrUndefined($(this.element.find(".e-pivotButton")[i]).find(".e-btn").attr("data-parentuniquename")) && $(this.element.find(".e-pivotButton")[i]).find(".e-btn").attr("data-parentuniquename") == $(args.currentElement).attr("data-parentuniquename")) {
+                            var dlgContent = this._getLocalizedLabels("NamedSetAlert").replace("<Set 1>", $(this.element.find(".e-pivotButton")[i]).find(".e-btn").text()).replace("<Set 2>", $(args.currentElement).find(".e-text").text());
+                            var dialogElem = ej.buildTag("div.data-namedSetDialog#NamedSetDialog", ej.buildTag("div.data-namedSetDialogContent", dlgContent)[0].outerHTML + ej.buildTag("div", ej.buildTag("button#OKBtn.e-okBtn", "OK", { "margin": "20px 0 10px 120px" }).attr("title", "OK")[0].outerHTML + ej.buildTag("button#CancelBtn.e-cancelBtn", "Cancel", { "margin": "20px 0 10px 10px" }).attr("title", "Cancel")[0].outerHTML)[0].outerHTML).attr("title", "Warning")[0].outerHTML;
+                            this.model.pivotControl.element.append(dialogElem);
+                            var removeEle = $(this.element.find(".e-pivotButton")[i]);
+                            this.model.pivotControl.element.find(".data-namedSetDialog").ejDialog({
+                                target: "#" + this.model.pivotControl._id, enableResize: false, enableRTL: false, width: "400px", close: function (arg) {
                                     controlObj._nodeCheck = true;
                                     controlObj._tableTreeObj.uncheckNode(args.currentElement);
-                                    controlObj.model.pivotControl.element.find(".e-dialog").remove();
-                                });
-                                this.model.pivotControl.element.find(".e-okBtn").on(ej.eventType.click, function (e) {
-                                    controlObj._currentCheckedNode = headerTag = $(args.currentElement).attr("data-tag");
-                                    var dropAxis = controlObj._droppedClass != "" && controlObj._droppedClass != undefined ? controlObj._droppedClass : headerTag.pivotType != undefined ? headerTag.pivotType == "PivotItem" ? "e-schemaRow" : "e-schemaValue" : "e-schemaRow";
-                                    controlObj._nodeDropedParams = dropAxis == "e-schemaColumn" ? "Categorical" : dropAxis == "e-schemaRow" ? "Series" : dropAxis == "e-schemaFilter" ? "Slicer" : "";                           
-                                    axisName = controlObj._nodeDropedParams == "" ? ($(args.currentElement).attr("data-tag").indexOf("[Measures]") >= 0 ? "Categorical" : "Series") : controlObj._nodeDropedParams;
-                                    try {
-                                        report = JSON.parse(controlObj.model.pivotControl.getOlapReport()).Report;
-                                    }
-                                    catch (err) {
-                                        if (!ej.isNullOrUndefined(controlObj.model.pivotControl.getOlapReport))
-                                            report = controlObj.model.pivotControl.getOlapReport();
-                                    }
-                                    var removeTag = $(removeEle).attr("data-tag"), uniqueName = controlObj.model.pivotControl._getNodeUniqueName(removeTag), selectedTreeNode = controlObj.model.pivotControl._getNodeByUniqueName(uniqueName);
-                                    this._nodeCheck = true;
-                                    controlObj._tableTreeObj.uncheckNode(selectedTreeNode);
-                                    params = controlObj._currentCubeName + "--" + headerTag + "--" + axisName + "--" + "##"+ $(removeEle).attr("data-tag"), report;
-                                    if (controlObj.model.beforeServiceInvoke != null && controlObj.model.pivotControl.model.operationalMode == ej.PivotGrid.OperationalMode.ServerMode)
-                                        controlObj._trigger("beforeServiceInvoke", { action: "nodeDropped", element: controlObj.element, customObject: controlObj.model.pivotControl.model.customObject });
-                                    eventArgs = JSON.stringify({ "action": "nodeDroppedNamedSet", "dropType": "TreeNode", "nodeInfo": params, "currentReport": report, "gridLayout": controlObj.model.pivotControl.model.layout, "customObject": JSON.stringify(controlObj.model.pivotControl.model.customObject) });
-                                    if (!controlObj.model.pivotControl.model.enableDeferUpdate)
-                                        controlObj.doAjaxPost("POST", controlObj.model.pivotControl.model.url + "/" + controlObj.model.serviceMethods.nodeDropped, eventArgs, controlObj._droppedSuccess);
-                                    else {
-                                        controlObj.doAjaxPost("POST", controlObj.model.pivotControl.model.url + "/" + controlObj.model.serviceMethods.nodeDropped, eventArgs.replace("nodeDropped", "nodeDroppedDeferUpdate"), controlObj._droppedSuccess);
-                                    }
-                                });
-                                return 0;
-                            }
+                                }
+                            });
+                            var controlObj = this;
+                            this.model.pivotControl.element.find(".e-okBtn,.e-cancelBtn").ejButton({ type: ej.ButtonType.Button, width: "70px" });
+                            this.model.pivotControl.element.find(".e-cancelBtn").on(ej.eventType.click, function (e) {
+                                controlObj._nodeCheck = true;
+                                controlObj._tableTreeObj.uncheckNode(args.currentElement);
+                                controlObj.model.pivotControl.element.find(".e-dialog").remove();
+                            });
+                            this.model.pivotControl.element.find(".e-okBtn").on(ej.eventType.click, function (e) {
+                                controlObj._currentCheckedNode = headerTag = $(args.currentElement).attr("data-tag");
+                                var dropAxis = controlObj._droppedClass != "" && controlObj._droppedClass != undefined ? controlObj._droppedClass : headerTag.pivotType != undefined ? headerTag.pivotType == "PivotItem" ? "e-schemaRow" : "e-schemaValue" : "e-schemaRow";
+                                controlObj._nodeDropedParams = dropAxis == "e-schemaColumn" ? "Categorical" : dropAxis == "e-schemaRow" ? "Series" : dropAxis == "e-schemaFilter" ? "Slicer" : "";
+                                axisName = controlObj._nodeDropedParams == "" ? ($(args.currentElement).attr("data-tag").indexOf("[Measures]") >= 0 ? "Categorical" : "Series") : controlObj._nodeDropedParams;
+                                try {
+                                    report = JSON.parse(controlObj.model.pivotControl.getOlapReport()).Report;
+                                }
+                                catch (err) {
+                                    if (!ej.isNullOrUndefined(controlObj.model.pivotControl.getOlapReport))
+                                        report = controlObj.model.pivotControl.getOlapReport();
+                                }
+                                var removeTag = $(removeEle).attr("data-tag"), uniqueName = controlObj.model.pivotControl._getNodeUniqueName(removeTag), selectedTreeNode = controlObj.model.pivotControl._getNodeByUniqueName(uniqueName);
+                                this._nodeCheck = true;
+                                controlObj._tableTreeObj.uncheckNode(selectedTreeNode);
+                                params = controlObj._currentCubeName + "--" + headerTag + "--" + axisName + "--" + "##" + $(removeEle).attr("data-tag"), report;
+                                if (controlObj.model.beforeServiceInvoke != null && controlObj.model.pivotControl.model.operationalMode == ej.PivotGrid.OperationalMode.ServerMode)
+                                    controlObj._trigger("beforeServiceInvoke", { action: "nodeDropped", element: controlObj.element, customObject: controlObj.model.pivotControl.model.customObject });
+                                eventArgs = JSON.stringify({ "action": "nodeDroppedNamedSet", "dropType": "TreeNode", "nodeInfo": params, "currentReport": report, "gridLayout": controlObj.model.pivotControl.model.layout, "customObject": JSON.stringify(controlObj.model.pivotControl.model.customObject) });
+                                if (!controlObj.model.pivotControl.model.enableDeferUpdate)
+                                    controlObj.doAjaxPost("POST", controlObj.model.pivotControl.model.url + "/" + controlObj.model.serviceMethods.nodeDropped, eventArgs, controlObj._droppedSuccess);
+                                else {
+                                    controlObj.doAjaxPost("POST", controlObj.model.pivotControl.model.url + "/" + controlObj.model.serviceMethods.nodeDropped, eventArgs.replace("nodeDropped", "nodeDroppedDeferUpdate"), controlObj._droppedSuccess);
+                                }
+                            });
+                            return 0;
+                        }
                         headerTag = $(this.element.find(".e-pivotButton")[i]).attr("data-tag"); uniqueName = "";
                         uniqueName = ((headerTag.indexOf("[Measures]") > -1) || (headerTag.indexOf("[") > -1)) ? headerTag.split(":")[1] : this.model.pivotControl._getNodeUniqueName(headerTag);
                         uniqueName = uniqueName.replace("<>", ".");
-                        curElement = ($(args.currentElement).attr("data-tag") == "Value" || $(args.currentElement).attr("data-tag") == "Goal" || $(args.currentElement).attr("data-tag") == "Status" || $(args.currentElement).attr("data-tag") == "Trend") ? ("["+$(args.currentElement).parents("ul:eq(1) li:eq(0)").attr("data-tag")+"]") : $(args.currentElement).attr("data-tag");
+                        curElement = ($(args.currentElement).attr("data-tag") == "Value" || $(args.currentElement).attr("data-tag") == "Goal" || $(args.currentElement).attr("data-tag") == "Status" || $(args.currentElement).attr("data-tag") == "Trend") ? ("[" + $(args.currentElement).parents("ul:eq(1) li:eq(0)").attr("data-tag") + "]") : $(args.currentElement).attr("data-tag");
                         if (curElement.toLowerCase() == uniqueName.toLowerCase()) {
                             selectedElement = $(this.element.find(".e-pivotButton")[i]);
                             break;
@@ -1942,7 +2065,7 @@
             }
             catch (err) {
                 if (!ej.isNullOrUndefined(this.model.pivotControl.getOlapReport))
-                report = this.model.pivotControl.getOlapReport();
+                    report = this.model.pivotControl.getOlapReport();
             }
             filterTag = "e-schemaRow::" + headerText + "::FILTERED" + filterItems;
             var dropAxis = this._droppedClass != "" ? this._droppedClass : headerTag.pivotType == "PivotItem" ? "e-schemaRow" : "e-schemaValue", eventArgs, axisName, params;
@@ -2018,7 +2141,7 @@
             else if (args.type == "nodeUncheck") {
                 if (this._dataModel == "Olap") {
                     $(args.currentElement.find(".treeDrop")).remove();
-                   // $(args.currentElement.find(".e-icon:not(.e-chk-image, .e-plus,.e-minus)")).remove();
+                    // $(args.currentElement.find(".e-icon:not(.e-chk-image, .e-plus,.e-minus)")).remove();
                     $(args.currentElement).find(".filter").removeClass("filter");
                     var headerTag = this._currentCheckedNode = $(selectedElement).attr("data-tag"), report, eventArgs;
                     delete this.model.pivotControl._fieldMembers[headerTag.split(':')[headerTag.split(':').length - 1]];
@@ -2032,7 +2155,7 @@
                         var tmp = headerTag.split(":"),
                         tempAxis = tmp[0] == "Rows" ? ".e-schemaRow" : tmp[0] == "Columns" ? ".e-schemaColumn" : "";
                         if (this.element.find(".e-schemaValue .e-pivotButton [data-tag*='Measures']").length <= 0)
-                         this.element.find(tempAxis + " .e-pivotButton:contains('Measures')").remove();
+                            this.element.find(tempAxis + " .e-pivotButton:contains('Measures')").remove();
                     }
                     else if (headerTag.indexOf("[Measures]") < 0 && headerTag.indexOf("Measures") >= 0)
                         this.element.find(".e-schemaValue .e-pivotButton").remove();
@@ -2111,6 +2234,10 @@
                         headerTag = this.model.pivotTableFields[i];
                         break;
                     }
+                }
+                if (($(this.element).parents(".e-pivotclient").length > 0)) {
+                    if (this.model.pivotControl.model.beforeServiceInvoke != null && this.model.pivotControl.model.operationalMode == ej.PivotGrid.OperationalMode.ServerMode)
+                        this.model.pivotControl._trigger("beforeServiceInvoke", { action: "nodeDropped", element: this.model.pivotControl.element, customObject: this.model.pivotControl.model.customObject });
                 }
                 var eventArgs = JSON.stringify({ "action": this.model.pivotControl.model.enableDeferUpdate ? "nodeDroppedDeferUpdate" : "nodeDropped", "args": JSON.stringify({ "droppedFieldCaption": headerText, "droppedFieldName": headerName, "headerTag": headerTag, "dropAxis": droppedAxis, "droppedPosition": droppedPosition, "currentReport": report }) + "-##-" + JSON.stringify(this.model.pivotControl.model.valueSortSettings), "customObject": JSON.stringify(this.model.pivotControl.model.customObject) });
                 this.doAjaxPost("POST", this.model.pivotControl.model.url + "/" + this.model.serviceMethods.nodeDropped, eventArgs, this._pvtNodeDroppedSuccess);
@@ -2193,7 +2320,7 @@
                         this._droppedClass = args.event.target.className.split(" ")[0] == "rowheader" || args.event.target.className.split(" ")[0] == "e-grpRow" ? "e-schemaRow" : args.event.target.className.split(" ")[0] == "colheader" ? "e-schemaColumn" : $(args.event.target).hasClass("value") ? "e-schemaValue" : "";
                         if (this._droppedClass == "") return;
                     }
-                    else 
+                    else
                         this._droppedClass = (args.event.target.className.split(" ")[0] == "e-rows" || args.event.target.className.split(" ")[0] == "emptyRows") ? "e-schemaRow" : args.event.target.className.split(" ")[0] == "columns" ? "e-schemaColumn" : args.event.target.className.split(" ")[0] == "values" ? "e-schemaValue" : args.event.target.className.split(" ")[0] == "e-drag" ? "e-schemaFilter" : "";
                     //test
                 else
@@ -2402,8 +2529,8 @@
         _addTreeDropIcon: function (treeviewItem) {
             if (this.model.pivotControl.model.operationalMode == ej.Pivot.OperationalMode.ClientMode && this.model.pivotControl.model.analysisMode == ej.Pivot.AnalysisMode.Olap)
                 if ($(args.currentElement).attr("data-tag").toLowerCase().indexOf("[measures]") < 0 && !($(args.currentElement).find(".e-namedSetCDB").length > 0)) treeviewItem.after(ej.buildTag("span.e-icon").css("display", "none").addClass("treeDrop")[0].outerHTML);
-            else
-                treeviewItem.after(ej.buildTag("span.e-icon").css("display", "none").addClass("treeDrop")[0].outerHTML);
+                else
+                    treeviewItem.after(ej.buildTag("span.e-icon").css("display", "none").addClass("treeDrop")[0].outerHTML);
         },
 
         _removeUndefinedFields: function (dropArgs) {
@@ -2445,17 +2572,17 @@
                 this._removeUndefinedFields(dropArgs);
                 ej.Pivot.addReportItem(this.model.pivotControl.model.dataSource, dropArgs);
             }
-			if (this.model.pivotControl.model.analysisMode == ej.Pivot.AnalysisMode.Olap)
-                    ej.olap.base.clearDrilledItems(this.model.pivotControl.model.dataSource, { action: "nodeDropped" }, this.model.pivotControl)
+            if (this.model.pivotControl.model.analysisMode == ej.Pivot.AnalysisMode.Olap)
+                ej.olap.base.clearDrilledItems(this.model.pivotControl.model.dataSource, { action: "nodeDropped" }, this.model.pivotControl)
             this._refreshPivotButtons();
             this.model.pivotControl.refreshControl();
-			this._setPivotBtnWidth();
+            this._setPivotBtnWidth();
         },
 
         _clientOnNodeDropped: function (args) {
             ej.PivotAnalysis._valueSorting = null;
             this._isDragging = false;
-            var pivotDrop = false;
+            var pivotDrop = false, isKpi = false;
             var schemaObj = this;
             var pivotClientObj = ($(this.element).parents(".e-pivotclient").length > 0) ? $(this.element).parents(".e-pivotclient").data("ejPivotClient") : null;
             if (this.model.pivotControl.model.analysisMode == ej.Pivot.AnalysisMode.Pivot) {
@@ -2466,7 +2593,46 @@
                 }
             }
             var droppedFieldName = this.model.pivotControl.model.analysisMode == ej.Pivot.AnalysisMode.Pivot ? $.grep(this.model.pivotTableFields, function (item) { return item.name.replace(/ /g, "_") == args.droppedElement.attr("id") })[0].name : (args.droppedElement.attr("data-defaultHierarchy") || ($(args.droppedElement).find("a:eq(0) span[class^='level'],div[class*='level']").length > 0 ? $(args.droppedElement).parents("li:eq(0)").attr("data-tag") : args.droppedElement.attr("data-tag")));
-            var droppedFieldCaption = $(args.droppedElement).find("div:first").text();            
+            var droppedFieldCaption = $(args.droppedElement).find("div:first").text();
+            isKpi = (droppedFieldCaption == this._getLocalizedLabels("Goal") || droppedFieldCaption == this._getLocalizedLabels("Status") || droppedFieldCaption == this._getLocalizedLabels("Value") || droppedFieldCaption == this._getLocalizedLabels("Trend")) && $(args.droppedElement).parents("[data-tag='folderStruct']").length > 0;
+            if(isKpi) droppedFieldCaption = ($(args.droppedElement).parents("li:eq(0)").attr("data-tag") + " " + $(args.droppedElement).find("div:first").text());
+            if (droppedFieldName == "" && droppedFieldCaption != "")
+                droppedFieldName = droppedFieldCaption;
+            var droppedHierarchyUniqueName = null; var droppedExpression = null;
+            if (($(this.element).parents(".e-pivotclient").length > 0) && $(args.droppedElement).length > 0 && $(args.droppedElement).find(".e-calcMemberCDB").length > 0) {
+                var treeJSON = this.element.find(".e-schemaFieldTree").data("ejTreeView").getTreeData($(args.droppedElement).attr("id"));
+                if (args.dropTarget == "" && $(args.droppedElement).is("li")) {
+
+                    if ($(args.droppedElement).siblings().length == 0)
+                        $(args.droppedElement).parents("li:eq(0)").children().find(".e-minus").hide();
+
+                    var removeExp = "";
+                    this.model.pivotControl.model.calculatedMembers = $.grep(this.model.pivotControl.model.calculatedMembers, function (item, index) {
+                        if (treeJSON[0].name != item.caption)
+                            return item;
+                        else
+                            removeExp = treeJSON[0].expression;
+                    });
+                    if (removeExp != "") {
+                        this.model.pivotControl.model.dataSource.values[0].measures = this._reArrangeCalcFields(this.model.pivotControl.model.dataSource.values[0].measures, removeExp).reportItem;
+                        this.model.pivotControl.model.dataSource.rows = this._reArrangeCalcFields(this.model.pivotControl.model.dataSource.rows, removeExp).reportItem;
+                        this.model.pivotControl.model.dataSource.columns = this._reArrangeCalcFields(this.model.pivotControl.model.dataSource.columns, removeExp).reportItem;
+                        this.model.pivotControl.refreshControl();
+                        this.refreshControl();
+                        var treeDataSrc = this.element.find(".e-schemaFieldTree").data("ejTreeView").model.fields.dataSource;
+                        treeDataSrc = $.grep(treeDataSrc, function (value) {
+                            if (value.id != $(args.droppedElement).attr("id")) return value;
+                        });
+                        this.element.find(".e-schemaFieldTree").data("ejTreeView").model.fields.dataSource = treeDataSrc;
+                        $(args.droppedElement).remove();
+                    }
+                    return;
+                } else {
+                    droppedHierarchyUniqueName = (treeJSON)[0].hierarchyUniqueName;
+                    droppedExpression = (treeJSON)[0].expression;
+                }
+            }
+
             var droppedClass = "";
             var droppedtItem = this.model.pivotControl.model.analysisMode == ej.Pivot.AnalysisMode.Pivot ? $.grep(this.model.pivotTableFields, function (item) { return item.name.replace(/ /g, "_") == args.droppedElement.attr("id") })[0] : null;
             var droppedFieldFormat = !ej.isNullOrUndefined(droppedtItem) ? droppedtItem.format : "";
@@ -2508,11 +2674,14 @@
             }
             else
                 this.model.pivotControl._waitingPopup.show();
-            var dropArgs = { droppedFieldName: droppedFieldName, droppedFieldCaption: droppedFieldCaption, droppedFieldFormat: droppedFieldFormat, droppedFieldFormatString: droppedFieldFormatString, droppedFieldShowSubTotal: droppedFieldShowSubTotal, droppedClass: droppedClass, droppedPosition: droppedPosition, isMeasuresDropped: (droppedFieldName.toLocaleLowerCase().indexOf("measures") == 0) };
+            var dropArgs = { droppedFieldName: droppedFieldName, droppedFieldCaption: droppedFieldCaption, droppedFieldFormat: droppedFieldFormat, droppedFieldFormatString: droppedFieldFormatString, droppedFieldShowSubTotal: droppedFieldShowSubTotal, droppedClass: droppedClass, droppedPosition: droppedPosition, isMeasuresDropped: (droppedFieldName.toLocaleLowerCase().indexOf("measures") == 0), droppedExpression: droppedExpression, droppedHierarchyUniqueName: droppedHierarchyUniqueName };
             this._removeUndefinedFields(dropArgs);
             ej.Pivot.addReportItem(this.model.pivotControl.model.dataSource, dropArgs);
-            if (this.model.pivotControl.model.analysisMode == ej.Pivot.AnalysisMode.Olap)
+            if (this.model.pivotControl.model.analysisMode == ej.Pivot.AnalysisMode.Olap) {
                 ej.olap.base.clearDrilledItems(this.model.pivotControl.model.dataSource, { action: "nodeDropped" }, this.model.pivotControl);
+                this.model.pivotControl.model.dataSource.rows = this._reArrangeCalcFields(this.model.pivotControl.model.dataSource.rows).reportItem;
+                this.model.pivotControl.model.dataSource.columns = this._reArrangeCalcFields(this.model.pivotControl.model.dataSource.columns).reportItem;
+            }
             if (this.model.pivotControl.element.hasClass("e-pivotclient") && this.model.pivotControl._pivotChart)
                 this.model.pivotControl._pivotChart._labelCurrentTags = {};
 
@@ -2535,7 +2704,7 @@
         },
 
         _clientOnPvtBtnDropped: function (args) {
-			ej.PivotAnalysis._valueSorting = null;
+            ej.PivotAnalysis._valueSorting = null;
             var schemaObj = this;
             var pivotClientObj = ($(this.element).parents(".e-pivotclient").length > 0) ? $(this.element).parents(".e-pivotclient").data("ejPivotClient") : null;
             if (!ej.isNullOrUndefined(this.model.pivotControl) && !ej.isNullOrUndefined(this.model.pivotControl._waitingPopup))
@@ -2546,12 +2715,13 @@
                             schemaObj.model.pivotControl._waitingPopup.show();
                     }, 800);
                 }
-            else
-                this.model.pivotControl._waitingPopup.show();
+                else
+                    this.model.pivotControl._waitingPopup.show();
             if ($(args.target).hasClass("e-removeClientPivotBtn"))
                 args.target = $(args.target).parent();
             this._isDragging = false;
             $("#" + this._id + "_dragClone").remove();
+            var isCalcMember = false;
             //Getting dropped item name
             var droppedField = "", droppedFieldFormat = "", droppedFieldFormatString = "";
             if (this.model.pivotControl.model.operationalMode == ej.Pivot.OperationalMode.ClientMode) {
@@ -2560,16 +2730,22 @@
                     droppedFieldFormat = $.grep(this.model.pivotTableFields, function (item) { return item.name == $(args.element).attr("data-fieldName"); })[0].format;
                     droppedFieldFormatString = $.grep(this.model.pivotTableFields, function (item) { return item.name == $(args.element).attr("data-fieldName"); })[0].formatString;
                 }
-                else
+                else {
                     droppedField = $(args.element).attr("data-fieldName");
+                    if ($(this.element).parents(".e-pivotclient").length > 0) {
+                        var calcMember = $.map((this.model.pivotControl.model.calculatedMembers), function (item) { if (item.caption == droppedField) return item });
+                        if (calcMember.length > 0)
+                            isCalcMember = true;
+                    }
+                }
             }
             else
                 droppedField = args.element.text();
             var droppedFieldCaption = args.element.text();
-			if(!ej.isNullOrUndefined(this.model.pivotControl._fieldMembers)) {
-				delete this.model.pivotControl._fieldMembers[droppedField.toLowerCase()];
-				delete this.model.pivotControl._fieldSelectedMembers[droppedField.toLowerCase()];
-			}
+            if (!ej.isNullOrUndefined(this.model.pivotControl._fieldMembers)) {
+                delete this.model.pivotControl._fieldMembers[droppedField.toLowerCase()];
+                delete this.model.pivotControl._fieldSelectedMembers[droppedField.toLowerCase()];
+            }
             //Getting dropped axis
             var droppedClass = "";
             if ($(args.target).hasClass("e-pvtBtn") || (this.element.parents(".e-pivotclient").length > 0 && $(args.target).hasClass("e-pivotButton")))
@@ -2578,7 +2754,7 @@
                 droppedClass = $(args.target).hasClass("e-schemaColumn") ? "column" : $(args.target).hasClass("e-schemaRow") ? "row" : $(args.target).hasClass("e-schemaFilter") ? "filter" : $(args.target).hasClass("e-schemaValue") ? "value" : "";
 
             //validating drop action
-            if ((droppedField.toLowerCase().indexOf("[measures]") >= 0 && droppedClass != "value" && (droppedClass == "row" || droppedClass == "column" || droppedClass == "filter")) || (droppedField == this._getLocalizedLabels("Measures") && droppedClass != "row" && droppedClass != "column" && (droppedClass == "value" || droppedClass == "filter")) || (this.model.pivotControl.model.analysisMode == ej.Pivot.AnalysisMode.Olap && droppedField.toLowerCase().indexOf("[measures]") < 0 && droppedClass == "value")) {
+            if (isCalcMember && droppedClass == "filter" || ((droppedField.toLowerCase().indexOf("[measures]") >= 0 && droppedClass != "value" && (droppedClass == "row" || droppedClass == "column" || droppedClass == "filter")) || (droppedField == this._getLocalizedLabels("Measures") && droppedClass != "row" && droppedClass != "column" && (droppedClass == "value" || droppedClass == "filter")) || (this.model.pivotControl.model.analysisMode == ej.Pivot.AnalysisMode.Olap && droppedField.toLowerCase().indexOf("[measures]") < 0 && droppedClass == "value"))) {
                 this._createErrorDialog();
                 args.element.removeClass("dragHover").parent().removeClass("dragHover");
                 return;
@@ -2591,13 +2767,15 @@
                 return;
             }
             //Getting dropped position
-            var droppedPosition =!ej.isNullOrUndefined(args.event)? this._setSplitBtnTargetPos(args.event):"";
-            
+            var droppedPosition = !ej.isNullOrUndefined(args.event) ? this._setSplitBtnTargetPos(args.event) : "";
+
             var dropArgs = { droppedFieldName: droppedField, droppedFieldCaption: droppedFieldCaption, droppedFieldFormat: droppedFieldFormat, droppedFieldFormatString: droppedFieldFormatString, droppedClass: droppedClass, droppedPosition: droppedPosition, isMeasuresDropped: (droppedField.toLocaleLowerCase().indexOf("measures") == 0) };
             this._removeUndefinedFields(dropArgs);
             if (this.model.pivotControl.model.analysisMode == ej.Pivot.AnalysisMode.Olap && (droppedField == this._getLocalizedLabels("Measures") || droppedField == "[Measures]"))
                 var measureItems = this.model.pivotControl.model.dataSource.values[0].measures;
             ej.Pivot.addReportItem(this.model.pivotControl.model.dataSource, dropArgs);
+            this.model.pivotControl.model.dataSource.rows = this._reArrangeCalcFields(this.model.pivotControl.model.dataSource.rows).reportItem;
+            this.model.pivotControl.model.dataSource.columns = this._reArrangeCalcFields(this.model.pivotControl.model.dataSource.columns).reportItem;
             if (this.model.pivotControl._calculatedField != null && this.model.pivotControl._calculatedField.length > 0 && droppedClass != "value") {
                 var removeElement = $.grep(this.model.pivotControl.model.dataSource.values, function (value) { return value.isCalculatedField == true && value.formula.indexOf(droppedField) > -1; });
                 for (var i = 0; i < removeElement.length; i++)
@@ -2628,9 +2806,25 @@
             }
             this._refreshPivotButtons();
             this.model.pivotControl.refreshControl();
-			this._setPivotBtnWidth();
+            this._setPivotBtnWidth();
         },
 
+        _reArrangeCalcFields: function (items, removeExpression) {
+            var calcMembers = [],  calcMems = [];
+            var items = $.grep(items, function (item, index) {
+                if (!ej.isNullOrUndefined(removeExpression)) {
+                    if (item.expression != removeExpression)
+                        return item;
+                }
+                else if (item.expression != undefined) {
+                    calcMems.push({ caption: item.fieldName, "expression": item.expression, hierarchyUniqueName: item.hierarchyUniqueName, "formatString": (item.formatString ? item.formatString : item.format), memberType: "Dimension" });
+                    calcMembers.push(item)
+                }
+                else
+                    return item;
+            });
+            return { reportItem: $.merge(calcMembers, items), calcMems: calcMems };
+        },
         _refreshPivotButtons: function () {
             this.element.find(".e-axisTable .e-schemaFilter").html(this.model.layout == "normal" ? this._createPivotButtons_1(this.model.pivotControl.model.operationalMode == ej.Pivot.OperationalMode.ClientMode ? this.model.pivotControl.model.dataSource.filters : JSON.parse(this.model.pivotControl.getOlapReport()).Filters, "filter") : this._createPivotButtons("filters", this.model.pivotControl.model.operationalMode == ej.Pivot.OperationalMode.ClientMode ? this.model.pivotControl.model.dataSource.filters : JSON.parse(this.model.pivotControl.getOlapReport()).Filters));
             this.element.find(".e-axisTable .e-schemaRow").html(this.model.layout == "normal" ? this._createPivotButtons_1(this.model.pivotControl.model.operationalMode == ej.Pivot.OperationalMode.ClientMode ? this.model.pivotControl.model.dataSource.rows : JSON.parse(this.model.pivotControl.getOlapReport()).PivotRows, "row") : this._createPivotButtons("rows", this.model.pivotControl.model.operationalMode == ej.Pivot.OperationalMode.ClientMode ? this.model.pivotControl.model.dataSource.rows : JSON.parse(this.model.pivotControl.getOlapReport()).PivotRows));
@@ -2642,7 +2836,7 @@
                     this.element.find(".e-axisTable .e-schemaRow").append(this.model.layout == "normal" ? this._createPivotButtons_1([{ fieldName: "Measures", fieldCaption: this._getLocalizedLabels("Measures") }], "row") : this._createPivotButtons("rows", [{ fieldName: "Measures", fieldCaption: this._getLocalizedLabels("Measures") }]));// this.model.pivotControl.model.dataSource.values[0].measures));
             }
             this.element.find(".e-axisTable .e-schemaValue").html(this.model.layout == "normal" ? this._createPivotButtons_1(this.model.pivotControl.model.operationalMode == ej.Pivot.OperationalMode.ClientMode ? this.model.pivotControl.model.dataSource.values : JSON.parse(this.model.pivotControl.getOlapReport()).PivotCalculations, "value") : this._createPivotButtons("values", this.model.pivotControl.model.operationalMode == ej.Pivot.OperationalMode.ClientMode ? this.model.pivotControl.model.dataSource.values : JSON.parse(this.model.pivotControl.getOlapReport()).PivotCalculations));
-            
+
             if (this.model.enableDragDrop) {
                 this.element.find(".e-pivotButton .e-pvtBtn").ejButton({ size: "normal", type: ej.ButtonType.Button, enableRTL: this.model.enableRTL }).ejDraggable({
                     handle: 'button', clone: true,
@@ -2654,9 +2848,9 @@
                     helper: ej.proxy(function (event, ui) {
                         $(event.element).addClass("dragHover");
                         if (event.sender.target.className.indexOf("e-btn") > -1) {
-                            var btnClone = $(event.sender.target).clone().attr("id",this._id+"_dragClone").appendTo('body');
-                            $("#"+this._id + "_dragClone").removeAttr("style").height($(event.sender.target).height());
-                            return btnClone;            
+                            var btnClone = $(event.sender.target).clone().attr("id", this._id + "_dragClone").appendTo('body');
+                            $("#" + this._id + "_dragClone").removeAttr("style").height($(event.sender.target).height());
+                            return btnClone;
                         }
                         else
                             return false;
@@ -2678,15 +2872,14 @@
                 this.model.pivotControl.element.find(".splitresponsive").data("ejSplitter").refresh();
             if (this.model.pivotControl.model.showUniqueNameOnPivotButton)
                 $(".pvtBtnDiv").addClass("e-schemaBtnUnique");
-            if(!(this.element.parents(".e-pivotclient").length > 0))
+            if (!(this.element.parents(".e-pivotclient").length > 0))
                 this._setPivotBtnWidth();
             else
                 this._setSplitButtonTitle();
         },
 
         _setSplitButtonTitle: function () {
-            if (this.element.find(".e-pvtBtn").length > 0 && this._tableTreeObj != null)
-            {
+            if (this.element.find(".e-pvtBtn").length > 0 && this._tableTreeObj != null) {
                 for (var i = 0; i < this.element.find(".e-pvtBtn").length; i++) {
                     var fieldName = this.element.find(".e-pvtBtn:eq(" + i + ")").attr("data-fieldname");
                     if (this.model.pivotControl.model.analysisMode == ej.Pivot.AnalysisMode.Olap) {
@@ -2750,7 +2943,7 @@
                     if (!ej.isNullOrUndefined(this.model.pivotControl) && (axis == "filters" || axis == "slicers")) {
                         filterState = ej.Pivot._getFilterState("", [], items[i], this.model.pivotControl);
                         axis = this.model.pivotControl.model.analysisMode == ej.Pivot.AnalysisMode.Olap ? "slicers" : axis;
-                    }                   
+                    }
 
                     rowBtns += ej.buildTag("div.e-pivotButton",
                                 ej.buildTag("div.e-dropIndicator")[0].outerHTML +
@@ -2770,7 +2963,7 @@
             var draggedClass = "";
             this._isDragging = false;
             if ($(this.element).parents(".e-pivotclient").length > 0 && this.model.pivotControl.model.analysisMode == ej.Pivot.AnalysisMode.Pivot) {
-                if($(args.target).hasClass("e-pivotButton"))
+                if ($(args.target).hasClass("e-pivotButton"))
                     args.target = args.target.childNodes[1];
                 var droppedClass = !ej.isNullOrUndefined(args.target.className.indexOf) ? ($(args.target).attr("class") ? args.target.className.indexOf("e-droppable") >= 0 ? args.target.className.split(" ")[0] : (args.target.className.split(" ")[0] == "e-pvtBtn" ? $(args.target).parents('div.e-droppable').attr("class").split(" ")[0] : "") : "") : "";
                 if (droppedClass.indexOf("e-") > -1) { droppedClass = droppedClass.replace("e-", "") };
@@ -2791,7 +2984,11 @@
                 if (droppedClass == "") {
                     delete this.model.pivotControl._fieldMembers[headerName];
                     delete this.model.pivotControl._fieldSelectedMembers[headerName];
-					this._clearFilterData(headerName);
+                    this._clearFilterData(headerName);
+                }
+                if (($(this.element).parents(".e-pivotclient").length > 0)) {
+                    if (this.model.pivotControl.model.beforeServiceInvoke != null && this.model.pivotControl.model.operationalMode == ej.PivotGrid.OperationalMode.ServerMode)
+                        this.model.pivotControl._trigger("beforeServiceInvoke", { action: "nodeDropped", element: this.model.pivotControl.element, customObject: this.model.pivotControl.model.customObject });
                 }
                 var eventArgs = JSON.stringify({ "action": this.model.pivotControl.model.enableDeferUpdate ? "nodeDroppedDeferUpdate" : "nodeDropped", "args": JSON.stringify({ "droppedFieldCaption": headerText, "droppedFieldName": headerName, "headerTag": headerTag, "dropAxis": droppedClass, "droppedPosition": droppedPosition, "currentReport": report, "sortedHeaders": !ej.isNullOrUndefined(this.model.pivotControl._ascdes) ? this.model.pivotControl._ascdes : "" }) + "-##-" + JSON.stringify(this.model.pivotControl.model.valueSortSettings), "customObject": JSON.stringify(this.model.pivotControl.model.customObject) });
                 this.doAjaxPost("POST", this.model.pivotControl.model.url + "/" + this.model.serviceMethods.nodeDropped, eventArgs, this._pvtNodeDroppedSuccess);
@@ -2869,7 +3066,7 @@
                 }
                 catch (err) {
                     if (!ej.isNullOrUndefined(this.model.pivotControl.getOlapReport))
-                    report = this.model.pivotControl.getOlapReport();
+                        report = this.model.pivotControl.getOlapReport();
                 }
                 if (this.model.pivotControl.model.analysisMode == ej.Pivot.AnalysisMode.Olap && this.model.pivotControl.model.operationalMode == ej.PivotGrid.OperationalMode.ClientMode) {
                     this.model.pivotControl.dataSource = this.model.pivotControl._clearDrilledItems(this.model.pivotControl.model.dataSource, { action: "nodeDropped" });
@@ -3008,92 +3205,92 @@
             this.element.find(".expandSchema").addClass("collapseSchema").removeClass("expandSchema");
         },
         _reSizeHandler: function (args) {
-            if(this.model.pivotControl){
-            var axisTblWidth = $("#" + this._id).width();
-            if (this.model.layout == ej.PivotSchemaDesigner.Layouts.OneByOne) {
-               
+            if (this.model.pivotControl) {
+                var axisTblWidth = $("#" + this._id).width();
+                if (this.model.layout == ej.PivotSchemaDesigner.Layouts.OneByOne) {
 
-                this.element.find(".e-axisTd1, .e-axisTd2").css({ "width": "100%" });
-                
-                if (!this._pivotClientObj.model.isResponsive || !this._pivotClientObj.model.enableSplitter) {
-                    var schemaWidth = this._pivotClientObj.element.find("#" + this._id).width() / 2;
-                    this._pivotClientObj.element.find("div.e-fieldTable").width(schemaWidth - 6);
-                    this._pivotClientObj.element.find("div.e-axisTable").width(schemaWidth - 5);
-                }
-                if (this._pivotClientObj.model.isResponsive)
-                    this._pivotClientObj.element.find("div.e-axisTable").css({ "width":"52%"});
-                if (this.model.layout == ej.PivotSchemaDesigner.Layouts.OneByOne && this._pivotClientObj.model.enableSplitter){
-                    if (this._pivotClientObj.model.enableVirtualScrolling)
-                        this._pivotClientObj.element.find("div.e-axisTable").css({ "padding-right": "12px" });
-                    else {
-                        if(this._pivotClientObj.model.isResponsive)
-                            this._pivotClientObj.element.find("div.e-fieldTable").css({ "padding-right": "2px" });
-                        else
-                            this._pivotClientObj.element.find("div.e-fieldTable").css({ "padding-right": "1px" });
+
+                    this.element.find(".e-axisTd1, .e-axisTd2").css({ "width": "100%" });
+
+                    if (!this._pivotClientObj.model.isResponsive || !this._pivotClientObj.model.enableSplitter) {
+                        var schemaWidth = this._pivotClientObj.element.find("#" + this._id).width() / 2;
+                        this._pivotClientObj.element.find("div.e-fieldTable").width(schemaWidth - 6);
+                        this._pivotClientObj.element.find("div.e-axisTable").width(schemaWidth - 5);
+                    }
+                    if (this._pivotClientObj.model.isResponsive)
+                        this._pivotClientObj.element.find("div.e-axisTable").css({ "width": "52%" });
+                    if (this.model.layout == ej.PivotSchemaDesigner.Layouts.OneByOne && this._pivotClientObj.model.enableSplitter) {
+                        if (this._pivotClientObj.model.enableVirtualScrolling)
+                            this._pivotClientObj.element.find("div.e-axisTable").css({ "padding-right": "12px" });
+                        else {
+                            if (this._pivotClientObj.model.isResponsive)
+                                this._pivotClientObj.element.find("div.e-fieldTable").css({ "padding-right": "2px" });
+                            else
+                                this._pivotClientObj.element.find("div.e-fieldTable").css({ "padding-right": "1px" });
+                        }
                     }
                 }
-            }
-            else {
-                this.element.find("div.e-axisTable").width(axisTblWidth);
-                var axisTdwidth = (axisTblWidth - 2) / 2;
-                this.element.find(".e-axisTd1").css({ "width": axisTdwidth - 6 });
-                this.element.find(".e-axisTd2").css({ "width": axisTdwidth });
-                this.element.find("div.parentSchemaFieldTree, .e-schemaFieldTree, div.e-fieldTable").css({ width: axisTblWidth-23 });
-            }
-            var sFldHeight = (ej.PivotSchemaDesigner.Layouts.OneByOne == this.model.layout) ? (this._pivotClientObj.model.enableVirtualScrolling || this._pivotClientObj.model.enablePaging ? (this._pivotClientObj.element.height() - ((this._pivotClientObj.element.find("div.e-titleText").length > 0 ? 50 : 0) + this._pivotClientObj.element.find("#reportToolbar").height()+(this._pivotClientObj.model.enablePaging?22:30))) : this._pivotClientObj.element.find(".e-controlPanel").height() - 17) : (25 / 100) * $("#" + this._id).height();
-
-            if (this.model.layout == ej.PivotSchemaDesigner.Layouts.OneByOne)
-                sFldHeight = (this.element.find(".e-cubelists").length > 0) ? (sFldHeight - (this._pivotClientObj.model.enableVirtualScrolling || this._pivotClientObj.model.enablePaging? 30:28)) : sFldHeight + 4;
-            this.element.find("div.parentSchemaFieldTree, .e-schemaFieldTree, div.e-fieldTable").height(sFldHeight);
-           
-            if (this.model.layout == ej.PivotSchemaDesigner.Layouts.OneByOne)
-                this.element.find("div.e-schemaFieldTree").height(sFldHeight-35);
-               
-            if (!($(this.element).parents(".e-pivotclient").length > 0)) {
-                if ($("#" + this._id).height() < 450) {
-                    $("#" + this._id).css("min-height", "450px");
+                else {
+                    this.element.find("div.e-axisTable").width(axisTblWidth);
+                    var axisTdwidth = (axisTblWidth - 2) / 2;
+                    this.element.find(".e-axisTd1").css({ "width": axisTdwidth - 6 });
+                    this.element.find(".e-axisTd2").css({ "width": axisTdwidth });
+                    this.element.find("div.parentSchemaFieldTree, .e-schemaFieldTree, div.e-fieldTable").css({ width: axisTblWidth - 23 });
                 }
-                if ($("#" + this._id).width() < 270) {
-                    $("#" + this._id).css("min-width", "270px");
+                var sFldHeight = (ej.PivotSchemaDesigner.Layouts.OneByOne == this.model.layout) ? (this._pivotClientObj.model.enableVirtualScrolling || this._pivotClientObj.model.enablePaging ? (this._pivotClientObj.element.height() - ((this._pivotClientObj.element.find("div.e-titleText").length > 0 ? 50 : 0) + this._pivotClientObj.element.find("#reportToolbar").height() + (this._pivotClientObj.model.enablePaging ? 22 : 30))) : this._pivotClientObj.element.find(".e-controlPanel").height() - 17) : (25 / 100) * $("#" + this._id).height();
+
+                if (this.model.layout == ej.PivotSchemaDesigner.Layouts.OneByOne)
+                    sFldHeight = (this.element.find(".e-cubelists").length > 0) ? (sFldHeight - (this._pivotClientObj.model.enableVirtualScrolling || this._pivotClientObj.model.enablePaging ? 30 : 28)) : sFldHeight + 4;
+                this.element.find("div.parentSchemaFieldTree, .e-schemaFieldTree, div.e-fieldTable").height(sFldHeight);
+
+                if (this.model.layout == ej.PivotSchemaDesigner.Layouts.OneByOne)
+                    this.element.find("div.e-schemaFieldTree").height(sFldHeight - 35);
+
+                if (!($(this.element).parents(".e-pivotclient").length > 0)) {
+                    if ($("#" + this._id).height() < 450) {
+                        $("#" + this._id).css("min-height", "450px");
+                    }
+                    if ($("#" + this._id).width() < 270) {
+                        $("#" + this._id).css("min-width", "270px");
+                    }
+                }
+
+                var axisTblHeight, axisTrHeight;
+                var pivotSchemaHeight = $(this.element).parents(".e-pivotclient").length > 0 ? (this._pivotClientObj.model.enableVirtualScrolling || this._pivotClientObj.model.enablePaging ? (this._pivotClientObj.element.height() - ((this._pivotClientObj.element.find("div.e-titleText").length > 0 ? 50 : 0) + this._pivotClientObj.element.find("#reportToolbar").height() + (this._pivotClientObj.model.enablePaging ? 15 : 25))) : this._pivotClientObj.element.find(".e-controlPanel").height() - 10) : $("#" + this._id).height() + 20;
+                var axisRemainingHeight = (ej.PivotSchemaDesigner.Layouts.OneByOne == this.model.layout) ? 0 : this.element.find("table.headerTable").height() + this.element.find("div.e-fieldTable").height() + this.element.find("div.centerDiv").height() + this.element.find("div.centerHead").height();
+                if (this.model.pivotControl != null && (!this.model.pivotControl.element.hasClass("e-pivotclient")) && this.model.pivotControl.model.operationalMode == ej.PivotGrid.OperationalMode.ServerMode) {
+                    axisTblHeight = pivotSchemaHeight - (axisRemainingHeight + 90);
+                    this.element.find("#axisTd, #axisTd3").css("margin-top", "5px");
+                }
+                else if (ej.PivotSchemaDesigner.Layouts.OneByOne == this.model.layout)
+                    axisTblHeight = pivotSchemaHeight;
+                else {
+                    axisTblHeight = pivotSchemaHeight - (axisRemainingHeight + 55);
+
+                }
+                this.element.find("div.e-axisTable").height(axisTblHeight);
+                axisTrHeight = (axisTblHeight / ((this.model.layout == ej.PivotSchemaDesigner.Layouts.OneByOne) ? 4 : 2));
+                this.element.find(".e-axisTd1,.e-axisTd2").css({ "height": axisTrHeight });
+                if ($(this.element).parents(".e-pivotclient").length > 0) {
+                    this._pivotClientObj.element.find(".e-schemaColumn, .e-schemaRow, .e-schemaFilter").height(axisTrHeight - 33.5);
+                    this._pivotClientObj.element.find(".e-schemaValue").height(axisTrHeight - 31.5);
+                }
+                this._setPivotBtnWidth();
+                if (this.model.pivotControl.model.analysisMode == ej.Pivot.AnalysisMode.Pivot) {
+                    var treeList = $(".e-schemaFieldTree ul>li div").width();
+                    $($(".e-pivotschemadesigner .e-schemaFieldTree.e-treeview .e-text")).each(function (e) {
+                        var percent = ((treeList - (50)) / treeList) * 100;
+                        $(this).width(percent.toString() + "%");
+                    });
                 }
             }
-
-            var axisTblHeight, axisTrHeight;
-            var pivotSchemaHeight = $(this.element).parents(".e-pivotclient").length > 0 ? (this._pivotClientObj.model.enableVirtualScrolling || this._pivotClientObj.model.enablePaging ? (this._pivotClientObj.element.height() - ((this._pivotClientObj.element.find("div.e-titleText").length > 0 ? 50 : 0) + this._pivotClientObj.element.find("#reportToolbar").height() + (this._pivotClientObj.model.enablePaging?15:25))) : this._pivotClientObj.element.find(".e-controlPanel").height() - 10) : $("#" + this._id).height() + 20;
-            var axisRemainingHeight = (ej.PivotSchemaDesigner.Layouts.OneByOne == this.model.layout) ? 0 : this.element.find("table.headerTable").height() + this.element.find("div.e-fieldTable").height() + this.element.find("div.centerDiv").height() + this.element.find("div.centerHead").height();
-            if (this.model.pivotControl != null && (!this.model.pivotControl.element.hasClass("e-pivotclient")) && this.model.pivotControl.model.operationalMode == ej.PivotGrid.OperationalMode.ServerMode) {
-                axisTblHeight = pivotSchemaHeight - (axisRemainingHeight + 90);
-                this.element.find("#axisTd, #axisTd3").css("margin-top","5px");
-            }
-            else if (ej.PivotSchemaDesigner.Layouts.OneByOne == this.model.layout)
-                axisTblHeight = pivotSchemaHeight;
-            else {
-                axisTblHeight = pivotSchemaHeight - (axisRemainingHeight + 55);
-                
-            }
-            this.element.find("div.e-axisTable").height(axisTblHeight);
-            axisTrHeight = (axisTblHeight / ((this.model.layout == ej.PivotSchemaDesigner.Layouts.OneByOne) ? 4 : 2));
-            this.element.find(".e-axisTd1,.e-axisTd2").css({ "height": axisTrHeight });
-            if ($(this.element).parents(".e-pivotclient").length > 0) {
-                this._pivotClientObj.element.find(".e-schemaColumn, .e-schemaValue").height(axisTrHeight - 31.5);
-                this._pivotClientObj.element.find(".e-schemaRow, .e-schemaFilter").height(axisTrHeight - 31.5);
-            }
-            this._setPivotBtnWidth();
-            if (this.model.pivotControl.model.analysisMode == ej.Pivot.AnalysisMode.Pivot) {
-                var treeList = $(".e-schemaFieldTree ul>li div").width();
-                $($(".e-pivotschemadesigner .e-schemaFieldTree.e-treeview .e-text")).each(function (e) {
-                    var percent = ((treeList - (50)) / treeList) * 100;
-                    $(this).width(percent.toString() + "%");
-                });
-            }
-			}
         },
 
         _clientDialogBtnClick: function (args) {
             var selectedNodes = [], unSelectedNodes = [], pivotObj = this.model.pivotControl, hierarchyUQName = this._selectedFieldName, getTreeNodeState = {}, reportItem, me = this;
             var pivotClientObj = ($(this.element).parents(".e-pivotclient").length > 0) ? $(this.element).parents(".e-pivotclient").data("ejPivotClient") : null;
             if (this.element.find(".e-editorTreeView").find("li span.e-searchfilterselection").length > 0)
-            this.element.find(".e-editorTreeView").ejTreeView("removeNode", this.element.find(".e-editorTreeView").find("li span.e-searchfilterselection").closest("li"));
+                this.element.find(".e-editorTreeView").ejTreeView("removeNode", this.element.find(".e-editorTreeView").find("li span.e-searchfilterselection").closest("li"));
             this.element.find(".e-dialog, .e-clientDialog").hide();
             this.element.find("#preventDiv").remove();
             if ($(args.target).hasClass("e-dialogCancelBtn")) {
@@ -3116,11 +3313,11 @@
                     pivotObj._pivotChart._labelCurrentTags = {};
                 ej.olap.base.clearDrilledItems(pivotObj.model.dataSource, { action: "filtering" }, pivotObj)
 
-                this._memberTreeObj = ej.Pivot.updateTreeView(this);      
+                this._memberTreeObj = ej.Pivot.updateTreeView(this);
                 var hierarchyName = this._selectedFieldName, currentDataSrc = pivotObj.model.dataSource, filterIndex = {};
                 getTreeNodeState = ej.Pivot.getNodesState(!ej.isNullOrUndefined(pivotObj) && (pivotObj.model.enableMemberEditorPaging || this._editorTreeData.length > 0) ? this._editorTreeData : this._memberTreeObj);
-                var member = ej.Pivot._getEditorMember(hierarchyName.toLocaleLowerCase(), pivotObj, true), selMem = "selectedNodes", ftype="include", isMondrian = pivotObj.model.dataSource.providerName == "mondrian";
-                pivotObj._fieldSelectedMembers[hierarchyName.toLocaleLowerCase()] = $.map(pivotObj._fieldMembers[hierarchyName.toLocaleLowerCase()], function (item) { if (!item.checked) return item }).length == 0 ? "All" : ((member != "All" && member != "multiple") ? member : pivotObj._getLocalizedLabels("MultipleItems"));                
+                var member = ej.Pivot._getEditorMember(hierarchyName.toLocaleLowerCase(), pivotObj, true), selMem = "selectedNodes", ftype = "include", isMondrian = pivotObj.model.dataSource.providerName == "mondrian";
+                pivotObj._fieldSelectedMembers[hierarchyName.toLocaleLowerCase()] = $.map(pivotObj._fieldMembers[hierarchyName.toLocaleLowerCase()], function (item) { if (!item.checked) return item }).length == 0 ? "All" : ((member != "All" && member != "multiple") ? member : pivotObj._getLocalizedLabels("MultipleItems"));
                 reportItem = ej.Pivot.getReportItemByFieldName(this._selectedFieldName, pivotObj.model.dataSource, this._dataModel)["item"];
                 if (isMondrian) {
                     selMem = "unSelectedNodes";
@@ -3141,7 +3338,7 @@
                     this._selectedTreeNode = this.element.find(".e-schemaFieldTree").find("li[data-tag='" + reportItem.fieldName + "']");
                     if ($(this._selectedTreeNode).parents("li:eq(0) span:eq(0)").hasClass("e-hierarchyCDB"))
                         this._selectedTreeNode = $(this._selectedTreeNode).parents("li:eq(0)");
-                    if (getTreeNodeState["unSelectedNodes"] != ""){
+                    if (getTreeNodeState["unSelectedNodes"] != "") {
                         if (!isMondrian)
                             pivotObj.model.dataSource = ej.olap.base.clearDrilledItems(pivotObj.model.dataSource, { action: "filtering" }, pivotObj);
                         if ($(this._selectedTreeNode).find(".filter").length <= 0) {
@@ -3149,7 +3346,7 @@
                             this.element.find(".e-pivotButton:contains('" + this._selectedFieldName + "') .filter").addClass("filtered");
                             this.element.find(".e-pvtBtn[data-fieldName='" + this._selectedFieldName + "']").parent().find(".filter").addClass("filtered");
                         }
-                    }					
+                    }
                     else if (pivotObj._unSelectedNodes) {
                         if (!isMondrian)
                             pivotObj.model.dataSource = ej.olap.base.clearDrilledItems(pivotObj.model.dataSource, { action: "filtering" }, pivotObj);
@@ -3166,7 +3363,7 @@
                     }
                 }
                 if (pivotObj.model.analysisMode == ej.Pivot.AnalysisMode.Olap && pivotObj.model.operationalMode == ej.Pivot.OperationalMode.ClientMode) {
-                    var hierarchyName = this._selectedFieldName, currentDataSrc=pivotObj.model.dataSource ; 
+                    var hierarchyName = this._selectedFieldName, currentDataSrc = pivotObj.model.dataSource;
                     pivotObj._currentReportItems = $.map(pivotObj._currentReportItems, function (obj, index) {
                         if ((obj["fieldName"] != hierarchyName) && (ej.isNullOrUndefined(obj.dataSrc) || (obj.dataSrc.cube == currentDataSrc.cube && obj.dataSrc.reportName == currentDataSrc.reportName))) {
                             return obj;
@@ -3177,13 +3374,13 @@
                     }
                     else
                         filterIndex = $.extend([], this._memberTreeObj.dataSource());
-                   // this.model.pivotControl._currentReportItems.push({ filterItems: filterIndex, fieldName: hierarchyName, dataSrc: this.model.pivotControl.model.dataSource, pageSettings: this._memberCount });
+                    // this.model.pivotControl._currentReportItems.push({ filterItems: filterIndex, fieldName: hierarchyName, dataSrc: this.model.pivotControl.model.dataSource, pageSettings: this._memberCount });
                     if (isMondrian) {
                         var maxLen = 2;
                         for (var itm = 0; itm < filterIndex.length; itm++) {
                             if (!ej.isNullOrUndefined(filterIndex[itm].level) && filterIndex[itm].level > maxLen)
                                 maxLen = filterIndex[itm].level;
-                }
+                        }
                         pivotObj.model.dataSource._maxLevel = maxLen;
                     }
                     pivotObj._currentReportItems.push({ filterItems: filterIndex, fieldName: hierarchyName, dataSrc: pivotObj.model.dataSource, pageSettings: this._memberCount });
@@ -3206,8 +3403,7 @@
                         unSelectedNodes.push(item.value = item.value == "(blank)" ? "" : $(item).parents("li").find('a').text());
                     });
                 }
-                if (this._selectedFieldName)
-                {
+                if (this._selectedFieldName) {
                     var reportItem = reportItem = ej.Pivot.getReportItemByFieldName(this._selectedFieldName, pivotObj.model.dataSource, this._dataModel)["item"];
                     if (reportItem)
                         reportItem["advancedFilter"] = [];
@@ -3236,6 +3432,8 @@
             var items = $.grep(axisItems, function (item) { return item.fieldName == selectedField });
             for (var i = 0; i < items.length; i++)
                 items[i].filterItems = selectedNodes.length == members.length ? null : { filterType: ej.PivotAnalysis.FilterType.Exclude, values: unSelectedNodes };
+            if (this.model.pivotControl.model.analysisMode == ej.Pivot.AnalysisMode.Pivot && this.model.pivotControl.model.operationalMode == ej.Pivot.OperationalMode.ClientMode)
+                this._selectedFieldName = this._selectedFieldName.replace(/ /g, '_');
             if (unSelectedNodes.length > 0 && this.element.find(".e-schemaFieldTree li[id='" + this._selectedFieldName + "']").find(".filter").length <= 0) {
                 var filterSpan = ej.buildTag("span.e-icon", { "display": "none" }).addClass("filter")[0].outerHTML;
                 this.element.find(".e-schemaFieldTree li[id='" + this._selectedFieldName + "']").find(".e-text").after(filterSpan);
@@ -3410,7 +3608,7 @@
                     }
                     catch (err) {
                         if (!ej.isNullOrUndefined(this.model.pivotControl.getOlapReport))
-                        report = this.model.pivotControl.getOlapReport();
+                            report = this.model.pivotControl.getOlapReport();
                     }
                     if (this.model.beforeServiceInvoke != null && this.model.pivotControl.model.operationalMode == ej.PivotGrid.OperationalMode.ServerMode)
                         this._trigger("beforeServiceInvoke", { action: "filtering", element: this.element, customObject: this.model.pivotControl.model.customObject });
@@ -3418,30 +3616,30 @@
                     var eventArgs = this.model.pivotControl.model.customObject != {} && filterParams != "" ? JSON.stringify({ "action": "filtering", "filterParams": filterParams + ((this.model.pivotControl && $(this.model.pivotControl.element).hasClass("e-pivotclient")) ? (((!ej.isNullOrUndefined(this.model.pivotControl._ascdes) && this.model.pivotControl.model.enableAdvancedFilter) ? ">>#>#>>" + this.model.pivotControl._ascdes : "") + "-##-" + JSON.stringify(this.model.pivotControl.model.valueSortSettings)) : ""), "sortedHeaders": this.model.pivotControl._ascdes, "currentReport": report, "valueSorting": this.model.pivotControl.model.valueSortSettings, "gridLayout": this.model.pivotControl.model.layout, "customObject": JSON.stringify(this.model.pivotControl.model.customObject) }) :
                 this.model.pivotControl.model.customObject != {} ? JSON.stringify({ "action": "filtering", "currentReport": report, "valueSorting": this.model.pivotControl.model.valueSortSettings, "customObject": serializedCustomObject }) :
                 filterParams != "" ? JSON.stringify({ "action": "filtering", "filterParams": filterParams, "sortedHeaders": this.model.pivotControl._ascdes, "currentReport": report, "valueSorting": this.model.pivotControl.model.valueSortSettings }) : JSON.stringify({ "action": "filtering", "valueSorting": this.model.pivotControl.model.valueSortSettings });
-                if (!ej.isNullOrUndefined(this.model.pivotControl._waitingPopup))
-                    if (!ej.isNullOrUndefined(pivotClientObj)) {
-                        pivotClientObj._isTimeOut = true;
-                        setTimeout(function () {
-                            if (pivotClientObj._isTimeOut)
-                                schemaObj.model.pivotControl._waitingPopup.show();
-                        }, 800);
-                    }
-                    else
-                        this.model.pivotControl._waitingPopup.show();
-                this.element.find(".schemaNoClick").addClass("freeze").width($(this.element).width()).height($(this.element).height()).css({ "top": $(this.element).offset().top, "left": $(this.element).offset().left });
-                if (!this.model.pivotControl.model.enableDeferUpdate)
-                    this.doAjaxPost("POST", this.model.pivotControl.model.url + "/" + this.model.serviceMethods.filtering, eventArgs, this._filterElementSuccess);
+                    if (!ej.isNullOrUndefined(this.model.pivotControl._waitingPopup))
+                        if (!ej.isNullOrUndefined(pivotClientObj)) {
+                            pivotClientObj._isTimeOut = true;
+                            setTimeout(function () {
+                                if (pivotClientObj._isTimeOut)
+                                    schemaObj.model.pivotControl._waitingPopup.show();
+                            }, 800);
+                        }
+                        else
+                            this.model.pivotControl._waitingPopup.show();
+                    this.element.find(".schemaNoClick").addClass("freeze").width($(this.element).width()).height($(this.element).height()).css({ "top": $(this.element).offset().top, "left": $(this.element).offset().left });
+                    if (!this.model.pivotControl.model.enableDeferUpdate)
+                        this.doAjaxPost("POST", this.model.pivotControl.model.url + "/" + this.model.serviceMethods.filtering, eventArgs, this._filterElementSuccess);
                     else {
-                    this.model.pivotControl._filterUpdate.push(filterParams);
-                    if (!ej.isNullOrUndefined(this.model.pivotControl._waitingPopup)) {
-                        if (!ej.isNullOrUndefined(pivotClientObj)) pivotClientObj._isTimeOut = false;
-                        this.model.pivotControl._waitingPopup.hide();
+                        this.model.pivotControl._filterUpdate.push(filterParams);
+                        if (!ej.isNullOrUndefined(this.model.pivotControl._waitingPopup)) {
+                            if (!ej.isNullOrUndefined(pivotClientObj)) pivotClientObj._isTimeOut = false;
+                            this.model.pivotControl._waitingPopup.hide();
+                        }
+                        this.element.find(".schemaNoClick").removeClass("freeze").removeAttr('style');
+                        if (this.model.pivotControl.model.enableGroupingBar)
+                            this.model.pivotControl._refreshGroupingBar(this.model.pivotControl);
                     }
-                    this.element.find(".schemaNoClick").removeClass("freeze").removeAttr('style');
-                    if (this.model.pivotControl.model.enableGroupingBar)
-                        this.model.pivotControl._refreshGroupingBar(this.model.pivotControl);
                 }
-            }
                 this._selectedTreeNode = null;
                 this._refreshPivotButtons();
             }
@@ -3451,7 +3649,7 @@
             }
         },
 
-        _beforeNodeExpand:function(args){
+        _beforeNodeExpand: function (args) {
             ej.Pivot.getChildNodes(args, this._selectedFieldName, this.model.pivotControl._currentReportItems, this.model.pivotControl.model.dataSource, this);
         },
 
@@ -3486,7 +3684,7 @@
         },
 
         _pvtNodeDroppedSuccess: function (report) {
-            ej.Pivot._updateValueSortingIndex(report,this.model.pivotControl);
+            ej.Pivot._updateValueSortingIndex(report, this.model.pivotControl);
             if (report[0] != undefined) {
                 if (report[2] != null && report[2] != undefined)
                     this.model.customObject = report[2].Value;
@@ -3494,7 +3692,7 @@
             else if (report.d != undefined) {
                 if (report.d[2] != null && report.d[2] != undefined)
                     this.model.customObject = report.d[2].Value;
-                if(report.d[0].Key == "PivotReport")
+                if (report.d[0].Key == "PivotReport")
                     this.model.pivotControl.setOlapReport(report.d[0].Value);
             }
             else {
@@ -3502,8 +3700,9 @@
                     this.model.customObject = report.customObject;
                 this.model.pivotControl.setOlapReport(report.PivotReport);
             }
-            if (this.model.afterServiceInvoke != null && this.model.pivotControl.model.operationalMode == ej.PivotGrid.OperationalMode.ServerMode)
-                this._trigger("afterServiceInvoke", { action: "nodeDropped", element: this.element, customObject: this.model.customObject });
+            var controlObj = ($(this.element).parents(".e-pivotclient").length > 0) ? this.model.pivotControl : this;
+            if (controlObj.model.afterServiceInvoke != null && this.model.pivotControl.model.operationalMode == ej.PivotGrid.OperationalMode.ServerMode)
+                controlObj._trigger("afterServiceInvoke", { action: "nodeDropped", element: controlObj.element, customObject: controlObj.model.customObject });
 
             if (!this.model.pivotControl.model.enableDeferUpdate) {
                 if ($(this.element).parents(".e-pivotclient").length > 0 && this.model.pivotControl.model.analysisMode == ej.Pivot.AnalysisMode.Pivot) {
@@ -3552,14 +3751,14 @@
                     var colHiddenCells = ($.map(report.d, function (item) { if (item.Key == "FilteredColumnHeaders") return item.Value; }));
                     if (colHiddenCells.length > 0)
                         tempObj["FilteredColumnHeaders"] = colHiddenCells[0];
-                    var rowHiddenCells =($.map(report.d, function (item) { if (item.Key == "FilteredRowHeaders") return item.Value; }));
+                    var rowHiddenCells = ($.map(report.d, function (item) { if (item.Key == "FilteredRowHeaders") return item.Value; }));
                     if (rowHiddenCells.length > 0)
                         tempObj["FilteredRowHeaders"] = rowHiddenCells[0];
                     report = tempObj;
                 }
                 this.model.pivotControl.refreshControl(report);
                 if (this.model.pivotControl && this.model.pivotControl._pivotGrid && this.model.pivotControl.model.analysisMode == ej.Pivot.AnalysisMode.Pivot && this.model.pivotControl.model.operationalMode == ej.Pivot.OperationalMode.ServerMode)
-                this.model.pivotControl._pivotGrid._removeCells(report);
+                    this.model.pivotControl._pivotGrid._removeCells(report);
             }
             else {
                 if (report[0] != undefined) {
@@ -3577,7 +3776,7 @@
                 if (this.model.afterServiceInvoke != null && this.model.pivotControl.model.operationalMode == ej.PivotGrid.OperationalMode.ServerMode)
                     this._trigger("afterServiceInvoke", { action: "filtering", element: this.element, customObject: this.model.customObject });
                 this.model.pivotControl._renderControlSuccess(report);
-            }   
+            }
             this.element.find(".schemaNoClick").removeClass("freeze").removeAttr('style');
             ej.Pivot.closePreventPanel(this);
             this.element.find(".e-dialog").remove();
@@ -3637,8 +3836,9 @@
                 if (msg != null && msg.customObject != undefined)
                     this.model.customObject = msg.customObject;
             }
-            if (this.model.afterServiceInvoke != null && this.model.pivotControl.model.operationalMode == ej.PivotGrid.OperationalMode.ServerMode)
-                this._trigger("afterServiceInvoke", { action: "fetchMembers", element: this.element, customObject: this.model.customObject });
+            var controlObj = ($(this.element).parents(".e-pivotclient").length > 0) ? this.model.pivotControl : this;
+            if (controlObj.model.afterServiceInvoke != null && this.model.pivotControl.model.operationalMode == ej.PivotGrid.OperationalMode.ServerMode)
+                controlObj._trigger("afterServiceInvoke", { action: "fetchMembers", element: controlObj.element, customObject: controlObj.model.customObject });
             if (this.model.pivotControl.model.operationalMode == ej.Pivot.OperationalMode.ServerMode && this.model.pivotControl.model.analysisMode == ej.Pivot.AnalysisMode.Olap && !this.model.pivotControl.model.enableMemberEditorPaging && (this._editorTreeData.length == 0 || this._isFilterBtnClick)) {
                 this._editorTreeData = JSON.parse(this._currentMembers);
                 if (this.model.pivotControl.model.enableAdvancedFilter)
@@ -3646,7 +3846,7 @@
             }
             this.model.pivotControl._savedReportItems = $.extend(true, [], this.model.pivotControl._currentReportItems);
             this._isFilterBtnClick = false;
-            this._createDialog(this._dialogHead, this._currentMembers);           
+            this._createDialog(this._dialogHead, this._currentMembers);
             if (this.model.pivotControl._waitingPopup) {
                 var pivotClientObj = ($(this.element).parents(".e-pivotclient").length > 0) ? $(this.element).parents(".e-pivotclient").data("ejPivotClient") : null;
                 if (!ej.isNullOrUndefined(pivotClientObj)) pivotClientObj._isTimeOut = false;
@@ -3702,24 +3902,24 @@
                 this._refreshPivotButtons();
                 if (this.model.enableDragDrop) {
                     this.element.find(".e-pivotButton .e-pvtBtn").ejButton({ size: "normal", type: ej.ButtonType.Button, enableRTL: this.model.enableRTL }).ejDraggable({
-						handle: 'button', clone: true,
-						cursorAt: { left: -5, top: -5 },
-						dragStart: ej.proxy(function (args) {
-							this._isDragging = true;
-						}, this),
-						dragStop: ej.proxy(this.model.pivotControl.model.operationalMode == ej.Pivot.OperationalMode.ServerMode ? this._pvtBtnDropped : this._clientOnPvtBtnDropped, this),
-						helper: ej.proxy(function (event, ui) {
-						    $(event.element).addClass("dragHover");
-							if (event.sender.target.className.indexOf("e-btn") > -1) {
-								var btnClone = $(event.sender.target).clone().attr("id",this._id+"_dragClone").appendTo('body');
-								$("#"+this._id + "_dragClone").removeAttr("style").height($(event.sender.target).height());
-								return btnClone;            
-							}
-							else
-								return false;
-						}, this)
-					});
-				}
+                        handle: 'button', clone: true,
+                        cursorAt: { left: -5, top: -5 },
+                        dragStart: ej.proxy(function (args) {
+                            this._isDragging = true;
+                        }, this),
+                        dragStop: ej.proxy(this.model.pivotControl.model.operationalMode == ej.Pivot.OperationalMode.ServerMode ? this._pvtBtnDropped : this._clientOnPvtBtnDropped, this),
+                        helper: ej.proxy(function (event, ui) {
+                            $(event.element).addClass("dragHover");
+                            if (event.sender.target.className.indexOf("e-btn") > -1) {
+                                var btnClone = $(event.sender.target).clone().attr("id", this._id + "_dragClone").appendTo('body');
+                                $("#" + this._id + "_dragClone").removeAttr("style").height($(event.sender.target).height());
+                                return btnClone;
+                            }
+                            else
+                                return false;
+                        }, this)
+                    });
+                }
                 this._unWireEvents();
                 this._wireEvents();
             }
@@ -3748,8 +3948,9 @@
                 this._removeButtonDeferUpdate = false;
                 this.model.pivotControl._deferUpdateSuccess(args);
             }
-            if (this.model.afterServiceInvoke != null && this.model.pivotControl.model.operationalMode == ej.PivotGrid.OperationalMode.ServerMode)
-                this._trigger("afterServiceInvoke", { action: "nodeDropped", element: this.element, customObject: this.model.customObject });
+            var controlObj = ($(this.element).parents(".e-pivotclient").length > 0) ? this.model.pivotControl : this;
+            if (controlObj.model.afterServiceInvoke != null && this.model.pivotControl.model.operationalMode == ej.PivotGrid.OperationalMode.ServerMode)
+                controlObj._trigger("afterServiceInvoke", { action: "nodeDropped", element: controlObj.element, customObject: controlObj.model.customObject });
             this.element.find(".schemaNoClick").removeClass("freeze").removeAttr('style');
             this._createContextMenu();
             this._setPivotBtnWidth();
@@ -3757,7 +3958,7 @@
 
         _removePvtBtn: function (args) {
             this.model.pivotControl._waitingPopup.show();
-            var headerText, headerTag, report, eventArgs;
+            var headerText, headerTag, report, eventArgs, selectedTreeNode;
             if ($(args.element).length > 0) {
                 headerText = $(args.element).parent().attr("data-tag").split(":")[1], headerTag = $(args.element).parent().attr("data-tag");
             }
@@ -3769,7 +3970,7 @@
             }
             catch (err) {
                 if (!ej.isNullOrUndefined(this.model.pivotControl.getOlapReport))
-                report = this.model.pivotControl.getOlapReport();
+                    report = this.model.pivotControl.getOlapReport();
             }
             if (report == "" && this.model.pivotControl.model.analysisMode == ej.Pivot.AnalysisMode.Olap)
                 report = this.model.pivotControl.model.dataSource;
@@ -3780,11 +3981,11 @@
                 if (uniqueName == "[Measures]" || (uniqueName == "KPI" || ($(args.element).parents().hasClass("e-schemaValue") && headerTag.indexOf("[Measures]") == -1))) {
                     if (this.model.pivotControl.model.operationalMode == ej.PivotGrid.OperationalMode.ClientMode) {
                         ej.Pivot.removeReportItem(this.model.pivotControl.model.dataSource, headerText, headerText.toLocaleLowerCase().indexOf("measures") == 0);
-                        this.model.pivotControl.refreshControl(); 
+                        this.model.pivotControl.refreshControl();
                         this.refreshControl();
                     }
                     else if (this.model.pivotControl.model.operationalMode == ej.PivotGrid.OperationalMode.ServerMode) {
-                        headerTag = ($(args.element).parents().hasClass("e-schemaValue") && headerTag.indexOf("[Measures]") == -1) ? headerTag+":KPI" : headerTag;
+                        headerTag = ($(args.element).parents().hasClass("e-schemaValue") && headerTag.indexOf("[Measures]") == -1) ? headerTag + ":KPI" : headerTag;
                         $(args.element).length > 0 ? $(args.element).parent().parent().remove() : $(args.target).parent().parent().remove();
                         for (var i = 0; i < this.model.pivotCalculations.length && headerTag.indexOf(this._getLocalizedLabels("Measures")) > -1; i++) {
                             uniqueName = this.model.pivotCalculations[i].Tag;
@@ -3796,11 +3997,11 @@
                         if (this.model.beforeServiceInvoke != null && this.model.pivotControl.model.operationalMode == ej.PivotGrid.OperationalMode.ServerMode)
                             this._trigger("beforeServiceInvoke", { action: "removeButton", element: this.element, customObject: this.model.pivotControl.model.customObject });
                         var eventArgs = JSON.stringify({ "action": "removeButton", "headerInfo": headerTag, "currentReport": report, "customObject": JSON.stringify(this.model.pivotControl.model.customObject), "gridLayout": this.model.pivotControl.model.layout });
-                        if (headerTag.indexOf("[Measures]") < 0 && (headerTag.indexOf("Measures") >= 0 || (headerTag.indexOf("KPI") >= 0 && headerTag.split(":").length ==2))) {
+                        if (headerTag.indexOf("[Measures]") < 0 && (headerTag.indexOf("Measures") >= 0 || (headerTag.indexOf("KPI") >= 0 && headerTag.split(":").length == 2))) {
                             var removeMeasureorKpi = (headerTag.indexOf("KPI") >= 0 && headerTag.split(":").length == 2) ? this.element.find(".e-schemaValue .e-pivotButton").not("[data-tag*='Measures']") : this.element.find(".e-schemaValue .e-pivotButton [data-tag*='Measures']");
                             removeMeasureorKpi.remove()
                         }
-                        if (headerTag.indexOf("KPI") > 0 && this.element.find(".e-schemaValue .e-pivotButton").not("[data-tag*='Measures']").length==0) {
+                        if (headerTag.indexOf("KPI") > 0 && this.element.find(".e-schemaValue .e-pivotButton").not("[data-tag*='Measures']").length == 0) {
                             var tmp = headerTag.split(":"),
                             tempAxis = tmp[0] == "Rows" ? ".e-schemaRow" : tmp[0] == "Columns" ? ".e-schemaColumn" : "";
                             if (this.element.find(".e-schemaValue .e-pivotButton [data-tag*='KPI']").length <= 0)
@@ -3823,7 +4024,7 @@
                 else {
                     selectedTreeNode = this.model.pivotControl._getNodeByUniqueName(uniqueName);
                     this._tableTreeObj.uncheckNode(selectedTreeNode);
-                  }
+                }
             }
             else if (this.model.pivotControl.model.operationalMode == ej.PivotGrid.OperationalMode.ClientMode) {
                 ej.PivotAnalysis._valueSorting = null;
@@ -3863,52 +4064,52 @@
             this.element.find(".e-dialog, .e-clientDialog").remove();
 
             var currentHierarchy, levelInfo, sortState, seperator, groupDropDown = "", filterElementTag = "", memberSearchEditor = "", editorNavPanel = "", editorSearchNavPanel = "", editorDrillNavPanel = "", editorLinkPanel = "";
-           var isAdvancedFilter = (
-               this.model.pivotControl && 
-               (this.model.pivotControl.model.operationalMode == ej.Pivot.OperationalMode.ServerMode && this.model.pivotControl.model.enableAdvancedFilter && this._curFilteredAxis != "e-schemaFilter" && this._curFilteredAxis != "e-schemaValue") ||
-               this.model.pivotControl.model.operationalMode == ej.Pivot.OperationalMode.ClientMode && this.model.pivotControl.model.dataSource.enableAdvancedFilter &&
-               ej.Pivot.getReportItemByFieldName(this._selectedFieldName, this.model.pivotControl.model.dataSource, this._dataModel).axis != "filters" &&
-               ej.Pivot.getReportItemByFieldName(this._selectedFieldName, this.model.pivotControl.model.dataSource, this._dataModel).axis != "values" &&
-               (!ej.isNullOrUndefined(ej.Pivot.getReportItemByFieldName(this._selectedFieldName, this.model.pivotControl.model.dataSource, this._dataModel).item))? true : false);
+            var isAdvancedFilter = (
+                this.model.pivotControl &&
+                (this.model.pivotControl.model.operationalMode == ej.Pivot.OperationalMode.ServerMode && this.model.pivotControl.model.enableAdvancedFilter && this._curFilteredAxis != "e-schemaFilter" && this._curFilteredAxis != "e-schemaValue") ||
+                this.model.pivotControl.model.operationalMode == ej.Pivot.OperationalMode.ClientMode && this.model.pivotControl.model.dataSource.enableAdvancedFilter &&
+                ej.Pivot.getReportItemByFieldName(this._selectedFieldName, this.model.pivotControl.model.dataSource, this._dataModel).axis != "filters" &&
+                ej.Pivot.getReportItemByFieldName(this._selectedFieldName, this.model.pivotControl.model.dataSource, this._dataModel).axis != "values" &&
+                (!ej.isNullOrUndefined(ej.Pivot.getReportItemByFieldName(this._selectedFieldName, this.model.pivotControl.model.dataSource, this._dataModel).item)) ? true : false);
 
-           if (isAdvancedFilter) {
-               var treeviewInfo = JSON.parse(treeViewData);
-               treeviewInfo[0].name = "(Select All)"
-               currentHierarchy = this._selectedFieldName;
-               if (this.model.pivotControl.model.operationalMode == ej.Pivot.OperationalMode.ClientMode) {
-                   if (this.model.pivotControl.model.analysisMode == ej.PivotGrid.AnalysisMode.Olap) {
-                       levelInfo = $.map(this.model.pivotControl._currentReportItems, function (obj, index) { if (obj["fieldName"] == currentHierarchy) { return obj["dropdownData"]; } });
-                       if (levelInfo.length == 0)
-                           levelInfo = $.map(this._tableTreeObj.element.find("li[data-tag ='" + this._selectedFieldName + "'] li"), function (obj, index) { return { value: $(obj).attr("data-tag"), text: $(obj).find("a").text() }; });
-                   }
-                   else
-                       levelInfo = [{ value: this._selectedFieldName, text: this._selectedFieldName }]
-               }
-               else if (this.model.pivotControl.model.analysisMode == ej.PivotGrid.AnalysisMode.Olap) {
-                   levelInfo = this.model.pivotControl.model.enableMemberEditorPaging ? this._memberPagingAvdData : treeviewInfo.splice(treeviewInfo.length - 1, 1);
-                   levelInfo = JSON.parse(levelInfo[0].levels);
-               }
-               else
-                   levelInfo = [{ value: this._curFilteredText, text: this._curFilteredText }];
-               treeViewData = JSON.stringify(treeviewInfo);
-               groupDropDown = ej.buildTag("div.e-ddlGroupWrap", this._getLocalizedLabels("SelectField") + ":" + ej.buildTag("input#" + this._id + "_GroupLabelDrop.groupLabelDrop").attr("type", "text")[0].outerHTML, {})[0].outerHTML;
-               filterElementTag = ej.buildTag("ul.e-filterElementTag")[0].outerHTML;
-               var filterTag = ej.Pivot.createAdvanceFilterTag({action:"filterTag"}, this)
-           }
-           memberSearchEditor = ej.buildTag("div.e-memberSearchEditorDiv", ej.buildTag("input#" + this._id + "_SearchEditorTreeView.searchEditorTreeView").attr("type", "text")[0].outerHTML + (this.model.pivotControl.model.enableMemberEditorPaging && $.parseJSON(treeViewData).length >= this.model.pivotControl.model.memberEditorPageSize ? ej.buildTag("span.e-icon e-searchEditorTree", {})[0].outerHTML : ""), { "padding": (this.model.pivotControl.model.enableAdvancedFilter ? "5px 5px 0px 9px" : 0) })[0].outerHTML;
-           var dialogContent = ej.buildTag("div#" + this._id + "_EditorDiv.e-editorDiv", groupDropDown + filterElementTag + ej.buildTag("div", memberSearchEditor + ej.buildTag("div.e-memberEditorDiv", ej.buildTag("div#editorTreeView.e-editorTreeView")[0].outerHTML)[0].outerHTML)[0].outerHTML)[0].outerHTML + ((!ej.isNullOrUndefined(treeViewData) && this.model.pivotControl.model.enableMemberEditorPaging && ($.parseJSON(treeViewData).length >= this.model.pivotControl.model.memberEditorPageSize || this.model.pivotControl.model.memberEditorPageSize < this._memberPageSettings.endPage)) ? "" : "</br>"),
-           dialogFooter = ej.buildTag("div.e-footerArea", ej.buildTag("button#" + this._id + "_OKBtn.e-dialogOKBtn", this._getLocalizedLabels("OK")).attr({ "title": this._getLocalizedLabels("OK"), tabindex: 0 })[0].outerHTML + ej.buildTag("button#CancelBtn.e-dialogCancelBtn", this._getLocalizedLabels("Cancel")).attr({ "title": this._getLocalizedLabels("Cancel"), tabindex: 0 })[0].outerHTML, { "float": "right", "margin": (!ej.isNullOrUndefined(treeViewData) && $.parseJSON(treeViewData).length >= this.model.pivotControl.model.memberEditorPageSize && this.model.pivotControl.model.enableMemberEditorPaging ? "10px" : "-12px ") + " " + (isAdvancedFilter ? " 5px " : " 0px ") + " 6px 0px" })[0].outerHTML,
-           editorNavPanel = ej.buildTag("div.e-memberPager", ej.buildTag("div#" + this._id + "_NextpageDiv.e-nextPageDiv", ej.buildTag("div.e-icon e-media-backward_01 e-firstPage", {})[0].outerHTML + ej.buildTag("div.e-icon e-arrowhead-left e-prevPage", {})[0].outerHTML + ej.buildTag("input.e-memberCurrentPage#memberCurrentPage", {}, { "width": "20px", "height": "10px" })[0].outerHTML + ej.buildTag("span.e-memberPageCount#memberPageCount")[0].outerHTML + ej.buildTag("div.e-icon e-arrowhead-right e-nextPage", {})[0].outerHTML + ej.buildTag("div.e-icon e-media-forward_01 e-lastPage", {})[0].outerHTML)[0].outerHTML)[0].outerHTML,
-           editorSearchNavPanel = ej.buildTag("div.e-memberSearchPager", ej.buildTag("div#" + this._id + "_NextSearchpageDiv.e-nextPageDiv", ej.buildTag("div.e-icon e-media-backward_01 e-firstPage", {})[0].outerHTML + ej.buildTag("div.e-icon e-arrowhead-left e-prevPage", {})[0].outerHTML + ej.buildTag("input.e-memberCurrentSearchPage#memberCurrentSearchPage", {}, { "width": "20px", "height": "10px" })[0].outerHTML + ej.buildTag("span.e-memberSearchPageCount#memberSearchPageCount")[0].outerHTML + ej.buildTag("div.e-icon e-arrowhead-right e-nextPage", {})[0].outerHTML + ej.buildTag("div.e-icon e-media-forward_01 e-lastPage", {})[0].outerHTML)[0].outerHTML, {}).css("display", "none")[0].outerHTML;
-           editorDrillNavPanel = ej.buildTag("div.e-memberDrillPager", ej.buildTag("div#" + this._id + "NextDrillpageDiv.e-nextPageDiv", ej.buildTag("div.e-icon e-media-backward_01 e-firstPage", {})[0].outerHTML + ej.buildTag("div.e-icon e-arrowhead-left e-prevPage", {})[0].outerHTML + ej.buildTag("input.e-memberCurrentDrillPage#memberCurrentDrillPage", {}, { "width": "20px", "height": "10px" })[0].outerHTML + ej.buildTag("span.e-memberDrillPageCount#memberDrillPageCount")[0].outerHTML + ej.buildTag("div.e-icon e-arrowhead-right e-nextPage", {})[0].outerHTML + ej.buildTag("div.e-icon e-media-forward_01 e-lastPage", {})[0].outerHTML)[0].outerHTML, {}).css("display", "none")[0].outerHTML;           
-           editorLinkPanel = ej.buildTag("div.e-linkOuterPanel", ej.buildTag("span.e-infoImg e-icon", "", {}).css({ "float": "left", "margin-top": "4px", "font-size": "16px" })[0].outerHTML + ej.buildTag("a.e-linkPanel", this._getLocalizedLabels('NotAllItemsShowing')).css({ "display": "inline-block", "margin-left": "3px", "margin-top": "2px" })[0].outerHTML, {}).css({ "display": "none", "margin-top": "-16px", "margin-left": isAdvancedFilter ? "8px" : "0px" })[0].outerHTML;
-           ejDialog = ej.buildTag("div#" + (isAdvancedFilter ? "clientDialog" : this._id + "_clientDialog") + ".e-clientDialog", dialogContent + ((!ej.isNullOrUndefined(this._editorTreeData) && this.model.pivotControl.model.enableMemberEditorPaging) ? ((ej.DataManager(this._editorTreeData).executeLocal(ej.Query().where("pid", "equal", null || undefined)).length >= this.model.pivotControl.model.memberEditorPageSize || this.model.pivotControl.model.memberEditorPageSize < this._memberPageSettings.endPage) ? (editorDrillNavPanel + editorSearchNavPanel + editorNavPanel) : (editorDrillNavPanel + editorSearchNavPanel)) : editorLinkPanel) + dialogFooter, { "opacity": "1" }).attr("title", title)[0].outerHTML,
-           treeViewData = JSON.parse(treeViewData), selectedData;
-           this._isOptionSearch = false; this._currentFilterList = {}; this._editorSearchTreeData = []; this._isEditorDrillPaging = false; this._lastSavedTree = []; this._isSearchApplied = false;
-           for (var i = 0; i < treeViewData.length; i++) {
-               if (treeViewData[i].name == null || !treeViewData[i].name.toString().replace(/^\s+|\s+$/gm, '')) { treeViewData[i].name = "(blank)"; treeViewData[i].id = "(blank)"; }
-               if (!ej.isNullOrUndefined(treeViewData[i].id) && typeof (treeViewData[i].id) == "string") { treeViewData[i].id = treeViewData[i].id.replace(/ /g, "_"); }
-           }
+            if (isAdvancedFilter) {
+                var treeviewInfo = JSON.parse(treeViewData);
+                treeviewInfo[0].name = "(Select All)"
+                currentHierarchy = this._selectedFieldName;
+                if (this.model.pivotControl.model.operationalMode == ej.Pivot.OperationalMode.ClientMode) {
+                    if (this.model.pivotControl.model.analysisMode == ej.PivotGrid.AnalysisMode.Olap) {
+                        levelInfo = $.map(this.model.pivotControl._currentReportItems, function (obj, index) { if (obj["fieldName"] == currentHierarchy) { return obj["dropdownData"]; } });
+                        if (levelInfo.length == 0)
+                            levelInfo = $.map(this._tableTreeObj.element.find("li[data-tag ='" + this._selectedFieldName + "'] li"), function (obj, index) { return { value: $(obj).attr("data-tag"), text: $(obj).find("a").text() }; });
+                    }
+                    else
+                        levelInfo = [{ value: this._selectedFieldName, text: this._selectedFieldName }]
+                }
+                else if (this.model.pivotControl.model.analysisMode == ej.PivotGrid.AnalysisMode.Olap) {
+                    levelInfo = this.model.pivotControl.model.enableMemberEditorPaging ? this._memberPagingAvdData : treeviewInfo.splice(treeviewInfo.length - 1, 1);
+                    levelInfo = JSON.parse(levelInfo[0].levels);
+                }
+                else
+                    levelInfo = [{ value: this._curFilteredText, text: this._curFilteredText }];
+                treeViewData = JSON.stringify(treeviewInfo);
+                groupDropDown = ej.buildTag("div.e-ddlGroupWrap", this._getLocalizedLabels("SelectField") + ":" + ej.buildTag("input#" + this._id + "_GroupLabelDrop.groupLabelDrop").attr("type", "text")[0].outerHTML, {})[0].outerHTML;
+                filterElementTag = ej.buildTag("ul.e-filterElementTag")[0].outerHTML;
+                var filterTag = ej.Pivot.createAdvanceFilterTag({ action: "filterTag" }, this)
+            }
+            memberSearchEditor = ej.buildTag("div.e-memberSearchEditorDiv", ej.buildTag("input#" + this._id + "_SearchEditorTreeView.searchEditorTreeView").attr("type", "text")[0].outerHTML + (this.model.pivotControl.model.enableMemberEditorPaging && $.parseJSON(treeViewData).length >= this.model.pivotControl.model.memberEditorPageSize ? ej.buildTag("span.e-icon e-searchEditorTree", {})[0].outerHTML : ""), { "padding": (this.model.pivotControl.model.enableAdvancedFilter ? ((this._selectedFieldAxis == "values" || this._curFilteredAxis == "e-schemaValue") ? "5px 0px 0px 0px" : "5px 5px 0px 9px") : 0) })[0].outerHTML;
+            var dialogContent = ej.buildTag("div#" + this._id + "_EditorDiv.e-editorDiv", groupDropDown + filterElementTag + ej.buildTag("div", memberSearchEditor + ej.buildTag("div.e-memberEditorDiv", ej.buildTag("div#editorTreeView.e-editorTreeView")[0].outerHTML)[0].outerHTML)[0].outerHTML)[0].outerHTML + ((!ej.isNullOrUndefined(treeViewData) && this.model.pivotControl.model.enableMemberEditorPaging && ($.parseJSON(treeViewData).length >= this.model.pivotControl.model.memberEditorPageSize || this.model.pivotControl.model.memberEditorPageSize < this._memberPageSettings.endPage)) ? "" : "</br>"),
+            dialogFooter = ej.buildTag("div.e-footerArea", ej.buildTag("button#" + this._id + "_OKBtn.e-dialogOKBtn", this._getLocalizedLabels("OK")).attr({ "title": this._getLocalizedLabels("OK"), tabindex: 0 })[0].outerHTML + ej.buildTag("button#CancelBtn.e-dialogCancelBtn", this._getLocalizedLabels("Cancel")).attr({ "title": this._getLocalizedLabels("Cancel"), tabindex: 0 })[0].outerHTML, { "float": "right", "margin": (!ej.isNullOrUndefined(treeViewData) && $.parseJSON(treeViewData).length >= this.model.pivotControl.model.memberEditorPageSize && this.model.pivotControl.model.enableMemberEditorPaging ? "10px" : "-12px ") + " " + (isAdvancedFilter ? " 5px " : " 0px ") + " 6px 0px" })[0].outerHTML,
+            editorNavPanel = ej.buildTag("div.e-memberPager", ej.buildTag("div#" + this._id + "_NextpageDiv.e-nextPageDiv", ej.buildTag("div.e-icon e-media-backward_01 e-firstPage", {})[0].outerHTML + ej.buildTag("div.e-icon e-arrowhead-left e-prevPage", {})[0].outerHTML + ej.buildTag("input.e-memberCurrentPage#memberCurrentPage", {}, { "width": "20px", "height": "10px" })[0].outerHTML + ej.buildTag("span.e-memberPageCount#memberPageCount")[0].outerHTML + ej.buildTag("div.e-icon e-arrowhead-right e-nextPage", {})[0].outerHTML + ej.buildTag("div.e-icon e-media-forward_01 e-lastPage", {})[0].outerHTML)[0].outerHTML)[0].outerHTML,
+            editorSearchNavPanel = ej.buildTag("div.e-memberSearchPager", ej.buildTag("div#" + this._id + "_NextSearchpageDiv.e-nextPageDiv", ej.buildTag("div.e-icon e-media-backward_01 e-firstPage", {})[0].outerHTML + ej.buildTag("div.e-icon e-arrowhead-left e-prevPage", {})[0].outerHTML + ej.buildTag("input.e-memberCurrentSearchPage#memberCurrentSearchPage", {}, { "width": "20px", "height": "10px" })[0].outerHTML + ej.buildTag("span.e-memberSearchPageCount#memberSearchPageCount")[0].outerHTML + ej.buildTag("div.e-icon e-arrowhead-right e-nextPage", {})[0].outerHTML + ej.buildTag("div.e-icon e-media-forward_01 e-lastPage", {})[0].outerHTML)[0].outerHTML, {}).css("display", "none")[0].outerHTML;
+            editorDrillNavPanel = ej.buildTag("div.e-memberDrillPager", ej.buildTag("div#" + this._id + "NextDrillpageDiv.e-nextPageDiv", ej.buildTag("div.e-icon e-media-backward_01 e-firstPage", {})[0].outerHTML + ej.buildTag("div.e-icon e-arrowhead-left e-prevPage", {})[0].outerHTML + ej.buildTag("input.e-memberCurrentDrillPage#memberCurrentDrillPage", {}, { "width": "20px", "height": "10px" })[0].outerHTML + ej.buildTag("span.e-memberDrillPageCount#memberDrillPageCount")[0].outerHTML + ej.buildTag("div.e-icon e-arrowhead-right e-nextPage", {})[0].outerHTML + ej.buildTag("div.e-icon e-media-forward_01 e-lastPage", {})[0].outerHTML)[0].outerHTML, {}).css("display", "none")[0].outerHTML;
+            editorLinkPanel = ej.buildTag("div.e-linkOuterPanel", ej.buildTag("span.e-infoImg e-icon", "", {}).css({ "float": "left", "margin-top": "4px", "font-size": "16px" })[0].outerHTML + ej.buildTag("a.e-linkPanel", this._getLocalizedLabels('NotAllItemsShowing')).css({ "display": "inline-block", "margin-left": "3px", "margin-top": "2px" })[0].outerHTML, {}).css({ "display": "none", "margin-top": "-16px", "margin-left": isAdvancedFilter ? "8px" : "0px" })[0].outerHTML;
+            var ejDialog = ej.buildTag("div#" + (isAdvancedFilter ? "clientDialog" : this._id + "_clientDialog") + ".e-clientDialog", dialogContent + ((!ej.isNullOrUndefined(this._editorTreeData) && this.model.pivotControl.model.enableMemberEditorPaging) ? ((ej.DataManager(this._editorTreeData).executeLocal(ej.Query().where("pid", "equal", null || undefined)).length >= this.model.pivotControl.model.memberEditorPageSize || this.model.pivotControl.model.memberEditorPageSize < this._memberPageSettings.endPage) ? (editorDrillNavPanel + editorSearchNavPanel + editorNavPanel) : (editorDrillNavPanel + editorSearchNavPanel)) : editorLinkPanel) + dialogFooter, { "opacity": "1" }).attr("title", title)[0].outerHTML,
+            treeViewData = JSON.parse(treeViewData), selectedData;
+            this._isOptionSearch = false; this._currentFilterList = {}; this._editorSearchTreeData = []; this._isEditorDrillPaging = false; this._lastSavedTree = []; this._isSearchApplied = false;
+            for (var i = 0; i < treeViewData.length; i++) {
+                if (treeViewData[i].name == null || !treeViewData[i].name.toString().replace(/^\s+|\s+$/gm, '')) { treeViewData[i].name = "(blank)"; treeViewData[i].id = "(blank)"; }
+                if (!ej.isNullOrUndefined(treeViewData[i].id) && typeof (treeViewData[i].id) == "string") { treeViewData[i].id = treeViewData[i].id.replace(/ /g, "_"); }
+            }
             var selectedData;
             if (this.model.pivotControl.model.analysisMode == ej.PivotGrid.AnalysisMode.Olap && this.model.pivotControl.model.operationalMode == ej.PivotGrid.OperationalMode.ServerMode ? !ej.isNullOrUndefined(this.model.pivotControl._fieldMembers) : !ej.isNullOrUndefined(this._tempFilterData)) {
                 if (this.model.pivotControl.model.analysisMode == ej.PivotGrid.AnalysisMode.Olap && this.model.pivotControl.model.operationalMode == ej.PivotGrid.OperationalMode.ServerMode) {
@@ -3962,17 +4163,16 @@
                     if (!ej.isNullOrUndefined(args.event))
                         if (args.event.type == "keydown" && args.event.originalEvent.key.toLowerCase() == "delete") return false;
                 },
-                height: $(".e-memberEditorDiv").height(),
+                height: this.model.enableMemberEditorSorting ? "200px" : (isAdvancedFilter ? "inherit" : "245px"),
                 fields: { id: "id", text: "name", parentId: "pid", expanded: "expanded", isChecked: "checkedStatus", hasChild: "hasChildren", dataSource: ej.Pivot._showEditorLinkPanel(treeViewData, this, this.model.pivotControl) },
-               
+
             });
-            if (isAdvancedFilter)
-            {
+            if (isAdvancedFilter) {
                 this.element.find(".e-filterElementTag").ejMenu({
                     fields: { dataSource: filterTag, id: "id", parentId: "parentId", text: "text", spriteCssClass: "spriteCssClass" },
                     menuType: ej.MenuType.NormalMenu,
                     width: "100%",
-                    enableRTL:this.model.enableRTL,
+                    enableRTL: this.model.enableRTL,
                     orientation: ej.Orientation.Vertical,
                     click: ej.proxy(this._filterElementClick, this)
                 });
@@ -3985,13 +4185,13 @@
                     create: function () { $(this.wrapper.find('.e-input')).focus(function () { $(this).blur(); }) }
                 });
                 var selectedlevel = ej.isNullOrUndefined(this._selectedLevel) ? "" : this._selectedLevel;
-                selectedlevel=  $.map(levelInfo, function (obj, index) { if(obj.value.toLowerCase()==selectedlevel.toLowerCase())return obj.text; });
+                selectedlevel = $.map(levelInfo, function (obj, index) { if (obj.value.toLowerCase() == selectedlevel.toLowerCase()) return obj.text; });
 
                 var levelDropTarget = this.element.find('.groupLabelDrop').data("ejDropDownList");
                 levelDropTarget.selectItemByText((selectedlevel.length > 0) ? selectedlevel[0] : levelDropTarget.model.dataSource[0].text);
 
                 this.element.find(".e-memberEditorDiv").addClass("advancedFilter");
-                
+
             }
             var schemaObj = this;
             if (!ej.isNullOrUndefined(this.model.pivotControl) && this.model.pivotControl.model.enableMemberEditorPaging && jQuery.isEmptyObject(this._currentFilterList))
@@ -4008,7 +4208,7 @@
             for (var i = 0; i < treeViewElements.length; i++) {
                 treeViewElements[i].setAttribute("data-tag", treeViewData[i].tag);
             }
-            this.element.find(".e-dialogOKBtn, .e-dialogCancelBtn").ejButton({ type: ej.ButtonType.Button, click: ej.proxy(this.model.pivotControl.model.operationalMode == ej.Pivot.OperationalMode.ClientMode ? this._clientDialogBtnClick: this._dialogBtnClick, this) });
+            this.element.find(".e-dialogOKBtn, .e-dialogCancelBtn").ejButton({ type: ej.ButtonType.Button, click: ej.proxy(this.model.pivotControl.model.operationalMode == ej.Pivot.OperationalMode.ClientMode ? this._clientDialogBtnClick : this._dialogBtnClick, this) });
             this._dialogOKBtnObj = this.element.find(".e-dialogOKBtn").data("ejButton");
             this._memberTreeObj = this.element.find(".e-editorTreeView").data("ejTreeView");
             var treeViewLi = this.element.find(".e-editorTreeView li:gt(0)"), firstNode = $(this._memberTreeObj.element.find("li:first")).find("span.e-chk-image"),
@@ -4036,7 +4236,7 @@
                     })
                 })
             }
-            this.element.find(".e-clientDialog").ejDialog({ width: isAdvancedFilter? "auto": 265, target: "#" + this._id, enableResize: false, enableRTL: this.model.enableRTL, close: ej.proxy(ej.Pivot.closePreventPanel, this) });
+            this.element.find(".e-clientDialog").ejDialog({ width: isAdvancedFilter ? "auto" : 265, target: "#" + this._id, enableResize: false, enableRTL: this.model.enableRTL, close: ej.proxy(ej.Pivot.closePreventPanel, this) });
             this.element.find(".e-clientDialog").next(".e-scrollbar").hide();
             this.element.find(".e-dialog .e-close").attr("title", this._getLocalizedLabels("Close"));
             if (isAdvancedFilter) {
@@ -4057,6 +4257,10 @@
                         }
                     }
                 }
+            }
+            if (this.model.enableMemberEditorSorting || (this.model.pivotControl && $(this.model.pivotControl.element).hasClass("e-pivotclient") && this.model.pivotControl.model.enableMemberEditorSorting)) {
+                this._sortType = "";
+                ej.Pivot._separateAllMember(this, isAdvancedFilter);
             }
             this._memberTreeObj.model.nodeCheck = ej.proxy(this._nodeCheckChanges, this);
             this._memberTreeObj.model.nodeUncheck = ej.proxy(this._nodeCheckChanges, this);
@@ -4115,7 +4319,7 @@
             if (this.model.pivotControl && this.model.pivotControl.model.operationalMode == ej.Pivot.OperationalMode.ServerMode) {
                 this.model.pivotControl._selectedField = this.model.pivotControl._curFilteredText = this._curFilteredText;
                 this.model.pivotControl._curFilteredAxis = this._curFilteredAxis;
-                
+
                 this._selectedField = this._curFilteredText
                 if (this.model.pivotControl.model.analysisMode == ej.Pivot.AnalysisMode.Olap) {
                     this.model.pivotControl._filterElementClick(args, this);
@@ -4130,9 +4334,9 @@
                         if (ej.isNullOrUndefined(this.model.pivotControl._ascdes))
                             this.model.pivotControl._ascdes = "";
 
-                        if (this.model.pivotControl._ascdes.indexOf(this._selectedField) > -1 )
+                        if (this.model.pivotControl._ascdes.indexOf(this._selectedField) > -1)
                             this.model.pivotControl._ascdes = this.model.pivotControl._ascdes.replace(this._selectedField + "##", "");
-                        else if($(args.element).find(".e-clrSort").length==0)
+                        else if ($(args.element).find(".e-clrSort").length == 0)
                             this.model.pivotControl._ascdes = this.model.pivotControl._ascdes + this._selectedField + "##";
                         this._applySorting(args);
                         return false;
@@ -4157,10 +4361,10 @@
                 this._clearAllFilter(args);
             else if ($(args.element).attr("id") == "clearSorting")
                 this.model.pivotControl._clearSorting(args);
-            
+
             else if ($(args.element).attr("id") == "ascOrder" || $(args.element).attr("id") == "descOrder")
                 this._sortField(args);
-            if ($(args.element).parent().hasClass("e-filterElementTag")) return; 
+            if ($(args.element).parent().hasClass("e-filterElementTag")) return;
             this.element.find(".e-dialog, .filterDialog, #preventDiv").remove();
 
             if ($.trim(args.text) == $.trim(this._getLocalizedLabels("ClearFilter"))) {
@@ -4178,8 +4382,8 @@
             }
             else {
                 var dialogtitle, hierarchyLi, isHierarchyNode = false, currentLevelInfo = this._selectedLevelUniqueName;
-                if(this.model.pivotControl){
-                    this.model.pivotControl._selectedLevelUniqueName= this._selectedLevelUniqueName;
+                if (this.model.pivotControl) {
+                    this.model.pivotControl._selectedLevelUniqueName = this._selectedLevelUniqueName;
                 }
                 var dialogContent, dropdownValues, filterValue = this._getAdvancedFiltervalue(currentHierarchy, this._selectedLevelUniqueName), topCountFilterParams = "";
                 filterValue = ($(args.element).find(".e-activeFilter").length > 0 && filterValue.length > 0) ? filterValue[0].values : [""];
@@ -4192,7 +4396,7 @@
             }
         },
         _getAdvancedFiltervalue: function (hierarchyUqName, levelUqName) {
-            
+
             if (!(this.model.pivotControl.model.analysisMode == ej.Pivot.AnalysisMode.Pivot && this.model.pivotControl.model.operationalMode == ej.Pivot.OperationalMode.ServerMode)) {
                 var filterItem = ej.Pivot.getReportItemByFieldName(hierarchyUqName, this.model.pivotControl.model.dataSource, "XMLA").item, levelItem = [];
                 if (filterItem.advancedFilter)
@@ -4213,7 +4417,7 @@
                     filterValue = [""];
             }
             else
-                filterValue = [""];            
+                filterValue = [""];
             var valuesTd = this.element.find(".filterValuesTd")[0];
             if (args.value.toLowerCase().indexOf("between") >= 0)
                 $(valuesTd).html("<input type='text' id='filterValue1' class='e-filterValues' value='" + filterValue[0] + "' style='display:inline'/> <span>" + this._getLocalizedLabels("and") + "</span> <input type='text' id='filterValue2' value='" + (ej.isNullOrUndefined(filterValue[1]) ? "" : filterValue[1]) + "' class='e-filterValues' style='display:inline' /> </br>");
@@ -4236,12 +4440,12 @@
         _filterElementOkBtnClick: function (args) {
             var selectedOperator = this.element.find(".filterOptions")[0].value,
                 enteredValue = [this.element.find("#filterValue1")[0].value],
-                filter2TxtBx =(this.element.find("#filterValue2").length > 0 ? this.element.find("#filterValue2")[0].value : ""),
+                filter2TxtBx = (this.element.find("#filterValue2").length > 0 ? this.element.find("#filterValue2")[0].value : ""),
                 filterInfo = [], currentHierarchy = this._selectedFieldName,
                 currentLevelInfo = this._selectedLevelUniqueName.toLowerCase();
 
             if (this.model.pivotControl && this.model.pivotControl.model.analysisMode == ej.Pivot.AnalysisMode.Pivot && this.model.pivotControl.model.operationalMode == ej.Pivot.OperationalMode.ServerMode) {
-                var report, reportName="", selectedMeasure='';
+                var report, reportName = "", selectedMeasure = '';
                 try { report = JSON.parse(this.model.pivotControl.getOlapReport()).Report; }
                 catch (err) { report = this.model.pivotControl.getOlapReport(); }
                 this.model.pivotControl._removeFilterTag(this._selectedLevelUniqueName);
@@ -4249,7 +4453,7 @@
                     reportName = this.model.pivotControl.element.find('.reportlist').data("ejDropDownList").model.value;
                 if (ej.isNullOrUndefined(this._excelFilterInfo))
                     this._excelFilterInfo = [];
-              if (this._filterAction == "labelFiltering") {
+                if (this._filterAction == "labelFiltering") {
                     this.model.pivotControl._excelFilterInfo.push({ report: reportName, action: this._filterAction, hierarchyUniqueName: this._selectedFieldName, levelUniqueName: this._selectedLevelUniqueName, operator: selectedOperator, measure: selectedMeasure, value1: enteredValue[0], value2: filter2TxtBx });
                     var selectedData = this._curFilteredText;
                     this._tempFilterData = $.map(this._tempFilterData, function (item, i) { if (!(item[selectedData])) return item; });
@@ -4258,12 +4462,12 @@
                     this.doAjaxPost("POST", this.model.pivotControl.model.url + "/" + this.model.serviceMethods.filtering, eventArgs, this._filterElementSuccess);
                 }
                 else {
-                  var selectedData = this._curFilteredText;
-                  this._measureDDL = this.element.find(".filterMeasures").data("ejDropDownList");
-                  selectedMeasure = this._measureDDL.getSelectedValue();
+                    var selectedData = this._curFilteredText;
+                    this._measureDDL = this.element.find(".filterMeasures").data("ejDropDownList");
+                    selectedMeasure = this._measureDDL.getSelectedValue();
                     this.model.pivotControl._excelFilterInfo.push({ report: reportName, action: this._filterAction, hierarchyUniqueName: this._selectedFieldName, levelUniqueName: this._selectedLevelUniqueName, operator: selectedOperator, measure: selectedMeasure, value1: enteredValue[0], value2: filter2TxtBx });
                     this._tempFilterData = $.map(this._tempFilterData, function (item, i) { if (!(item[selectedData])) return item; });
-                 
+
                     var filterParams = this._curFilteredText + "::" + selectedOperator + "::" + selectedMeasure + "::" + enteredValue[0] + "::" + filter2TxtBx + ((this.model.pivotControl && $(this.model.pivotControl.element).hasClass("e-pivotclient") && !ej.isNullOrUndefined(this.model.pivotControl._ascdes) && this.model.pivotControl.model.enableAdvancedFilter) ? ">>#>#>>" + this.model.pivotControl._ascdes : "");
                     var serializedCustomObject = JSON.stringify(this.model.customObject), eventArgs = JSON.stringify({ "action": this._filterAction, "filterParams": filterParams + "-##-" + JSON.stringify(this.model.pivotControl.model.valueSortSettings), "sortedHeaders": this._ascdes, "currentReport": report, "valueSorting": JSON.stringify(this.model.valueSortSettings), "customObject": serializedCustomObject, "gridLayout": this.model.layout });
                     this.doAjaxPost("POST", this.model.pivotControl.model.url + "/" + this.model.serviceMethods.filtering, eventArgs, this._filterElementSuccess);
@@ -4306,8 +4510,7 @@
             filterMenuObj.disableItemByID("valueClearFilter");
             filterMenuObj.disableItemByID("clearAllFilters");
             filterMenuObj.disableItemByID("clearSorting");
-            if (this.model.pivotControl && this.model.pivotControl.model.operationalMode == ej.Pivot.OperationalMode.ServerMode)
-            {
+            if (this.model.pivotControl && this.model.pivotControl.model.operationalMode == ej.Pivot.OperationalMode.ServerMode) {
                 this.model.pivotControl._selectedLevelUniqueName = args.selectedValue;
                 var filterInfo = [], filterIndicator = ej.buildTag("span.e-filterState").addClass("e-icon").attr("aria-label", "filter state")[0].outerHTML;
                 if (this.model.pivotControl._excelFilterInfo.length > 0) {
@@ -4321,17 +4524,16 @@
                 this.element.find("#labelClearFilter ,#valueClearFilter").css("opacity", "0.5").attr("disable", true);
 
                 if (filterInfo.length > 0 && !ej.isNullOrUndefined(filterInfo[0]["operator"])) {
-                    var filterTag="",filterId="";
-                    if (filterInfo[0].action.toLowerCase() == "valuefiltering")
-                    {
-                        filterTag="valueFilterBtn"; 
-                        filterId=filterId = (filterInfo[0]["operator"] == "equals" || filterInfo[0]["operator"] == "not equals" || filterInfo[0]["operator"] == "less than or equal to" || filterInfo[0]["operator"] == "greater than or equal to" || filterInfo[0]["operator"] == "greater than" || filterInfo[0]["operator"] == "less than") ? "_valueFilter" : "";
+                    var filterTag = "", filterId = "";
+                    if (filterInfo[0].action.toLowerCase() == "valuefiltering") {
+                        filterTag = "valueFilterBtn";
+                        filterId = filterId = (filterInfo[0]["operator"] == "equals" || filterInfo[0]["operator"] == "not equals" || filterInfo[0]["operator"] == "less than or equal to" || filterInfo[0]["operator"] == "greater than or equal to" || filterInfo[0]["operator"] == "greater than" || filterInfo[0]["operator"] == "less than") ? "_valueFilter" : "";
                     }
-                    else{
-                        filterTag="labelFilterBtn";
+                    else {
+                        filterTag = "labelFilterBtn";
                         filterId = (filterInfo[0]["operator"] == "equals" || filterInfo[0]["operator"] == "not equals" || filterInfo[0]["operator"] == "less than or equal to" || filterInfo[0]["operator"] == "greater than or equal to" || filterInfo[0]["operator"] == "greater than" || filterInfo[0]["operator"] == "less than") ? "_labelFilter" : "";
                     }
-                    if(filterTag=="labelFilterBtn")
+                    if (filterTag == "labelFilterBtn")
                         filterMenuObj.enableItemByID("labelClearFilter");
                     else
                         filterMenuObj.enableItemByID("valueClearFilter");
@@ -4340,8 +4542,8 @@
                     this.element.find("#" + filterTag + " #labelClearFilter").removeAttr("style disable");
                     this.element.find("#" + filterTag + " #valueClearFilter").removeAttr("style disable");
 
-                    if (filterInfo[0]["operator"].replace(/ /g, '') == "BottomCount") 
-                        this.element.find("#" + filterTag + " li#" + filterInfo[0]["operator"].replace(/ /g, '').replace("Bottom", "top") + " a").append($(ej.buildTag("span.e-activeFilter e-icon")[0].outerHTML));                    
+                    if (filterInfo[0]["operator"].replace(/ /g, '') == "BottomCount")
+                        this.element.find("#" + filterTag + " li#" + filterInfo[0]["operator"].replace(/ /g, '').replace("Bottom", "top") + " a").append($(ej.buildTag("span.e-activeFilter e-icon")[0].outerHTML));
                     else
                         this.element.find("#" + filterTag + " li#" + filterInfo[0]["operator"].replace(/ /g, '') + filterId + " a").append($(ej.buildTag("span.e-activeFilter e-icon")[0].outerHTML));
                 }
@@ -4351,7 +4553,7 @@
                 }
                 if (this.model.pivotControl && this.model.pivotControl.model.analysisMode == ej.Pivot.AnalysisMode.Pivot) {
                     var filterElem = this.element.find("#clearAllFilters a").children().clone();
-                     this.element.find("#clearAllFilters a").text(this._getLocalizedLabels("ClearFilter") + " from \"" + args.text + "\"").append(filterElem);
+                    this.element.find("#clearAllFilters a").text(this._getLocalizedLabels("ClearFilter") + " from \"" + args.text + "\"").append(filterElem);
                     var levelName = this.model.pivotControl._curFilteredText;
                     var sorting = ej.isNullOrUndefined(this.model.pivotControl._ascdes) ? [] : $.grep(this.model.pivotControl._ascdes.split("##"), function (value, i) { if (value == levelName) return value; });
                     if (sorting.length > 0) {
@@ -4372,7 +4574,7 @@
             var me = this;//this.element.hasClass("e-pivotschemadesigner") ? this.model.pivotControl : 
             var selectedLevelInfo = this.element.find(".groupLabelDrop").length > 0 ? this.element.find(".groupLabelDrop").data("ejDropDownList") : [];
             var filterData = me._getAdvancedFiltervalue(me._selectedFieldName, selectedLevelInfo.getSelectedValue());
-            var filterMenuObj = this.element.find(".e-filterElementTag").data("ejMenu");          
+            var filterMenuObj = this.element.find(".e-filterElementTag").data("ejMenu");
             var isIncludeFilter = ej.Pivot.getReportItemByFieldName(me._selectedFieldName, me.model.pivotControl.model.dataSource).item;
             var filterIndicator = ej.buildTag("span.e-filterState").addClass("e-icon").attr("aria-label", "filter state")[0].outerHTML;
             var activeFilter = ej.buildTag("span.e-activeFilter").addClass("e-icon")[0].outerHTML;
@@ -4384,7 +4586,7 @@
                     if (ej.isNullOrUndefined(selectedOrder) || selectedOrder == "asc")
                         this.element.find(".e-clientDialog .e-ascImage").addClass("e-selectedSort");
                     else {
-                        this.element.find(".e-clientDialog .e-descImage").addClass("e-selectedSort");                        
+                        this.element.find(".e-clientDialog .e-descImage").addClass("e-selectedSort");
                         filterMenuObj.enableItemByID("clearSorting");
                     }
                 }
@@ -4400,15 +4602,15 @@
                 if (filterData[0]["advancedFilterType"] == ej.olap.AdvancedFilterType.LabelFilter) {
                     this.element.find("#labelFilterBtn a:eq(0)").append(filterIndicator);
                     this.element.find("#labelFilterBtn .clearFilter").css("opacity", "1").removeAttr("disabled");
-                    var labelFilter=(filterData[0]["labelFilterOperator"] == "equals" || filterData[0]["labelFilterOperator"] == "notequals" || filterData[0]["labelFilterOperator"] == "lessthanorequalto" || filterData[0]["labelFilterOperator"] == "greaterthanorequalto" || filterData[0]["labelFilterOperator"] == "greaterthan" || filterData[0]["labelFilterOperator"] == "lessthan")? "_labelFilter":"";
+                    var labelFilter = (filterData[0]["labelFilterOperator"] == "equals" || filterData[0]["labelFilterOperator"] == "notequals" || filterData[0]["labelFilterOperator"] == "lessthanorequalto" || filterData[0]["labelFilterOperator"] == "greaterthanorequalto" || filterData[0]["labelFilterOperator"] == "greaterthan" || filterData[0]["labelFilterOperator"] == "lessthan") ? "_labelFilter" : "";
                     this.element.find("#labelFilterBtn li#" + filterData[0]["labelFilterOperator"] + labelFilter + " a").append(activeFilter);
                     filterMenuObj.enableItemByID("labelClearFilter");
                 }
                 else {
                     this.element.find("#valueFilterBtn a:eq(0)").append(filterIndicator);
                     this.element.find("#valueFilterBtn .clearFilter").css("opacity", "1").removeAttr("disabled");
-                    var valueFilter=(filterData[0]["valueFilterOperator"] == "equals" || filterData[0]["valueFilterOperator"] == "notequals" || filterData[0]["valueFilterOperator"] == "lessthanorequalto" || filterData[0]["valueFilterOperator"] == "greaterthanorequalto" || filterData[0]["valueFilterOperator"] == "greaterthan" || filterData[0]["valueFilterOperator"] == "lessthan")? "_valueFilter":"";
-                    this.element.find("#valueFilterBtn li#" + filterData[0]["valueFilterOperator"] + valueFilter +" a").append(activeFilter);
+                    var valueFilter = (filterData[0]["valueFilterOperator"] == "equals" || filterData[0]["valueFilterOperator"] == "notequals" || filterData[0]["valueFilterOperator"] == "lessthanorequalto" || filterData[0]["valueFilterOperator"] == "greaterthanorequalto" || filterData[0]["valueFilterOperator"] == "greaterthan" || filterData[0]["valueFilterOperator"] == "lessthan") ? "_valueFilter" : "";
+                    this.element.find("#valueFilterBtn li#" + filterData[0]["valueFilterOperator"] + valueFilter + " a").append(activeFilter);
                     filterMenuObj.enableItemByID("valueClearFilter");
                 }
                 filterMenuObj.enableItemByID("clearAllFilters");
@@ -4416,7 +4618,7 @@
             }
             else if ((isIncludeFilter.length > 0 && isIncludeFilter[0]["filterItems"]) || (this.model.pivotControl.model.analysisMode == ej.Pivot.AnalysisMode.Pivot && isIncludeFilter && isIncludeFilter.filterItems)) {
                 this.element.find(".e-memberEditorDiv").before(filterIndicator);
-                this.element.find(".e-filterState").addClass("memberFilter").css("visibility","hidden");
+                this.element.find(".e-filterState").addClass("memberFilter").css("visibility", "hidden");
                 this.element.find("#clearAllFilters").css("opacity", "1").removeAttr("disabled");
             }
         },
@@ -4440,7 +4642,7 @@
         _clearFilter: function (currentHierarchy, currentLevelInfo, dataSource) {
             var reportItem = ej.Pivot.getReportItemByFieldName(currentHierarchy, dataSource);
             if (reportItem.item && reportItem.item["advancedFilter"]) {
-                currentLevelInfo =(this.model.pivotControl && this.model.pivotControl.model.analysisMode == ej.Pivot.AnalysisMode.Pivot && this.model.pivotControl.model.operationalMode == ej.Pivot.OperationalMode.ClientMode) ? currentHierarchy: currentLevelInfo;
+                currentLevelInfo = (this.model.pivotControl && this.model.pivotControl.model.analysisMode == ej.Pivot.AnalysisMode.Pivot && this.model.pivotControl.model.operationalMode == ej.Pivot.OperationalMode.ClientMode) ? currentHierarchy : currentLevelInfo;
                 reportItem.item["advancedFilter"] = $.map(reportItem.item["advancedFilter"], function (obj, index) { if (obj.name != undefined && (obj.name.toLowerCase() != currentLevelInfo.toLowerCase())) return obj; });
             }
         },
@@ -4451,7 +4653,7 @@
             var pvtAxis = axis == "row" ? ".e-schemaRow" : axis == "column" ? ".e-schemaColumn" : axis == "value" ? ".e-schemaValue" : ".e-schemaFilter";
             if (this.model.pivotControl.model.operationalMode == ej.PivotGrid.OperationalMode.ClientMode) {
                 var tagAxis = axis == "column" ? "columns" : axis == "row" ? "rows" : axis == "filter" ? "filters" : "values";
-              //test  var rowBtn = ej.buildTag("div.e-pivotButton", ej.buildTag("div.e-dropIndicator")[0].outerHTML + ej.buildTag("button.e-pvtBtn#e-pivotButton" + text.fieldName, ((text.fieldCaption != undefined) ? text.fieldName : text.fieldCaption), {}, { "fieldName": text.fieldName, "axis": tagAxis })[0].outerHTML +
+                //test  var rowBtn = ej.buildTag("div.e-pivotButton", ej.buildTag("div.e-dropIndicator")[0].outerHTML + ej.buildTag("button.e-pvtBtn#e-pivotButton" + text.fieldName, ((text.fieldCaption != undefined) ? text.fieldName : text.fieldCaption), {}, { "fieldName": text.fieldName, "axis": tagAxis })[0].outerHTML +
                 var sortBtn = (axis == "column" || axis == "row") && this.model.layout != "excel" && this._dataModel != "Olap" && this._dataModel != "XMLA" ? ej.buildTag("span.sorting e-icon " + descending).attr("role", "button").attr("aria-label", "sort").attr("aria-expanded", "false")[0].outerHTML : "",
                 filterBtn = (axis == "column" || axis == "row" || axis == "filter") && this.model.layout != "excel" && text.fieldCaption != "Measures" ? ej.buildTag("span.filter e-icon " + filtered).attr("role", "button").attr("aria-label", "filter")[0].outerHTML : "",
                 removeBtn = this.model.layout != "excel" ? ej.buildTag("span.e-removeBtn e-icon").attr("role", "button").attr("aria-label", "remove")[0].outerHTML : "",
@@ -4480,24 +4682,24 @@
             var pvtExp = (typeof (dropPostion) != "number" && dropPostion == "") ? " .e-pivotButton .e-pvtBtn:last" : " .e-pivotButton .e-pvtBtn:eq(" + dropPostion + ")";
             if (this.model.enableDragDrop) {
                 this.element.find(pvtAxis + pvtExp).ejButton({ size: "normal", type: ej.ButtonType.Button, enableRTL: this.model.enableRTL }).ejDraggable({
-					handle: 'button', clone: true,
-					cursorAt: { left: -5, top: -5 },
-					dragStart: ej.proxy(function (args) {
-						this._isDragging = true;
-					}, this),
-					dragStop: ej.proxy(this.model.pivotControl.model.operationalMode==ej.Pivot.OperationalMode.ServerMode?this._pvtBtnDropped:this._clientOnPvtBtnDropped, this),
-					helper: ej.proxy(function (event, ui) {
-					    $(event.element).addClass("dragHover");
-						if (event.sender.target.className.indexOf("e-btn") > -1) {
-							var btnClone = $(event.sender.target).clone().attr("id",this._id+"_dragClone").appendTo('body');
-                            $("#"+this._id + "_dragClone").removeAttr("style").height($(event.sender.target).height());
-                            return btnClone;            
+                    handle: 'button', clone: true,
+                    cursorAt: { left: -5, top: -5 },
+                    dragStart: ej.proxy(function (args) {
+                        this._isDragging = true;
+                    }, this),
+                    dragStop: ej.proxy(this.model.pivotControl.model.operationalMode == ej.Pivot.OperationalMode.ServerMode ? this._pvtBtnDropped : this._clientOnPvtBtnDropped, this),
+                    helper: ej.proxy(function (event, ui) {
+                        $(event.element).addClass("dragHover");
+                        if (event.sender.target.className.indexOf("e-btn") > -1) {
+                            var btnClone = $(event.sender.target).clone().attr("id", this._id + "_dragClone").appendTo('body');
+                            $("#" + this._id + "_dragClone").removeAttr("style").height($(event.sender.target).height());
+                            return btnClone;
                         }
-						else
-							return false;
-					}, this)
-				});
-			}
+                        else
+                            return false;
+                    }, this)
+                });
+            }
             this.element.find(pvtAxis + " .e-pivotButton .filterBtn:last").ejButton({
                 size: "normal",
                 enableRTL: this.model.enableRTL,
@@ -4530,9 +4732,14 @@
         _createContextMenu: function () {
             var ele = this.element.find(".e-pivotButton");
             if (this.model.pivotControl != null) {
-                var contextTag = ej.buildTag("ul.pivotTreeContextMenu#pivotTreeContextMenu", ej.buildTag("li", ej.buildTag("a", this._getLocalizedLabels("AddToFilter"))[0].outerHTML)[0].outerHTML + ej.buildTag("li", ej.buildTag("a", this._getLocalizedLabels("AddToRow"))[0].outerHTML)[0].outerHTML + ej.buildTag("li", ej.buildTag("a", this._getLocalizedLabels("AddToColumn"))[0].outerHTML)[0].outerHTML + ej.buildTag("li", ej.buildTag("a", this._getLocalizedLabels("AddToValues"))[0].outerHTML)[0].outerHTML)[0].outerHTML;
+                var contextTag = ej.buildTag("ul.pivotTreeContextMenu#" + this._id + "_pivotTreeContextMenu",
+                    ej.buildTag("li", ej.buildTag("a", this._getLocalizedLabels("AddToFilter"))[0].outerHTML)[0].outerHTML +
+                    ej.buildTag("li", ej.buildTag("a", this._getLocalizedLabels("AddToRow"))[0].outerHTML)[0].outerHTML +
+                    ej.buildTag("li", ej.buildTag("a", this._getLocalizedLabels("AddToColumn"))[0].outerHTML)[0].outerHTML +
+                    ej.buildTag("li", ej.buildTag("a", this._getLocalizedLabels("AddToValues"))[0].outerHTML)[0].outerHTML
+                    )[0].outerHTML;
                 $(this.element).append(contextTag);
-                $("#pivotTreeContextMenu").ejMenu({
+                $("#"+this._id+"_pivotTreeContextMenu").ejMenu({
                     menuType: ej.MenuType.ContextMenu,
                     enableRTL: this.model.enableRTL,
                     openOnClick: false,
@@ -4602,7 +4809,7 @@
                     AEBdiv = this.element.find("." + this._droppedClass)[0];
                 else
                     AEBdiv = targetSplitBtn.parentNode;
-                AEBdiv =$(AEBdiv).children(".e-pivotButton");
+                AEBdiv = $(AEBdiv).children(".e-pivotButton");
                 for (var i = 0; i < AEBdiv.length; i++) {
                     if ($(AEBdiv[i]).attr("data-tag") == $(targetSplitBtn).attr("data-tag"))
                         targetPosition = i;
@@ -4736,20 +4943,20 @@
         IsLessThan: "Is Less Than",
         IsLessThanOrEqualTo: "Is Less Than Or Equal To",
         ClearFilter: "Clear Filter",
-        SelectField:"Select field",
+        SelectField: "Select field",
         Measures: "Measures",
         Warning: "Warning",
-        AlertMsg:"The field you are moving cannot be placed in that area of the report",
+        AlertMsg: "The field you are moving cannot be placed in that area of the report",
         Goal: "Goal",
-        Status:"Status",
-        Trend:"Trend",
-        Value: "value",
+        Status: "Status",
+        Trend: "Trend",
+        Value: "Value",
         AddToFilter: "Add to Filter",
         AddToRow: "Add to Row",
         AddToColumn: "Add to Column",
         AddToValues: "Add to Value",
         PivotTableFieldList: "PivotTable Field List",
-        ChooseFieldsToAddToReport: "Choose fields to add to report:",
+        ChooseFieldsToAddToReport: "Choose fields to add to the report:",
         DragFieldBetweenAreasBelow: "Drag fields between areas below:",
         ReportFilter: "Filters",
         ColumnLabel: "Columns",
@@ -4758,18 +4965,19 @@
         DeferLayoutUpdate: "Defer Layout Update",
         Update: "Update",
         OK: "OK",
+        Remove: "Remove",
         Cancel: "Cancel",
         Close: "Close",
         AddCurrentSelectionToFilter: "Add current selection to filter",
         NotAllItemsShowing: "Not all child nodes are shown",
-        EditorLinkPanelAlert: "The members has more than 1000 items under one or more parent. Only the first 1000 items are displayed under each parent.",
-        NamedSetAlert: "A named set cannot be added to the PivotTable report at the same time as another named set based on the same field. Click OK to remove ' <Set 1> ' named set and add ' <Set 2> ' named set."
+        EditorLinkPanelAlert: "The members have more than 1000 items under one or more parent. Only the first 1000 items are displayed under each parent.",
+        NamedSetAlert: "Named sets cannot be added to the PivotTable report at the same time. Click OK to remove ' <Set 1> ' named set and add ' <Set 2> ' named set."
     };
 
     ej.PivotSchemaDesigner.Layouts = {
         Excel: "excel",
         Normal: "normal",
-        OneByOne:"onebyone"
+        OneByOne: "onebyone"
     };
 
 })(jQuery, Syncfusion);

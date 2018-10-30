@@ -594,7 +594,7 @@
         },
 
         _convertToExponetial: function (value) {
-            var number = "", pattern, format;
+            var number = "", pattern, format, unformattedValue, symbol;
             var negative = value < 0 ? true : false;
             value = value.toString();
             format = ej.preferredCulture(this.model.locale).numberFormat;
@@ -616,8 +616,8 @@
                 value = negative ? value.replace("-", "") : value;
                 symbol = format.currency.symbol;
             }
-            for (idx = 0, length = pattern.length; idx < length; idx++) {
-                ch = pattern.charAt(idx);
+            for (var idx = 0, length = pattern.length; idx < length; idx++) {
+                var ch = pattern.charAt(idx);
                 (ch === "n") ? number += value : (ch === "$" || ch === "%") ? number += symbol : number += ch;
             }
             return { formattedValue: number, unformattedValue: unformattedValue }

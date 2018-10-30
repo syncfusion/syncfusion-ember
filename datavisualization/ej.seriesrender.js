@@ -380,7 +380,8 @@ ej.EjTrendLineRenderer = function () {
                 if (!point.isEmpty && !ej.isNullOrUndefined(point.y)) {
                     trendline.xPoints.push(point.xValue);
                     xValue = typeof (point.xValue) === 'number' ? point.xValue : Date.parse(point.xValue);
-                    trendline.xValues.push(Math.log(xValue));
+					var xVal = isFinite(Math.log(xValue)) ? Math.log(xValue) : xValue;
+					trendline.xValues.push(xVal);
                     trendline.yValues.push(point.y);
                 }
             }
@@ -409,9 +410,9 @@ ej.EjTrendLineRenderer = function () {
                 }
 
                 //trendline logarithmic segment  Intercept + Slope * Math.Log(xValue);
-                var y1 = trendline._intercept + (trendline.slope * Math.log(x1));
-                var y2 = trendline._intercept + (trendline.slope * Math.log(x2));
-                var y3 = trendline._intercept + (trendline.slope * Math.log(x3));
+                var y1 = trendline._intercept + (trendline.slope * (isFinite(Math.log(x1)) ? Math.log(x1) : x1));
+                var y2 = trendline._intercept + (trendline.slope * (isFinite(Math.log(x2))? Math.log(x2) : x2));
+                var y3 = trendline._intercept + (trendline.slope * (isFinite(Math.log(x3))? Math.log(x3) : x3));
                 trendline.points.push({ x: x1, xValue: X1, y: y1, YValues: [], visible: true });
                 trendline.points.push({ x: x2, xValue: X2, y: y2, YValues: [], visible: true });
                 trendline.points.push({ x: x3, xValue: X3, y: y3, YValues: [], visible: true });
@@ -4343,6 +4344,8 @@ ej.EjTrendLineRenderer = function () {
         },
         _doLineAnimation: function (chartObj, clipRect, duration) {
             var duration = !ej.util.isNullOrUndefined(duration) ? duration : 2000;
+            var animationReversed = chartObj.model.primaryXAxis.isInversed;
+            var width = parseFloat(chartObj.svgRenderer._getAttrVal(clipRect, "width"));
             if (chartObj.model.requireInvertedAxes) {
                 var height = parseFloat(chartObj.svgRenderer._getAttrVal(clipRect, "height"));
                 //Animation for transposed series is working from top to bottom instead of bottom to top
@@ -4369,6 +4372,8 @@ ej.EjTrendLineRenderer = function () {
                     {
                         duration: duration,
                         step: function (now) {
+                            if (animationReversed)
+                                chartObj.svgRenderer._setAttr($(clipRect), { "x": width - now });
                             chartObj.svgRenderer._setAttr($(clipRect), { "width": now });
                         }
                     });
@@ -6348,6 +6353,7 @@ ej.EjTrendLineRenderer = function () {
         textPosition: function (series, seriesIndex, point, textOffset, type, x, y, chartRegionIndex, index, params) {
             var marker = $.extend(true, {}, series.marker, point.marker),
                 dataLabel = marker.dataLabel,
+                isRTL = dataLabel.isReversed,
                 horizontalTextAlignment = dataLabel.horizontalTextAlignment.toLowerCase(),
                 verticalTextAlignment = dataLabel.verticalTextAlignment.toLowerCase(),
                 textPosition = dataLabel.textPosition.toLowerCase(),
@@ -6406,9 +6412,9 @@ ej.EjTrendLineRenderer = function () {
                 }
 
                 if (horizontalTextAlignment && horizontalTextAlignment == "far")
-                    x += pointWidth / 2;
+                    x = isRTL ? x - pointWidth / 2 : x + pointWidth / 2;
                 else if (horizontalTextAlignment && horizontalTextAlignment == "near")
-                    x -= pointWidth / 2;
+                    x = isRTL ? x + pointWidth / 2 : x - pointWidth / 2;
 
                 if (verticalTextAlignment && verticalTextAlignment == "near") {
                     if (textPosition == "bottom")

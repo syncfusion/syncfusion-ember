@@ -391,7 +391,7 @@
 
         _createButtonControl: function () {
             this._buttonWrapper = ej.buildTag("div.e-nav").insertAfter(this._wrapper);
-            if (this.model.showNavigateButton) {
+            if (this.model.showNavigateButton && this._liCount > 3) {
                 this._prevButton = ej.buildTag("span.e-nav-btn e-icon e-previous").attr({ 'role': 'button' }).appendTo(this._buttonWrapper);
                 this._nextButton = ej.buildTag("span.e-nav-btn e-icon e-next").attr({ 'role': 'button' }).appendTo(this._buttonWrapper);
             }
@@ -899,7 +899,7 @@
                     "top": (((this._wrapper.outerHeight(true) / 2) - (this._autoButton.height() / 2)) / this._wrapper.outerHeight(true)) * (100) + "%"
                 });
 
-            if (this.model.showNavigateButton) {
+            if (this.model.showNavigateButton && this._liCount > 3) {
                 value = (((this._wrapper.outerHeight(true) / 2) - (this._prevButton.height() / 2)) / this._wrapper.outerHeight(true)) * (100) + "%";
                 this._prevButton.css("top", value);
                 this._nextButton.css("top", value);
@@ -961,14 +961,22 @@
             margin = Math.round(((this.element.parent().outerWidth(true) * 6) / 100) + (thumbwidth - (this._thumbCount * (itemsWidth / (listElement.length)))) / 2);
             this._thumb.css({ 'margin-left': margin, 'margin-right': margin, 'width': Math.ceil(this._thumbCount * Math.ceil(itemsWidth / (listElement.length))) });
             this._thumbItems.css({ 'width': Math.ceil(itemsWidth), 'height': this._thumbItems.children('li').outerHeight(true) });
+            if (this._liCount <= 3) this._thumb.css({ 'left': ((this.element.parent().outerWidth(true)/2) - (margin*2)) });
             this._checkState();
-            this._previous.css({ 'left': (margin - this._previous.width()) / 2 });
-            this._next.css({ 'right': (margin - this._next.width()) / 2 });
+            if (this._thumbCount <= (this._liCount - (this.model.displayItemsCount * 2))) {
+                this._previous.css({ 'left': (margin - this._previous.width()) / 2 });
+                this._next.css({ 'right': (margin - this._next.width()) / 2 });
+            }
         },
         _checkState: function () {
             if (this._thumbCount <= (this._liCount - (this.model.displayItemsCount * 2))) {
                 if (!this.element.parents('.e-in-wrap').siblings().hasClass("e-thumb-nav"))
                     this._createThumbControl();
+            }
+            else if (this._thumbCount >= (this._liCount - (this.model.displayItemsCount * 2))) {
+                this._thumbControl = ej.buildTag("div.e-thumb-nav").insertAfter(this._thumb);
+                this._thumbControl.appendTo(this._outerWrapper);
+                this._wireThumbEvents();
             }
             else if (this.element.parents('.e-in-wrap').siblings().hasClass("e-thumb-nav"))
                 this._thumbControl.remove();
@@ -1000,8 +1008,11 @@
                 right = -(this._thumbItems.position().left) + this._thumb.width();
                 if ((this._thumbItems.width() - right) > move)
                     this._thumbMove(move);
-                else
-                    this._thumbMove((this._thumbItems.width() - right));
+                else {
+                    if (this._thumbCount <= (this._liCount - (this.model.displayItemsCount * 2))) {
+                        this._thumbMove((this._thumbItems.width() - right));
+                    }                 
+                }
             }
         },
 
@@ -1096,7 +1107,7 @@
         },
 
         _wireBtnEvents: function () {
-            if (this.model.showNavigateButton) {
+            if (this.model.showNavigateButton && this._liCount > 3) {
                 this._prevButton.on("click", $.proxy(this.model.enableRTL ? this._nextAction : this._prevAction, this));
                 this._nextButton.on("click", $.proxy(this.model.enableRTL ? this._prevAction : this._nextAction, this));
             }
@@ -1104,8 +1115,10 @@
                 this._unwireBtnEvents();
         },
         _unwireBtnEvents: function () {
-            this._prevButton.off("click", $.proxy(this.model.enableRTL ? this._nextAction : this._prevAction, this));
-            this._nextButton.off("click", $.proxy(this.model.enableRTL ? this._prevAction : this._nextAction, this));
+            if (this._liCount > 3) {
+                this._prevButton.off("click", $.proxy(this.model.enableRTL ? this._nextAction : this._prevAction, this));
+                this._nextButton.off("click", $.proxy(this.model.enableRTL ? this._prevAction : this._nextAction, this));
+            }
         },
 
         _wireAutoPlayEvents: function () {
@@ -1125,13 +1138,17 @@
         _wireThumbEvents: function () {
             if (this.model.showThumbnail) {
                 this._on(this._thumbItems.children(), "click", this._thumbClick);
-                this._on(this._next, "click", (this.model.enableRTL ? this._thumbPrev : this._thumbNext));
-                this._on(this._previous, "click", (this.model.enableRTL ? this._thumbNext : this._thumbPrev));
+                if (this._thumbCount <= (this._liCount - (this.model.displayItemsCount * 2))) {
+                    this._on(this._next, "click", (this.model.enableRTL ? this._thumbPrev : this._thumbNext));
+                    this._on(this._previous, "click", (this.model.enableRTL ? this._thumbNext : this._thumbPrev));
+                }
             }
             else {
                 this._off(this._thumbItems.children(), "click", this._thumbClick);
-                this._off(this._next, "click", (this.model.enableRTL ? this._thumbPrev : this._thumbNext));
-                this._off(this._previous, "click", (this.model.enableRTL ? this._thumbNext : this._thumbPrev));
+                if (this._thumbCount <= (this._liCount - (this.model.displayItemsCount * 2))) {
+                    this._off(this._next, "click", (this.model.enableRTL ? this._thumbPrev : this._thumbNext));
+                    this._off(this._previous, "click", (this.model.enableRTL ? this._thumbNext : this._thumbPrev));
+                }
             }
         },
 
@@ -1381,7 +1398,7 @@
             this._containerHeight = this._convertPercentageToPixel(parentHeight, this._containerHeightPercent);
             this._setSlideWidth(this._calculateValue().toString());
             this._setWidth();
-            this._setSlideHeight(this._calculateValueHeight().toString());
+            this._setSlideHeight((this.model.displayItemsCount > 1 && this.model.orientation == "horizontal") ? this._containerHeight : this._calculateValueHeight().toString());
             if (!this.model.showThumbnail) this._setHeight();
             this.element.css("left", -(index * this._liSize));
             this._setUlInitial();
@@ -1483,7 +1500,7 @@
 
         _showControl: function (event) {
             if (!this.model.enabled) return false;
-            if (this.model.showNavigateButton) {
+            if (this.model.showNavigateButton && this._liCount > 3) {
                 this._prevButton.stop(true, true).fadeIn('slow');
                 this._nextButton.stop(true, true).fadeIn('slow');
             }
@@ -1498,7 +1515,7 @@
 
         _hideControl: function (event) {
             if (!this.model.enabled) return false;
-            if (this.model.showNavigateButton) {
+            if (this.model.showNavigateButton && this._liCount > 3) {
                 this._prevButton.stop(true, true).fadeOut('slow');
                 this._nextButton.stop(true, true).fadeOut('slow');
             }

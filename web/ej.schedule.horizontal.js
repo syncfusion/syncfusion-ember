@@ -231,15 +231,21 @@
                                 else
                                     startendTimes.push({ time: (i <= 9 ? "0" + i : i) + " 00", timecellclass: ((i % ((this.model.endHour - this.model.startHour) * this.model.timeScale.minorSlotCount)) == this.model.startHour && day != 0) ? "e-dayend" : "", cellWidth: (!this.model.cellWidth) ? "30px" : this.model.cellWidth, cellHeight: this.model.cellHeight, timeCellWidth: headercellWidth });
                             }
-                            j = !ej.isNullOrUndefined(this.model.timeScale.majorSlotTemplateId) || !ej.isNullOrUndefined(this.model.timeScale.minorSlotTemplateId) ? (j / (60 * 1000)) + (this.model.timeScale.majorSlot / this.model.timeScale.minorSlotCount) : (j / (60 * 1000)) + this.model.timeScale.majorSlot;
+                            j = (j / 60000) + (this.model.timeScale.majorSlot / this.model.timeScale.minorSlotCount);
                         }
                         i = (this.model.timeScale.majorSlot > 60) ? i + (this.model.timeScale.majorSlot / 60) : j >= 60 ? i + 1 : i;
-                        j = (j >= 60) ? 0 : j;
+                        j = (j >= 60) ? j % 60 : j;
                         if (templateValue) {
-                            if (j == this.model.timeScale.majorSlot || j == 0) {
-                                startendTimes.push({ time: timelist.trim(), times: timelist1, id: i + "_" + j, timecellclass: (((i - 1) == this.model.startHour) && day != 0 && j == 0) ? "e-dayend" : "", cellWidth: (!this.model.cellWidth) ? "30px" : this.model.cellWidth, cellHeight: this.model.cellHeight, timeCellWidth: headercellWidth });
-                                timelist1 = [];
-                            }
+                            startendTimes.push({
+                                time: timelist.trim(),
+                                times: timelist1,
+                                id: i + "_" + j,
+                                timecellclass: (((i - 1) == this.model.startHour) && day != 0 && j == 0) ? "e-dayend" : "",
+                                cellWidth: (!this.model.cellWidth) ? "30px" : this.model.cellWidth,
+                                cellHeight: this.model.cellHeight,
+                                timeCellWidth: headercellWidth
+                            });
+                            timelist1 = [];
                         }
                     }
                 }
@@ -373,7 +379,8 @@
                         cellsCount = (cellsCount == 0) ? 1 : cellsCount;
 						appWidth = (diffInMinutes <= 0) ? 0 : diffInMinutes / (this.model.timeScale.majorSlot / this.model.timeScale.minorSlotCount) * this.cellwidth + ((diffInMinutes / (this.model.timeScale.majorSlot / this.model.timeScale.minorSlotCount)) - 1);
                         appWidth = appWidth - (((Math.ceil(this._deviceRatio()) - 1) > 0) ? Math.sqrt(cellsCount - 1) : 0);
-                        cellIndex = (curIndex >= dayLength)? curIndex - ((curIndex % dayLength) % timeScaleRowCount) : curIndex - (curIndex % timeScaleRowCount);
+                        cellIndex = Math.floor((((this.model.endHour - this.model.startHour) * timeScaleRowCount) * (60 / this.model.timeScale.majorSlot) * day) + ((rStart == -1) ? 0 : startTime * timeScaleRowCount) * (60 / this.model.timeScale.majorSlot));
+                        cellIndex = cellIndex + (((this.model.timeScale.majorSlot % this.model.timeScale.minorSlotCount) != 0) ? Math.floor(curIndex / dayLength) : 0);
                         var cellIndexCalc = headerCell.eq(resValue + groupIndex - 1).children().eq(cellIndex);
                         if(!ej.isNullOrUndefined(cellIndexCalc[0])) {
                             var majorTime = this.getSlotByElement(cellIndexCalc);

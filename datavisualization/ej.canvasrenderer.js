@@ -378,6 +378,7 @@
                         $(options).attr('rotateAngle', rotate);
 
                         var labelText = highestText ? highestText : label;
+                        var labelTextHeight = (ej.EjSvgRender.utils._measureText(labelText, null, font)).height;
                         var textElement = this.createText(options, labelText);
                         $(document.body).append(textElement);
                         var box = textElement.getBoundingClientRect();
@@ -387,11 +388,23 @@
                             rotation = 360 + rotation;
                         }
                         var str = options.transform.split(',');
-                        if (options.labelPosition == "outside")
-                            this.ctx.translate(parseFloat(str[1]), parseFloat(str[2]) + (txtlngth / 2));
+                        anchor = anchor != undefined ? anchor : "center";
+                        var xValue = parseFloat(str[1]);
+                        var yValue = parseFloat(str[2]);
+                        var diff = (txtlngth / 2);
+                        if (options.labelPosition == "outside") {
+                            if (anchor == "start")
+                                this.ctx.translate(xValue, yValue + diff - ((rotation < 0 && rotation > -180) || rotation > 180 ? txtlngth / 2 : (txtlngth - labelTextHeight) / 2));
                         else
-                            this.ctx.translate(parseFloat(str[1]), parseFloat(str[2]) - (txtlngth / 2));
-                        this.ctx.textAlign = "center";
+                                this.ctx.translate(xValue, yValue + diff);
+                        }
+                        else {
+                            if (anchor == "start")
+                                this.ctx.translate(xValue, yValue - diff - ((rotation < 0 && rotation > -180) || rotation > 180 ? txtlngth / 2 : (txtlngth - labelTextHeight) / 2));
+                            else
+                                this.ctx.translate(xValue, yValue - diff);
+                        }
+                        this.ctx.textAlign = anchor;
                         this.ctx.rotate(rotation * (Math.PI / 180));
                         if (typeof label == "object") {
                             var len = label.length;

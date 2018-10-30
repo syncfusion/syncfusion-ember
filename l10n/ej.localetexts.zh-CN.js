@@ -473,7 +473,8 @@
                         cancelButtonText: "取消",
                         deleteButtonText: "删除",
                         title: "任务依赖"
-                    }
+                    },
+                    nullText:"空值"
                 };
                 break;
             case "ejGrid":
@@ -523,6 +524,7 @@
                     ResponsiveFilter: "过滤",
                     ResponsiveSorting: "分类",
                     Search: "搜索",
+					NumericTextBoxWaterMark: "数字水印文本框",
                     DatePickerWaterMark: "选择日期",
                     EmptyDataSource: "因为列从数据源中自动生成的列网格生成的数据源绝不能以初始加载空",
                     ForeignKeyAlert: "更新后的值应该是一个有效的外键值",
@@ -642,7 +644,26 @@
                     EMF: "EMF",
                     GIF: "GIF",
                     JPG: "JPG",
-                    BMF: "BMF"
+                    BMP: "BMP",
+                    ZoomIn: "放大",
+                    ZoomOut: "缩小",
+                    Legend: "传说",
+                    SmartLabels: "智能标签",
+                    Interactions: "互动",
+                    Zooming: "缩放",
+                    Rotate45: "45 旋转",
+                    Rotate90: "90 旋转",
+                    Trim: "修剪",
+                    MultipleRows: "多行",
+                    Wrap: "包",
+                    Hide: "隐藏",
+                    WrapByWord: "用字包装",
+                    CrossHair: "十字绣",
+                    TrackBall: "跟踪球",
+                    DisableTD: "禁用3D图表",
+                    None: "没有",
+                    Exception: "异常",
+                    OK: "好"
                 };
                 break;
             case "ejPivotClient":
@@ -749,11 +770,11 @@
                     TreeMap: "树形图",
                     Alert: "警报",
                     MDXAlertMsg: "请添加测量、尺寸或层次结构中的适当的轴查看 MDX 查询。",
-                    FilterSortRowAlertMsg: "尺寸没有找到行中的轴。 请添加维元素行内的轴上排序/过滤。",
-                    FilterSortColumnAlertMsg: "尺寸中未找到列的轴。 请添加维元素列中的轴上排序/过滤。",
+                    FilterSortRowAlertMsg: "在行轴中找不到尺寸。请在行轴中添加维度元素以进行排序/筛选。",
+                    FilterSortColumnAlertMsg: "在列轴中找不到维度。请在列轴中添加维度元素以进行排序/筛选。",
                     FilterSortcolMeasureAlertMsg: "请添加度量的列的轴",
                     FilterSortrowMeasureAlertMsg: "请添加的行中轴",
-                    FilterSortElementAlertMsg: "找不到元素列中的轴。 请将元素添加在列中轴用于排序/过滤。",
+                    FilterSortElementAlertMsg: "在列轴中找不到元素。请在列轴中添加一个元素进行排序/筛选。",
                     FilterMeasureSelectionAlertMsg: "请选择有效的措施。",
                     FilterConditionAlertMsg: "请设置有效的条件。",
                     FilterStartValueAlertMsg: "请设置的开始值。",
@@ -785,10 +806,10 @@
                     FormatString: "格式字串:",
                     MultipleMeasure: "多個測量無法切片。",
                     DuplicateCalcMeasure: "計算會員的同名設定檔已經存在。",
-                    EmptyField: "計算方式會員名稱或運算式不能是空的。",
+                    EmptyField: "计算的成员名称或表达式不应该为空。",
                     EmptyFormat: "格式字串對計算會員是空的。",
                     Warning: "警告訊息",
-                    Confirm: "計算會員與同名設定檔已經存在。 因為想要更換嗎 ?",
+                    Confirm: "已存在具有相同名称的计算成员。你想要更换吗？",
                     KPIs: "關鍵績效指標",
                     Collection: "收集",
                     Report: "報告",
@@ -799,8 +820,9 @@
                     Success: "成功",
                         KpiAlertMsg: "您要移動的欄位不能放在這方面的報告",
                         NotAllItemsShowing: "不是所有的子节点都显示",
-                        EditorLinkPanelAlert: "成員們都有 1000 多個項目進行一項或多項的父級。 只有第一張一千元的項目將顯示在每個父母。",
-                        NamedSetAlert:"一个命名的设置不能被添加到数据透视表报告的同时，另一组命名基于相同的字段。 单击确定， ' <Set 1> ' 名为'删除'设置'和'添加 ' <Set 2> ' 组命名。"
+                        EditorLinkPanelAlert: "成员拥有一个或多个家长下的超过1000个项目。每个家长只显示前1000个项目。",
+                        NamedSetAlert: "相同字段的命名集不能同时添加到数据透视表报告。单击确定以移除名为集的'<集1>'并添加名为集的<集2>。",
+                        Exception: "异常"
                 };
                 break;
             case "ejPivotGauge":
@@ -808,6 +830,7 @@
                 ej.PivotGauge.Locale["zh-CN"] = {
                     RevenueGoal: "收入目标",
                     RevenueValue: "收入值",
+                    Exception: "异常"
                 };
                 break;
             case "ejPager":
@@ -984,11 +1007,11 @@
                             contentText: "明确"
                         },
                     },
-					waitingPopup: {
-						print: {
-							contentText: "准备打印文档..."
-						}
-					}
+                    waitingPopup: {
+                        print: {
+                            contentText: "准备打印文档..."
+                        }
+                    }
                 };
                 break;
             case "ejPercentageTextbox":
@@ -1126,20 +1149,6 @@
                     AddNew: "添加新的",
                     Format: "格式",
                     NoMeasure: "请添加任何措施。",
-                    AliceBlue: "AliceBlue",
-                    Black: "Black",
-                    Blue: "Blue",
-                    Brown: "Brown",
-                    Gold: "Gold",
-                    Green: "Green",
-                    Lime: "Lime",
-                    Maroon: "Maroon",
-                    Orange: "Orange",
-                    Pink: "Pink",
-                    Red: "Red",
-                    Violet: "Violet",
-                    White: "White",
-                    Yellow: "Yellow",
                     Solid: "固体",
                     Dashed: "虚线",
                     Dotted: "带点",
@@ -1177,7 +1186,7 @@
                     EmptyField: "请输入计算出的字段名或公式。",
                     NotValid: "给定的公式无效。",
                     NotPresent: "值字段中使用的任何的计算字段的公式在中不存在 PivotGrid",
-                    Confirm: "经过计算的字段已存在具有相同名称的。 由于要更换吗?",
+                    Confirm: "已存在具有相同名称的计算成员。你想要更换吗？",
                     CalcValue: "计算字段可以插入到只有在价值区域字段",
                     MultipleItems: "多個項目",
                     All: "所有",
@@ -1202,7 +1211,8 @@
                     Edit: "編輯",
 						DuplicateFormatName: "重複的名稱格式",
 						NotAllItemsShowing: "不是所有的子节点都显示",
-						EditorLinkPanelAlert: "成員們都有 1000 多個項目進行一項或多項的父級。 只有第一張一千元的項目將顯示在每個父母。"
+						EditorLinkPanelAlert: "成员拥有一个或多个家长下的超过1000个项目。每个家长只显示前1000个项目。",
+                        Exception: "异常"
                 };
                 break;
             case "ejPivotPager":
@@ -1278,10 +1288,11 @@
                     OK: "“确定” 按钮",
                     Cancel: "取消",
                     Search: "搜尋",
+                    Remove: "移除",
                         AddCurrentSelectionToFilter: "添加當前選擇進行過濾",
                         NotAllItemsShowing: "不是所有的子节点都显示",
-                        EditorLinkPanelAlert: "成員們都有 1000 多個項目進行一項或多項的父級。 只有第一張一千元的項目將顯示在每個父母。",
-                        NamedSetAlert: "一个命名的设置不能被添加到数据透视表报告的同时，另一组命名基于相同的字段。 单击确定， ' <Set 1> ' 名为'删除'设置'和'添加 ' <Set 2> ' 组命名。"
+                        EditorLinkPanelAlert: "成员拥有一个或多个家长下的超过1000个项目。每个家长只显示前1000个项目。",
+                        NamedSetAlert: "相同字段的命名集不能同时添加到数据透视表报告。单击确定以移除名为集的'<集1>'并添加名为集的<集2>。"
                 };
                 break;
             case "ejDiagram":
@@ -1422,6 +1433,7 @@
                         },
                     },
                     pagesetupDialog: {
+                        close: '关',
                         paperSize: '纸张大小',
                         height: '高度',
                         width: '宽度',
@@ -1437,6 +1449,41 @@
                         doneButton: '做',
                         cancelButton: '取消'
                     },
+                    credential: {
+                        userName: '用户名',
+                        password: '密码'
+                    },
+                    waterMark: {
+                        selectOption: '选择选项',
+                        selectValue: '选择一个值'
+                    },
+                    errorMessage: {
+                        startMessage: '报告查看器遇到一些加载此报告的问题。请',
+                        middleMessage: ' 点击这里',
+                        endMessage: '查看错误的详细信息',
+                        closeMessage: '关闭此消息'
+                    },
+                    alertMessage: {
+                        close: '关',
+                        title: '的ReportViewer',
+                        done: '好',
+                        showDetails: '显示详细资料',
+                        hideDetails: '隐藏细节',
+                        reportLoad: '已加载报告:',
+                        RVERR0001: 'ReportViewer无法加载报告',
+                        RVERR0002: 'ReportViewer无法呈现报告',
+                        RVERR0003: 'ajax回发中发生错误',
+                        RVERR0004: '请为参数选择一个值',
+                        RVERR0005: '{参数名称}参数缺少一个值',
+                        RVERR0006: '请给出浮点数据类型输入',
+                        RVERR0007: '请给出整数数据类型输入',
+                        RVERR0008: 'ReportViewer无法验证数据源凭据',
+                        RVERR0009: '他的利润率是重叠的或者他们不在报纸上。输入不同的保证金大小.',
+                        RVERR0010: '请为参数输入一个值',
+                        RVERR0011: '该参数不能为空',
+                        RVERR0012: '为报告参数{parameterprompt}提供的值对其类型无效.'
+                    },
+                    selectAll: '全选',
                     viewButton: "查看报告",
                 };
                 break;
@@ -1656,6 +1703,7 @@
                     Done: "做",
                     Cancel: "取消",
                     Ok: "好",
+                    Repeat: "重复",
                     RepeatBy: "通过重复",
                     RepeatEvery: "每天重复",
                     RepeatOn: "重复上",
@@ -1670,7 +1718,7 @@
                     EveryWeekDay: "每个工作日",
                     Never: "决不",
                     After: "后",
-                    Occurence: "发生（S）",
+                    Occurrence: "发生（S）",
                     On: "上",
                     Edit: "编辑",
                     RecurrenceDay: "日（S）",
@@ -2502,6 +2550,16 @@
                     CreateSparkline: "Tạo Sparkline",
                     SelectDataSource: "Chọn một phạm vi dữ liệu nguồn cho đường kính lượn sóng",
                     SPARKLINEDESIGN: "Thiết kế Sparkline",
+                    CancellationRequested: "Không thể mở trong thời gian chờ được chỉ định",
+                    ImportPreventedOnUnknownFormula: "Không thể tải tệp này vì tệp có chứa các công thức không được hỗ trợ.",
+                    PivotTableName: "Tên PivotTable",
+                    ArrayaFormula: "Bạn không thể thay đổi một phần của mảng",
+                    ArrayaFormulaTableAlert: "Công thức mảng đa ô không được phép trong bảng",
+                    ValueFieldSettings: "Cài đặt trường giá trị",
+                    FieldTab: "Tóm tắt các giá trị theo",
+                    SummarizeValue: "Tóm tắt trường giá trị theo",
+                    SummarizeChooseType: "Chọn loại phép tính mà bạn muốn sử dụng để tóm tắt dữ liệu từ trường đã chọn",
+                    FieldValue: "Tên nguồn:",
                 };
                 break;
             case "ejTimePicker":
@@ -2622,6 +2680,9 @@
                     okButtonText: "好",
                     cancelButtonText: "取消",
                     confirmDeleteText: "确认删除",
+                    batchSaveConfirmText: "你确定你要保存更改？",
+                    batchSaveLostChangesText: "未保存的更改将丢失。你确定要继续吗？",
+                    cancelEditText: "你确定要取消的变化？",
                     dropDownListBlanksText: "（空白）",
                     dropDownListClearText: "（清除过滤器）",
                     trueText: "真正",

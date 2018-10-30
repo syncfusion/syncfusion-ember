@@ -547,8 +547,6 @@
             this.hideCMenu();
             var colMenuObj = $("#" + xlObj._id + "_contextMenuColumnHeader").data("ejMenu"), rowMenuObj = $("#" + xlObj._id + "_contextMenuRowHeader").data("ejMenu"), trgt = args.target, text, Locked, evnt = { target: trgt }, $trgt = $(trgt), sheetIdx = xlObj.getActiveSheetIndex(), actSheet = xlObj.getSheet(sheetIdx), actCell = (!ej.isNullOrUndefined(xlObj.getActiveCellElem()) && xlObj.getActiveCellElem().length > 0) ? xlObj.getActiveCellElem() : $trgt,
                 menuData = (xlObj._phoneMode || xlObj._tabMode) ? this._rowCellMenuDataMobile : this._rowCellMenuData, menuObj = $("#" + xlObj._id + "_contextMenuCell").data("ejMenu"), footMenuObj = $("#" + xlObj._id + "_contextMenuFooter").data("ejMenu"), actElem = xlObj.getActiveCell(sheetIdx), tabId, tabIdx, tabRange, customMenuObj = $("#" + xlObj._id + "_contextMenuCellStyles").data("ejMenu");
-            if (xlObj._trigger("beforeOpen", evnt))
-                return;
             if (xlObj.XLEdit._isEdit || (xlObj.model.allowComments && xlObj.XLComment._isCommentEdit) || $trgt.hasClass("e-filterspan") || (args.events.which === 1 && $trgt.hasClass("e-hyperlinks")) || $trgt.parents("div").hasClass("e-vscroll") || $trgt.parents("div").hasClass("e-hscroll") || ($(trgt.parentNode).hasClass("e-pagercontainer") && !$trgt.hasClass("e-link")) || (!ej.isNullOrUndefined(xlObj.XLResize) && xlObj.XLResize._resizeStart) || args.target.id.indexOf("Sheet_RenamePanel") > -1 || $trgt.parents().hasClass("e-grid") || $trgt.hasClass("e-autofill"))
                 args.cancel = true;
             if (xlResize && xlResize._preventColResize($trgt.parent()[0].cellIndex, true) && $trgt.hasClass('e-headercelldiv'))
@@ -601,13 +599,15 @@
 			}
 			if(!this._changedDataSource)
 				this._updateContextMenuItems($trgt);
+            if (xlObj._trigger("beforeOpen", evnt))
+                return false;
            if (args.cancel)
                this._isMenuOpened = false;
         },
 
         _menuClick: function (args) {
             if (this.XLObj._trigger("contextMenuClick", args))
-                return;
+                return false;
             this._processCMenu(args.ID, args.events.element);
         },
 
@@ -836,7 +836,7 @@
         _colorOkClick: function (args) {
             var xlObj = this.XLObj;
             xlObj.XLFormat.format({ "style": (this._selColor.action === "bg-color") ? { "background-color": this._selColor.color } : { "color": this._selColor.color } });
-            xlObj.setSheetFocus();
+            xlObj._setSheetFocus();
             $("#" + xlObj._id + "_colordlg").ejDialog("close");
         },
 

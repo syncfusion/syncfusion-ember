@@ -28,7 +28,7 @@
         {
             tag: "columns",
             attr: ["field", "headerText", "allowSorting", "editType", "allowFiltering", "filterEditType", "width", "visible", "editParams", 
-			"format", "isFrozen", "allowFreezing", "headerTemplateID", "allowCellSelection", "showCheckbox","showInColumnChooser", "validationRules.minlength", 
+			"format", "isFrozen", "allowFreezing", "headerTemplateID", "allowCellSelection", "showCheckbox","showInColumnChooser", "validationRules.minlength", "isTemplateColumn",
 			"validationRules.maxlength", "validationRules.range", "validationRules.number", "validationRules.required", "displayAsCheckbox", "editTemplate", "priority","filterType", [{ tag: "commands", attr: ["type", "buttonOptions"] }]],
             content: "template"
         },
@@ -45,7 +45,7 @@
 
          {
              tag: "summaryRows.summaryColumns",
-             attr: ["summaryType", "dataMember", "displayColumn", "prefix", "suffix", "format"],
+             attr: ["summaryType", "dataMember", "displayColumn", "prefix", "suffix", "format", "customSummaryValue"],
              content: "template"
          },
         {
@@ -61,10 +61,44 @@
             attr: ["columnResizeMode"]
         }
         ],
-        _columns: function (index, property, value, old){
-            var $header = this.element.find(".e-headercelldiv");
-            $header[index.columns].innerHTML=value;
-            this._trigger("refresh");
+        _columns: function (index, property, value, old) {
+            var proxy = this, model = proxy.model,
+                columns = model.columns, isPropertyUpdated = false,
+                length = columns.length,
+                runTimeProperties = ['allowCellSelection', 'allowEditing', 'allowFilteringBlankContent', 'allowFreezing',
+                    'allowSorting', 'editParams', 'headerTooltip', 'tooltip', 'validationRules'];
+
+            if (!ej.isNullOrUndefined(index)) {
+                //Refresh column property changes by Angular
+                if (typeof index === 'object') {
+                    for (var colIndex = 0; colIndex < index.length; colIndex++) {
+                        var updatedColumn = index[colIndex];
+                        if (!ej.isNullOrUndefined(updatedColumn.index) && !ej.isNullOrUndefined(updatedColumn['change'])) {
+                            for (var i = 0; i < length; i++) {
+                                var column = columns[i];
+                                if (column.index && column.index == updatedColumn.index) {
+                                    for (var prop in updatedColumn['change']) {
+                                        if (runTimeProperties.indexOf(prop) == -1)
+                                            isPropertyUpdated = true;
+                                    }
+                                    break;
+                                }
+                            }
+                        }
+                    }
+                }
+                    // Refresh Column changes by Angularjs
+                else if (property && value) {
+                    if (runTimeProperties.indexOf(prop) == -1)
+                        isPropertyUpdated = true;
+                }
+                else
+                    isPropertyUpdated = true;
+
+                if (isPropertyUpdated) {
+                    proxy.updateColumns();
+                }
+            }
         },
         keyConfigs: {
             focus: "e",
@@ -114,7 +148,8 @@
             dataSource: null,
             query: ej.Query(),            
             idMapping: "",            
-            parentIdMapping: "",  
+            parentIdMapping: "",
+            hierarchyRowIndexMapping: "",
             readOnly: false,
             showGridCellTooltip: false,
             cellTooltipTemplate:null,
@@ -123,6 +158,8 @@
             showColumnOptions: false,
             enableAltRow: true,			
             enableLoadOnDemand: false,
+            totalSummaryHeight: 90,
+            collapsibleTotalSummary :false,
             hasChildMapping: "",
             selectedItem: null,            
             showStackedHeader: false,
@@ -140,7 +177,9 @@
                 rowPosition: "top",
                 beginEditAction: "dblclick",
                 dialogEditorTemplateID: "",
-                showDeleteConfirmDialog: false
+                showDeleteConfirmDialog: false,
+                showConfirmDialog: true,
+                batchEditSettings: { editMode: "cell" }
             },                   
             enableVirtualization: false,   
             allowMultiSorting: false,
@@ -170,7 +209,8 @@
                 fields: [],
                 key: "",
                 operator: "contains",
-                ignoreCase: true
+                ignoreCase: true,
+                searchHierarchyMode: "parent"
             },
             selectedCellIndexes: [],
             selectedRowIndex: -1,
@@ -305,6 +345,8 @@
 
         dataTypes: {
             columns: "array",            
+            totalSummaryHeight: "number",
+            collapsibleTotalSummary :"boolean",
             summaryRows: "array",
             sortSettings: {
                 sortedColumns: "array"
@@ -667,6 +709,11 @@
         /*Handler for pager change event*/
         _pagerClickHandler: function (sender) {
             var proxy = this;
+            if (proxy.model.pageSettings.pageSizeMode == ej.TreeGrid.PageSizeMode.Root && proxy._batchEditStarts && !(proxy._confirmDialog).is(":visible")) {
+                proxy._batchSaveLostWarning("Paging");
+                proxy._batchTempDetails.currentPage = sender.currentPage;
+                return true;
+            }
             if (this._prevPageNo == sender.currentPage)
                 return;
             proxy._isNextPage = true;
@@ -701,6 +748,9 @@
                 this.model.sizeSettings.width = "600px";
             }            
             proxy._detailsColumnWidth = 35; //default width of details info column
+            proxy._summaryColumnIndex = 0;
+            if (proxy.model.summaryRows.length <= 1)
+                proxy.model.collapsibleTotalSummary = false;
             proxy._trigger("load");
             proxy._validateColumnFields();
             if (!proxy.model.isFromGantt)
@@ -1075,6 +1125,22 @@
         {
             this.model.allowKeyboardNavigation = bool;
         },
+        _updateSummaryTitleColumn: function () {
+            var proxy = this,
+                model = this.model;
+            if (model.collapsibleTotalSummary && this._summaryColumnIndex == 0){
+                if(model.columns[this._summaryColumnIndex].visible && !$("#" + proxy._id + "-footersummaryrow").find(".e-summarytitle").hasClass("e-summarycell")) {
+                    $("#" + proxy._id + "-footersummaryrow").find(".e-summarytitle").addClass("e-summarycell");
+                    $("#" + proxy._id + "-footersummaryrow").find(".e-summarycell").css({ "overflow": "hidden", "padding-left": "25px" , "float":"none" });
+                    $("#" + proxy._id + "-footersummaryrow").find(".e-summarytitle").parent().addClass("e-summaryindend").css({ "padding-left": '0px' });
+                }
+                else if (!model.columns[this._summaryColumnIndex].visible && $("#" + proxy._id + "-footersummaryrow").find(".e-summarytitle").hasClass("e-summarycell")) {
+                    $("#" + proxy._id + "-footersummaryrow").find(".e-summarytitle").removeClass("e-summarycell");
+                    $("#" + proxy._id + "-footersummaryrow").find(".e-summarytitle").css({ "padding-left": "0px" , "float": "left"});
+                    $("#" + proxy._id + "-footersummaryrow").find(".e-summarytitle").parent().removeClass("e-summaryindend").css({ "padding-left": '10px' });
+                }
+            }
+        },
         /* Refresh footer summary records if total summary exist */
         _refreshFooterSummaryRecords: function () {
             var proxy = this,
@@ -1092,6 +1158,7 @@
                     proxy._$footerContainer.empty().append($table);
                 }
                 proxy._$footertableContent = proxy._$footerContainer.find(".e-table");
+                proxy._updateSummaryTitleColumn();
             }
         },
         /* update scrollLeft of header container with content scrollLeft*/
@@ -1113,7 +1180,8 @@
         updateColumns: function (columns) {
             var proxy = this,
                model = this.model;
-            model.columns = columns;
+            if (!ej.isNullOrUndefined(columns))
+                model.columns = columns;
             if (model.isFromGantt && model.enableSerialNumber)
                 proxy._updateTreeColumnIndex();
             proxy._refreshFrozenColumns();
@@ -1138,7 +1206,7 @@
             ganttObject.editDialogTemplate();
         },
         /* Refresh columns collection with freeze and unfreeze*/
-        _refreshFrozenColumns: function () {
+        _refreshFrozenColumns: function (isDataSourceUpdate) {
             var proxy = this,
                model = this.model,
                layoutUpdated = false;
@@ -1180,30 +1248,39 @@
             proxy._$movableTableContent = $("#" + proxy._id + "movablee-table");
             proxy._$tableContent = $("#" + proxy._id + "e-table");
 
-            if (model.showTotalSummary && proxy._$footerContainer.length > 0) {
+            if (model.showTotalSummary && proxy._$footerContainer.length > 0 && !isDataSourceUpdate) {
                 proxy._refreshFooterSummaryRecords();
             }
 
             if (layoutUpdated) {
                 proxy.onScrollHelper(0);
             }
-            var args = {};
-            args.requestType = ej.TreeGrid.Actions.Refresh;
-            /* for details rows detailsDataBound event can be called after the width update of column */
-            proxy._isRendered = false;
-            //Rerendering the content of the tree grid
-            proxy.sendDataRenderingRequest(args);
+            if (!isDataSourceUpdate) {
+                var args = {};
+                args.requestType = ej.TreeGrid.Actions.Refresh;
+                /* for details rows detailsDataBound event can be called after the width update of column */
+                proxy._isRendered = false;
+                //Rerendering the content of the tree grid
+                proxy.sendDataRenderingRequest(args);
+                proxy._isRendered = true;
+            }
             proxy.setWidthToColumns();
+            proxy._trigger("headerRefresh");
             proxy._isRendered = true;
-            /* trigger queryCellInfo ,detailsDataBoundEvent after update the width of the columns */
-            proxy._trigger("refresh");
-            this._eventBindings();
+            if (!isDataSourceUpdate) {
+                /* trigger queryCellInfo ,detailsDataBoundEvent after update the width of the columns */
+                proxy._trigger("refresh");
+                this._eventBindings();
+            }
             this._hideCollapsedDetailsRows();
-            /* Update the scrollbar*/           
-            proxy.getScrollElement().ejScroller("refresh");
-            proxy._updateScrollCss();                
-            if (model.isFromGantt) {
-                proxy._trigger("refreshScrollCss");
+
+            /* Update the scrollbar*/
+            if (!isDataSourceUpdate) {
+                proxy.getScrollElement().ejScroller("refresh");
+                proxy._updateScrollCss();
+                if (model.isFromGantt) {
+                    proxy._trigger("refreshScrollCss");
+                }
             }
             if (model.showColumnChooser || model.contextMenuSettings.showContextMenu)
                 proxy._renderColumnChooserList(true);
@@ -1367,6 +1444,7 @@
 
                 proxy._$gridHeaderContent.replaceWith(proxy._renderGridHeader());
                 proxy._setWidthToHeaders();
+                proxy._trigger("headerRefresh");
                 if (model.allowFiltering)
                     proxy._resizeFilteringElements();
                 if (isSelectionChanged) {
@@ -1417,6 +1495,7 @@
                         //Re render the grid header
                         proxy._$gridHeaderContent.replaceWith(proxy._renderGridHeader());
                         proxy._setWidthToHeaders();
+                        proxy._trigger("headerRefresh");
                         if (model.showTotalSummary)
                             totalSummaryHeight = proxy.element.find('.e-footersummaryrowdiv').outerHeight();
                         $("#" + proxy._id).addClass('e-treegrid-overflow');
@@ -1485,6 +1564,7 @@
                         model.enableVirtualization = options[prop];
                         var previousRecord = proxy._prevSelectedItem,
                             selectedRecord = proxy.selectedRowIndex() && updatedRecords[proxy.selectedRowIndex()];
+                        proxy._vScrollDist = 1; //To set table top value properly on virtualization enabled mode while updating current view data
                         proxy.processBindings();
                         // change the table top position is 0 and change the update records for non-virtulization mode.
                         if (!model.enableVirtualization) {
@@ -1511,6 +1591,7 @@
                         proxy._clearColumnMenu();
                         proxy._clearContextMenu();
                         this._removeDetailsRow();
+                        proxy._vScrollDist = 0;
                         break;
 
                     case "allowColumnResize":
@@ -1527,14 +1608,16 @@
                             proxy.columnAddDialogTemplate();
                         break;
                     case "allowPaging":
-                        if (model.allowPaging) {                            
+                        var $pagerElement = proxy.element.find("#" + proxy._id + "Pager");
+                        if (model.allowPaging) {
+                            proxy._updateTotalRecordsCount();
                             proxy.element.append(proxy._renderGridPager());
-                            proxy.element.append(proxy.element.find(".e-pager").first());
+                            proxy.element.append($pagerElement);
                             proxy.element.find(".e-pager").css({ "width": proxy._gridWidth - 2 });
                             var scroller = proxy.getScrollElement().ejScroller("instance"),
                                 left = scroller.scrollLeft(),
-                                top = scroller.scrollTop();                            
-                            proxy._viewPortHeight = proxy._getViewPortHeight();                            
+                                top = scroller.scrollTop();
+                            proxy._viewPortHeight = proxy._getViewPortHeight();
                             if (model.showTotalSummary)
                                 proxy._viewPortHeight -= proxy._$totalSummaryRowContainer.outerHeight();
                             if (proxy._frozenColumnsLength > 0)
@@ -1542,28 +1625,31 @@
                             scroller.option("height", model.sizeSettings.height == "auto" ? 0 : proxy._viewPortHeight);
                             scroller.scrollY(top, true);
                             scroller.scrollX(left, true);
-                            proxy._pagerHeight = proxy.element.find(".e-pager").outerHeight();
-                            proxy.gotoPage();                            
+                            proxy._pagerHeight = $($pagerElement).outerHeight();
+                            proxy.gotoPage();
                         }
                         else {
-                            var height = proxy.element.find(".e-pager").first().outerHeight();
-                        proxy.element.find(".e-pager").first().remove();
-                        proxy._viewPortHeight = proxy._viewPortHeight + height;
-                        if (this._frozenColumnsLength > 0) {
-                            proxy._$gridContent.css("height", proxy._viewPortHeight);
-                        }
 
-                        proxy.getScrollElement().ejScroller({
-                            height: proxy._viewPortHeight,//for border-width of gridcontent
-                        });                            
-                        if(model.pageSettings.totalRecordsCount > 0)
-                            proxy._refreshDataSource();
-                        else
-                            proxy.refreshContent();
-                        proxy.renderRecords();
-                        proxy._isRefreshAddedRecord = false;
-                }                
-                        proxy._updateWrapRowHeights("header","refreshAll");
+                            var height = $($pagerElement).outerHeight();
+                            $($pagerElement).remove();
+                            proxy._viewPortHeight = proxy._viewPortHeight + height;
+                            if (this._frozenColumnsLength > 0) {
+                                proxy._$gridContent.css("height", proxy._viewPortHeight);
+                            }
+
+                            proxy.getScrollElement().ejScroller({
+                                height: proxy._viewPortHeight,//for border-width of gridcontent
+                            });
+                            if (model.pageSettings.totalRecordsCount > 0) {
+                                model.pageSettings.totalRecordsCount = null;
+                                proxy._refreshDataSource();
+                            }
+                            else
+                                proxy.refreshContent();
+                            proxy.renderRecords();
+                            proxy._isRefreshAddedRecord = false;
+                        }
+                        proxy._updateWrapRowHeights("header", "refreshAll");
                         break;
                    
                     case "dragTooltip":
@@ -1614,6 +1700,7 @@
                             model.headerTextOverflow = options[prop];
                             proxy._$gridHeaderContent.replaceWith(proxy._renderGridHeader());
                             proxy.setWidthToColumns();
+                            proxy._trigger("headerRefresh");
                             proxy.getScrollElement().ejScroller("refresh");
                             proxy._updateScrollCss();
                         }
@@ -1622,7 +1709,6 @@
                             proxy.renderRecords(args);
                             if (proxy.model.showTotalSummary) {
                                 proxy._createTotalSummaryRow();
-                                proxy._setWidthToFooters();
                             }
                         }
                         proxy._updateWrapRowHeights(null,"refreshAll");
@@ -1663,46 +1749,45 @@
                             proxy._updateGridContentHeight();
                         }
                         break;
+                    case "totalSummaryHeight":
+                        if (!model.showTotalSummary) return;                        
+                        proxy._createTotalSummaryRow();
+                        proxy._viewPortHeight = proxy._getViewPortHeight();                  
+                        proxy._viewPortHeight -= proxy._$totalSummaryRowContainer.outerHeight();                      
+                        proxy._updateSummaryHeight();                                
+                        break;
+                    case "collapsibleTotalSummary":
+                        if (!model.showTotalSummary) return;
+                        if (model.summaryRows.length == 1) {
+                            model.collapsibleTotalSummary = false;
+                            return;
+                        }
+                        proxy._addInitTemplate();
+                        proxy._createTotalSummaryRow();
+                        if (!model.collapsibleTotalSummary) {
+                            proxy._viewPortHeight = proxy._getViewPortHeight();
+                            proxy._viewPortHeight -= $(proxy._$totalSummaryRowContainer).outerHeight();
+                            proxy._updateSummaryHeight();
+                        }
+                        break;
                     case "showTotalSummary":
                         model.showTotalSummary = options[prop];
                         if (model.showTotalSummary) {
                             proxy._createTotalSummaryRow();
-                            proxy._setWidthToFooters();
                             proxy._viewPortHeight = proxy._getViewPortHeight();
-                            proxy._viewPortHeight -= $(proxy._$totalSummaryRowContainer).height();
+                            proxy._viewPortHeight -= $(proxy._$totalSummaryRowContainer).outerHeight();
                         }
                         else {
                             $(proxy.element).find(".e-footersummaryrowdiv").remove();
+                            proxy._$totalSummaryRowContainer = null,
+                            proxy._$footertableContent = null,
+                            proxy._$footerContainer = null,
+                            proxy._footerSummaryRecord = [];
+                            proxy._footerSummaryRows = [];
                             proxy._viewPortHeight = proxy._getViewPortHeight();
                         }
-
-                        var scroller = proxy.getScrollElement().ejScroller("instance"),
-                            left = scroller.scrollLeft(),
-                            top = scroller.scrollTop();
-                        if (proxy._frozenColumnsLength > 0) {
-                            proxy._$gridContent.css("height", proxy._viewPortHeight);
-                        }
-                        scroller.option("height", model.sizeSettings.height == "auto" ? 0 : proxy._viewPortHeight);
-                        if (model.enableVirtualization) {
-                            var length = model.currentViewData.length,
-                                rowHeight = model.rowHeight;
-                            rowHeight += (model.showDetailsRow && !model.showDetailsRowInfoColumn) ? model.detailsRowHeight : 0;
-                            if ((length * rowHeight) < proxy._viewPortHeight) {
-                                if (length > 0) {
-                                    top = top - (proxy._viewPortHeight - ((length - 1) * rowHeight));
-                                    if (top < 0)
-                                        top = 0;
-                                } else {
-                                    proxy.processBindings();
-                                    proxy.renderRecords();
-                                }
-                            }
-                        }
-                        scroller.scrollY(top, true);
-                        scroller.scrollX(left, true);
-                        proxy._updateHeaderScrollLeft(left);
-                        proxy._updateScrollCss();
-                        proxy._updateWrapRowHeights("header", "refreshAll");
+                        proxy._updateSummaryHeight();
+                       
                         break;
                     case "selectedRowIndex":
                         if (!this.isEdit && !this._isRowEdit) {
@@ -1761,11 +1846,14 @@
                         break;
 
                     case "dataSource":
-                        if (!proxy._isRowEdit && !proxy.model.isEdit) {
+                        var eventArgs = {};
+                        eventArgs["requestType"] = ej.TreeGrid.Actions.RefreshDataSource;
+                        eventArgs["isUpdateColumns"] = false;
+                        if (!proxy._isRowEdit && !proxy.model.isEdit && !proxy._trigger("actionBegin", eventArgs)) {
                             proxy._fieldNamesToQuery = [];
                             proxy._assignedIdCollections = [];
                             proxy._assignedParendIDs = [];
-                            proxy._refreshDataSource();
+                            proxy._refreshDataSource(eventArgs);
                         }
                         break;
 
@@ -1781,6 +1869,12 @@
                         model.rowHeight = options[prop];
                         proxy._addInitTemplate();
                         proxy.renderRecords(args);
+                        if (proxy.model.showTotalSummary) {
+                            proxy._createTotalSummaryRow();
+                            proxy._viewPortHeight = proxy._getViewPortHeight();
+                            proxy._viewPortHeight -= proxy._$totalSummaryRowContainer.outerHeight();
+                            proxy._updateSummaryHeight();                           
+                        }
                         proxy.updateHeight();
                         break;
 
@@ -1792,6 +1886,7 @@
                         model.showColumnChooser = options[prop];
                         proxy._$gridHeaderContent.replaceWith(proxy._renderGridHeader());
                         proxy.setWidthToColumns();
+                        proxy._trigger("headerRefresh");
                         proxy.getScrollElement().ejScroller("refresh");
                         proxy._updateScrollCss();
                         if (!model.showColumnChooser){
@@ -1815,6 +1910,7 @@
                         model.showColumnOptions = options[prop];
                         proxy._$gridHeaderContent.replaceWith(proxy._renderGridHeader());
                         proxy.setWidthToColumns();
+                        proxy._trigger("headerRefresh");
                         proxy.getScrollElement().ejScroller("refresh");
                         proxy._updateScrollCss();
                         if (model.showColumnChooser && model.showColumnOptions) {
@@ -1845,6 +1941,7 @@
                         proxy._$gridHeaderContent.replaceWith(proxy._renderGridHeader());
                         proxy.renderRecords(args);
                         proxy.setWidthToColumns();
+                        proxy._trigger("headerRefresh");
                         // Update the scrollbar
                         proxy.getScrollElement().ejScroller("refresh");
                         proxy._updateScrollCss();
@@ -2017,6 +2114,7 @@
                                 //Re render the grid header
                                 proxy._$gridHeaderContent.replaceWith(proxy._renderGridHeader());
                                 proxy._setWidthToHeaders();
+                                proxy._trigger("headerRefresh");
                                 $("#" + proxy._id).addClass('e-treegrid-overflow');
                                 proxy._viewPortHeight = proxy._getViewPortHeight();
                                 $("#" + proxy._id).removeClass('e-treegrid-overflow');
@@ -2067,6 +2165,18 @@
                                 proxy.clearFilter();
                         }
                         break;
+                    case "searchSettings":
+                        var settings = options[prop];
+                        for (var setting in settings) {
+                            switch (setting) {
+                                case "searchHierarchyMode":
+                                    proxy.model.searchSettings.searchHierarchyMode = settings[setting];
+                                    proxy.element.find("input.e-searchinput").val("");
+                                    $("span.e-searchcancel").addClass("e-hide");
+                                    proxy.search("");
+                                    break;
+                            }
+                        }
                     case "columnResizeSettings":
                         var $headerTable, $contentTable, $totalSummaryTable;
                         this._initiateSetModel();
@@ -2147,6 +2257,45 @@
                 }
             }
         },
+        //update container height on dynamic update of total summary
+        _updateSummaryHeight: function () {
+            var proxy = this,
+               model = this.model, prevSummaryTop;
+            var scroller = proxy.getScrollElement().ejScroller("instance"),
+                           left = scroller.scrollLeft(),
+                           top = scroller.scrollTop();
+            prevSummaryTop = top;
+            if (proxy._frozenColumnsLength > 0) {
+                proxy._$gridContent.css("height", proxy._viewPortHeight);
+            }
+            scroller.option("height", model.sizeSettings.height == "auto" ? 0 : proxy._viewPortHeight);          
+            if (model.enableVirtualization) {
+                var length = model.currentViewData.length,
+                    rowHeight = model.rowHeight;
+                rowHeight += (model.showDetailsRow && !model.showDetailsRowInfoColumn) ? model.detailsRowHeight : 0;
+                if ((length * rowHeight) < proxy._viewPortHeight) {
+                    if (length > 0) {
+                        top = top - (proxy._viewPortHeight - ((length - 1) * rowHeight));
+                        if (top < 0)
+                            top = 0;
+                    } else {
+                        proxy.processBindings();
+                        proxy.renderRecords();
+                    }
+                }
+            }
+            scroller.scrollY(top, true);
+            scroller.scrollX(left, true);
+            proxy._updateHeaderScrollLeft(left);
+            proxy._updateScrollCss();
+            proxy._updateWrapRowHeights("header", "refreshAll");
+            if (prevSummaryTop == top) {
+                proxy._updateCurrentViewData();
+                var refreshArgs = {};
+                refreshArgs.requestType = ej.TreeGrid.Actions.Refresh;
+                proxy.sendDataRenderingRequest(refreshArgs);
+            }
+        },
         /* clear contextMenu, columnChooser, detailsTemplate and save edited item before change
         property by setModel*/
         _initiateSetModel: function ()
@@ -2208,6 +2357,7 @@
                 proxy.sendDataRenderingRequest(refreshArgs);
                 proxy.setWidthToColumns();
                 proxy._isRendered = true;
+                proxy._trigger("headerRefresh");
                 proxy._trigger("refresh");
                 /* trigger queryCellInfo ,detailsDataBoundEvent after update the width of the columns */
                 this._eventBindings();
@@ -2263,7 +2413,7 @@
 
         },
         //refresh data source on set model     
-        _refreshDataSource: function ()
+        _refreshDataSource: function (refreshArgs)
         {
             var proxy = this, model = this.model, args;
             //Cancelling the editable state of the row
@@ -2272,19 +2422,29 @@
             }
             proxy.resetModelCollections();
             proxy._createdAt = "load";
+            if (refreshArgs && refreshArgs.isUpdateColumns) {
+                proxy._validateColumnFields();
+                proxy._validateColumnVisible(true);
+                proxy._refreshFrozenColumns(true);
+            }
+
+            proxy._dataManager = proxy.dataSource() instanceof ej.DataManager ? proxy.dataSource() :
+                proxy.dataSource() != null ? ej.DataManager(proxy.dataSource()) : null;
+
             if (this.dataSource() instanceof ej.DataManager || this.dataSource()) {
                 proxy._isForDataSourceRefresh = true;
-                proxy._initDatasource();               
-            }           
+                proxy._initDatasource(); 
+            }
             else if (this.dataSource() == null) {
                 args = {};
                 args["requestType"] = ej.TreeGrid.Actions.RefreshDataSource;
                 proxy._ensureDataSource(args);
                 proxy._createdAt = null;
+                if (model.showSummaryRow || model.showTotalSummary) {
+                    proxy._summaryRow();
+                }
             }
             $(".e-tooltiptable").remove();
-            if(model.showSummaryRow || model.showTotalSummary)
-                proxy._summaryRow();
         },
         //REFRESH THE TREEGRIDCONTENT
         refreshContent: function () {
@@ -2326,7 +2486,7 @@
 
             var proxy = this,
                 model = this.model;
-
+            proxy._isInManualExpandCollapse = false; // Property to diffrentiate footer expand and collapse action by user or by method
             proxy._id = proxy.element.attr("id"),
             proxy.columnsWidthCollection = [],
             proxy._cSortedColumn = null,
@@ -2334,6 +2494,7 @@
             proxy._maxZIndex=0,
             proxy._cSortedDirection = null,
             proxy._dataManager = null,
+            proxy._persistCollapseState = false,
             proxy._filteredRecords = [],
             proxy._disabledToolItems = [],
             proxy._currentFilterColumn = [],
@@ -2380,6 +2541,7 @@
             proxy._$tableContent = null,
             proxy._$footertableContent = null,
              proxy._$footerContainer = null,
+            proxy._summaryExpanded = true,
             proxy._tempsortedrecords = [],
             proxy._totalHeight = 0,
             proxy._viewPortHeight = 0,
@@ -2480,6 +2642,13 @@
            /* used to check treegrid rendering is completed on load time*/
             proxy._isRendered = false;
             this._updateGridResizeSettings();
+            proxy.batchChanges = {
+                added: [],
+                deleted: [],
+                changed: [],
+                updatedHierarchyRowIndexData: []
+            };
+            proxy._batchEditCancel = false;
             proxy._isSummaryRow = false;
             proxy._flatChildRecords = [];
             proxy._footerSummaryRecord = [];
@@ -2543,6 +2712,12 @@
             proxy._displayContextMenu = model.contextMenuSettings.showContextMenu ? true : false;
             proxy._isEmptyRowDeleted = false;
             proxy._cssClass = this.model.cssClass;
+            proxy._batchEditStarts = false;
+            proxy._batchSaveCancel = "";
+            proxy._batchSaveConfirmText = null;
+            proxy._batchSaveLostChangesText = null;
+            proxy._cancelEditText = null;
+            proxy._batchTempDetails = {};
             proxy._autoHideColumns = [];
             proxy._autoShowColumns = [];
             proxy._textWrapRowsDatas = [];
@@ -2633,8 +2808,9 @@
         _initFrozenColumns: function ()
         {
             var frozen = [], unfrozen = [], visibleFrozenColumns = 0, visibleUnfrozenColumns = 0,
-                model = this.model, columns = model.columns, treeColumn;
+                model = this.model, columns = model.columns, treeColumn, summaryTreeColumn;
             treeColumn = columns[model.treeColumnIndex];
+            if (model.showTotalSummary && model.collapsibleTotalSummary) summaryTreeColumn = columns[this._summaryColumnIndex];
             for (var columnCount = 0; columnCount < columns.length; columnCount++) {
                 if (columns[columnCount]["isFrozen"] === true) {
                     frozen.push(columns[columnCount]);
@@ -2664,7 +2840,8 @@
                 this._unFrozenColumns[0].visible = true;
             if (treeColumn)
                 model.treeColumnIndex = model.columns.indexOf(treeColumn);
-
+            if (model.showTotalSummary && model.collapsibleTotalSummary)
+                this._summaryColumnIndex = model.columns.indexOf(summaryTreeColumn);
             this._frozenColumnsLength = frozen.length;
             model.scrollSettings.frozenColumns = this._frozenColumnsLength;
         },
@@ -2724,12 +2901,11 @@
             proxy._setWidthToHeaders();
             if (proxy.model.allowPaging) {
                 proxy.element.append(proxy._renderGridPager());
-                proxy.element.append(proxy.element.find(".e-pager").attr({ "id": this._id + "Pager" }));
             }
             proxy._viewPortHeight = proxy._getViewPortHeight();
 
-            //rendering delete confirmation dialog initially
-            if (proxy.model.editSettings.showDeleteConfirmDialog) {
+            //rendering confirmation dialog initially
+            if (proxy.model.editSettings.showConfirmDialog || proxy.model.editSettings.showDeleteConfirmDialog) {
                 proxy._renderConfirmDialog();
             }
 
@@ -2758,15 +2934,17 @@
             if (model.showTotalSummary) {
                 proxy._createTotalSummaryRow();
                 proxy._viewPortHeight = proxy._getViewPortHeight();
-                if (!model.allowPaging || model.sizeSettings.height)
-                    proxy._viewPortHeight = proxy._viewPortHeight - proxy._$totalSummaryRowContainer.outerHeight();
+                if (!model.allowPaging || model.sizeSettings.height) {
+                    proxy._viewPortHeight -= proxy._$totalSummaryRowContainer.height() < model.totalSummaryHeight ? proxy._$totalSummaryRowContainer.height() : model.totalSummaryHeight;
+                    proxy._viewPortHeight = proxy._viewPortHeight - 1 // border bottom
+                }
             }
             proxy._updatePagerTextAlignment();
            // proxy.updateHeight();
             proxy._wireEvents();
             
             proxy.setWidthToColumns();
-            
+            proxy._trigger("headerRefresh");
             proxy._renderScroller();
             proxy._updateWrapRowHeights();
             if (model.allowTextWrap && model.enableVirtualization) {
@@ -2775,6 +2953,7 @@
             proxy.updateHeight();
             proxy._updateScrollCss();
             proxy._resizeFilteringElements();
+            proxy._updateFixedTableBorder();
             proxy._initialEndRendering();
             if (model.allowTextWrap || model.headerTextOverflow == "wrap")
                 proxy._updateGridContentHeight();
@@ -2969,11 +3148,12 @@
                         proxy._renderWaitingPopup();
                     else
                         proxy._waitingPopupObj.show();
-                    var isRemoteData = this.dataSource().adaptor instanceof ej.UrlAdaptor || this.dataSource().adaptor instanceof ej.WebMethodAdaptor,
+                    var isRemoteData = this.dataSource().adaptor instanceof ej.UrlAdaptor || this.dataSource().adaptor instanceof ej.WebMethodAdaptor ||
+                                            this.dataSource().adaptor instanceof ej.WebApiAdaptor || this.dataSource().adaptor instanceof ej.ODataAdaptor,
                         isStaticData = (ej.pvt.filterQueries(model.query.queries, "onTake").length == 0 && ej.pvt.filterQueries(model.query.queries, "onPage").length == 0
                                         && ej.pvt.filterQueries(model.query.queries, "onWhere").length == 0) ? false : true;
                     proxy._isRemoteData = isRemoteData;
-                    if (isRemoteData && !this.dataSource().dataSource.offline && !isStaticData && (this.dataSource().dataSource.crossDomain || model.enableLoadOnDemand)) {
+                    if (isRemoteData && !this.dataSource().dataSource.offline && !isStaticData && model.enableLoadOnDemand) {
                         proxy._isLoadonDemand = true;
                         proxy._getAndRenderRecordsonDemand();
                     }
@@ -3084,6 +3264,9 @@
                 }
                 if (proxy.getScrollElement().hasClass("e-scroller"))
                     proxy.getScrollElement().ejScroller("refresh");
+                if (model.showSummaryRow || model.showTotalSummary) {
+                    proxy._summaryRow();
+                }
                 proxy._createdAt = null;
                 proxy._isForDataSourceRefresh = false;
             }
@@ -3209,15 +3392,18 @@
 
                     var index = proxy._taskIds.indexOf(data[i].key);
                     if (index > -1) {
-                        datasource[index][model.childMapping] = data[i].items;
+                        if (model.hierarchyRowIndexMapping && data[i].items.length > 1)
+                            datasource[index][model.childMapping] = ej.DataManager(data[i].items).executeLocal(ej.Query().sortBy(model.hierarchyRowIndexMapping, ej.sortOrder.Ascending, false));
+                        else
+                            datasource[index][model.childMapping] = data[i].items;
                         continue;
                     }
                 }
-                var items = data[i].items;
-                for (var item in data[i].items)
-                    tempParent.push(items[item]);
+                tempParent.push.apply(tempParent, data[i].items);
             }
-            proxy.secondaryDatasource = proxy._intersectionObjects(datasource, tempParent);           
+            proxy.secondaryDatasource = proxy._intersectionObjects(datasource, tempParent);
+            if (model.hierarchyRowIndexMapping && proxy.secondaryDatasource.length > 1)
+                proxy.secondaryDatasource = ej.DataManager(proxy.secondaryDatasource).executeLocal(ej.Query().sortBy(model.hierarchyRowIndexMapping, ej.sortOrder.Ascending, false));
         },        
                
         //Window resize event
@@ -3339,8 +3525,8 @@
             });
             proxy._updateScrollCss();
            
-            if (proxy._$totalSummaryRowContainer) {
-                if (proxy._$totalSummaryRowContainer.height() >= 90 && proxy._$totalSummaryRowContainer.hasClass("e-scroller"))
+            if (model.showTotalSummary && proxy._$totalSummaryRowContainer) {
+                if (proxy._$totalSummaryRowContainer.height() >= model.totalSummaryHeight && proxy._$totalSummaryRowContainer.hasClass("e-scroller"))
                     proxy._$totalSummaryRowContainer.ejScroller("refresh");
                 else if ($(totalSummaryRowContent).hasClass("e-scrollcss") && proxy.getScrollElement().children(".e-vscrollbar").length > 0 )
                     $(totalSummaryRowContent).width(width - 17);
@@ -3779,9 +3965,13 @@
                 proxy._queryManagar.search(proxy._searchString, proxy.getColumnFieldNames(), operator, true);
                 if (model.filterSettings.filterHierarchyMode == "parent" || proxy._searchString.length > 0 || model.filterSettings.filteredColumns.length == 0) {
                     var isSearching = true;
-                    proxy._filteredRecords = model.flatRecords.filter(function (record) {
-                        return record.hasChildRecords === false;
-                    });
+                    if (model.isFromGantt) {
+                        proxy._filteredRecords = model.flatRecords.filter(function (record) {
+                            return record.hasChildRecords === false;
+                        });
+                    } else {
+                        proxy._filteredRecords = model.flatRecords.slice();
+                    }
                 }
                 else
                     isSearching = false;
@@ -3792,7 +3982,7 @@
                         operator: "contains",
                         ignoreCase: true
                     };  
-                }               
+                }           
                 var dataManager = new ej.DataManager(proxy._filteredRecords);
                 proxy._tempfilteredrecords = dataManager.executeLocal(proxy._queryManagar).result;
                 proxy._updateFilteredRecords(proxy._tempfilteredrecords, isSearching);
@@ -3873,6 +4063,7 @@
                 proxy.renderRecords(args);
                 proxy._updateWrapRowHeights(null,"refreshAll");
                 proxy._setScrollTop(args.requestType);
+                proxy._updateFixedTableBorder(args.requestType);
                 proxy.getScrollElement().ejScroller("refresh");
                 proxy._updateScrollCss();
             }
@@ -4002,7 +4193,141 @@
 
             }
         },
+        //To save batch edited values
+        batchSave: function () {
+            var proxy = this,
+                model = proxy.model, cArgs = {},
+                batchChanges = proxy.batchChanges,
+                batchEditedRecords = batchChanges.changed,
+                batchDeletedRecords = batchChanges.deleted,
+                batchAddedRecords = batchChanges.added;
+            cArgs.type = "beforeBatchSave";
+            cArgs.batchChanges = batchChanges;
+            if (proxy._trigger("beforeBatchSave", cArgs))
+                return true;
+            //Clear filtered columns
+            var filteredColumns = model.filterSettings.filteredColumns;
+            if (filteredColumns && filteredColumns.length > 0)
+                proxy.clearFilter();
+            //To remove batchEditedField collection from modified data
+            for (var e = 0; e < batchEditedRecords.length; e++) {
+                delete batchEditedRecords[e].batchEditedFields;
+            }
+            //To remove isBatchAdd property and batchEditedField collection from added data
+            for (var a = 0; a < batchAddedRecords.length; a++) {
+                delete batchAddedRecords[a].isBatchAdd;
+                if (batchAddedRecords[a].batchEditedFields)
+                    delete batchAddedRecords[a].batchEditedFields;
+            }
+            //To remove batch deleted rows
+            if (batchDeletedRecords.length)
+                proxy.deleteRow();
+            if (proxy._batchEditStarts)
+                proxy._batchEditStarts = false;
+            proxy._cancelSaveTools();
+            proxy._checkboxSelection && proxy._resetCheckboxState();
+            proxy.processBindings();
+            proxy.renderRecords();
+            cArgs.requestType = "batchSave";
+            cArgs.batchChanges = batchChanges;
+            proxy._trigger("actionComplete", cArgs);
+            proxy.batchChanges.changed = [];
+            proxy.batchChanges.added = []; 
+            proxy.batchChanges.deleted = [];
+            proxy.batchChanges.updatedHierarchyRowIndexData = [];
+            proxy._batchSaveCancel = "";
+        },
+        //To cancel batch edited values
+        batchCancel: function () {
+            var proxy = this,
+                model = proxy.model,
+                batchChanges = proxy.batchChanges,
+                batchEditedRecords = batchChanges.changed,
+                batchDeletedRecords = batchChanges.deleted,
+                batchAddedRecords = batchChanges.added, args = {}, changedRecords = proxy._mergeRecords();
+            //Clear filtered columns
+            var filteredColumns = model.filterSettings.filteredColumns;
+            if (filteredColumns && filteredColumns.length > 0)
+                proxy.clearFilter();
+            //Remove the batch added rows
+            if (batchAddedRecords.length)
+                proxy.deleteRow();
+            //To reset the original value and remove batchEditedField collection from modified data
+            for (var e = 0; e < batchEditedRecords.length; e++) {
+                var fieldsData = batchEditedRecords[e].batchEditedFields;
+                for (var field in fieldsData) {
+                    batchEditedRecords[e][field] = fieldsData[field];
+                    batchEditedRecords[e].item[field] = fieldsData[field];
+                }
+                delete batchEditedRecords[e].batchEditedFields;
+            }
+            //To remove isBatchDelete, isBatchAdd and batchEditedField collection from deleted data
+            for (var a = 0; a < batchDeletedRecords.length; a++) {
+                proxy._updateBatchDeletedRecord(batchDeletedRecords[a]);                
+            }
 
+            proxy.batchChanges.changed = [];
+            proxy.batchChanges.added = [];
+            proxy.batchChanges.deleted = [];
+            proxy.batchChanges.updatedHierarchyRowIndexData = [];
+            proxy._batchSaveCancel = "";
+            if (proxy._batchEditStarts)
+                proxy._batchEditStarts = false;
+            proxy._cancelSaveTools();
+            proxy._checkboxSelection && proxy._resetCheckboxState();
+            if (model.showSummaryRow) {
+                proxy._batchEditCancel = true;
+                for (var i = 0; i < changedRecords.length; i++) {
+                    args.record = changedRecords[i];
+                    proxy._updateSummaryRow(args);
+                }
+            }
+            if (model.showTotalSummary) {
+                args.editType = "celledit";
+                proxy._updateTotalSummaryRow(args);
+            }
+            proxy.processBindings();
+            proxy.renderRecords();
+            proxy._batchEditCancel = false;
+        },
+
+        //Reset checkbox state
+        _resetCheckboxState: function () {
+            var proxy = this, model = proxy.model;
+            if (proxy._checkboxSelection) {
+                var flatData = model.flatRecords;
+                $.map(flatData, function (record) {
+                    if (record.checkboxState == "checked" || record.checkboxState == "indeterminate")
+                        record.checkboxState = "unchecked";
+                });               
+                proxy.selectAllRows();
+            }
+        },
+
+        _updateBatchDeletedRecord: function (record) {
+            var proxy = this, model = proxy.model;
+            delete record.isBatchDelete;
+            if (record.isBatchAdd) {
+                //To delete the batch added row that is in batch delete collection
+                proxy.batchChanges.added = [];
+                proxy.batchChanges.added.push(record);
+                proxy.deleteRow();
+                return true;
+            }
+            if (record.batchEditedFields) {
+                var fieldsData = record.batchEditedFields;
+                for (var field in fieldsData) {
+                    record[field] = fieldsData[field];
+                }
+                delete record.batchEditedFields;
+            }
+            if (record.hasChildRecords) {
+                var childs = record.childRecords;
+                for (var c = 0; c < childs.length; c++) {
+                    proxy._updateBatchDeletedRecord(childs[c]);
+                }
+            }
+        },
         //CHECK EDITING OPTIONS 
         _processEditing:function(){
 
@@ -4013,13 +4338,13 @@
                 proxy._updateCheckboxColumnName();
 
             if (model.editSettings.allowEditing || model.editSettings.allowAdding) {
-                if (model.editSettings.editMode.toLowerCase() === "cellediting" || model.editSettings.editMode.toLowerCase() === "rowediting" || (model.editSettings.editMode.toLowerCase() === "normal" && model.selectionSettings.selectionMode.toLowerCase() === "cell")) {
+                if (model.editSettings.editMode.toLowerCase() === "cellediting" || model.editSettings.editMode.toLowerCase() === "rowediting" || (model.editSettings.editMode.toLowerCase() == "batchediting" && (model.editSettings.batchEditSettings.editMode == "cell" || model.editSettings.batchEditSettings.editMode == "row")) || (model.editSettings.editMode.toLowerCase() === "normal" && model.selectionSettings.selectionMode.toLowerCase() === "cell")) {
                     proxy._addCellEditTemplate();
-                } else if (model.editSettings.editMode.toLowerCase() === "dialogediting" && (ej.isNullOrUndefined(model.editSettings.dialogEditorTemplateID) || model.editSettings.dialogEditorTemplateID == "")) {
+                } else if ((model.editSettings.editMode.toLowerCase() === "dialogediting" || (model.editSettings.editMode.toLowerCase() == "batchediting" && model.editSettings.batchEditSettings.editMode == "dialog")) && (ej.isNullOrUndefined(model.editSettings.dialogEditorTemplateID) || model.editSettings.dialogEditorTemplateID == "")) {
                     proxy._treeGridAddEditDialog();
                     if ($("#" + this._id + "_dialogEdit").length == 0)
                         this.element.append(this._renderEditDialog());
-                } else if (model.editSettings.editMode.toLowerCase() === "dialogediting" && (!ej.isNullOrUndefined(model.editSettings.dialogEditorTemplateID) && model.editSettings.dialogEditorTemplateID != "")) {
+                } else if ((model.editSettings.editMode.toLowerCase() === "dialogediting" || (model.editSettings.editMode.toLowerCase() == "batchediting" && model.editSettings.batchEditSettings.editMode == "dialog")) && (!ej.isNullOrUndefined(model.editSettings.dialogEditorTemplateID) && model.editSettings.dialogEditorTemplateID != "")) {
                     proxy._treeGridAddEditDialogTemplate();
                     if ($("#" + this._id + "_dialogEdit").length == 0)
                         this.element.append(this._renderEditDialog());
@@ -4118,7 +4443,7 @@
                     if (proxy.model.selectionSettings.selectionMode == "cell") {
                         proxy.model.editSettings.rowPosition = "top";
                     }
-                    if (proxy.model.editSettings.allowEditing && proxy.model.editSettings.editMode == "dialogEditing") {
+                    if (proxy.model.editSettings.allowEditing && (proxy.model.editSettings.editMode == "dialogEditing" || (proxy.model.editSettings.editMode.toLowerCase() == "batchediting" && proxy.model.editSettings.batchEditSettings.editMode == "dialog"))) {
                         proxy._showTreeGridAddEditDialog(-1, "add");
                     } else {
                         proxy._startAdd(parentEle, null);
@@ -4127,7 +4452,7 @@
                     
                 case gridId + "_edit":
                     proxy.updateScrollBar();
-                    if (proxy.model.editSettings.allowEditing && proxy.model.editSettings.editMode == "dialogEditing") {
+                    if (proxy.model.editSettings.allowEditing && (proxy.model.editSettings.editMode == "dialogEditing" || (proxy.model.editSettings.editMode.toLowerCase() == "batchediting" && proxy.model.editSettings.batchEditSettings.editMode == "dialog"))) {
                         proxy._showTreeGridAddEditDialog(index);
                     } else {
                         proxy._editRow(index);
@@ -4148,6 +4473,11 @@
                     }
                     else if (editMode.toLowerCase() == "rowediting")
                         proxy.saveRow();
+                    else if (editMode.toLowerCase() == "batchediting") {                        
+                        proxy.cancelEdit();
+                        proxy._batchSaveCancel = "save";
+                        proxy.model.editSettings.showConfirmDialog ? proxy._confirmDialog.find(".e-content").html(proxy._batchSaveConfirmText).end().ejDialog("open") : proxy.batchSave();
+                    }
                     proxy._clearContextMenu();
                     this._removeDetailsRow();
                     proxy._focusTreeGridElement();
@@ -4163,6 +4493,14 @@
                     }
                     else if (editMode.toLowerCase() == "rowediting")
                         proxy.cancelRowEditCell();
+                    else if (editMode.toLowerCase() === "batchediting") {                        
+                        if (proxy._isRowEdit)
+                            proxy.cancelRowEditCell();
+                        else if (proxy.model.isEdit)
+                            proxy.cancelEditCell();
+                        proxy._batchSaveCancel = "cancel";
+                        proxy.model.editSettings.showConfirmDialog ? proxy._confirmDialog.find(".e-content").html(proxy._cancelEditText).end().ejDialog("open") : proxy.batchCancel();
+                    }
                     if (proxy.model.sizeSettings.height == "auto")
                         proxy._updateContentHeight();
                     proxy._cancelSaveTools();
@@ -4187,8 +4525,14 @@
                     gridObject.print();
                     break;
                 case gridId + "_search":
-                    if (proxy._searchString != searchEle) {
-                        proxy.search(searchEle);
+                    if (proxy._batchEditStarts && !(proxy._confirmDialog).is(":visible")) {
+                        proxy._batchSaveLostWarning("Searching");
+                        proxy._batchTempDetails.searchTarget = searchEle;
+                        proxy._batchTempDetails.searchString = searchEle.value;
+                        return true;
+                    }
+                    if (proxy._searchString != searchEle.value) {
+                        proxy.search(searchEle.value);
                         proxy._updateToolbarItems();
                         proxy._isRefreshAddedRecord = false;
                     }
@@ -4196,6 +4540,19 @@
             }
             proxy._refreshToolBar();
             return false;
+        },
+
+        //To render alert dialog for batch save lost
+        _batchSaveLostWarning: function (action) {
+            var proxy = this, model = proxy.model;
+            if (model.editSettings.editMode.toLowerCase() == "batchediting") {
+                if (model.isEdit)
+                    proxy.saveCell();
+                else if (proxy._isRowEdit)
+                    proxy.saveRow();
+                proxy._batchSaveCancel = "saveLost" + action;
+                model.editSettings.showConfirmDialog ? proxy._confirmDialog.find(".e-content").html(proxy._batchSaveLostChangesText).end().ejDialog("open") : proxy.batchCancel();
+            }
         },
 
        // To render a delete confirmation dialog
@@ -4213,22 +4570,92 @@
                 size: "mini",
                 click: $.proxy(proxy._triggerConfirm, proxy)
             });
-            proxy._confirmDialog.ejDialog({ showOnInit: false, showHeader: false, width: "auto", minWidth: 0, minHeight: 0, enableModal: true, enableResize: false });
+            proxy._confirmDialog.ejDialog({ showOnInit: false,enableAnimation: false, showHeader: false, width: "auto", minWidth: 0, minHeight: 0, enableModal: true, enableResize: false });
 		   },
 		   
 		// To confirm whether to delete a row or not   
 		   _triggerConfirm: function (args) {
-		       var proxy = this;
+		       var proxy = this, model = proxy.model;
 		       if (args !== undefined && args.model.text == proxy.localizedLabels.okButtonText) {
-		           proxy.deleteRow(null, proxy._isFromContextmenu, proxy._deleteRowIndex);
+		           if (proxy._batchSaveCancel == "save") {
+		               proxy.batchSave();
+		           }
+		           else if (proxy._batchSaveCancel == "cancel") {
+		               proxy.batchCancel();
+		           }
+		           else if (proxy._batchSaveCancel == "saveLostDrag") {
+		               proxy._batchSaveCancel = "cancel";
+		               proxy.batchCancel();
+		           }
+		           else if (proxy._batchSaveCancel == "saveLostColumnMenu") {
+		               proxy._batchSaveCancel = "cancel";
+		               proxy.batchCancel();
+		               proxy._renderColumnMenu(proxy._batchTempDetails.menuTarget);
+		           }
+		           else if (proxy._batchSaveCancel == "saveLostSearching") {
+		               proxy._batchSaveCancel = "cancel";
+		               proxy.batchCancel();
+		               proxy.search(proxy._batchTempDetails.searchString);
+		               proxy._updateToolbarItems();
+		               proxy._isRefreshAddedRecord = false;
+		           }
+		           else if (proxy._batchSaveCancel == "saveLostPaging") {
+		               proxy._batchSaveCancel = "cancel";
+		               proxy.batchCancel();
+		               if (proxy._prevPageNo == proxy._batchTempDetails.currentPage)
+		                   return;
+		               proxy._isNextPage = true;
+		               if (proxy._isRowEdit)
+		                   proxy.cancelRowEditCell();
+		               else if (proxy.model.isEdit)
+		                   proxy.cancelEditCell();
+		               proxy.gotoPage(proxy._batchTempDetails.currentPage);
+		           }
+		           else if (proxy._batchSaveCancel == "saveLostFiltering") {
+		               proxy._batchSaveCancel = "cancel";
+		               proxy.batchCancel();
+		               var batchDetails = proxy._batchTempDetails;
+		               if (model.filterSettings.filterType == "filterbar") {
+		                   proxy.filterColumn(batchDetails.fieldName, batchDetails.filterOperator, batchDetails.filterValue,
+                               batchDetails.predicate, batchDetails.matchcase, batchDetails.actualFilterValue);
+		               }
+		               else if (model.filterSettings.filterType == "excel" || model.filterSettings.filterType == "menu") {
+		                   proxy._onHeaderClick(batchDetails.filterTarget);
+		               }
+		           }
+		           else proxy.deleteRow(null, proxy._isFromContextmenu, proxy._deleteRowIndex);
 		           proxy._confirmDialog.ejDialog("close");
 		           proxy._cancelSaveTools();
-               }
-		       else
+		       }
+		       else {
 		           proxy._confirmDialog.ejDialog("close");
+		           if (proxy._batchSaveCancel == "saveLostFiltering") {
+		               if (model.filterSettings.filterType == "filterbar") {
+		                   var targetElem = $(proxy._batchTempDetails.filterTarget);
+		                   if (targetElem.hasClass("e-numerictextbox"))
+		                       targetElem.ejNumericTextbox({ value: null });
+		                   else if (targetElem.hasClass("e-dropdownlist"))
+		                       targetElem.ejDropDownList({ value: null });
+		                   else targetElem.closest("input").val("");
+		               }
+		           }
+		           if (proxy._batchSaveCancel == "saveLostSearching") {
+		               if (!proxy._searchString) {
+		                   var targetElem = $(proxy._batchTempDetails.searchTarget);
+		                   if (targetElem.hasClass("e-ejinputtext"))
+		                       targetElem.closest("input").val("");
+		               }
+		           }
+		           if (proxy._batchSaveCancel == "saveLostPaging") {
+		               var pagerModel = this.getPager().ejPager("model");
+		               pagerModel.currentPage = proxy._prevPageNo;
+		               proxy.getPager().ejPager("refreshPager");
+		           }
+		       }
 		           proxy._focusTreeGridElement();
 		       proxy._deleteRowIndex = -1;
 		       proxy._isFromContextmenu = false;
+		       proxy._batchSaveCancel = "";
 		   },
 
         // To print the page
@@ -4299,7 +4726,9 @@
                  index = proxy._contextMenuSelectedIndex,
                  e = proxy._contextMenuEvent,
                  fieldName,
-                 item = proxy._contextMenuSelectedItem;
+                 item = proxy._contextMenuSelectedItem,
+                 editSettings = model.editSettings,
+                 editMode = editSettings.editMode.toLowerCase();
             if(!this._isContextMenuItems)
                 column = proxy._contextMenuColumnDetails;
             switch (option)
@@ -4367,7 +4796,7 @@
                     proxy._clearContextMenu();
                     break;
                 case "Edit":
-                    if (model.editSettings.editMode.toLowerCase() == "cellediting") {
+                    if (editMode == "cellediting" || (editMode == "batchediting" && editSettings.batchEditSettings.editMode == "cell")) {
                         var column = model.columns[proxy.getCellIndex(e)];
                         if (!ej.isNullOrUndefined(column) && column.allowEditing != false) {
                             proxy._focusTreeGridElement();
@@ -4377,21 +4806,20 @@
                             if (fieldName) {
                                 proxy.updateScrollBar();
                                 model.editSettings.allowEditing &&
-                                    model.editSettings.editMode == ej.TreeGrid.EditMode.CellEditing &&
                                     proxy.cellEdit(proxy._cellEditingDetails.rowIndex, fieldName) && proxy._editAddTools();
                             }
                         }
                     }
-                    else if (model.editSettings.editMode.toLowerCase() == "rowediting") {
+                    else if (editMode == "rowediting" || (editMode == "batchediting" && editSettings.batchEditSettings.editMode == "row")) {
                         proxy.updateScrollBar();
                         proxy._editRow(index);
-                    } else if (proxy.model.editSettings.editMode.toLowerCase() == "dialogediting") {
+                    } else if (editMode == "dialogediting" || (editMode == "batchediting" && editSettings.batchEditSettings.editMode == "dialog")) {
                         proxy._showTreeGridAddEditDialog(index);
                     }
                     proxy._clearContextMenu();
                     break;
                 case "Save":
-                    if (model.editSettings.editMode.toLowerCase() == "cellediting") {
+                    if (editMode == "cellediting" || (editMode == "batchediting" && editSettings.batchEditSettings.editMode == "cell")) {
                         if (this.editFormValidate()) {
                             if (proxy._isRowEdit)
                                 proxy._endEdit();
@@ -4400,19 +4828,18 @@
                         else
                             return true;
                     }
-                    else if (model.editSettings.editMode.toLowerCase() == "rowediting")
+                    else if (editMode == "rowediting" || (editMode == "batchediting" && editSettings.batchEditSettings.editMode == "row"))
                         proxy.saveRow();
                     proxy._clearContextMenu();
                     proxy._focusTreeGridElement();
                     break;
                 case "Cancel":
-                    var editMode = proxy.model.editSettings.editMode;
-                    if (editMode.toLowerCase() == "cellediting") {
+                    if (editMode == "cellediting" || (editMode == "batchediting" && editSettings.batchEditSettings.editMode == "cell")) {
                         if (proxy._isRowEdit)
                             proxy.cancelRowEditCell();
                         else if (model.isEdit) proxy.cancelEditCell();
                     }
-                    else if (editMode.toLowerCase() == "rowediting")
+                    else if (editMode == "rowediting" || (editMode == "batchediting" && editSettings.batchEditSettings.editMode == "row"))
                         proxy.cancelRowEditCell();
                     proxy._clearContextMenu();
                     proxy._focusTreeGridElement();
@@ -4518,6 +4945,14 @@
                 proxy._falseText = (localization && localization["falseText"]) ?
                     localization["falseText"] : defaultLocalization["falseText"];
 
+                //Batch editing confirm dialog texts 
+                proxy._batchSaveConfirmText = (localization && localization["batchSaveConfirmText"]) ?
+                    localization["batchSaveConfirmText"] : defaultLocalization["batchSaveConfirmText"];
+                proxy._batchSaveLostChangesText = (localization && localization["batchSaveLostChangesText"]) ?
+                    localization["batchSaveLostChangesText"] : defaultLocalization["batchSaveLostChangesText"];
+                proxy._cancelEditText = (localization && localization["cancelEditText"]) ?
+                    localization["cancelEditText"] : defaultLocalization["cancelEditText"];
+
                 //EmptyRecord text to be displayed with dataSource is null
                 proxy.model.emptyRecordText = (localization && localization["emptyRecord"]) ?
                     localization["emptyRecord"] : defaultLocalization["emptyRecord"];
@@ -4528,14 +4963,7 @@
             }
         },
 
-        //Create the instances for newly added row.
-        _createNewRowInstance: function (obj) {
-            var keys = [];
-            for (var key in obj) {
-                keys.push(key);
-            }
-            return keys;
-        },
+        
 		
         //Public method to pass a datasource from customer side.
 
@@ -4574,6 +5002,19 @@
             var proxy = this, newId = isNaN(parseInt(Id)) ? proxy._lastInsertedId < 1 ? 1 : proxy._lastInsertedId : parseInt(Id);
             proxy._lastInsertedId = proxy._lastInsertedId < newId ? newId : proxy._lastInsertedId;
         },
+        _updateHierarchyRowIndexData: function (args, recordCollection, recordIndex) {
+            var proxy = this, model = proxy.model, editMode = model.editSettings.editMode.toLowerCase();
+            args.updatedHierarchyRowIndexData = [];
+            for (var e = recordIndex; e < recordCollection.length; e++) {
+                recordCollection[e].hierarchyRowIndex = e;
+                if (model.hierarchyRowIndexMapping)
+                    recordCollection[e].item[model.hierarchyRowIndexMapping] = e;                
+                if (editMode != "batchediting")
+                    args.updatedHierarchyRowIndexData.push(recordCollection[e]);
+                else
+                    proxy.batchChanges.updatedHierarchyRowIndexData.indexOf(recordCollection[e]) == -1 && proxy.batchChanges.updatedHierarchyRowIndexData.push(recordCollection[e]);
+            }
+        },
         //Add new record in treeGrid control
         _addRecord: function (data, rowPosition, isEdit, isFrom) {
             var proxy = this;
@@ -4598,6 +5039,7 @@
                 isToolbarAdd = false,
                 newIndex,                
                 dataChildCount,
+                editMode = model.editSettings.editMode.toLowerCase(),
                 parentItem, nextBelowItemInflatRecords, nextBelowItemInUpdatedRecords,
                 isParentItemAdd = false, args = {}, argsLevel, argsParentItem;
 
@@ -4608,10 +5050,14 @@
             if (ej.isNullOrUndefined(data)) {
                 data = null;
                 for (var count = 0; count < columns.length; count++) {
+                    if (!ej.isNullOrUndefined(columns[count].nonColumn))
+                        continue;
                     data = proxy._restoreCustomData(data, "", columns[count].field);
                 }
                 isToolbarAdd = true;
             }
+            if (editMode == "batchediting")
+                data.isBatchAdd = true;
             if (model.idMapping && model.parentIdMapping && !ej.isNullOrUndefined(data[proxy.model.parentIdMapping]) && rowPosition != "child") {
                 var parentRec = model.flatRecords.filter(function (item) {
                     return item[model.idMapping] == data[model.parentIdMapping];
@@ -4682,6 +5128,9 @@
                             proxy._updateFilterParent.splice(0, 0, _cAddedRecord);
                         parentRecords.splice(0, 0, _cAddedRecord);
 
+                        //Update hierarchyRowIndex for level 0 records
+                        proxy._updateHierarchyRowIndexData(args, parentRecords, 0);
+
                         /*data source update*/
                         if (proxy._isDataManagerUpdate) {
                             proxy._jsonData.splice(0, 0, _cAddedRecord.item);
@@ -4748,6 +5197,9 @@
                                     dataSource.push(_cAddedRecord.item);
                                 }
                             }
+                            //Update hierarchyRowIndex for level 1 and above records
+                            var childRecords = parentItem.childRecords;
+                            proxy._updateHierarchyRowIndexData(args, childRecords, childIndex);
                         } else {
                             /* Parent records collection and data source update*/
                             parentRecords.splice(parentRecords.indexOf(selectedItem), 0, _cAddedRecord);
@@ -4757,6 +5209,9 @@
                             else {
                                 dataSource.splice(dataSource.indexOf(selectedItem.item), 0, _cAddedRecord.item);
                             }
+                            //Update hierarchyRowIndex for level 0 records
+                            var pIndex = parentRecords.indexOf(selectedItem);
+                            proxy._updateHierarchyRowIndexData(args, parentRecords, pIndex);
                         }
                         insertIndex = updatedCollectionIndex;
                         break;
@@ -4806,6 +5261,9 @@
                                     dataSource.push(_cAddedRecord.item);
                                 }
                             }
+                            //Update hierarchyRowIndex for level 1 and above records
+                            var childRecords = parentItem.childRecords;
+                            proxy._updateHierarchyRowIndexData(args, childRecords, childIndex + 1);
                         } else {
                             /* Parent records collection and data source update*/
                             parentRecords.splice(parentRecords.indexOf(selectedItem) + 1, 0, _cAddedRecord);
@@ -4815,6 +5273,9 @@
                             else {
                                 dataSource.splice(dataSource.indexOf(selectedItem.item) + 1, 0, _cAddedRecord.item);
                             }
+                            //Update hierarchyRowIndex for level 0 records
+                            var pIndex = parentRecords.indexOf(selectedItem);
+                            proxy._updateHierarchyRowIndexData(args, parentRecords, pIndex + 1);
                         }
                         insertIndex = updatedCollectionIndex;
                         break;
@@ -4897,6 +5358,9 @@
                                     dataSource.push(_cAddedRecord.item);
                                 }
                             }
+                            //Update hierarchyRowIndex for level 1 and above records
+                            var childRecords = parentItem.childRecords;
+                            proxy._updateHierarchyRowIndexData(args, childRecords, 0);
                         }
                         insertIndex = updatedCollectionIndex;
                         break;
@@ -4926,6 +5390,10 @@
                     }
 
                 }
+                //For update selectedItems if Add record once after filtered
+                if ((model.allowFiltering && model.filterSettings.filteredColumns.length > 0) || proxy._searchString.length > 0)
+                    proxy._flatFilteredRecords.push(_cAddedRecord);
+
                 if (!isToolbarAdd && (ej.TreeGrid.RowPosition.Above || ej.TreeGrid.RowPosition.Below)) {
                     var args = {},
                         currentValue = {},
@@ -4937,7 +5405,8 @@
                     args.requestType = "addNewRow";
                     args.addedRow = data;
 
-                    if (!proxy._trigger("actionComplete", args)) {
+                    if (editMode == "batchediting" || !proxy._trigger("actionComplete", args)) {
+                        proxy._updateAction(args);
                         proxy._renderAddedRow(insertIndex, _cAddedRecord);
                         if (model.showSummaryRow) {
                             if (args.requestType == "addNewRow" && rowPosition == "child") {
@@ -4961,7 +5430,10 @@
                     isRecordAdded = true;
                     proxy._emptyRowIndex = model.selectionSettings.selectionMode == "cell" ? insertIndex : null;
                 }
-
+                if (editMode == "batchediting" && isRecordAdded && !isToolbarAdd) {
+                    proxy.batchChanges.added.push(_cAddedRecord);
+                    proxy._batchEditStarts = true;
+                }
                 /*Set flag for refresh newly added record in non virtalization mode*/
                 if (model.enableVirtualization === false &&
                     (model.sortSettings.sortedColumns.length > 0 || model.filterSettings.filteredColumns.length > 0)) {
@@ -5115,7 +5587,7 @@
             else if (!ej.isNullOrUndefined(proxy.model.editSettings.dialogEditorTemplateID) && proxy.model.editSettings.dialogEditorTemplateID != "")
                 temp.innerHTML = $.render[this._id + "_JSONdialogTemplateMode"](currentData);
 
-            if (this.model.editSettings.editMode == "dialogEditing") {
+            if (this.model.editSettings.editMode == "dialogEditing" || (proxy.model.editSettings.editMode.toLowerCase() == "batchediting" && proxy.model.editSettings.batchEditSettings.editMode == "dialog")) {
                 $("#" + this._id + "_dialogEdit").html($(temp));
                 var model = {};
                 model.cssClass = this.model.cssClass;
@@ -5177,7 +5649,7 @@
                     dialogArgs.element = $("#" + proxy._id + "_dialogEdit");
                     if (!proxy._trigger("actionBegin", dialogArgs)) {
                         $("#" + this._id + "_dialogEdit").ejDialog("open");
-                        proxy._currentEditRecordDialogIndex = index;
+                        proxy._currentEditRecordDialogIndex = this.model.currentViewData.indexOf(args.data);
                         if ($(window).width() <= proxy._responsiveMinWidth && proxy.model.isResponsive) {
                             $("#" + proxy._id + "_dialogEdit_wrapper").css({ 'left': controlPosition.left + "px", 'top': controlPosition.top + "px" });
                             $("#" + proxy._id + "_dialogEdit_wrapper").removeClass("e-shadow").removeClass("e-treegridadaptivedialog");
@@ -5324,7 +5796,7 @@
             var editSettings = proxy.model.editSettings,
             toolbarItems = model.toolbarSettings.toolbarItems;
             var disableToolItems = [];
-            if (editSettings.allowAdding && toolbarItems.indexOf("add") !== -1 && !$(toolbar).find(".e-addnew").parent("li").hasClass("e-disable"))
+            if (editSettings.allowAdding && toolbarItems.indexOf("add") !== -1 && !$(toolbar).find(".e-addnew").parent("li").hasClass("e-disable") && editSettings.beginEditAction != "click")
                 disableToolItems.push($(toolbar).find(".e-addnew").parent()[0]);
             if (editSettings.allowEditing && toolbarItems.indexOf("edit") !== -1 && !$(toolbar).find(".e-edit").parent("li").hasClass("e-disable"))
                 disableToolItems.push($(toolbar).find(".e-edit").parent()[0]);
@@ -5335,10 +5807,12 @@
             });
 
             var enabledToolItems = [];
-            if (toolbarItems.indexOf("cancel") !== -1)
-                enabledToolItems.push($(toolbar).find(".e-cancel").parent()[0]);
-            if (toolbarItems.indexOf("update") !== -1)
-                enabledToolItems.push($(toolbar).find(".e-save").parent()[0]);
+            if (editSettings.editMode.toLowerCase() != "batchediting" || (editSettings.editMode.toLowerCase() == "batchediting" && proxy._batchEditStarts)) {
+                if (toolbarItems.indexOf("cancel") !== -1)
+                    enabledToolItems.push($(toolbar).find(".e-cancel").parent()[0]);
+                if (toolbarItems.indexOf("update") !== -1)
+                    enabledToolItems.push($(toolbar).find(".e-save").parent()[0]);
+            }
             enabledToolItems.forEach(function (element) {
                 $(toolbar).ejToolbar('enableItem', element);
             });
@@ -5373,7 +5847,7 @@
                     disableToolItems.push($(toolbar).find(".e-edit").parent()[0]);
                 }
                 if (editSettings.allowDeleting && toolbarItems.indexOf("delete") !== -1) {
-                    if ((proxy.selectedRowIndex() != -1 || (model.selectedItems.length >= 0 && proxy._checkboxSelection)) && model.allowSelection && model.selectedItems.length > 0)
+                    if ((proxy._checkboxSelection || (proxy.selectedRowIndex() != -1 && model.allowSelection)) && model.selectedItems.length > 0)
                         enabledToolItems.push($(toolbar).find(".e-delete").parent()[0]);
                     else if (!$(toolbar).find(".e-delete").parent("li").hasClass("e-disable"))
                         disableToolItems.push($(toolbar).find(".e-delete").parent()[0]);
@@ -5396,10 +5870,18 @@
                         enabledToolItems.push($(toolbar).find(".e-collapseall").parent()[0]);
                 }
                 if (editSettings.beginEditAction != "click" || (editSettings.beginEditAction == "click" && !model.isEdit)) {
-                    if (toolbarItems.indexOf("cancel") !== -1 && !$(toolbar).find(".e-cancel").parent("li").hasClass("e-disable"))
-                        disableToolItems.push($(toolbar).find(".e-cancel").parent()[0]);
-                    if (toolbarItems.indexOf("update") !== -1 && !$(toolbar).find(".e-save").parent("li").hasClass("e-disable"))
-                        disableToolItems.push($(toolbar).find(".e-save").parent()[0]);
+                    if (editSettings.editMode.toLowerCase() != "batchediting" || (editSettings.editMode.toLowerCase() == "batchediting" && !proxy._batchEditStarts)) {
+                        if (toolbarItems.indexOf("cancel") !== -1 && !$(toolbar).find(".e-cancel").parent("li").hasClass("e-disable"))
+                            disableToolItems.push($(toolbar).find(".e-cancel").parent()[0]);
+                        if (toolbarItems.indexOf("update") !== -1 && !$(toolbar).find(".e-save").parent("li").hasClass("e-disable"))
+                            disableToolItems.push($(toolbar).find(".e-save").parent()[0]);
+                    }
+                    else if (editSettings.editMode.toLowerCase() == "batchediting" && proxy._batchEditStarts) {
+                        if (toolbarItems.indexOf("cancel") !== -1 && $(toolbar).find(".e-cancel").parent("li").hasClass("e-disable"))
+                            enabledToolItems.push($(toolbar).find(".e-cancel").parent()[0]);
+                        if (toolbarItems.indexOf("update") !== -1 && $(toolbar).find(".e-save").parent("li").hasClass("e-disable"))
+                            enabledToolItems.push($(toolbar).find(".e-save").parent()[0]);
+                    }
                 }
 
                 disableToolItems.forEach(function (element) {
@@ -5637,10 +6119,11 @@
                                 ej.TreeGrid.sendExpandCollapseRequest(proxy, args);
                         }
                         // expand its parent if it is collapsed.
-                        if (treegridRecord.parentItem && !treegridRecord.parentItem.expanded) {
+                        if (treegridRecord.parentItem)
                             proxy._expandParentLevelRecord(treegridRecord.parentItem, args.expanded);
-                        }
 
+                        if (treegridRecord.hasChildRecords)
+                            proxy._expandCollapseInnerLevelRecord(treegridRecord, false);
                     }
                 }
                 if (model.allowPaging && !model.enableVirtualization) {
@@ -6045,14 +6528,14 @@
                     $li.append($div);
                     $li.css({ 'width': '172px' });
                     this.model.allowSearching = true;
-                    $input.keydown($.proxy(this._keyDown, this)).focus(function () { $("span.e-searchcancel").removeClass("e-hide"); });
+                    $input.keydown($.proxy(this._keyDown, this)).focus(function () { proxy.element.find("span.e-searchcancel").removeClass("e-hide"); });
                     $a.click($.proxy(this._keyDown, this));                    
                     $div.focusout(function () {
-                        if ($("input.e-searchinput").val() == "")
+                        if (proxy.element.find("input.e-searchinput").val() == "")
                             $("span.e-searchcancel").addClass("e-hide");
                     });                    
                     $span.click(function () {
-                        $("input.e-searchinput").val("");
+                        proxy.element.find("input.e-searchinput").val("");
                         $(this).addClass("e-hide");
                         proxy.search("");
                     }).mouseover(function () { this.style.cursor = 'pointer'; });
@@ -6482,7 +6965,7 @@
             proxy._hiddenColumns = [];
             proxy._visibleColumns = [];
             proxy.columnsWidthCollection = [];
-
+            proxy._removePrevHeaderTemplates();
             if (this._frozenColumnsLength > 0) {
                 $innerDiv.addClass("e-frozen-header-container");
                 $frozenDiv = ej.buildTag("div.e-frozenheaderdiv#e-frozenheaderdiv" + proxy._id, this._renderGridHeaderInternalDesign(model.columns.slice(0, this._frozenColumnsLength), false, true));
@@ -6500,7 +6983,10 @@
             this.setGridHeaderTable(this.getHeaderContent().find(".e-table"));
             return $div;
         },
-
+        _removePrevHeaderTemplates: function () {
+            $("[id^='" + this._id + "'][type='text/x-treegridheadertemplate']").remove();
+            this.headerAngularTemplate && (this.headerAngularTemplate= null);
+        },
         getPager: function () {
             return this._gridPager;
         },
@@ -6513,7 +6999,7 @@
             var proxy = this,
                 $div = $(document.createElement('div')),
                 pagerModel = {}, pageSettings = proxy.model.pageSettings;
-
+            $div.attr({ "id": this._id + "Pager" });
             pageSettings.change = $.proxy(proxy._pagerClickHandler, proxy);
             if (ej.isNullOrUndefined(pageSettings.totalRecordsCount))
                 pageSettings.totalRecordsCount = proxy._isLoadonDemand ? proxy._pageRecordCountOnDemand : pageSettings.totalRecordsCount;
@@ -6544,15 +7030,17 @@
         },
 		// Tempalte to render header checkbox selection
         _addHeaderCheckboxTemplate: function () {
-            var model = this.model, template;
+            var model = this.model, template,
+                flatRecordsCount = model.flatRecords.length,
+                selectedItemsCount = model.selectedItems.length;
 
-            if (model.flatRecords.length == model.selectedItems.length) {
+            if (flatRecordsCount > 0 && flatRecordsCount == selectedItemsCount) {
                 template = '<div><span class="e-chkbox-wrap e-widget" style="margin-left:5px;padding-right:10px;color:#c8c8c8;">' +
                         '<div class="e-chkbox-small"><span class="e-chk-act">' +
                         '<span class="e-checkbox e-checkmark e-chk-image e-icon e-headerCheckbox"' +
                 'id =' + this._id + '_headerCheckbox></span></span></div></span></div>';
             }
-            else if (model.flatRecords.length > model.selectedItems.length && model.selectedItems.length > 0) {
+            else if (flatRecordsCount > selectedItemsCount && selectedItemsCount > 0) {
                 template = '<div><span class="e-chkbox-wrap e-widget" style="margin-left:5px;padding-right:10px;color:#c8c8c8;">' +
                         '<div class="e-chkbox-small"><span class="e-chk-indeter">' +
                         '<span class="e-checkbox e-stop e-chk-image e-icon e-headerCheckbox"' +
@@ -6655,6 +7143,17 @@
             return $tr;
         },
 
+        //Get Header element by field name
+        getHeaderCell: function (field) {
+            var model = this.model,
+                columnIndex = model.columns.indexOf(this.getColumnByField(field)),
+                headerTd = null;
+            if (!ej.isNullOrUndefined(columnIndex) && columnIndex != -1)
+                headerTd = this.getHeaderTable().find("thead tr:not('.e-stackedHeaderRow')").
+                find(".e-headercell").not(".e-detailheadercell").eq(columnIndex);
+            return headerTd;
+        },
+
         //creating a template element for angularjs template
         _createHeaderTemplateElement: function (column) {
 
@@ -6681,6 +7180,7 @@
             }
             scripEle.id = scripEle.id || options.id;
             scripEle.type = scripEle.type || options.type;
+            $("#" + scripEle.id).remove();
             $("body").append(scripEle);
             return scripEle;
         },
@@ -6871,11 +7371,26 @@
         //Create a summary row.
         _summaryRow: function () {
             var proxy = this, model = proxy.model;
-            if (model.showSummaryRow)
+            if (model.showSummaryRow) {
                 proxy._createSummaryRow();
+                var refreshArgs = {};
+                refreshArgs.requestType = ej.TreeGrid.Actions.Refresh;
+                proxy.sendDataRenderingRequest(refreshArgs);
+                proxy.updateCollapsedRecordCount();
+                proxy._updateWrapRowHeights("header");
+                proxy.updateHeight();
+                if (model.allowTextWrap || model.headerTextOverflow == "wrap") {
+                    proxy._updateGridContentHeight();
+                }
+            }
             if (model.showTotalSummary) {
+                var summaryLength = $("#" + proxy._id + "-footersummaryrow").length;
                 proxy._createTotalSummaryRow();
-                proxy._viewPortHeight = proxy._viewPortHeight - proxy._$totalSummaryRowContainer.outerHeight();
+                if (summaryLength == 0)
+                    proxy._viewPortHeight = proxy._viewPortHeight - proxy._$totalSummaryRowContainer.outerHeight();
+                if (model.columnResizeSettings.columnResizeMode == ej.TreeGrid.ColumnResizeMode.FixedColumns && !model.isFromGantt)
+                    this._updateTableWidth();
+                this._updateHeaderScrollLeft();
             }
         },
 
@@ -6924,15 +7439,69 @@
             $.templates(templates);
         },
 
+        //collapse the Summary record
+        expandCollapseTotalSummary: function (expanded) {
+            var proxy = this,
+                model = proxy.model;            
+            if (model.showTotalSummary && model.collapsibleTotalSummary) {
+                if (proxy._footerSummaryRecord[0].summaryExpanded == expanded) return;
+                var args = {};
+                args.expanded = expanded;
+                args.requestType = expanded ? "summaryExpanding" : "summaryCollapsing";
+                args.data = proxy._footerSummaryRecord[0];
+                args.columnName = model.columns[this._summaryColumnIndex].headerText;
+                args.cellValue = !ej.isNullOrUndefined(args.data) ? args.data[model.columns[this._summaryColumnIndex].field] : "";
+                args.isFromUserAction = proxy._isInManualExpandCollapse;
+                var $firstSummaryRow = $(proxy.element).find(".e-firstfootersummaryrow"),
+                 $collapsedRows = $(proxy.element).find(".e-footersummaryrow");
+                if (!expanded) {
+                    proxy._trigger("collapsing", args);
+                    if (args.cancel) return;
+                    $collapsedRows.css({ 'display': 'none' });
+                    $firstSummaryRow.css({ 'display': 'table-row' });
+                    $firstSummaryRow.find(".e-summarytreegridexpand").removeClass('e-summarytreegridexpand').addClass('e-summarytreegridcollapse');
+                    proxy._footerSummaryRecord[0].summaryExpanded = false;
+                    var tempArgs = {};                 
+                    tempArgs.expanded = expanded;
+                    tempArgs.data = proxy._footerSummaryRecord[0];
+                    tempArgs.columnName = model.columns[this._summaryColumnIndex].headerText;
+                    tempArgs.cellValue = !ej.isNullOrUndefined(args.data) ? args.data[model.columns[this._summaryColumnIndex].field] : "";
+                    tempArgs.requestType = "summaryCollapsed";
+                    tempArgs.isFromUserAction = proxy._isInManualExpandCollapse;
+                    proxy._trigger("collapsed", tempArgs);
+                }
+                else {
+                    proxy._trigger("expanding", args)
+                    if (args.cancel) return;
+                    $collapsedRows.css({ 'display': 'table-row' });
+                    $firstSummaryRow.find(".e-summarytreegridcollapse").removeClass('e-summarytreegridcollapse').addClass('e-summarytreegridexpand');
+                    proxy._footerSummaryRecord[0].summaryExpanded = true;
+                    var tempArgs = {};                    
+                    tempArgs.expanded = expanded;
+                    tempArgs.data = proxy._footerSummaryRecord[0];
+                    tempArgs.columnName = model.columns[this._summaryColumnIndex].headerText;
+                    tempArgs.cellValue = !ej.isNullOrUndefined(args.data) ? args.data[model.columns[this._summaryColumnIndex].field] : "";
+                    tempArgs.requestType = "summaryExpanded";
+                    tempArgs.isFromUserAction = proxy._isInManualExpandCollapse;
+                    proxy._trigger("expanded", tempArgs)
+                }
+                proxy._$totalSummaryRowContainer.ejScroller({ height: expanded ? model.rowHeight : model.totalSummaryHeight });
+                proxy._updateGridContentHeight();
+                proxy._updateSummaryHeight();
+            }
+        },
+
         //Add a total summary row after treegrid content.
         _createTotalSummaryRow: function () {
             var proxy = this, $summaryDiv, $table, model = proxy.model, flatRecords = model.flatRecords,
                 summaryRows = model.summaryRows, summaryRowLength = summaryRows.length,
                 updatedRecords = model.updatedRecords, parentRecords = model.parentRecords,
                 columns = model.columns, $tbody = ej.buildTag('tbody');
-
+            model.totalSummaryHeight = model.totalSummaryHeight < model.rowHeight ? model.rowHeight : model.totalSummaryHeight;
             proxy._footerSummaryRecord = [];
             proxy._footerSummaryRows = [];
+            if (model.collapsibleTotalSummary && $("#" + proxy._id + "-footersummaryrow").length != 0 && $("#" + proxy._id + "-footersummaryrow").find(".e-summarytreegridcollapse").length != 0)
+                proxy._persistCollapseState = true;
             $("#" + proxy._id + "-footersummaryrow").remove();
             $summaryDiv = ej.buildTag('div.e-footersummaryrowdiv#' + proxy._id + '-footersummaryrow', '',
                 {
@@ -6952,6 +7521,12 @@
                 }
                 item = proxy._createSummaryItem(item, summaryRows[summaryRowIndex - 1]);
                 var record = proxy._createRecord(item, 0);
+                if (summaryRowIndex == 1) {
+                    record.isFirstFooterSummary = true;
+                    if (model.collapsibleTotalSummary) {
+                        record.summaryExpanded = true;
+                        }
+                }
                 record.footerSummaryRowRecord = true;
                 record.index = summaryRowIndex;
                 proxy._footerSummaryRecord.push(record);
@@ -6964,7 +7539,7 @@
                 $footerContainer.html(this._renderSummaryByFrozenDesign());
                 this._renderFrozenSummary();
             } else {
-                var $table = ej.buildTag('table.e-table.e-zerospace#' + proxy._id + "summarye-table", "",
+                var $table = ej.buildTag('table.e-table e-zerospace#' + proxy._id + "summarye-table", "",
                 { top: "0px" });
                 $table.append(proxy.getContentTable().find('colgroup').clone()).append($tbody);
                 $tbody.html($.render[this._id + "_Template"](proxy._footerSummaryRecord));
@@ -6982,15 +7557,24 @@
 
             proxy._flatChildRecords = [];
             this._setWidthToFooters();
-            if (this._$totalSummaryRowContainer.height() < 90) {
+            if (this._$totalSummaryRowContainer.height() <= model.totalSummaryHeight) {
                 if (proxy.isVScroll())
                     proxy._$totalSummaryRowContainer.addClass("e-scrollcss");
+                model.totalSummaryHeight = this._$totalSummaryRowContainer.height();
             }
             else {
-                proxy._$totalSummaryRowContainer.ejScroller({ height: model.sizeSettings.height == "auto" ? 0 : 90 });
+                proxy._$totalSummaryRowContainer.ejScroller({ height: model.sizeSettings.height == "auto" ? 0 : model.totalSummaryHeight });
             }
             if (model.sizeSettings.height == "auto")
                 $("#" + proxy._id + "-footersummaryrow").width(proxy._gridWidth - 2);
+            proxy._updateSummaryTitleColumn();           
+            if (proxy._persistCollapseState == true) {
+                proxy.expandCollapseTotalSummary(false);
+                proxy._persistCollapseState = false;
+            }
+            if (model.columnResizeSettings.columnResizeMode == ej.TreeGrid.ColumnResizeMode.FixedColumns) {
+                this._updateTableWidth();
+            }
         },
         _getFooterRows: function ()
         {
@@ -7006,12 +7590,7 @@
         _setWidthToFooters: function () {
             var width = this._gridWidth;
             if (this._frozenColumnsLength > 0) {
-                var totalWidth = 0, frozenWidth;
-                for (var i = 0; i < this.columnsWidthCollection.length; i++) {
-                    totalWidth += this.columnsWidthCollection[i];
-                    if (this._frozenColumnsLength - 1 == i)
-                        frozenWidth = Math.ceil(totalWidth);
-                }
+                var frozenWidth = this._getFrozenColumnWidth();
                 this._$totalSummaryRowContainer.find("#e-frozenfooterdiv" + this._id).width(width).next().css("margin-left", frozenWidth + "px");
                 this._$totalSummaryRowContainer.find("#e-frozenfooterdiv" + this._id).outerWidth(frozenWidth)
                     .end().find("#e-movablefooterdiv" + this._id).css("width", "100%");
@@ -7099,20 +7678,8 @@
                         model.summaryRowRecords.push(model.updatedRecords[currentIndex]);
                     }
                     currentIndex = model.flatRecords.indexOf(parentRecord) + totalChildRecordsLength + summaryRowIndex;
-                    model.flatRecords.splice(currentIndex, 0, summaryRecord);
-                    var getExistingSummaryChild = parentRecord.childRecords.filter(function (data) {
-                        if (data.isSummaryRow && summaryRecord.summaryColumn.summaryType == data.summaryColumn.summaryType) {
-                            return true;
-                        }
-                    });
-
-                    if (getExistingSummaryChild.length > 0) {
-                        var index = parentRecord.childRecords.indexOf(getExistingSummaryChild[0]);
-                        parentRecord.childRecords.splice(index, 1);
-                        parentRecord.childRecords.push(summaryRecord);
-                    }
-                    else
-                        parentRecord.childRecords.push(summaryRecord);
+                    model.flatRecords.splice(currentIndex, 0, summaryRecord);                    
+                    parentRecord.childRecords.push(summaryRecord);
                     item = {};
                     if (summaryRowIndex == summaryRowLength) {
                         summaryRecord.isLastSummary = true;
@@ -7219,7 +7786,7 @@
         _getSummaryValues: function (summaryColumn, summaryData) {
             var dataMember = summaryColumn.dataMember, format = summaryColumn.format,
                 jsonData = summaryData;
-            var dbMgr, $value;
+            var dbMgr, $value= "";
             if (jsonData instanceof ej.DataManager) {
                 dbMgr = jsonData;
                 jsonData = jsonData.dataSource.json;
@@ -7231,10 +7798,12 @@
                     break;
                 case ej.TreeGrid.SummaryType.Average:
                     $value = ej.avg(jsonData, dataMember);
+                    $value = (isNaN($value) || ej.isNullOrUndefined($value)) ? "" : $value;
                     break;
                 case ej.TreeGrid.SummaryType.Maximum:
                     var obj = ej.max(jsonData, dataMember);
                     $value = parseInt(this._getCustomCellValue(obj, summaryColumn.dataMember));
+                    $value = (isNaN($value) || ej.isNullOrUndefined($value)) ? "" : $value;
                     break;
                 case ej.TreeGrid.SummaryType.Minimum:
 					var filteringData = jsonData.filter(function (data) {
@@ -7243,12 +7812,15 @@
                     });
                     var obj = ej.min(filteringData, dataMember);
                     $value = parseInt(this._getCustomCellValue(obj, summaryColumn.dataMember));
+                    $value = (isNaN($value) || ej.isNullOrUndefined($value)) ? "" : $value;
                     break;
                 case ej.TreeGrid.SummaryType.MaximumDate:
                     $value = this._getMaxDate(jsonData, dataMember);
+                    $value = ej.isNullOrUndefined($value) ? "" : $value;
                     break;
                 case ej.TreeGrid.SummaryType.MinimumDate:
                     $value = this._getMinDate(jsonData, dataMember);
+                    $value = ej.isNullOrUndefined($value) ? "" : $value;
                     break;
                 case ej.TreeGrid.SummaryType.Count:
                     $value = jsonData.length;
@@ -7260,6 +7832,17 @@
                 case ej.TreeGrid.SummaryType.FalseCount:
                     var predicate = ej.Predicate(summaryColumn.dataMember, "equal", false);
                     $value = dbMgr.executeLocal(ej.Query().where(predicate)).length;
+                    break;
+                case ej.TreeGrid.SummaryType.Custom:
+                    var fn = summaryColumn.customSummaryValue;
+                    if (fn) {
+                        if (typeof fn === "string")
+                            fn = ej.util.getObject(fn, window);
+                        if ($.isFunction(fn))
+                            $value = fn.call(this, summaryColumn, jsonData);
+                        else
+                            $value = summaryColumn.customSummaryValue;
+                    }
                     break;
             }
             if (!ej.isNullOrUndefined(format))
@@ -7284,6 +7867,7 @@
         },
         // To Get Minimum Date of Particular Datamember in JSON data.
         _getMinDate: function (jsonData, dataMember) {
+            if (jsonData.length == 0) return null;
             var firstMinDate = new Date(jsonData[0][dataMember]),
                 min = firstMinDate.getTime();
             var minDate = jsonData[0][dataMember];
@@ -7310,6 +7894,22 @@
             proxy.updateCollapsedRecordCount();
             proxy.updateHeight();
         },
+        _mergeRecords: function () {
+            var proxy=this, batchChanges = proxy.batchChanges,editedChanges=batchChanges.changed, addedChanges=batchChanges.added, mergeCollection=[];
+            for (var i = 0; i < editedChanges.length; i++)
+            {
+                if (!mergeCollection[editedChanges[i]]) {
+                    mergeCollection.push(editedChanges[i]);
+                }
+            }
+            for (var i = 0; i < addedChanges.length; i++) {
+                if (!mergeCollection[addedChanges[i]]) {
+                    mergeCollection.push(addedChanges[i]);
+                }
+            }
+            return mergeCollection;
+        },
+       
         //Update the summary after add, edit or delete the record.
         _updateSummaryRow: function (args) {
             var proxy = this, model = proxy.model, summaryRow,
@@ -7319,6 +7919,7 @@
 
             if (args && args.requestType == "dragAndDrop") {
                 args.rowIndex = updatedRecords.indexOf(proxy._droppedRecord);
+                if(args.rowIndex == -1) return;
             }
             if (args && args.requestType == "delete") {
                 proxy._updateAfterDeleteRecord(args);
@@ -7337,18 +7938,22 @@
                 args.rowIndex = updatedRecords.indexOf(data);
             }
             if ((args.currentValue != args.previousValue) || args.requestType == "dragAndDrop"
-                || args.requestType == "addNewRow") {
+                || args.requestType == "addNewRow" || proxy._batchEditCancel) {
                 editedRecord = args.requestType == "addNewRow" ? model.updatedRecords[args.rowIndex] : updatedRecords[args.rowIndex];
+                if (proxy._batchEditCancel)
+                    editedRecord = args.record;
                 if (editedRecord.parentItem)
                     _pRecords = proxy._getpRecords(editedRecord, proxy);
                 if (ej.isNullOrUndefined(_pRecords))
                     return;
                 for (var parentLength = 0; parentLength < _pRecords.length; parentLength++) {
-                    var summaryRowRecords = model.summaryRowRecords, recordindex, columnIndex;
+                    var summaryRowRecords = model.summaryRowRecords, recordindex, columnIndex,
+                        prevUpdatedCols = [], emptyDisplayCol;
                     proxy._getChildRecordsLength(_pRecords[parentLength], updatedRecords);
                     $.each(summaryRowRecords, function (index, record) {
                         summaryRow = record.summaryRow;
                         if (record.parentItem === _pRecords[parentLength]) {
+                            prevUpdatedCols = [];
                             var summaryColumnLength = summaryRow.summaryColumns.length;
                             for (var length = 0; length < summaryColumnLength; length++) {
                                 var summaryColumn = summaryRow.summaryColumns[length],
@@ -7369,10 +7974,7 @@
                                 var displayColumn = summaryColumn.displayColumn;
                                 if (!displayColumn)
                                     displayColumn = summaryColumn.dataMember;
-                                if (model.enableVirtualization)
-                                    recordindex = model.currentViewData.indexOf(record);
-                                else
-                                    recordindex = updatedRecords.indexOf(record);
+                                recordindex = model.currentViewData.indexOf(record);
                                 columnIndex = proxy.getColumnIndexByField(displayColumn);
                                 args.data = record;
                                 if (columnIndex != -1) {
@@ -7389,8 +7991,22 @@
                                 args.cellElement = args.rowElement.find(".e-rowcell").eq(columnIndex);
 
                                 var value = proxy._getSummaryValues(summaryColumn, proxy._flatChildRecords);
-                                record[displayColumn] = prefix + value + suffix;
-                                args.cellElement.empty().html(prefix + value + suffix);
+                                var summaryCellValue = prefix + value + suffix;
+                                emptyDisplayCol = prevUpdatedCols.indexOf(displayColumn) != -1 ? false : true;
+                                if(!emptyDisplayCol) {
+                                    $(args.cellElement).append(' ' + summaryCellValue);
+                                    record[displayColumn] = record[displayColumn] + " " + summaryCellValue;
+                                }
+                                else {
+                                    if ($(args.cellElement).find(".e-summarytitle").length != 0) {
+                                        var $titleClone = $(args.cellElement).find(".e-summarytitle").clone();
+                                        $(args.cellElement).empty().html(summaryCellValue).prepend($titleClone);
+                                    }
+                                    else
+                                        $(args.cellElement).empty().html(summaryCellValue);
+                                    record[displayColumn] = summaryCellValue;
+                                    prevUpdatedCols.push(displayColumn);
+                                }                                                
                                 updatedSummaryRecords.push(record);
                                 proxy._updateWrapRowHeights("total,header", "virtualRefresh", recordindex, "savecell");
                                 }
@@ -7408,17 +8024,12 @@
                 return;
             var proxy = this, model = proxy.model, summaryRows = model.summaryRows, summaryColumns, summaryRow,
                 summaryColumnsLength, record, summaryRowLength = summaryRows.length, displayColumn, recordindex, columnIndex;
-            if (model.updatedRecords.length == 0) {
-                $("#" + proxy._id + "-footersummaryrow").hide();
-                return;
-            }
-            else
-                $("#" + proxy._id + "-footersummaryrow").show();
             for (var length = 0; length < summaryRowLength; length++) {
                 summaryRow = summaryRows[length];
                 summaryColumns = summaryRow.summaryColumns;
                 summaryColumnsLength = summaryColumns.length;
                 record = proxy._footerSummaryRecord[length];
+                var prevUpdatedCols = [], emptyDisplayCol;
                 for (var columnLength = 0; columnLength < summaryColumnsLength; columnLength++) {
                     var summaryColumn = summaryColumns[columnLength],
                         prefix = summaryColumn.prefix,
@@ -7427,7 +8038,7 @@
                         prefix = "";
                     if (ej.isNullOrUndefined(suffix))
                         suffix = "";
-                    if (args.editType == "rowedit")
+                    if (args.editType == "rowedit" || args.editType == "celledit")
                         args.columnName = summaryColumn.dataMember;
                     if (!displayColumn)
                         displayColumn = summaryColumn.dataMember;
@@ -7451,8 +8062,28 @@
                         args.cellElement = args.rowElement.childNodes[columnIndex];
                         var footerUpdatedRecords = proxy._spliceSummaryRows(model.updatedRecords),
                         value = proxy._getSummaryValues(summaryColumn, footerUpdatedRecords);
-                        record[displayColumn] = prefix + value + suffix;
-                        args.cellElement.innerHTML = prefix + value + suffix;
+                        var summaryCellValue = prefix + value + suffix;                        
+                        emptyDisplayCol = prevUpdatedCols.indexOf(displayColumn) !=-1 ? false : true;
+                        if (!emptyDisplayCol) {
+                            if ($(args.cellElement).find(".e-summarytitle").length > 0 || $(args.cellElement).find(".e-icon").length > 0) {
+                                $(args.cellElement).find(".e-summarycell").append(' ' + summaryCellValue);
+                            }
+                            else {
+                                $(args.cellElement).append(' ' + summaryCellValue);
+                            }
+                            record[displayColumn] = record[displayColumn] + " " + summaryCellValue;
+                        }
+                        else {
+                            if ($(args.cellElement).find(".e-summarytitle").length != 0 ||
+                                    $(args.cellElement).find(".e-icon").length > 0) {
+                                var $titleClone = $(args.cellElement).find(".e-summarytitle, .e-icon").clone();
+                                $(args.cellElement).empty().html(summaryCellValue).prepend($titleClone);
+                            }
+                            else
+                                $(args.cellElement).empty().html(summaryCellValue);
+                            prevUpdatedCols.push(displayColumn);
+                            record[displayColumn] = summaryCellValue;
+                        }
                     }
                         }
                 }
@@ -7465,7 +8096,7 @@
         _updateAfterDeleteRecord: function (args) {
             var proxy = this, model = proxy.model, summaryRow,
                 editedRecord, editedRecordIndex, updatedSummaryRecords = [],
-                _pRecords,
+                _pRecords, emptyDisplayCol, prevUpdatedCols,
                 deletedRecord = args.data;
             if (deletedRecord.parentItem)
                 _pRecords = proxy._getpRecords(deletedRecord, proxy);
@@ -7480,14 +8111,15 @@
                 $.each(summaryRowRecords, function (index, record) {
                     summaryRow = record.summaryRow;
                     if (record.parentItem === _pRecords[parentLength]) {
+                        prevUpdatedCols = [];
                         var summaryColumnLength = summaryRow.summaryColumns.length;
                         for (var length = 0; length < summaryColumnLength; length++) {
                             var summaryColumn = summaryRow.summaryColumns[length],
                                 displayColumn = summaryColumn.displayColumn,
-                                recordindex = model.updatedRecords.indexOf(record),
-                                columnIndex = proxy.getColumnIndexByField(displayColumn),
-                                 prefix = summaryColumn.prefix,
-                                 suffix = summaryColumn.suffix;
+                            recordindex = model.currentViewData.indexOf(record),
+                            columnIndex = proxy.getColumnIndexByField(displayColumn);
+                            var prefix = summaryColumn.prefix,
+                             suffix = summaryColumn.suffix;
                             if (ej.isNullOrUndefined(prefix))
                                 prefix = "";
                             if (ej.isNullOrUndefined(suffix))
@@ -7506,13 +8138,26 @@
                             args.tr = $(proxy.getRows()[recordindex]);
                             args.cellElement = args.tr.find(".e-rowcell").eq(columnIndex);
                             var value = proxy._getSummaryValues(summaryColumn, proxy._flatChildRecords);
-                            record[displayColumn] = prefix + value + suffix;
-                            args.cellElement.empty().html(prefix + value + suffix);
+                            var summaryCellValue = prefix + value + suffix;
+                            emptyDisplayCol = prevUpdatedCols.indexOf(displayColumn) != -1 ? false : true;
+                            if (!emptyDisplayCol) {
+                                $(args.cellElement).append(' ' + summaryCellValue);
+                                record[displayColumn] = record[displayColumn] + " " + summaryCellValue;
+                            }
+                            else {
+                                if ($(args.cellElement).find(".e-summarytitle").length != 0) {
+                                    var $titleClone = $(args.cellElement).find(".e-summarytitle").clone();
+                                    $(args.cellElement).empty().html(summaryCellValue).prepend($titleClone);
+                                }
+                                else
+                                    args.cellElement.empty().html(summaryCellValue);
+                                record[displayColumn] = summaryCellValue;
+                                prevUpdatedCols.push(displayColumn);
+                            }
                         }
                         updatedSummaryRecords.push(record);
                     }
-
-                })
+                });
                 proxy._flatChildRecords = [];
             }
         },
@@ -7565,12 +8210,12 @@
                 if (this._frozenColumnsLength > 0) {
                     var hiddenCol = proxy._getFrozenHiddenCol(),
                         $emptyTd = ej.buildTag('td', model.emptyRecordText, {}, { colSpan: (this._frozenColumns.length - hiddenCol.frozen) });
-                    $innderDiv.find("#e-frozencontentdiv" + proxy._id + " .e-table tbody").append($(doc.createElement("tr")).append($emptyTd));
+                    $innderDiv.find("#e-frozencontentdiv" + proxy._id + " .e-table tbody").append($(doc.createElement("tr")).addClass("e-emptyText").height(30).append($emptyTd));
                     $emptyTd = ej.buildTag('td', model.emptyRecordText, { visibility: "hidden" }, { colSpan: (this._unFrozenColumns.length - hiddenCol.moveable) });
-                    $innderDiv.find("#e-movablecontentdiv" + proxy._id + " .e-table tbody").append($(doc.createElement("tr")).append($emptyTd));
+                    $innderDiv.find("#e-movablecontentdiv" + proxy._id + " .e-table tbody").append($(doc.createElement("tr")).addClass("e-emptyText").height(30).append($emptyTd));
                 } else {
                     var $emptyTd = ej.buildTag('td', model.emptyRecordText, {}, { colSpan: (proxy.model.columns.length - proxy._hiddenColumns.length) });
-                    $tbody.append($(doc.createElement("tr")).append($emptyTd));
+                    $tbody.append($(doc.createElement("tr")).addClass("e-emptyText").height(30).append($emptyTd));
                     $innderDiv.css('height', model.rowHeight);
                 }
             } else
@@ -7723,6 +8368,17 @@
             return "";
         },
 
+        //Return true if batch edited data
+        _getBatchEditState: function (data, columnName) {
+            var proxy = this, model = proxy.model;
+            if (proxy._checkboxSelection && columnName == "checkboxState") {
+                return false;
+            }
+            else if (data.isBatchAdd || (data.batchEditedFields && data.batchEditedFields[columnName] != null)) {
+                return true;
+            }
+            else false;
+        },
         _getSelectedCellsinARow: function (recordIndex, selectedCellDetails) {
             var proxy = this;
             proxy._selectedCellsinARow = [];
@@ -7829,12 +8485,11 @@
             if ($target.hasClass("e-button") && ($target.hasClass("e-disable") || $target.prop("disabled"))) return;
             if ($(e.target).hasClass("e-unboundcelldiv"))
                 return;
-            if (model.editSettings.allowEditing) {
-                if (proxy.model.editSettings.editMode == "dialogEditing") {
-                    form = $("#" + proxy._id + "EditFormDialog");
-                } else {
-                    form = $("#" + proxy._id + "EditForm");
-                }
+
+            if (proxy.model.editSettings.editMode == "dialogEditing") {
+                form = $("#" + proxy._id + "EditFormDialog");
+            } else {
+                form = $("#" + proxy._id + "EditForm");
             }
             var index = ($target.hasClass("e-savebutton") || $target.hasClass("e-cancelbutton")) ? proxy.getIndexByRow(form.closest("tr")) : proxy.getIndexByRow($target.closest("tr"));
             proxy.selectRows(proxy.getUpdatedRecords().indexOf(model.currentViewData[index]));
@@ -7917,6 +8572,40 @@
         _unboundTemplateRendering: function (unboundTemplateId) {
             return $("#" + unboundTemplateId).html();
         },
+        _collapsibleSummary: function (columnCount, data) {
+            var proxy = this,
+                model = proxy.model,
+                columns = model.columns;
+            if (model.showTotalSummary && model.collapsibleTotalSummary && proxy._summaryColumnIndex == parseInt(columnCount) && data.isFirstFooterSummary) {
+                return true;
+            }
+        },
+        _summaryIndendCell: function (columnCount) {
+            var proxy = this,
+               model = proxy.model,
+               columns = model.columns;
+            if (model.showTotalSummary && model.collapsibleTotalSummary && proxy._summaryColumnIndex == parseInt(columnCount)) {
+                if (this._summaryColumnIndex != 0) {
+                    return true;
+                }
+                else if (this._summaryColumnIndex == 0) {
+                    return false;
+                }
+            }
+        },
+        _getsummaryExpandStatus: function (data) {
+            var proxy = this;
+            if (!ej.isNullOrUndefined(data.summaryExpanded) && !data.summaryExpanded) proxy._summaryExpanded = false;
+            if (this.model.collapsibleTotalSummary && !proxy._summaryExpanded) {
+                if (data.isFirstFooterSummary)
+                    return 'table-row';
+                else
+                    return 'none';
+            }
+            else
+                return 'table-row';
+        },
+         
         //ADD TEMPLATE FOR RENDERING GRIDCONTENT
         _addInitTemplate:function(){
 
@@ -7943,12 +8632,16 @@
             }
             helpers["_" + proxy._id + "rowClassName"] = ej.TreeGrid._getrowClassName;
             helpers["_" + proxy._id + "SummaryRowtdClassName"] = ej.TreeGrid._getSummaryRowtdClassName;
+            helpers["_" + proxy._id + "summaryIndendCell"] = $.proxy(proxy._summaryIndendCell, proxy);
+            helpers["_" + proxy._id + "collapsibleSummary"] = $.proxy(proxy._collapsibleSummary, proxy);
             helpers["_" + proxy._id + "isSelectedCell"] = $.proxy(proxy._getSelectedCellClass, proxy);
+            helpers["_" + proxy._id + "batchEditState"] = $.proxy(proxy._getBatchEditState, proxy);
             helpers["_" + proxy._id + "summaryTitle"] = proxy._getSummaryTitle;
             // helpers for drag row indicator icon class
             helpers["_" + proxy._id + "rowName"] = proxy._getrowName;
             helpers["_" + proxy._id + "getState"] = proxy._getState;
             helpers["_" + proxy._id + "SelectState"] = $.proxy(proxy._SelectState, proxy);
+            helpers["_" + proxy._id + "summaryExpandStatus"] = $.proxy(proxy._getsummaryExpandStatus, proxy);
             helpers["_" + proxy._id + "expandStatus"] = $.proxy(proxy._getExpandStatusRecord, proxy);         
             helpers["_" + proxy._id + "cellValue"] = $.proxy(proxy._getCellValue, proxy);
             helpers["_" + proxy._id + "TemplateCellValue"] = $.proxy(proxy._getTemplateCellValue, proxy);
@@ -8072,30 +8765,47 @@
 
                                                 childNode.style.cssText = "padding-left:0px;";
 
-                                                rowTemplateHTML += "<td class='" + childNode.className + "{{if isSummaryRow || footerSummaryRowRecord}} e-summaryrowcell{{/if}}{{if isSelected && ~_" + proxy._id + "SelectState()}} e-selectionbackground{{/if}} {{:~_" + proxy._id + "isSelectedCell(#data,'" + columnCount + "')}} {{if " + !visible + "}} e-hide{{/if}}{{if isLastSummary}} e-lastsummaryrow{{/if}} {{if ~_" + proxy._id + "isTrimCell('" + column['clipMode'] + "')}} e-treegridtrimcell{{/if}} {{if " + isTextWrap + "}} e-textwrapcell{{/if}}' style='{{if !isSummaryRow && !footerSummaryRowRecord}}"
+                                                rowTemplateHTML += "<td class='" + childNode.className + "{{if isSummaryRow || footerSummaryRowRecord}} e-summaryrowcell{{/if}}{{if isSelected && ~_" + proxy._id + "SelectState()}} e-selectionbackground{{/if}} {{:~_" + proxy._id + "isSelectedCell(#data,'" + columnCount + "')}} {{if " + !visible + "}} e-hide{{/if}}{{if isLastSummary}} e-lastsummaryrow{{/if}}{{if ~_" + proxy._id + "isTrimCell('" + column['clipMode'] + "')}} e-treegridtrimcell{{/if}}{{if " + isTextWrap + "}} e-textwrapcell{{/if}}{{if footerSummaryRowRecord && ~_" + proxy._id + "summaryIndendCell(" + tdCount + ")}} e-summaryintend{{/if}}' style='{{if !isSummaryRow && !footerSummaryRowRecord}}"
                                                     + childNode.style.cssText + "'>" + indentDiv + "{{else}}'>{{/if}}" +
+                                                     "{{if footerSummaryRowRecord && ~_" + proxy._id + "collapsibleSummary('" + tdCount + "',#data)}}" +
+                                                    "<div class= '{{if summaryExpanded}} e-summarytreegridexpand e-icon" +
+                                                    "{{else}} e-summarytreegridcollapse e-icon {{/if}}'" +
+                                                    "style='float:left;display:inline-block; font-size:10px;'></div>" +
+                                                    "{{/if}}" +
                                                     '{{if !isSummaryRow && !footerSummaryRowRecord}}' +
                                                      childNode.innerHTML +
-                                                    '{{else}}' + summaryTitlediv + '{{/if}}';
-
-                                                     if (!ej.isNullOrUndefined(column["format"]))
-                                                         rowTemplateHTML += '{{if isSummaryRow || footerSummaryRowRecord}}' + "{{:~_" + proxy._id + "formatting('" + column["format"] + "',~_" + proxy._id + "TemplateCellValue(#data,'" + columnName + "'),'" + this.model.locale + "')}}" + '{{/if}}';
-                                                     else
-                                                         rowTemplateHTML += '{{if isSummaryRow || footerSummaryRowRecord}}' + "{{:~_" + proxy._id + "TemplateCellValue(#data,'" + columnName + "')}}" + '{{/if}}';
-                                                     rowTemplateHTML += "</div></div></td>";
+                                                    '{{else}}' + summaryTitlediv + '{{/if}}' +
+                                                    "{{if footerSummaryRowRecord && ~_" + proxy._id + "summaryIndendCell(" + tdCount + ")}}" +
+                                                    "<div class='e-summarycell'" +
+                                                    "style='overflow: hidden;padding-left:25px;'>" +
+                                                    "{{/if}}";
+                                                     rowTemplateHTML += '{{if isSummaryRow || footerSummaryRowRecord}}' + "{{:~_" + proxy._id + "TemplateCellValue(#data,'" + columnName + "')}}" + '{{/if}}';
+                                                     rowTemplateHTML += "{{if footerSummaryRowRecord && ~_" + proxy._id + "summaryIndendCell(" + tdCount + ")}}" +
+                                                     "</div>" +
+                                                     "{{/if}}" +
+                                                     "</div></div></td>";
                                             }
                                             else {
-                                                rowTemplateHTML += "<td class='" + childNode.className + "{{if isSummaryRow || footerSummaryRowRecord}} e-summaryrowcell{{/if}}{{if isSelected && ~_" + proxy._id + "SelectState()}} e-selectionbackground{{/if}} {{:~_" + proxy._id + "isSelectedCell(#data,'" + columnCount + "')}} {{if " + !visible + "}} e-hide{{/if}}{{if isLastSummary}} e-lastsummaryrow{{/if}} {{if ~_" + proxy._id + "isTrimCell('" + column['clipMode'] + "')}} e-treegridtrimcell{{/if}} {{if " + isTextWrap + "}} e-textwrapcell{{/if}}' style='{{if !isSummaryRow && !footerSummaryRowRecord}}"
+                                                rowTemplateHTML += "<td class='" + childNode.className + "{{if isSummaryRow || footerSummaryRowRecord}} e-summaryrowcell{{/if}}{{if isSelected && ~_" + proxy._id + "SelectState()}} e-selectionbackground{{/if}} {{:~_" + proxy._id + "isSelectedCell(#data,'" + columnCount + "')}} {{if " + !visible + "}} e-hide{{/if}}{{if isLastSummary}} e-lastsummaryrow{{/if}}{{if ~_" + proxy._id + "isTrimCell('" + column['clipMode'] + "')}} e-treegridtrimcell{{/if}}{{if " + isTextWrap + "}} e-textwrapcell{{/if}}{{if footerSummaryRowRecord && ~_" + proxy._id + "summaryIndendCell(" + tdCount + ")}} e-summaryintend{{/if}}' style='{{if !isSummaryRow && !footerSummaryRowRecord}}"
                                                     + childNode.style.cssText + "{{/if}}'>" +
+                                                    "{{if footerSummaryRowRecord && ~_" + proxy._id + "collapsibleSummary('" + tdCount + "',#data)}}" +
+                                                    "<div  " +
+                                                    "class= '{{if summaryExpanded}} e-summarytreegridexpand e-icon" +
+                                                    "{{else}} e-summarytreegridcollapse e-icon {{/if}}'" +
+                                                    "style='float:left;display:inline-block; font-size:10px;'></div>" +
+                                                    "{{/if}}" +
                                                     '{{if !isSummaryRow && !footerSummaryRowRecord}}' +
                                                      childNode.innerHTML +
-                                                    '{{else}}' + summaryTitlediv + '{{/if}}';
-
-                                                if (!ej.isNullOrUndefined(column["format"]))
-                                                    rowTemplateHTML += '{{if isSummaryRow || footerSummaryRowRecord}}' + "{{:~_" + proxy._id + "formatting('" + column["format"] + "',~_" + proxy._id + "TemplateCellValue(#data,'" + columnName + "'),'" + this.model.locale + "')}}" + '{{/if}}';
-                                                else
-                                                    rowTemplateHTML += '{{if isSummaryRow || footerSummaryRowRecord}}' + "{{:~_" + proxy._id + "TemplateCellValue(#data,'" + columnName + "')}}" + '{{/if}}';
-                                                rowTemplateHTML += "</td>";
+                                                    '{{else}}' + summaryTitlediv + '{{/if}}'+
+                                                    "{{if footerSummaryRowRecord && ~_" + proxy._id + "summaryIndendCell(" + tdCount + ")}}" +
+                                                    "<div class='e-summarycell'" +
+                                                    "style='overflow: hidden;padding-left:25px;'>" +
+                                                    "{{/if}}";
+                                                rowTemplateHTML += '{{if isSummaryRow || footerSummaryRowRecord}}' + "{{:~_" + proxy._id + "TemplateCellValue(#data,'" + columnName + "')}}" + '{{/if}}';
+                                                rowTemplateHTML += "{{if footerSummaryRowRecord && ~_" + proxy._id + "summaryIndendCell(" + tdCount + ")}}" +
+                                                "</div>" +
+                                                "{{/if}}" +
+                                                "</td>";
                                             }
                                             if (this._frozenColumnsLength > 0 && this._frozenColumnsLength == tdCount + 1) {
                                                 var frozenRowTemplate = "";
@@ -8197,31 +8907,48 @@
 
                                             childNode.style.cssText = "padding-left:0px;";
 
-                                            altRowTemplateHTML += "<td class='" + childNode.className + "{{if isSummaryRow || footerSummaryRowRecord}} e-summaryrowcell{{/if}}{{if isSelected && ~_" + proxy._id + "SelectState()}} e-selectionbackground{{/if}} {{:~_" + proxy._id + "isSelectedCell(#data,'" + columnCount + "')}} {{if " + !visible + "}} e-hide{{/if}}{{if isLastSummary}} e-lastsummaryrow{{/if}} {{if ~_" + proxy._id + "isTrimCell('" + column['clipMode'] + "')}} e-treegridtrimcell{{/if}} {{if " + isTextWrap + "}} e-textwrapcell{{/if}}' style='{{if !isSummaryRow && !footerSummaryRowRecord}}"
+                                            altRowTemplateHTML += "<td class='" + childNode.className + "{{if isSummaryRow || footerSummaryRowRecord}} e-summaryrowcell{{/if}}{{if isSelected && ~_" + proxy._id + "SelectState()}} e-selectionbackground{{/if}} {{:~_" + proxy._id + "isSelectedCell(#data,'" + columnCount + "')}} {{if " + !visible + "}} e-hide{{/if}}{{if isLastSummary}} e-lastsummaryrow{{/if}}{{if ~_" + proxy._id + "isTrimCell('" + column['clipMode'] + "')}} e-treegridtrimcell{{/if}}{{if " + isTextWrap + "}} e-textwrapcell{{/if}}{{if footerSummaryRowRecord && ~_" + proxy._id + "summaryIndendCell(" + tdCount + ")}} e-summaryintend{{/if}}' style='{{if !isSummaryRow && !footerSummaryRowRecord}}"
                                                  + childNode.style.cssText + "'>" + indentDiv + "{{else}}'>{{/if}}" +
+                                                    "{{if footerSummaryRowRecord && ~_" + proxy._id + "collapsibleSummary('" + tdCount + "',#data)}}" +
+                                                    "<div  " +
+                                                    "class= '{{if summaryExpanded}} e-summarytreegridexpand e-icon" +
+                                                    "{{else}} e-summarytreegridcollapse e-icon {{/if}}'" +
+                                                    "style='float:left;display:inline-block; font-size:10px;'></div>" +
+                                                    "{{/if}}" +
                                                     '{{if !isSummaryRow && !footerSummaryRowRecord}}' +
                                                      childNode.innerHTML +
-                                                    '{{else}}' + summaryTitlediv + '{{/if}}';
-
-                                            if (!ej.isNullOrUndefined(column["format"]))
-                                                altRowTemplateHTML += '{{if isSummaryRow || footerSummaryRowRecord}}' + "{{:~_" + proxy._id + "formatting('" + column["format"] + "',~_" + proxy._id + "TemplateCellValue(#data,'" + columnName + "'),'" + this.model.locale + "')}}" + '{{/if}}';
-                                            else
-                                                altRowTemplateHTML += '{{if isSummaryRow || footerSummaryRowRecord}}' + "{{:~_" + proxy._id + "TemplateCellValue(#data,'" + columnName + "')}}" + '{{/if}}';
-                                            altRowTemplateHTML += "</div></div></td>";
+                                                    '{{else}}' + summaryTitlediv + '{{/if}}'+
+                                                     "{{if footerSummaryRowRecord && ~_" + proxy._id + "summaryIndendCell(" + tdCount + ")}}" +
+                                                    "<div class='e-summarycell'" +
+                                                    "style='overflow: hidden;padding-left:25px;'>" +
+                                                    "{{/if}}";
+                                            altRowTemplateHTML += '{{if isSummaryRow || footerSummaryRowRecord}}' + "{{:~_" + proxy._id + "TemplateCellValue(#data,'" + columnName + "')}}" + '{{/if}}';
+                                            altRowTemplateHTML += "{{if footerSummaryRowRecord && ~_" + proxy._id + "summaryIndendCell(" + tdCount + ")}}" +
+                                            "</div>" +
+                                            "{{/if}}" +
+                                            "</div></div></td>";
 
                                         }
                                         else {
-                                            altRowTemplateHTML += "<td class='" + childNode.className + "{{if isSummaryRow || footerSummaryRowRecord}} e-summaryrowcell{{/if}}{{if isSelected && ~_" + proxy._id + "SelectState()}} e-selectionbackground{{/if}} {{:~_" + proxy._id + "isSelectedCell(#data,'" + columnCount + "')}} {{if " + !visible + "}} e-hide{{/if}}{{if isLastSummary}} e-lastsummaryrow{{/if}} {{if ~_" + proxy._id + "isTrimCell('" + column['clipMode'] + "')}} e-treegridtrimcell{{/if}} {{if " + isTextWrap + "}} e-textwrapcell{{/if}}' style='{{if !isSummaryRow && !footerSummaryRowRecord}}"
+                                            altRowTemplateHTML += "<td class='" + childNode.className + "{{if isSummaryRow || footerSummaryRowRecord}} e-summaryrowcell{{/if}}{{if isSelected && ~_" + proxy._id + "SelectState()}} e-selectionbackground{{/if}} {{:~_" + proxy._id + "isSelectedCell(#data,'" + columnCount + "')}} {{if " + !visible + "}} e-hide{{/if}}{{if isLastSummary}} e-lastsummaryrow{{/if}}{{if ~_" + proxy._id + "isTrimCell('" + column['clipMode'] + "')}} e-treegridtrimcell{{/if}}{{if " + isTextWrap + "}} e-textwrapcell{{/if}}{{if footerSummaryRowRecord && ~_" + proxy._id + "summaryIndendCell(" + columnCount + ")}} e-summaryintend{{/if}}' style='{{if !isSummaryRow && !footerSummaryRowRecord}}"
                                                     + childNode.style.cssText + "{{/if}}'>" +
+                                                    "{{if footerSummaryRowRecord && ~_" + proxy._id + "collapsibleSummary('" + tdCount + "',#data)}}" +
+                                                    "<div  " +
+                                                    "class= '{{if summaryExpanded}} e-summarytreegridexpand e-icon" +
+                                                    "{{else}} e-summarytreegridcollapse e-icon {{/if}}'" +
+                                                    "style='float:left;display:inline-block; font-size:10px;'></div>" +
+                                                    "{{/if}}" +
                                                     '{{if !isSummaryRow && !footerSummaryRowRecord}}' +
                                                      childNode.innerHTML +
-                                                    '{{else}}' + summaryTitlediv + '{{/if}}';
-
-                                            if (!ej.isNullOrUndefined(column["format"]))
-                                                altRowTemplateHTML += '{{if isSummaryRow || footerSummaryRowRecord}}' + "{{:~_" + proxy._id + "formatting('" + column["format"] + "',~_" + proxy._id + "TemplateCellValue(#data,'" + columnName + "'),'" + this.model.locale + "')}}" + '{{/if}}';
-                                            else
-                                                altRowTemplateHTML += '{{if isSummaryRow || footerSummaryRowRecord}}' + "{{:~_" + proxy._id + "TemplateCellValue(#data,'" + columnName + "')}}" + '{{/if}}';
-                                            altRowTemplateHTML += "</td>";
+                                                    '{{else}}' + summaryTitlediv + '{{/if}}'+
+                                                     "{{if footerSummaryRowRecord && ~_" + proxy._id + "summaryIndendCell(" + tdCount + ")}}" +
+                                                    "<div class='e-summarycell'" +
+                                                    "style='overflow: hidden;padding-left:25px;'>" +
+                                                    "{{/if}}";
+                                            altRowTemplateHTML += '{{if isSummaryRow || footerSummaryRowRecord}}' + "{{:~_" + proxy._id + "TemplateCellValue(#data,'" + columnName + "')}}" + '{{/if}}';
+                                            altRowTemplateHTML += "{{if footerSummaryRowRecord && ~_" + proxy._id + "summaryIndendCell(" + tdCount + ")}}" +
+                                                     "</div>" +
+                                                     "{{/if}}" + "</td>";
                                         }
                                         if (this._frozenColumnsLength > 0 && this._frozenColumnsLength == tdCount + 1) {
                                             var frozenAltRowTemplate = "";
@@ -8247,21 +8974,21 @@
 
                 var trRow = "{{if isAltRow}}" + "<tr class='{{:~_" + proxy._id + "rowClassName()}} " +
                     "{{if expanded && hasFilteredChildRecords}}e-treegridrowexpand {{else hasChildRecords && hasFilteredChildRecords}} e-treegridrowcollapse {{/if}} e-templaterow "
-                    + altRowTemplateElement[0].className + "' style='{{if !isSummaryRow && !footerSummaryRowRecord}}" + altRowTemplateElement[0].style.cssText + "{{else}}height:" + model.rowHeight + "px;{{/if}}display:{{:~_" + proxy._id + "expandStatus(#data)}}'" + "'>" + altRowTemplateHTML + "</tr>"
+                    + altRowTemplateElement[0].className + "' style='{{if !isSummaryRow && !footerSummaryRowRecord}}" + altRowTemplateElement[0].style.cssText + "{{else}}height:" + model.rowHeight + "px;{{/if}}display:{{if footerSummaryRowRecord}}{{:~_" + proxy._id + "summaryExpandStatus(#data)}}{{else}}{{:~_" + proxy._id + "expandStatus(#data)}}{{/if}}'" + "'>" + altRowTemplateHTML + "</tr>"
 
                     + "{{else}}" + "<tr class='{{:~_" + proxy._id + "rowClassName()}} " +
                     "{{if expanded && hasFilteredChildRecords}}e-treegridrowexpand {{else hasChildRecords && hasFilteredChildRecords}} e-treegridrowcollapse {{/if}} e-templaterow "
-                    + rowTemplateElement[0].className + "' style='{{if !isSummaryRow && !footerSummaryRowRecord}}" + rowTemplateElement[0].style.cssText + "{{else}}height:" + model.rowHeight + "px;{{/if}}display:{{:~_" + proxy._id + "expandStatus(#data)}}'" + "'>" + rowTemplateHTML + "</tr>" +
+                    + rowTemplateElement[0].className + "' style='{{if !isSummaryRow && !footerSummaryRowRecord}}" + rowTemplateElement[0].style.cssText + "{{else}}height:" + model.rowHeight + "px;{{/if}}display:{{if footerSummaryRowRecord}}{{:~_" + proxy._id + "summaryExpandStatus(#data)}}{{else}}{{:~_" + proxy._id + "expandStatus(#data)}}{{/if}}'" + "'>" + rowTemplateHTML + "</tr>" +
                     "{{/if}}";
 
 
                 var frozenTrRow = "{{if isAltRow}}" + "<tr class='{{:~_" + proxy._id + "rowClassName()}} " +
                     "{{if expanded && hasFilteredChildRecords}}e-treegridrowexpand {{else hasChildRecords && hasFilteredChildRecords}} e-treegridrowcollapse {{/if}} e-templaterow "
-                    + altRowTemplateElement[0].className + "' style='{{if !isSummaryRow && !footerSummaryRowRecord}}" + altRowTemplateElement[0].style.cssText + "{{else}}height:" + model.rowHeight + "px;{{/if}}display:{{:~_" + proxy._id + "expandStatus(#data)}}'" + "'>" + frozenRowTemplate + "</tr>"
+                    + altRowTemplateElement[0].className + "' style='{{if !isSummaryRow && !footerSummaryRowRecord}}" + altRowTemplateElement[0].style.cssText + "{{else}}height:" + model.rowHeight + "px;{{/if}} display:{{if footerSummaryRowRecord}}{{:~_" + proxy._id + "summaryExpandStatus(#data)}}{{else}}{{:~_" + proxy._id + "expandStatus(#data)}}{{/if}}'" + "'>" + frozenRowTemplate + "</tr>"
 
                     + "{{else}}" + "<tr class='{{:~_" + proxy._id + "rowClassName()}} " +
                     "{{if expanded && hasFilteredChildRecords}}e-treegridrowexpand {{else hasChildRecords && hasFilteredChildRecords}} e-treegridrowcollapse {{/if}} e-templaterow "
-                    + rowTemplateElement[0].className + "' style='{{if !isSummaryRow && !footerSummaryRowRecord}}" + rowTemplateElement[0].style.cssText + "{{else}}height:" + model.rowHeight + "px;{{/if}}display:{{:~_" + proxy._id + "expandStatus(#data)}}'" + "'>" + frozenAltRowTemplate + "</tr>" +
+                    + rowTemplateElement[0].className + "' style='{{if !isSummaryRow && !footerSummaryRowRecord}}" + rowTemplateElement[0].style.cssText + "{{else}}height:" + model.rowHeight + "px;{{/if}} display:{{if footerSummaryRowRecord}}{{:~_" + proxy._id + "summaryExpandStatus(#data)}}{{else}}{{:~_" + proxy._id + "expandStatus(#data)}}{{/if}}'" + "'>" + frozenAltRowTemplate + "</tr>" +
                     "{{/if}}";
             } else if (!model.parseRowTemplate && (model.rowTemplateID.length > 0 || model.altRowTemplateID.length > 0)) {
                 /*Render rowTemplates without parsing*/
@@ -8309,26 +9036,40 @@
                             $("#" + proxy._id + headerText + $.inArray(column, this.model.columns) + "_Template").remove(); //Remove if any template already rendered
                             var scriptElement = this._createTemplateElement(column);
                             tdCell = "<td " +
-                                 "class='{{if !isSummaryRow && !footerSummaryRowRecord}} e-intend{{/if}} e-rowcell e-templatecell{{if isSelected && ~_" + proxy._id + "SelectState()}} e-selectionbackground{{/if}} {{:~_" + proxy._id + "isSelectedCell(#data,'" + columnCount + "')}} {{if " + !visible + "}} e-hide{{/if}}{{if isLastSummary}} e-lastsummaryrow{{/if}}{{if ~_" + proxy._id + "isTrimCell('" + column['clipMode'] + "')}} e-treegridtrimcell{{/if}} {{if " + isTextWrap + "}} e-textwrapcell{{/if}}'" +
+                                 "class='{{if !isSummaryRow && !footerSummaryRowRecord}} e-intend{{/if}} e-rowcell e-templatecell{{if isSelected && ~_" + proxy._id + "SelectState()}} e-selectionbackground{{/if}} {{:~_" + proxy._id + "isSelectedCell(#data,'" + columnCount + "')}} {{if " + !visible + "}} e-hide{{/if}}{{:~_" + proxy._id + "SummaryRowtdClassName()}}{{if isLastSummary}} e-lastsummaryrow{{/if}}{{if ~_" + proxy._id + "isTrimCell('" + column['clipMode'] + "')}} e-treegridtrimcell{{/if}}{{if " + isTextWrap + "}} e-textwrapcell{{/if}}{{if footerSummaryRowRecord && ~_" + proxy._id + "summaryIndendCell(" + columnCount + ")}} e-summaryintend{{/if}}{{if ~_" + proxy._id + "batchEditState(#data,'" + columnName + "')}}e-updatedtd e-tgupdatenotify{{/if}}'" +
                                  "style='text-Align:" + textAlign + ";'" +
                                  "role='row'>" +
+                                 "{{if footerSummaryRowRecord && ~_" + proxy._id + "collapsibleSummary('" + columnCount + "',#data)}}" +
+                                 "<div  " +
+                                "class= '{{if summaryExpanded}} e-summarytreegridexpand e-icon" +
+                                "{{else}} e-summarytreegridcollapse e-icon {{/if}}'" +
+                                "style='float:left;display:inline-block; font-size:10px;'></div>" +
+                                "{{/if}}" +
                                  '{{if !isSummaryRow && !footerSummaryRowRecord}}' +
                                  "{{:~_" + proxy._id + "treeGridTemplating('" + scriptElement.id + "','" + columnCount + "')}}" +
-                                 '{{else}}' + summaryTitlediv + '{{/if}}';
-
-                            if (!ej.isNullOrUndefined(column["format"]))
-                                tdCell += '{{if isSummaryRow || footerSummaryRowRecord}}' + "{{:~_" + proxy._id + "formatting('" + column["format"] + "',~_" + proxy._id + "TemplateCellValue(#data,'" + columnName + "'),'" + this.model.locale + "')}}" + '{{/if}}';
-                            else
-                                tdCell += '{{if isSummaryRow || footerSummaryRowRecord}}' + "{{:~_" + proxy._id + "TemplateCellValue(#data,'" + columnName + "')}}" + '{{/if}}';
-                            tdCell += "</td>";
+                                 '{{else}}' + summaryTitlediv + '{{/if}}'+
+                                  "{{if footerSummaryRowRecord && ~_" + proxy._id + "summaryIndendCell(" + columnCount + ")}}" +
+                                 "<div class='e-summarycell'" +
+                                 "style='overflow: hidden;padding-left:25px;'>" +
+                                 "{{/if}}";
+                            tdCell += '{{if isSummaryRow || footerSummaryRowRecord}}' + "{{:~_" + proxy._id + "TemplateCellValue(#data,'" + columnName + "')}}" + '{{/if}}';
+                            tdCell += "{{if footerSummaryRowRecord && ~_" + proxy._id + "summaryIndendCell(" + columnCount + ")}}" +
+                                "</div>" +
+                                "{{/if}}</td>";
                             //EXPAND COLLAPSE COLUMN BASED ON THE TREECOLUMNINDEX
                         } else if (columnCount === model.treeColumnIndex) {
 
                             tdCell = "<td " +
-                                 "class='{{if isSelected && ~_" + proxy._id + "SelectState()}}e-rowcell e-selectionbackground e-intend {{else}}e-rowcell {{:~_" + proxy._id + "isSelectedCell(#data,'" + columnCount + "')}} {{if !isSummaryRow && !footerSummaryRowRecord}} e-intend{{/if}} {{/if}} {{:~_" + proxy._id + "SummaryRowtdClassName()}}{{if isLastSummary}} e-lastsummaryrow{{/if}}{{if ~_" + proxy._id + "isTrimCell('" + column['clipMode'] + "')}} e-treegridtrimcell{{/if}} {{if " + isTextWrap + "}} e-textwrapcell{{/if}}'" +
+                                 "class='{{if isSelected && ~_" + proxy._id + "SelectState()}}e-rowcell e-selectionbackground e-intend {{else}}e-rowcell {{:~_" + proxy._id + "isSelectedCell(#data,'" + columnCount + "')}} {{if !isSummaryRow && !footerSummaryRowRecord}} e-intend{{/if}} {{/if}} {{:~_" + proxy._id + "SummaryRowtdClassName()}}{{if isLastSummary}} e-lastsummaryrow{{/if}}{{if ~_" + proxy._id + "isTrimCell('" + column['clipMode'] + "')}} e-treegridtrimcell{{/if}}{{if " + isTextWrap + "}} e-textwrapcell{{/if}}{{if footerSummaryRowRecord && ~_" + proxy._id + "summaryIndendCell(" + columnCount + ")}} e-summaryintend{{/if}}{{if ~_" + proxy._id + "batchEditState(#data,'" + columnName + "')}}e-updatedtd e-tgupdatenotify{{/if}} {{if hasChildRecords && hasFilteredChildRecords}} e-parentcell{{/if}}'" +
                                  "style='padding-left:{{if ~_" + proxy._id + "isTreeColumnIndex('" + columnName + "') && isSummaryRow }}{{:((level)*" + proxy.treeIndentLevelWidth + ")}}" + "px{{/if}};background-color:{{if cellBackgroundColor && ~_" + proxy._id + "checkColumn('" + columnName + "',#data)=='" + columnName + "'}}" +
                                  "{{:cellBackgroundColor}}{{else}}none{{/if}};'" +
                                  "role='row'>" +
+                                 "{{if footerSummaryRowRecord && ~_" + proxy._id + "collapsibleSummary('" + columnCount + "',#data)}}" +
+                                 "<div  " +
+                                  "class= '{{if summaryExpanded}} e-summarytreegridexpand e-icon" +
+                                  "{{else}} e-summarytreegridcollapse e-icon {{/if}}'" +
+                                  "style='float:left;display:inline-block; font-size:10px;'></div>" +
+                                  "{{/if}}" +
                                  '{{if !isSummaryRow && !footerSummaryRowRecord}}' +
                                  "<div class='e-inner-treecolumn-container' style='min-height:20px;'>" +
                                  "{{if hasChildRecords && hasFilteredChildRecords}}" +
@@ -8391,7 +9132,7 @@
                                 "{{:~_" + proxy._id + "getCheckboxState(#data, '" + columnName + "', '" + proxy._checkboxColumnName + "')}}";
                                 
                             if (!ej.isNullOrUndefined(column["format"]))
-                                tdCell += "{{:~_" + proxy._id + "formatting('" + column["format"] + "',~_" + proxy._id + "TemplateCellValue(#data,'" + columnName + "'),'" + this.model.locale + "')}}";
+                                tdCell += "{{if !isSummaryRow && !footerSummaryRowRecord}}{{:~_" + proxy._id + "formatting('" + column["format"] + "',~_" + proxy._id + "TemplateCellValue(#data,'" + columnName + "'),'" + this.model.locale + "')}}{{else}}{{:~_" + proxy._id + "TemplateCellValue(#data,'" + columnName + "')}}{{/if}}";
                             else if (model.isFromGantt && column.mappingName === model.resourceInfoMapping) {
                                 helpers = {};
                                 helpers["_" + proxy._id + "resourceName"] = proxy._getResourceName;
@@ -8414,7 +9155,15 @@
                                 "</td>";
                             }
                             else {                               
-                                tdCell += "{{:~_" + proxy._id + "TemplateCellValue(#data,'" + columnName + "')}}" + summaryTitlediv +
+                                tdCell += summaryTitlediv +
+                                "{{if footerSummaryRowRecord && ~_" + proxy._id + "summaryIndendCell(" + columnCount + ")}}" + 
+                                 "<div class='e-summarycell'" +
+                                 "style='overflow: hidden;padding-left:25px;'>" +
+                                "{{/if}}" +
+                                "{{:~_" + proxy._id + "TemplateCellValue(#data,'" + columnName + "')}}" +
+                                "{{if footerSummaryRowRecord && ~_" + proxy._id + "summaryIndendCell(" + columnCount + ")}}" +
+                                "</div>" +
+                                "{{/if}}" +
                                 '{{if !isSummaryRow && !footerSummaryRowRecord}}' +
                                 "</div>" +
                                 "</div>" +
@@ -8469,39 +9218,77 @@
                         }
                         else if (column["editType"] == "booleanedit" && proxy._checkboxSelection && columnName == "checkboxState") {
                             tdCell = "<td " +
-                                "class='{{if isSelected && ~_" + proxy._id + "SelectState()}}e-rowcell e-selectionbackground{{else}}e-rowcell{{/if}} {{:~_" + proxy._id + "isSelectedCell(#data,'" + columnCount + "')}} {{if " + !visible + "}}e-hide{{/if}} {{:~_" + proxy._id + "SummaryRowtdClassName()}}{{if isLastSummary}} e-lastsummaryrow{{/if}}{{if ~_" + proxy._id + "isTrimCell('" + column['clipMode'] + "')}} e-treegridtrimcell{{/if}} {{if " + isTextWrap + "}} e-textwrapcell{{/if}}'" +
+                                "class='{{if isSelected && ~_" + proxy._id + "SelectState()}}e-rowcell e-selectionbackground{{else}}e-rowcell{{/if}} {{:~_" + proxy._id + "isSelectedCell(#data,'" + columnCount + "')}} {{if " + !visible + "}}e-hide{{/if}}{{:~_" + proxy._id + "SummaryRowtdClassName()}}{{if isLastSummary}} e-lastsummaryrow{{/if}}{{if ~_" + proxy._id + "isTrimCell('" + column['clipMode'] + "')}} e-treegridtrimcell{{/if}}{{if " + isTextWrap + "}} e-textwrapcell{{/if}}{{if footerSummaryRowRecord && ~_" + proxy._id + "summaryIndendCell(" + columnCount + ")}} e-summaryintend {{/if}}{{if ~_" + proxy._id + "batchEditState(#data,'" + columnName + "')}}e-updatedtd e-tgupdatenotify{{/if}}'" +
                                 "style='background-color:{{if cellBackgroundColor && ~_" + proxy._id + "checkColumn('" + columnName + "',#data)=='" + columnName + "'}}" +
                                 "{{:cellBackgroundColor}}{{else}}none{{/if}};text-Align: center;'" +
                                 "role='row'" +
-                                ">" + summaryTitlediv + "{{:~_" + proxy._id + "TemplateCellValue(#data,'" + columnName + "', '" + proxy._checkboxColumnName + "')}}";
+                                "> {{if footerSummaryRowRecord && ~_" + proxy._id + "collapsibleSummary('" + columnCount + "',#data)}}" +
+                                 "<div  " +
+                                  "class= '{{if summaryExpanded}} e-summarytreegridexpand e-icon" +
+                                  "{{else}} e-summarytreegridcollapse e-icon {{/if}}'" +
+                                  "style='float:left;display:inline-block; font-size:10px;'></div>" +
+                                  "{{/if}}" + summaryTitlediv +
+                                  "{{if footerSummaryRowRecord && ~_" + proxy._id + "summaryIndendCell(" + columnCount + ")}}" +
+                                 "<div class='e-summarycell'" +
+                                 "style='overflow: hidden;padding-left:25px;'>" +
+                                 "{{/if}}" +
+                                  "{{:~_" + proxy._id + "TemplateCellValue(#data,'" + columnName + "', '" + proxy._checkboxColumnName + "')}}" +
+                                "{{if footerSummaryRowRecord && ~_" + proxy._id + "summaryIndendCell(" + columnCount + ")}}" +
+                                "</div>" +
+                                "{{/if}}";
                         }
                         else if (proxy._isCommandColumn(column)) {                            
                             $("#" + this._id + columnCount + "_UnboundTemplate").remove();
                             var divElement = proxy._createCommandElement(column, columnCount);                            
                             tdCell = "<td " +
-                           "class='{{if isSelected && ~_" + proxy._id + "SelectState()}}e-rowcell e-unboundcell e-selectionbackground {{else}}e-rowcell e-unboundcell {{/if}} {{:~_" + proxy._id + "isSelectedCell(#data,'" + columnCount + "')}} {{if " + !visible + "}}e-hide{{/if}}{{:~_" + proxy._id + "SummaryRowtdClassName()}}{{if isLastSummary}} e-lastsummaryrow{{/if}}'" +
+                           "class='{{if isSelected && ~_" + proxy._id + "SelectState()}}e-rowcell e-unboundcell e-selectionbackground {{else}}e-rowcell e-unboundcell {{/if}} {{:~_" + proxy._id + "isSelectedCell(#data,'" + columnCount + "')}} {{if " + !visible + "}}e-hide{{/if}}{{:~_" + proxy._id + "SummaryRowtdClassName()}}{{if isLastSummary}} e-lastsummaryrow{{/if}}{{if footerSummaryRowRecord && ~_" + proxy._id + "summaryIndendCell(" + columnCount + ")}} e-summaryintend{{/if}}'" +
                            "style='background-color:{{if cellBackgroundColor && ~_" + proxy._id + "checkColumn('" + columnName + "',#data)=='" + columnName + "'}}" +
                            "{{:cellBackgroundColor}}{{else}}none{{/if}};text-Align:" + textAlign + "'" +
-                           "role='row'> {{if !isSummaryRow && !footerSummaryRowRecord}}{{:~_" + proxy._id + "UnboundTemplate('" + divElement.id + "')}}{{else}}" + summaryTitlediv + "{{:~_" + proxy._id + "TemplateCellValue(#data,'" + columnName + "', '" + proxy._checkboxColumnName + "')}}{{/if}}";
+                           "role='row'> {{if !isSummaryRow && !footerSummaryRowRecord}}{{:~_" + proxy._id + "UnboundTemplate('" + divElement.id + "')}}{{else}}{{if footerSummaryRowRecord && ~_" + proxy._id + "collapsibleSummary('" + columnCount + "',#data)}}" +
+                                 "<div  " +
+                                  "class= '{{if summaryExpanded}} e-summarytreegridexpand e-icon" +
+                                  "{{else}} e-summarytreegridcollapse e-icon {{/if}}'" +
+                                  "style='float:left;display:inline-block; font-size:10px;'></div>" +
+                                  "{{/if}}" + summaryTitlediv +
+                                  "{{if footerSummaryRowRecord && ~_" + proxy._id + "summaryIndendCell(" + columnCount + ")}}" +
+                                 "<div class='e-summarycell'" +
+                                 "style='overflow: hidden;padding-left:25px;'>" +
+                                "{{/if}}" +
+                                  "{{:~_" + proxy._id + "TemplateCellValue(#data,'" + columnName + "', '" + proxy._checkboxColumnName + "')}}{{/if}}" +
+                                  "{{if footerSummaryRowRecord && ~_" + proxy._id + "summaryIndendCell(" + columnCount + ")}}" +
+                                "</div>" +
+                                "{{/if}}";
                             proxy._commandColumnLength = proxy._commandColumnLength + 1;
                             tdCell += "</td>";
                         }
                         else {
                             tdCell = "<td " +
-                                "class='{{if isSelected && ~_" + proxy._id + "SelectState()}}e-rowcell e-selectionbackground{{else}}e-rowcell{{/if}} {{:~_" + proxy._id + "isSelectedCell(#data,'" + columnCount + "')}} {{if " + !visible + "}}e-hide{{/if}} {{:~_" + proxy._id + "SummaryRowtdClassName()}}{{if isLastSummary}} e-lastsummaryrow{{/if}}{{if ~_" + proxy._id + "isTrimCell('" + column['clipMode'] + "')}} e-treegridtrimcell{{/if}} {{if " + isTextWrap + "}} e-textwrapcell{{/if}}'" +
+                                "class='{{if isSelected && ~_" + proxy._id + "SelectState()}}e-rowcell e-selectionbackground{{else}}e-rowcell {{/if}} {{:~_" + proxy._id + "isSelectedCell(#data,'" + columnCount + "')}} {{if " + !visible + "}}e-hide{{/if}} {{:~_" + proxy._id + "SummaryRowtdClassName()}}{{if isLastSummary}} e-lastsummaryrow{{/if}}{{if ~_" + proxy._id + "isTrimCell('" + column['clipMode'] + "')}} e-treegridtrimcell{{/if}}{{if " + isTextWrap + "}} e-textwrapcell{{/if}}{{if footerSummaryRowRecord && ~_" + proxy._id + "summaryIndendCell(" + columnCount + ")}} e-summaryintend{{/if}}{{if ~_" + proxy._id + "batchEditState(#data,'" + columnName + "')}}e-updatedtd e-tgupdatenotify{{/if}}'" +
                                 "style='background-color:{{if cellBackgroundColor && ~_" + proxy._id + "checkColumn('" + columnName + "',#data)=='" + columnName + "'}}" +
                                 "{{:cellBackgroundColor}}{{else}}none{{/if}};text-Align:" + textAlign + "'" +
                                 "role='row'" +
                                 ">" +
-                                "{{:~_" + proxy._id + "getCheckboxState(#data, '" + columnName + "', '" + proxy._checkboxColumnName + "')}}" + summaryTitlediv;
+                                "{{:~_" + proxy._id + "getCheckboxState(#data, '" + columnName + "', '" + proxy._checkboxColumnName + "')}}{{if footerSummaryRowRecord && ~_" + proxy._id + "collapsibleSummary('" + columnCount + "',#data)}}" +
+                                 "<div  " +
+                                  "class= '{{if summaryExpanded}} e-summarytreegridexpand e-icon" +
+                                  "{{else}} e-summarytreegridcollapse e-icon {{/if}}'" +
+                                  "style='float:left;display:inline-block; font-size:10px;'></div>" +
+                                  "{{/if}}" + summaryTitlediv +
+                                  "{{if footerSummaryRowRecord && ~_" + proxy._id + "summaryIndendCell(" + columnCount + ")}}" +
+                                 "<div class='e-summarycell'" +
+                                 "style='overflow: hidden;padding-left:25px;'>" +
+                                "{{/if}}";
 
                             if (!ej.isNullOrUndefined(column["format"]))
-                                tdCell += "{{:~_" + proxy._id + "formatting('" + column["format"] + "',~_" + proxy._id + "TemplateCellValue(#data,'" + columnName + "'),'" + this.model.locale + "')}}";
+                                tdCell += "{{if !isSummaryRow && !footerSummaryRowRecord}}{{:~_" + proxy._id + "formatting('" + column["format"] + "',~_" + proxy._id + "TemplateCellValue(#data,'" + columnName + "'),'" + this.model.locale + "')}}{{else}}{{:~_" + proxy._id + "TemplateCellValue(#data,'" + columnName + "')}}{{/if}}";
                             else {
                                 tdCell += "{{:~_" + proxy._id + "TemplateCellValue(#data,'" + columnName + "')}}";
 
                             }    
-                            tdCell+= "</td>";
+                           
+                            tdCell+= "{{if footerSummaryRowRecord && ~_" + proxy._id + "summaryIndendCell(" + columnCount + ")}}" +
+                                "</div>" +
+                                "{{/if}}</td>";
                             summaryTitlediv = "";
                         }
 
@@ -8522,9 +9309,10 @@
                 }
 
                 trRow += "{{if expanded && hasFilteredChildRecords}}e-treegridrowexpand {{else hasChildRecords && hasFilteredChildRecords}} " +
-                      "e-treegridrowcollapse {{/if}} '" +
+                      "e-treegridrowcollapse {{/if}}" +
+                      "{{if isBatchDelete}}e-batchdisable {{/if}}'" +
                       "style='background-color:{{if rowBackgroundColor }}{{:rowBackgroundColor}}{{else}}none{{/if}}; height:{{:~_" + proxy._id + "getRowHeight(#data)}}px;" +
-                      "display:{{:~_" + proxy._id + "expandStatus(#data)}}'" +
+                      "display:{{if footerSummaryRowRecord}}{{:~_" + proxy._id + "summaryExpandStatus(#data)}}{{else}}{{:~_" + proxy._id + "expandStatus(#data)}}{{/if}}'" +
                       "role='treegrid'>";
                 frozenTrRow = trRow + frozenTrRow;
                 trRow += tdCellCollections;
@@ -8541,7 +9329,7 @@
                 trRow += "{{if isDetailsExpanded}}" + proxy._createDetailsRowTemplate() + "{{/if}}";
                 frozenTrRow += "{{if isDetailsExpanded}}" + proxy._createDetailsRowTemplate(true) + "{{/if}}";
             }
-
+            proxy._summaryExpanded = true;
             var templates = {};
             templates[proxy._id + "_Template"] = trRow;
             templates[proxy._id + "_JSONFrozenTemplate"] = frozenTrRow;
@@ -8641,6 +9429,7 @@
             }
             scripEle.id = scripEle.id || options.id;
             scripEle.type = scripEle.type || options.type;
+            $("#" + scripEle.id).remove();
             $("body").append(scripEle);
             return scripEle;
         },
@@ -8779,6 +9568,11 @@
                     cellValue += "" + "%";
                 if (columnName == "duration")
                     cellValue = proxy._getDurationString(data);
+                if (columnName == "startDate" || columnName == "endDate" || columnName == "duration") {
+                    if (ej.isNullOrUndefined(cellValue) || cellValue == "") {
+                        cellValue = column.showNullText ? proxy.model.nullText : "" ;
+                    }
+                }                    
             }
             if (editType == ej.TreeGrid.EditingType.Dropdown && !data['isSummaryRow'] && !data["footerSummaryRowRecord"])
             {
@@ -8794,25 +9588,40 @@
                     value = "value";
                     text = "text";
                 }
-                if (editParams && editParams.showCheckbox) {
-                    var cellValueCollection = cellValue.split(",");
-                    var length = cellValueCollection.length;
+                if (editParams && (editParams.showCheckbox || editParams.multiSelectMode)) {
+                    var cellValueCollection, length, dropdownValue,
+                       dropdownDataCollection = column.dropdownData,
+                   delimiterChar = (editParams && !ej.isNullOrUndefined(editParams.delimiterChar)) ? editParams.delimiterChar : ",";
+                    if (typeof (cellValue) == 'string' && cellValue.indexOf(delimiterChar) > -1) {
+                        cellValueCollection = cellValue.split(delimiterChar);
+                        length = cellValueCollection.length;
+                    }
+                    else
+                        cellValueCollection = cellValue;
                     cellValue = "";
                     if (column.dropdownData) {
-                        for (var i = 0; i < length; i++) {
-                            var dropdownDataCollection = column.dropdownData;
-                            dropdownValue = $.map(dropdownDataCollection, function (dropdownData) {
-                                if (!ej.isNullOrUndefined(dropdownData[value])) {
-                                    if (dropdownData[value].toString() == cellValueCollection[i].toString())
-                                        return dropdownData[text];
-                                }
-                                else {
-                                    if (dropdownData[text] == cellValueCollection[i])
-                                        return dropdownData[text];
+                        if (length) {
+                            for (var i = 0; i < length; i++) {                                
+                                dropdownValue = $.map(dropdownDataCollection, function (dropdownData) {
+                                    if (!ej.isNullOrUndefined(dropdownData[value])) {
+                                        if (dropdownData[value].toString() == cellValueCollection[i].toString())
+                                            return dropdownData[text];
+                                    }
+                                    else {
+                                        if (dropdownData[text] == cellValueCollection[i])
+                                            return dropdownData[text];
+                                    }
+                                });
+                                dropdownValue[0] = dropdownValue[0] ? dropdownValue[0] : "";
+                                cellValue += i == 0 ? dropdownValue[0] : delimiterChar + dropdownValue[0];
+                            }
+                        }
+                        else {
+                            $.map(dropdownDataCollection, function (dropdownData) {
+                                if ((!ej.isNullOrUndefined(dropdownData[value]) && cellValueCollection.toString() === dropdownData[value].toString()) || cellValueCollection === dropdownData[text]) {
+                                    cellValue = dropdownData[text];
                                 }
                             });
-                            dropdownValue[0] = dropdownValue[0] ? dropdownValue[0] : "";
-                            cellValue += i == 0 ? dropdownValue[0] : ","+dropdownValue[0];
                         }
                     }
                 }
@@ -8911,21 +9720,27 @@
 
         _getDurationString: function (data) {
             var val = "";
-            if (data.duration != null && data.duration !== "")
+
+            if (!ej.isNullOrUndefined(data.duration) && data.duration !== "") {
                 if (typeof data.duration == "string") {
                     var duration = parseFloat(data.duration);
                     val += !isNaN(duration) ? parseFloat(duration.toFixed(2)) + " " : "";
                 }
                 else
                     val += parseFloat(data.duration.toFixed(2)) + " ";
-            if (data.durationUnit != null) {
-                var multiple = data.duration != 1;
-                if (data.durationUnit == "day")
-                    val += multiple ? this.model.durationUnitTexts.days : this.model.durationUnitTexts.day;
-                else if (data.durationUnit == "hour")
-                    val += multiple ? this.model.durationUnitTexts.hours : this.model.durationUnitTexts.hour;
-                else
-                    val += multiple ? this.model.durationUnitTexts.minutes : this.model.durationUnitTexts.minute;
+                if (data.durationUnit != null) {
+                    var multiple = data.duration != 1;
+                    if (data.durationUnit == "day")
+                        val += multiple ? this.model.durationUnitTexts.days : this.model.durationUnitTexts.day;
+                    else if (data.durationUnit == "hour")
+                        val += multiple ? this.model.durationUnitTexts.hours : this.model.durationUnitTexts.hour;
+                    else
+                        val += multiple ? this.model.durationUnitTexts.minutes : this.model.durationUnitTexts.minute;
+                }
+            }
+            else {
+                var column = this.getColumnByField("duration");
+                val = column = column.showNullText ? this.model.nullText : val;
             }
             return val;
         },
@@ -8995,6 +9810,7 @@
             for (count; count < length; count++) {
 
                 parentRecord = proxy._createRecord(dataSource[count], 0, null, expanded);
+                parentRecord["hierarchyRowIndex"] = count;
                 proxy._storedIndex++;
 
                 //CHECK ALTROW ENABLED OR NOT
@@ -9023,24 +9839,29 @@
                 }
             }
             if (model.allowPaging && !proxy._isRemoteData) {
-
-                if (!ej.isNullOrUndefined(model.pageSettings.totalRecordsCount) && model.pageSettings.totalRecordsCount <= flatRecords.length) {
-                    var totalRecordsCount = model.pageSettings.totalRecordsCount;
-                    model.flatRecords = flatRecords.slice(0, totalRecordsCount);
-                    if (model.flatRecords[totalRecordsCount - 1].hasChildRecords) {
-                        model.flatRecords[totalRecordsCount - 1].hasChildRecords = false;
-                        model.flatRecords[totalRecordsCount - 1].expanded = false;
-                        model.flatRecords[totalRecordsCount - 1].childRecords = null;
-                        model.flatRecords[totalRecordsCount - 1].hasFilteredChildRecords = false;
-                    }
-                }
-                else if (ej.isNullOrUndefined(model.pageSettings.totalRecordsCount))
-                    model.pageSettings.totalRecordsCount = flatRecords.length;
+                proxy._updateTotalRecordsCount();
             }
             /* assign records length as max index */
             proxy._maxRowIndex = this.model.flatRecords.length;
         },
 
+        _updateTotalRecordsCount : function(){
+            var proxy = this,
+                model = proxy.model,
+                flatRecords = model.flatRecords;
+            if (!ej.isNullOrUndefined(model.pageSettings.totalRecordsCount) && model.pageSettings.totalRecordsCount <= flatRecords.length) {
+                var totalRecordsCount = model.pageSettings.totalRecordsCount;
+                model.flatRecords = flatRecords.slice(0, totalRecordsCount);
+                if (model.flatRecords[totalRecordsCount - 1].hasChildRecords) {
+                    model.flatRecords[totalRecordsCount - 1].hasChildRecords = false;
+                    model.flatRecords[totalRecordsCount - 1].expanded = false;
+                    model.flatRecords[totalRecordsCount - 1].childRecords = null;
+                    model.flatRecords[totalRecordsCount - 1].hasFilteredChildRecords = false;
+                }
+            }
+            else if (ej.isNullOrUndefined(model.pageSettings.totalRecordsCount))
+                model.pageSettings.totalRecordsCount = flatRecords.length;
+        },
 
         //CREATE RECORD OBJECT
         _createRecord: function (data, level, parentItem, expanded) {
@@ -9135,6 +9956,7 @@
 
                 if (record) {
                     childRecord = proxy._createRecord(record, level, parentItem, expanded);
+                    childRecord["hierarchyRowIndex"] = count;
                     records.push(childRecord);
                 }
             }
@@ -9297,7 +10119,7 @@
             var proxy = this,
                 target = $(e.target);
             //Check the whether the mouse down on column menu and column menu items
-            if (target.closest("div.e-headerContextmenu").length == 0 &&target.closest("div.e-columnmenuitem").length == 0 && target.closest("div.e-columnMenuListDiv").length == 0 && ((!target.hasClass("e-columnmenu-icon") && !target.hasClass("e-column-filter-icon") && !target.hasClass("e-column-filtered-icon")) || $(e.target).closest("#" + proxy._id).length == 0) && target.closest("div.e-" + proxy._id + "filterStringSelector").length == 0 && target.closest("div#" + proxy._id + "filterStringDropDown_popup_list_wrapper").length == 0
+            if (target.closest("div.e-tgheaderContextmenu").length == 0 &&target.closest("div.e-columnmenuitem").length == 0 && target.closest("div.e-columnMenuListDiv").length == 0 && ((!target.hasClass("e-columnmenu-icon") && !target.hasClass("e-column-filter-icon") && !target.hasClass("e-column-filtered-icon")) || $(e.target).closest("#" + proxy._id).length == 0) && target.closest("div.e-" + proxy._id + "filterStringSelector").length == 0 && target.closest("div#" + proxy._id + "filterStringDropDown_popup_list_wrapper").length == 0
                 && target.closest("div#" + proxy._id + "filterStringInputBox_suggestion").length == 0 && target.closest("div.e-" + proxy._id + "filterNumericSelector").length == 0 && target.closest("div#" + proxy._id + "filterNumericDropDown_popup_list_wrapper").length == 0 &&
                 target.closest("div.e-" + proxy._id + "filterDatepickerSelector").length == 0 && target.closest("div#" + proxy._id + "filterDatepickerDropDown_popup_list_wrapper").length == 0 &&
                 target.closest("div#e-" + proxy._id + "filterDatepickerInputBox").length == 0 && target.closest("div.e-" + proxy._id + "filterDatetimepickerSelector").length == 0 && target.closest("div#" + proxy._id + "filterDatetimepickerDropDown_popup_list_wrapper").length == 0 &&
@@ -9305,7 +10127,7 @@
                 target.closest("div.e-excelfilter").length == 0 && !proxy._isExcelFilterClick(target))
                 proxy._clearColumnMenu();
             //Check the whether the mouse down on context menu items and header context menu items
-            if (!(target.hasClass("e-headerContextmenu"))) {
+            if (!(target.hasClass("e-tgheaderContextmenu"))) {
                 if (target.closest("div.e-menuitem").length == 0 && target.closest("div.e-columnmenuselection").length == 0 && target.closest("div.e-columnMenuListDiv").length == 0)
                     proxy._clearContextMenu();
             }
@@ -10028,7 +10850,10 @@
                 return;                        
             
             if (proxy._dragMouseDown == true && proxy.model.allowDragAndDrop == true) {
-
+                if (proxy._batchEditStarts) {
+                    proxy._batchSaveLostWarning("Drag");
+                    return true;
+                }
                 if (e.type == "touchmove")
                     $target = proxy._getElementByPosition(coord.pageX, coord.pageY);
                 else {
@@ -10107,6 +10932,7 @@
                     args.canDrop = true;
                     args.draggedRow = proxy._draggedRecord;
                     args.draggedRowIndex = proxy._draggedRecord.index;
+                    args.dropPosition = "invalidPosition";
                     proxy._trigger("rowDrag", args);
                     if (!$tr_summary.hasClass("e-footersummaryrow"))
                         proxy._renderToolTip(coord, $trClone, args, $target);
@@ -10142,16 +10968,19 @@
         _performDragAndDrop: function (draggedRecord, droppedRecord,recordIndex,args,arg ) {
             var proxy = this,
                 model = proxy.model,
+                editMode = model.editSettings.editMode.toLowerCase(),
+                childRecords, droppedRecordIndex,
                 count = 0,
                 length = model.selectedItems.length,
                 dragLength = proxy._draggedRecords.length,
+                draggedRecords = [],
                 recordCollection = {};
             for (var j = 0; j < dragLength; j++) {
                 draggedRecord = proxy._draggedRecord = proxy._draggedRecords[j];
                 var flatRecords = model.flatRecords;
                 args.previousParentItem = draggedRecord.parentItem ? $.extend({}, draggedRecord.parentItem) : draggedRecord.parentItem;
                 if (!ej.isNullOrUndefined(draggedRecord.parentItem)) {
-                    args.previousParentItem.childRecords = $.extend([], draggedRecord.parentItem.childRecords)
+                    args.previousParentItem.childRecords = $.extend([], draggedRecord.parentItem.childRecords);
                     args.parentChildState = draggedRecord.parentItem.hasChildRecords;
                     args.parentExpandedState = draggedRecord.parentItem.expanded;
                 }
@@ -10204,8 +11033,13 @@
                                 proxy._updateChildRecord(draggedRecord, recordIndex1);
                                 proxy._updateChildRecordLevel(draggedRecord, level);
                             }
-                            if (droppedRecord.parentItem)
-                                droppedRecord.parentItem.childRecords.splice(droppedRecord.parentItem.childRecords.indexOf(droppedRecord), 0, draggedRecord);
+                            if (droppedRecord.parentItem) {
+                                childRecords = droppedRecord.parentItem.childRecords;
+                                droppedRecordIndex = childRecords.indexOf(droppedRecord);
+                                childRecords.splice(droppedRecordIndex, 0, draggedRecord);
+                                //Update hierarchyRowIndex for level 1 and above records
+                                proxy._updateHierarchyRowIndexData(args, childRecords, droppedRecordIndex);
+                            }
                         }
 
                             //condition to splice below to the dropped record.
@@ -10231,8 +11065,13 @@
                                 proxy._updateChildRecordLevel(draggedRecord, level);
                                 proxy._updateChildRecord(draggedRecord, recordIndex1 + count + 1);
                             }
-                            if (droppedRecord.parentItem)
-                                droppedRecord.parentItem.childRecords.splice(droppedRecord.parentItem.childRecords.indexOf(droppedRecord) + 1, 0, draggedRecord);
+                            if (droppedRecord.parentItem) {
+                                childRecords = droppedRecord.parentItem.childRecords;
+                                droppedRecordIndex = childRecords.indexOf(droppedRecord) + 1;
+                                childRecords.splice(droppedRecordIndex, 0, draggedRecord);
+                                //Update hierarchyRowIndex for level 1 and above records
+                                proxy._updateHierarchyRowIndexData(args, childRecords, droppedRecordIndex);
+                            }                            
                         }
 
                             // Condition to insert as child to the dropped Record.
@@ -10243,14 +11082,14 @@
                                 model.updatedRecords.splice(recordIndex1 + 1, 0, draggedRecord);
                                 if (model.isFromGantt)
                                     model.ids.splice(recordIndex1 + 1, 0, (draggedRecord.taskId).toString());
-                                proxy._recordLevel(recordIndex);
+                                proxy._recordLevel(recordIndex, args);
                             }
                             else {
                                 flatRecords.splice(recordIndex1 + 1, 0, draggedRecord);
                                 model.updatedRecords.splice(recordIndex1 + 1, 0, draggedRecord);
                                 if (model.isFromGantt)
                                     model.ids.splice(recordIndex1 + 1, 0, (draggedRecord.taskId).toString());
-                                proxy._recordLevel(recordIndex);
+                                proxy._recordLevel(recordIndex, args);
                                 if (droppedRecord.hasChildRecords)
                                     droppedRecord.expanded = proxy._isLoadonDemand ? droppedRecord.isChildRetrieved : droppedRecord.expanded;
                                 proxy._updateChildRecord(draggedRecord, recordIndex1 + 1, droppedRecord.expanded);
@@ -10263,25 +11102,38 @@
                         proxy.selectAllRows();
                     }
                     if (draggedRecord.parentItem == null) {
-                        var newPIndex = model.parentRecords.indexOf(proxy._droppedRecord);
+                        var parentRecords = model.parentRecords,
+                            newPIndex = parentRecords.indexOf(proxy._droppedRecord);                        
                         if (proxy._insertBelow == true)
-                            model.parentRecords.splice(newPIndex + 1, 0, draggedRecord);
+                            parentRecords.splice(newPIndex + 1, 0, draggedRecord);
                         else if (proxy._insertAbove == true)
-                            model.parentRecords.splice(newPIndex, 0, draggedRecord);
+                            parentRecords.splice(newPIndex, 0, draggedRecord);
+                        //Update hierarchyRowIndex for level 0 records
+                        var pIndex = proxy._insertBelow == true ? newPIndex + 1 : newPIndex;
+                        proxy._updateHierarchyRowIndexData(args, parentRecords, pIndex);
                     }
                 }
+                draggedRecords.push(draggedRecord);
             }
+            recordCollection.draggedRecords = draggedRecords;
             recordCollection.draggedRecord = draggedRecord;
             recordCollection.droppedRecord = droppedRecord;
             return recordCollection;
         },
-        _updatedMovedRow: function (draggedRecord, droppedRecord, dropPosition, args, rindex1) {
+        _updatedMovedRow: function (draggedRecord, droppedRecord, dropPosition, args, rindex1, draggedRecords) {
             var proxy = this,
                 model = proxy.model;            
             args.draggedRow = draggedRecord;
             args.targetRow = droppedRecord;
             args.droppedPosition = dropPosition;
-            proxy._updateDataSource();
+            if (!model.isFromGantt && draggedRecords) {
+                for (var i = 0; i < draggedRecords.length; i++) {
+                    proxy._draggedRecord = draggedRecords[i];
+                    proxy._updateDataSource();
+                }
+            }
+            else
+                proxy._updateDataSource();
             /*update summary rows collection*/
             if (model.showSummaryRow && proxy._insertAsChild == true)
                 proxy._createSummaryRow(args);
@@ -10340,12 +11192,14 @@
             var proxy = this, model = proxy.model,
                  args = {}, newArgs = {};
             proxy._cancelEditState();
+            if (model.editSettings.editMode.toLowerCase() == "batchediting" && proxy._batchEditStarts)
+                return false;
             if (ej.isNullOrUndefined(toIndex)) {
                 if (position == "above" || position == "child")
                     toIndex = fromIndex - 1;
                 else if (position == "below")
                     toIndex = fromIndex + 1;
-            }      
+            }
             var draggedRecord = model.updatedRecords[fromIndex],
             droppedRecord = model.updatedRecords[toIndex];
             //Skip the summary row while moving records as child
@@ -10395,6 +11249,12 @@
                     newArgs.dropPosition = args.dropPosition;
                     newArgs.requestType = args.requestType;
                     proxy._trigger("actionComplete", newArgs);
+
+                    var cArgs = {};
+                    cArgs.draggedRowIndex = newArgs.currentRowIndex;
+                    cArgs.targetRowIndex = newArgs.targetRowIndex;
+                    cArgs.requestType = "dragAndDrop";
+                    proxy._updateAction(cArgs);
                     proxy._resetPrivateProperties();
                     return true;
                 }
@@ -10412,7 +11272,7 @@
                 arg = {},
                 newArgs={},
                 proxy = this,
-                model = proxy.model, $target, $tr,
+                model = proxy.model, $target, $tr, draggedRecords,
                 draggedRecord = proxy._draggedRecord,
                 currentRecord = proxy._currentRecord, droppedRecord,
                 canDrop,
@@ -10464,10 +11324,11 @@
                 
                 if (model.allowDragAndDrop && canDrop) {
                     proxy._dragMouseLeave = false;
-
+                    var compareIndex;
                     //condition for allow down record on empty records
                     if ($tr.length == 0) {
                         recordIndex = proxy._indexOfLastRow;
+                        compareIndex = recordIndex;
                         if (model.enableVirtualization) {
                             proxy._droppedRecord = model.currentViewData[model.currentViewData.length - 1];
                         }
@@ -10485,10 +11346,11 @@
                     else {
                         var recordIndex = proxy.getIndexByRow($tr);
                         proxy._droppedRecord = model.currentViewData[recordIndex];
+                        compareIndex = model.updatedRecords.indexOf(proxy._droppedRecord);
                     }
 
                   
-                    if (recordIndex != proxy._currentIndex && recordIndex != -1 && proxy._draggedRecords.length != 0) {
+                    if (compareIndex != proxy._currentIndex && recordIndex != -1 && proxy._draggedRecords.length != 0) {
                         if (proxy._droppedRecord.dragState == true) {
                             //to splice the record while we drop on selected item itself
                             if ($.inArray(proxy._droppedRecord, proxy._draggedRecords) != -1) {
@@ -10532,11 +11394,13 @@
                             });
                             var recordCollection = this._performDragAndDrop(draggedRecord, droppedRecord, recordIndex, args, arg);
                             draggedRecord = recordCollection.draggedRecord;
+                            draggedRecords = recordCollection.draggedRecords;
                             droppedRecord = recordCollection.droppedRecord;                           
                             args.requestType = "dragAndDrop";
                             if (droppedRecord.dragState == true && !proxy._isHierarchyFiltering) {
-                                proxy._updatedMovedRow(draggedRecord, droppedRecord, dropPosition, args, rindex1);
-                                
+                                proxy._updatedMovedRow(draggedRecord, droppedRecord, dropPosition, args, rindex1,draggedRecords);
+                                if (!model.isFromGantt)
+                                    arg.draggedRecords = draggedRecords;
                                 arg.draggedRow = args.draggedRow;                                                            
                                 arg.draggedRow.item = args.draggedRow.item;
                                 arg.draggedRowIndex = model.updatedRecords.indexOf(draggedRecord);
@@ -10548,6 +11412,15 @@
                                     args.isFromRevertDragging = true;
                                     proxy._revertDragging(args);
                                 }
+                                else {
+                                    var cArgs = {};                                    
+                                    cArgs.draggedRecords = draggedRecords;
+                                    cArgs.draggedRowIndex = arg.draggedRowIndex;
+                                    cArgs.targetRowIndex = arg.targetRowIndex;
+                                    cArgs.requestType = "dragAndDrop";
+                                    proxy._updateAction(cArgs);
+                                }
+
                             
                                 if (model.allowSelection) {
                                     if (model.selectionSettings.selectionMode == "row") {
@@ -10670,6 +11543,7 @@
                 proxy._mouseDragged = false;
                 var gridPos = proxy.getOffsetRect(proxy.element[0]);
                 proxy._gridLeft = gridPos.left;
+                proxy._gridTop = gridPos.top;
                 proxy._touchstart = true;
                 // Mousemove event bind for Drag a column                
                 if (e.type != "touchstart") {
@@ -10704,8 +11578,23 @@
 
                 if (model.selectionSettings.selectionMode == "cell" && proxy._headerDragStatus != "mousemove")
                     proxy.clearSelection();
-                var $hcell = $target.closest(".e-headercell");
-                var columnFieldName = $hcell.find(".e-headercelldiv").attr("data-ej-mappingname");
+                var $hcell = $target.closest(".e-headercell"),
+                    columnFieldName = $hcell.find(".e-headercelldiv").attr("data-ej-mappingname"),
+                    elementRight = proxy._gridLeft + proxy._gridWidth - 10,
+                    elementHeight = proxy._gridHeight + proxy._gridTop, xpos = posx, ypos = posy;
+
+                if (!ej.isNullOrUndefined(proxy._dragmouseOverTooltip)) {
+                    var tooltipMidPos = proxy._dragmouseOverTooltip["width"] / 2,
+                        tooltipHeight = proxy._dragmouseOverTooltip["height"] + 5;
+                    if ((xpos - tooltipMidPos) < proxy._gridLeft)
+                        xpos = proxy._gridLeft;
+                    else if ((xpos + tooltipMidPos) > elementRight)
+                        xpos = elementRight - (tooltipMidPos*2) - 4;
+                    else
+                        xpos = xpos - tooltipMidPos;
+                    if (ypos + tooltipHeight > elementHeight)
+                        ypos = elementHeight - tooltipHeight;
+                }
 
                 if (!ej.isNullOrUndefined(columnFieldName) && !ej.isNullOrUndefined(this.getColumnByField(columnFieldName))) {
 
@@ -10721,14 +11610,20 @@
                     proxy._trigger("columnDrag", args);
                     if (args.cancel) return;
 
+                    args.direction = (args.draggedColumnIndex >= args.targetColumnIndex) ? "left" : "right";
                     column.pos = proxy.getOffsetRect($hcell[0]);
                     column.height = $($hcell).height();
                     column.width = $($hcell).outerWidth();
                     column.pos.top = proxy.getOffsetRect($hcell.closest(".e-gridheader")[0]).top;
-                    column.pos.left = ((args.draggedColumnIndex > args.targetColumnIndex)) ? (column.pos.left - 2) : (column.pos.left + column.width - 2);
                     column.display = "block";
+                    if(args.direction == "left" &&proxy._gridLeft > column.pos.left)
+                        column.pos.left = proxy._gridLeft;
+                    else if (args.direction == "right" && elementRight < (column.pos.left + column.width))
+                        column.pos.left = elementRight - 10;
+                    else
+                        column.pos.left = ((args.draggedColumnIndex > args.targetColumnIndex)) ? (column.pos.left - 2) : (column.pos.left + column.width - 2);
                     args.column = column;
-                    args.direction = (args.draggedColumnIndex > args.targetColumnIndex) ? "left" : "right";
+                    
                     proxy._autoHscroll(posx, posy, args);
                     if (args.draggedColumnIndex != args.targetColumnIndex) {
                         proxy._displayContextMenu = false;
@@ -10772,6 +11667,7 @@
                         $(proxy._dragmouseOverTooltip).addClass("e-headertooltip");
                         $(proxy._reordervline).addClass("e-headervline");
                         proxy._dragmouseOverTooltip["width"] = $(proxy._dragmouseOverTooltip).outerWidth();
+                        proxy._dragmouseOverTooltip["height"] = $(proxy._dragmouseOverTooltip).outerHeight()
                         proxy._reordervline["height"] = model.sizeSettings.height == "auto" ? $("#" + proxy._id + "e-gridcontent").height() + $("#" + proxy._id + "e-gridheader").height() : height;
                         proxy._dragTooltip = true;
                     }
@@ -10789,17 +11685,17 @@
                         });
 
                         $(proxy._dragmouseOverTooltip).css({
-                            'top': posy + "px",
-                            'left': posx - (proxy._dragmouseOverTooltip["width"] / 2) + "px",
+                            'top': ypos + "px",
+                            'left': xpos + "px",
                         });
                     }
-                    proxy._headerDragStatus = "mousemove";                    
+                    proxy._headerDragStatus = "mousemove";
                 }
                 else {
                     if (!ej.isNullOrUndefined(proxy._dragmouseOverTooltip)) {
                         $(proxy._dragmouseOverTooltip).css({
-                            'top': posy + "px",
-                            'left': posx - (proxy._dragmouseOverTooltip["width"] / 2) + "px",
+                            'top': ypos + "px",
+                            'left': xpos + "px",
                         });
                     }
                 }
@@ -10810,9 +11706,10 @@
         reorderColumn: function (fieldName, targetColumnIndex) {
             var proxy = this, model = proxy.model,
                 columns = model.columns, draggedColumn, 
-                draggedColumnIndex, targetColumn, width, treeColumn,
+                draggedColumnIndex, targetColumn, width, treeColumn,summaryTreeColumn,
                 frozenWidth;
 
+            if (model.showTotalSummary && model.collapsibleTotalSummary) summaryTreeColumn = columns[proxy._summaryColumnIndex];
             treeColumn = columns[model.treeColumnIndex];
             draggedColumn = proxy.getColumnByField(fieldName);
             draggedColumnIndex = columns.indexOf(draggedColumn);
@@ -10850,6 +11747,7 @@
             proxy.columnsWidthCollection.splice(targetColumnIndex, 0, width);
             
             model.treeColumnIndex = columns.indexOf(treeColumn);
+            if (model.showTotalSummary && model.collapsibleTotalSummary) proxy._summaryColumnIndex = columns.indexOf(summaryTreeColumn);
             proxy._refreshFrozenColumns();
             proxy._updateWrapRowHeights(null,"virtualRefresh");
         },
@@ -11032,11 +11930,13 @@
                 }
             }
             else if (!model.parentIdMapping && droppedRecord.parentItem) {
-                childIndex = droppedRecord.parentItem.childRecords.indexOf(draggedRecord);
-                if (proxy._insertAbove) 
-                    droppedRecord.parentItem.item[proxy.model.childMapping].splice(childIndex, 0, draggedRecord.item);
-                else if (proxy._insertBelow)
-                    droppedRecord.parentItem.item[proxy.model.childMapping].splice(childIndex, 0, draggedRecord.item);
+                if (proxy._insertAbove || proxy._insertBelow) {
+                    droppedRecord.parentItem.item[proxy.model.childMapping] = [];
+                    var record = droppedRecord.parentItem.childRecords;
+                    for (var i = 0; i < record.length; i++) {
+                        droppedRecord.parentItem.item[proxy.model.childMapping].splice(i, 0, record[i].item)
+                    }
+                }               
             }
 
             if (model.parentIdMapping) {
@@ -11105,36 +12005,8 @@
             args.tr = $tr;
             args.data = deletedRow;
             args.requestType = ej.TreeGrid.Actions.Delete;
-            args.isDragAndDropDelete = true;
-            
-            if (proxy.model.enableWBS) {
-                dataRows, targetRowIndex, isUpdateWBS = false;
-                if (deletedRow && deletedRow.parentItem) {
-                    dataRows = deletedRow.parentItem.childRecords;
-                    targetRowIndex = dataRows.indexOf(deletedRow);
-                } else if (model.flatRecords.length) {
-                    var flatData = model.flatRecords,
-                    Level0 = flatData.filter(function (item) {
-                        return item && item.level == 0;
-                    });
-                    dataRows = Level0;
-                    targetRowIndex = dataRows.indexOf(deletedRow);
-                }
-                if (targetRowIndex != dataRows.length - 1)
-                    isUpdateWBS = true;
-            }
-            proxy._removeRecords(args);           
-            if (isUpdateWBS) {
-                var targetRow;
-                if (deletedRow.parentItem)
-                    targetRow = dataRows[targetRowIndex];//Here we are having the updated 'dataRows'
-                else {
-                    //for level 0 records
-                    dataRows.splice(targetRowIndex, 1);
-                    targetRow = dataRows[targetRowIndex];
-                }
-                proxy.updateWBSdetails(targetRow);
-            }
+            args.isDragAndDropDelete = true;                        
+            proxy._removeRecords(args);                       
             proxy._previousIndex = -1;
         },
         // To revert the changes if drop get cancelled.
@@ -11260,7 +12132,7 @@
             return count;
         },
         //This method is to leveling the records when it is inserted as child.
-        _recordLevel: function (recordIndex) {
+        _recordLevel: function (recordIndex, args) {
             var j = 0, proxy = this,
                 model = proxy.model,
                 draggedRecord=proxy._draggedRecord,
@@ -11280,6 +12152,9 @@
             if (proxy._insertAsChild) {
                 draggedRecord.parentItem = droppedRecord;
                 droppedRecord.childRecords.splice(0, 0, draggedRecord);
+                //Update hierarchyRowIndex for level 1 and above records
+                var childRecords = droppedRecord.childRecords;
+                proxy._updateHierarchyRowIndexData(args, childRecords, 0);
                 if (!ej.isNullOrUndefined(draggedRecord) && !ej.isNullOrUndefined(droppedRecord.item[childItem]) && !model.parentIdMapping) {
                     droppedRecord.item[childItem].splice(0, 0, draggedRecord.item);
                 }
@@ -11452,6 +12327,8 @@
                 }
                
                 proxy._validateFilterValue(proxy._filterString);
+                if (proxy._batchEditStarts)
+                    proxy._batchTempDetails.filterTarget = $target;
                 proxy.filterColumn(proxy._fieldName, this._operator, proxy._filterString, this._predicate);                
                 proxy._storePreviousFilteredValue(proxy._fieldName, proxy._filterString, this._operator);
                 if (proxy.model.currentViewData.length > 0 && proxy.model.enableAltRow)
@@ -11995,6 +12872,7 @@
                 proxy._scrollTop = args.scrollTop;
                 if(this._frozenColumnsLength)
                     proxy.getContent().find("#e-frozencontainer" + proxy._id).scrollTop(proxy._scrollTop);
+                proxy._vScrollDist = 0;//resetting this property to prevent unwanted rendering 
             }
         },
 
@@ -12030,15 +12908,60 @@
             }
             return true;
         },
+
+        //To check previous and current value for row edit
+        _checkModfiedCellValue: function (orginalValue, modifiedValue, column) {
+            var proxy = this, model = proxy.model, flag = false;
+            if ((column["editType"] == "datepicker" || column["editType"] == "datetimepicker")) {
+                if (orginalValue instanceof Date && modifiedValue instanceof Date) {
+                    if (column["editType"] == "datepicker") {
+                        var oldDate = new Date(orginalValue), newDate = new Date(modifiedValue);
+                        if (oldDate.setHours(0, 0, 0, 0) != newDate.setHours(0, 0, 0, 0))
+                            flag = true;
+                    }
+                    else {
+                        if (orginalValue.getTime() != modifiedValue.getTime()) {
+                            flag = true;
+                        }
+                    }
+                }
+                else if ((orginalValue !== modifiedValue))
+                    flag = true;
+
+            }
+            else if (column["editType"] == "dropdownedit") {
+                if (orginalValue !== modifiedValue)
+                    flag = true;
+            }
+            else {
+                orginalValue = ej.isNullOrUndefined(orginalValue) ? "" : orginalValue;
+                modifiedValue = ej.isNullOrUndefined(modifiedValue) ? "" : modifiedValue;
+                if (model.isFromGantt && column["field"] == "duration") {
+                    var values = modifiedValue.match(/(\d*\.*\d+|[A-z]+)/g);
+                    if (values && values.length <= 2)
+                        modifiedValue = parseFloat(values[0]);
+                }
+                if (orginalValue instanceof Array && modifiedValue instanceof Array) {
+                    $.each(orginalValue, function (key, value) {
+                        var index = $.inArray(value, modifiedValue);
+                        if (index == -1) {
+                            flag = true;
+                        }
+                    });
+                }
+                else if (orginalValue.toString() !== modifiedValue.toString())
+                    flag = true;
+            }
+            return flag;
+        },
         
         //Save the edited row
-
-        saveRow:function()
-        {
+        saveRow: function () {
             var proxy = this,
-           model = proxy.model, form, index, isDialogEdit,editType;
+           model = proxy.model, form, index, isDialogEdit, editType,
+           editMode = model.editSettings.editMode.toLowerCase();
 
-            if (proxy.model.editSettings.allowEditing && proxy.model.editSettings.editMode == "dialogEditing") {
+            if (proxy.model.editSettings.allowEditing && (editMode == "dialogediting" || (editMode == "batchediting" && model.editSettings.batchEditSettings.editMode == "dialog"))) {
                 form = $("#" + proxy._id + "EditFormDialog");
                 index = proxy._currentEditRecordDialogIndex;
                 isDialogEdit = true;
@@ -12056,143 +12979,120 @@
                 isAddRow = form.closest("tr").hasClass("e-addedrow"),
                 columns = model.columns,
                 columnLength = columns.length,
-                currentItem =model.currentViewData[index],
-                currentValue = {},
-                previousValue = {},
-                column,
-                value,
-                args = {};
+                currentItem = model.currentViewData[index],
+                value, args = {}, currentValue = ej.copyObject({}, currentItem.item),
+                isLocalDataUpdate = true, isValueModified = false;
 
-           proxy._focusTreeGridElement();
+            proxy._focusTreeGridElement();
 
             if (form.length <= 0 && index == -1)
                 return;
 
             for (var i = 0; i < columnLength; i++) {
-                column = columns[i];
-                if (!ej.isNullOrUndefined(column) && column["field"] != "") {
-                    if (column.visible) {
-                        if (ej.isNullOrUndefined(column["editType"])) {
-                            editType = "stringedit";
-                        } else {
-                            editType = column["editType"];
-                        }
-                        value = proxy.getCurrentEditCellDataForRowEdit(column["field"], editType, i);
-                        if (proxy._checkboxSelection && column["field"] == "checkboxState") {                            
-                            continue;
-                        }
-                        //To avoid duplicate ID for TreeGrid on self reference while row editing
-                        if (model.idMapping && model.parentIdMapping && column["field"] == model.idMapping) {
-                            if (proxy._validateIdValue(value))
-                                value = currentItem[column["field"]]; //Replacing the old value
-                        }
-                        var splits = (column["field"] || "").split(".");
-                        if (splits.length <= 1) {                            
-                            previousValue[column["field"]] = currentItem.item[column["field"]];
-                            currentValue[column["field"]] = currentItem[column["field"]] = currentItem.item[column["field"]] = value;
-                        } else {
+                var column = columns[i], fieldName = column["field"];
+                if (fieldName == "" || (proxy._checkboxSelection && column["nonColumn"])) continue;
 
-                        var prevalue = proxy._getCustomCellValue(currentItem.item, column["field"]);
-                            previousValue = proxy._restoreCustomData(previousValue, prevalue, column["field"]);
-                            currentValue = proxy._restoreCustomData(currentValue, value, column["field"]);
-                            currentItem = proxy._restoreCustomData(currentItem, value, column["field"]);
-                            currentItem.item = proxy._restoreCustomData(currentItem.item, value, column["field"]);
-                        }
+                if (column.visible || ((model.editSettings.editMode == "dialogEditing" || (proxy.model.editSettings.editMode.toLowerCase() == "batchediting" && model.editSettings.batchEditSettings.editMode.toLowerCase() == "dialog")) && (!ej.isNullOrUndefined(model.editSettings.dialogEditorTemplateID) && model.editSettings.dialogEditorTemplateID != ""))) {
+                    editType = ej.isNullOrUndefined(column["editType"]) ? "stringedit" : column["editType"];
+
+                    value = proxy.getCurrentEditCellDataForRowEdit(fieldName, editType, i);
+                    value = (ej.isNullOrUndefined(value) || (column.editType == ej.TreeGrid.EditingType.Numeric && isNaN(value))) ? null : value;
+                    //To avoid duplicate ID for TreeGrid on self reference while row editing
+                    if (model.idMapping && model.parentIdMapping && fieldName == model.idMapping) {
+                        if (proxy._validateIdValue(value))
+                            value = currentItem[fieldName]; //Replacing the old value
                     }
-                    else {
-                        var prevalue = proxy._getCustomCellValue(currentItem, column["field"]);
-                        previousValue = proxy._restoreCustomData(previousValue, prevalue, column["field"]);
-                        currentValue = proxy._restoreCustomData(currentValue, prevalue, column["field"]);
+                    if (!proxy._checkModfiedCellValue(ej.getObject(fieldName, currentValue), value, column)) continue;
+
+                    if (fieldName.indexOf(".") != -1)
+                        ej.createObject(fieldName, value, currentValue);
+                    else
+                        currentValue[fieldName] = value;
+                    isValueModified = true;
+                    if (editMode == "batchediting" && !isAddRow) {
+                        //Take backup of original field values
+                        proxy._createBatchEditedFields(currentItem, fieldName, value, column);
+                        proxy._batchEditStarts = true;
+                        proxy._updateBatchChanges(currentItem);
                     }
                 }
             }
-
-            if (!isAddRow) {
-                args.previousValue = previousValue;
-                args.requestType = "update";
-                if (isDialogEdit) {
-                    args.rowIndex = proxy._currentEditRecordDialogIndex;
-                    args.element = $("#" + proxy._id + "_dialogEdit");
-                }
-                else {
-                    args.rowIndex = proxy.selectedRowIndex();
-                    args.rowElement = form.add(frozenForm).closest("tr");
-                }
-                args.currentValue = currentItem.item;
-                if (isDialogEdit) {
-                    if (proxy._trigger("actionBegin", args)) {
-                        for (i = 0; i < columnLength; i++) {
-                            column = columns[i];
-                            if (!ej.isNullOrUndefined(column))
-                                if (column.visible) {
-                                    var prevalue = proxy._getCustomCellValue(previousValue, column["field"]);
-                                    currentItem = proxy._restoreCustomData(currentItem, prevalue, column["field"]);
-                                    currentItem.item = proxy._restoreCustomData(currentItem.item, prevalue, column["field"]);
-                                }
-                        }
-                        return true;
-                    } else {
-                        for (var colIndex = 0 ; colIndex < columns.length ; colIndex++) {
-                            if (columns[colIndex]["editType"] == ej.TreeGrid.EditingType.Dropdown || columns[colIndex]["editType"] == ej.TreeGrid.EditingType.DatePicker || columns[colIndex]["editType"] == ej.TreeGrid.EditingType.DateTimePicker) {
-                                var $element = $("#" + proxy._id + proxy._getFieldValue(columns[colIndex]["field"]));
-                                $element.data("ejWidgets") && $element[$element.data("ejWidgets")[0]]("destroy");
-                            }
-                        }
-                    }
-                } else {
-                    if (proxy._trigger("endEdit", args)) {
-                        for (i = 0; i < columnLength; i++) {
-                            column = columns[i];
-                            if (!ej.isNullOrUndefined(column))
-                                if (column.visible) {
-                                    var prevalue = proxy._getCustomCellValue(previousValue, column["field"]);
-                                    currentItem = proxy._restoreCustomData(currentItem, prevalue, column["field"]);
-                                    currentItem.item = proxy._restoreCustomData(currentItem.item, prevalue, column["field"]);
-                                }
-                        }
+            if (isAddRow) {
+                proxy._isEmptyRow = proxy._checkIsEmptyRow(currentValue);
+                args.rowIndex = proxy.selectedRowIndex();
+                args.previousValue = currentItem.item;
+                args.requestType = "addNewRow";
+                args.addedRow = proxy._isEmptyRow ? null : currentValue;
+                args.rowElement = form.closest("tr");                
+                if (!proxy._isEmptyRow) {
+                    if (editMode == "batchediting") {
+                        proxy.batchChanges.added.push(currentItem);
+                        proxy._batchEditStarts = true;
                     }
                     else {
-                        if (model.idMapping && model.parentIdMapping) {
-                            proxy._updateLastInsertedId(args.currentValue[model.idMapping]);
-                        }
+                        if (proxy._trigger("actionComplete", args)) return true;
                     }
+                    ej.copyObject(currentItem, currentValue);
+                    ej.copyObject(currentItem.item, currentValue);
+                    isLocalDataUpdate = proxy._updateAction(args);
+                    if (model.idMapping && model.parentIdMapping)
+                        proxy._updateLastInsertedId(currentItem[model.idMapping]);
                 }
             }
             else {
-                args.rowIndex = proxy.selectedRowIndex();
-                args.previousValue = previousValue;
-                args.requestType = "addNewRow";
-                args.addedRow = proxy._checkIsEmptyRow(currentItem.item) ? null : currentItem.item;
-                args.rowElement = form.closest("tr");
-                if (proxy._trigger("actionComplete", args)) {
-                    for (i = 0; i < columnLength; i++) {
-                        column = columns[i];
-                        if (!ej.isNullOrUndefined(column))
-                            if (column.visible) {
-                                var prevalue = proxy._getCustomCellValue(previousValue, column["field"]);
-                                currentItem = proxy._restoreCustomData(currentItem, prevalue, column["field"]);
-                                currentItem.item = proxy._restoreCustomData(currentItem.item, prevalue, column["field"]);
-                            }
+                args.requestType = "update";
+                args.rowIndex = proxy.getUpdatedRecords().indexOf(currentItem);
+                args.currentValue = currentValue;
+                args.previousValue = currentItem.item;
+
+                if (isDialogEdit) {
+                    args.element = $("#" + proxy._id + "_dialogEdit");
+                    if (!proxy._isRemoteData) {
+                        isValueModified = true;
+                    }
+                    if (isValueModified && proxy._trigger("actionBegin", args)) return true;
+
+                    isLocalDataUpdate = proxy._updateAction(args);
+                    if (model.idMapping && model.parentIdMapping)
+                        proxy._updateLastInsertedId(args.currentValue[model.idMapping]);
+
+                    for (var colIndex = 0 ; colIndex < columns.length ; colIndex++) {
+                        if (columns[colIndex]["editType"] == ej.TreeGrid.EditingType.Dropdown || columns[colIndex]["editType"] == ej.TreeGrid.EditingType.DatePicker || columns[colIndex]["editType"] == ej.TreeGrid.EditingType.DateTimePicker) {
+                            var $element = $("#" + proxy._id + proxy._getFieldValue(columns[colIndex]["field"]));
+                            $element.data("ejWidgets") && $element[$element.data("ejWidgets")[0]]("destroy");
+                        }
                     }
                 }
                 else {
-                    proxy._updateLastInsertedId(currentItem[model.idMapping]);                    
+                    args.rowElement = form.add(frozenForm).closest("tr");
+                    if (isValueModified || !proxy._isRemoteData) {
+                        if ((isValueModified && editMode == "batchediting") || (editMode != "batchediting" && !proxy._trigger("endEdit", args))) {
+                            isLocalDataUpdate = proxy._updateAction(args);
+                            if (model.idMapping && model.parentIdMapping)
+                                proxy._updateLastInsertedId(args.currentValue[model.idMapping]);
+                        }
+                    }
                 }
-            }
+            }              
+
+            if (isLocalDataUpdate)
+                proxy._refreshAfterSaveRow(args, true);
+        },
+
+        _refreshAfterSaveRow: function (args, isValueModified) {
+            var proxy = this, model = proxy.model,
+                columns = model.columns,
+                currentItem = proxy.getUpdatedRecords()[args.rowIndex],
+                index = model.currentViewData.indexOf(currentItem);
 
             /* delete the row if new added row is not have any values */
-            if (proxy._checkIsEmptyRow(currentItem.item) && isAddRow) {
+            if (proxy._isEmptyRow && args.requestType == "addNewRow") {
                 var deleteValueUpdated = false;
-                proxy._isEmptyRow = true;
                 if (!model.editSettings.allowDeleting) {
                     deleteValueUpdated = true;
                     model.editSettings.allowDeleting = true;
                 }
-				// Only checked records delete by toolbar action, hence passing it as contextMenu deletion
-                if (proxy._checkboxSelection)
-                    proxy.deleteRow(null, true, null);
-                else
-                    proxy.deleteRow();
+                proxy.deleteRow(null, true, null);
                 proxy._isEmptyRow = false;
                 proxy._isEmptyRowDeleted = true;
                 if (deleteValueUpdated) {
@@ -12201,7 +13101,7 @@
             } else {
                 // Save the edited row           
                 ej.TreeGrid.refreshRow(proxy, index);
-                if (isAddRow && currentItem.parentItem && currentItem.parentItem.childRecords.length == 1) {
+                if (args.requestType == "addNewRow" && currentItem.parentItem && currentItem.parentItem.childRecords.length == 1) {
                     ej.TreeGrid.refreshRow(proxy, model.currentViewData.indexOf(currentItem.parentItem));
                 }
                 if (model.showSummaryRow) {
@@ -12215,18 +13115,17 @@
                     args.editType = "rowedit";
                     proxy._updateTotalSummaryRow(args);
                 }
-                if (isDialogEdit) {
+                if (isValueModified && model.editSettings.editMode == "dialogEditing") {
                     //Client side event is triggerd for upadte the server side database
                     var eventArgs = {};
-                    eventArgs.data = model.currentViewData[index];
-                    eventArgs.item = model.currentViewData[index].item;
+                    eventArgs.data = currentItem
+                    eventArgs.item = currentItem.item;
                     eventArgs.requestType = "recordUpdate";
                     proxy._trigger("actionComplete", eventArgs);
                     if (model.idMapping && model.parentIdMapping) {
                         proxy._updateLastInsertedId(eventArgs.item[model.idMapping]);
                     }
                 }
-
             }
             proxy._isRowEdit = false;
             if (model.currentViewData.length > 0 && model.enableAltRow && !model.enableVirtualization)
@@ -12239,10 +13138,10 @@
             if (model.allowFiltering && colObject.length)
                 proxy._resizeFilteringElements();
             if (proxy._commandColumnLength > 0) {
-                var tr = ej.TreeGrid.getRowByIndex(proxy, proxy.getUpdatedRecords().indexOf(model.currentViewData[index]))
+                var tr = ej.TreeGrid.getRowByIndex(proxy, proxy.getUpdatedRecords().indexOf(currentItem));
                 proxy._refreshUnboundTemplate(tr);
                 if (args.requestType == "addNewRow" && model.editSettings.rowPosition == ej.TreeGrid.RowPosition.Child) {
-                    var parentTr = ej.TreeGrid.getRowByIndex(proxy, proxy.getUpdatedRecords().indexOf(model.currentViewData[index].parentItem));
+                    var parentTr = ej.TreeGrid.getRowByIndex(proxy, proxy.getUpdatedRecords().indexOf(currentItem.parentItem));
                     proxy._refreshUnboundTemplate(parentTr);
                 }
             }
@@ -12270,6 +13169,130 @@
                 $("#" + proxy._id + "e-gridcontent").css("height", height)
                 proxy.getScrollElement().ejScroller("refresh");
             }
+        },
+
+        _updateAction: function (args) {
+            var proxy = this, model = proxy.model,
+                pkey = model.idMapping,
+                index = (args.requestType == "dragAndDrop") ? args.draggedRowIndex : args.rowIndex,
+                record = proxy.getUpdatedRecords()[index], isBatchAction = false,
+                item, promise, bulkChanges = { added: [], changed: [], deleted: [] };
+
+            if (proxy._isRemoteData) {
+                var selectionType = model.selectionSettings.selectionType,
+                    batchUrl = proxy._dataManager.dataSource.batchUrl;
+                if(!ej.isNullOrUndefined(batchUrl) || selectionType == "multiple" || selectionType == "checkbox")
+                    isBatchAction = true;
+            }                
+
+            if (args.requestType == "addNewRow") {
+                if (proxy._isRemoteData){
+                    if(isBatchAction)
+                        bulkChanges.added.push(args.addedRow);
+                    else
+                        promise = proxy._dataManager.insert(args.addedRow, proxy.model.query);
+                }
+            }
+            else if (args.requestType == "update") {
+                if (proxy._isRemoteData){
+                    if(isBatchAction)
+                        bulkChanges.changed.push(args.currentValue);
+                    else
+                        promise = this._dataManager.update(pkey, args.currentValue, proxy.model.query);
+                }                    
+                else {
+                    ej.copyObject(record, args.currentValue);
+                    ej.copyObject(record.item, args.currentValue);
+                }
+            }
+            else if (args.requestType == "dragAndDrop") {
+                if (proxy._isRemoteData){
+                    if (isBatchAction) {
+                        var records = args.draggedRecords;
+                        for (var i = 0; i < records.length; i++) {                            
+                            bulkChanges.changed.push(records[i].item);
+                        }
+                    }
+                    else
+                        promise = this._dataManager.update(pkey, record.item, proxy.model.query);
+                }                    
+            }
+            else if (args.requestType == "saveCellValue") {
+                var item = args.data.item;
+                if (proxy._isRemoteData && $.isPlainObject(item)) {
+                    if(isBatchAction)
+                        bulkChanges.changed.push(item);
+                    else
+                        promise = proxy._dataManager.update(pkey, item, proxy.model.query);
+                }
+            }
+            else if (args.requestType == ej.TreeGrid.Actions.Delete) {
+                if (proxy._isRemoteData) {
+                    if (isBatchAction)
+                        bulkChanges.deleted.push(proxy._getParentChildItem(args.deletedItems));
+                    else {
+                        var item = args.data.item;
+                        promise = proxy._dataManager.remove(pkey, item[pkey], this.model.query);
+                    }
+                }
+            }
+            if (isBatchAction) {
+                promise = proxy._dataManager.saveChanges(bulkChanges, pkey, this.model.query._fromTable, this.model.query);
+            }
+
+            if (promise && $.isFunction(promise.promise) && !proxy._dataManager.dataSource.offline) {
+                proxy._waitingPopupObj.show();
+                promise.done(function (e) {
+                    if (args.requestType == ej.TreeGrid.Actions.Delete) {
+                        proxy._updateDeleteAction(args);
+                        proxy._cancelSaveTools();
+                    }
+                    else if (args.requestType == "addNewRow" || args.requestType == "update") {
+                        // Replace record if data getting from server-side
+                        var item = (args.requestType == "addNewRow") ? args.addedRow : args.currentValue;
+                        if (!ej.isNullOrUndefined(e) && !ej.isNullOrUndefined(e.record) && $.isPlainObject(e.record))
+                            ej.copyObject(item, e.record);
+                        ej.copyObject(record, item);
+                        ej.copyObject(record.item, item);
+                        proxy._refreshAfterSaveRow(args, true);
+                    }
+                    else if (args.requestType == "saveCellValue")
+                        proxy._refreshAfterSaveCell(args, true);
+                    proxy._waitingPopupObj.hide();
+                });
+                promise.fail(function (e) {
+                    args.error = (e && e.error) ? e.error : e;
+                    if (args.requestType == "update")
+                        proxy._refreshAfterSaveRow(args, true);
+                    else if (args.requestType == "addNewRow") {
+                        var recordIndex = proxy.getUpdatedRecords().indexOf(record);
+                        proxy._isEmptyRow = true;
+                        proxy.deleteRow(null, true, recordIndex);
+                        proxy._isEmptyRow = false;
+                    }
+                    else if (args.requestType == "saveCellValue") {
+                        args.data[args.columnName] = args.previousValue;
+                        args.data.item[args.columnObject.field] = args.previousValue;
+                        proxy.selectRows(proxy.selectedRowIndex());
+                        ej.TreeGrid.refreshRow(proxy, model.currentViewData.indexOf(args.data));
+                    }                    
+                    proxy._waitingPopupObj.hide();
+                    proxy._trigger("actionFailure", args);
+                });
+            }
+            return !proxy._isRemoteData;
+        },
+        _getParentChildItem: function (records, items) {
+            var proxy = this, length = records.length,
+                items = ej.isNullOrUndefined(items) ? [] : items;
+            for (var i = 0; i < length; i++) {
+                var data = records[i];
+                if (data.hasChildRecords)
+                    proxy._getParentChildItem(data.childRecords, items);
+                else
+                    items.push(data.item);
+            }
+            return items;
         },
         _excludeDetailRows : function()
         {
@@ -12320,12 +13343,12 @@
             }
 
             else if (e.which === 13 && $(e.target).hasClass("e-searchinput") && $(e.target).closest("#" + proxy._id + "_toolbarItems")) { //13 is key code for Enter Key 
-                this._toolbarOperation(this._id + "_search", e.currentTarget.value);
+                this._toolbarOperation(this._id + "_search", e.currentTarget);
                 e.preventDefault();
                 return false;//prevent post back
             }
             else if (e.type == "click" && $(e.target).hasClass("e-searchitem")) {
-                this._toolbarOperation(this._id + "_search", $(e.currentTarget).prev()[0].firstChild.value);
+                this._toolbarOperation(this._id + "_search", $(e.currentTarget).prev()[0].firstChild);
                 e.preventDefault();
                 return false;
             }
@@ -12391,16 +13414,17 @@
                 this._dragColumnTooltipTimer = null;
             }
             proxy._cellIndex = proxy.getCellIndex(e);
-            this.getHeaderTable().find(".e-cancel").addClass("e-hide");
+            if (!$target.hasClass("e-filtertext") && !$target.hasClass("e-cancel"))
+                proxy.getHeaderTable().find(".e-cancel").addClass("e-hide");
             if (model.selectionSettings.selectionMode == "cell" && model.editSettings.editMode != "dialogEditing") {
                 model.editSettings.editMode = "cellEditing";
             }
             rowIndex = proxy.getRowIndex(e);
             if ((model.editSettings.beginEditAction == "click" || $target.hasClass('e-treegridexpand')
-                || $target.hasClass("e-treegridcollapse")) && $target.closest('.e-scrollbar').length == 0 ) {
-                                if(model.editSettings.editMode.toLowerCase() == "cellediting")
-                                    proxy._cellEditingDetails.rowIndex = rowIndex;
-                                expandRecord = model.currentViewData && model.currentViewData[rowIndex];
+                || $target.hasClass("e-treegridcollapse")) && $target.closest('.e-scrollbar').length == 0 && $target.closest('.e-toolbaricons').length == 0 && $target.closest('.e-treegridtoolbaritem').length == 0) {
+                if (model.editSettings.editMode.toLowerCase() == "cellediting" || (model.editSettings.editMode.toLowerCase() == "batchediting") && model.editSettings.batchEditSettings.editMode.toLowerCase() == "cell")
+                    proxy._cellEditingDetails.rowIndex = rowIndex;
+                expandRecord = model.currentViewData && model.currentViewData[rowIndex];
             }
             if (proxy.model.allowSelection && proxy.model.selectionSettings.selectionType == "multiple" && !proxy.model.isFromGantt && !($target.hasClass("e-downtail"))) {
                 if ($target.hasClass("e-rowselect")) {
@@ -12416,6 +13440,14 @@
                 }
             }
             proxy._saveCellHandler(e);
+            if ($target.hasClass('e-summarytreegridexpand') || $target.hasClass('e-summarytreegridcollapse')) {
+                args.expanded = $target.hasClass('e-summarytreegridexpand') ? false : true;
+                proxy._isInManualExpandCollapse = true;
+                proxy.expandCollapseTotalSummary(args.expanded);
+                proxy._isInManualExpandCollapse = false;
+                proxy._addRemoveAnimateClass($target);               
+                return;
+            }
             if ($target.hasClass("e-summaryrowcell") || $target.hasClass("e-footersummaryrowcell")
                 || $target.hasClass("e-summarytitle"))
                 return;
@@ -12507,13 +13539,13 @@
 
                         if (proxy._checkboxSelection && ($("#" + proxy._id + "EditForm").length == 0 || model.editSettings.beginEditAction == "click") && proxy.editFormValidate()) {
                             var record = proxy.model.currentViewData[currentRowIndex],
-                        recordIndex = updatedRecords.indexOf(record), isCheckbox = false;
+                                recordIndex = updatedRecords.indexOf(record), isCheckbox = false;
                             if ($target.hasClass("e-checkbox"))
                                 isCheckbox = true;
-                            if (currentRowIndex != -1 && !proxy._rowSelectingEventTrigger(this.selectedRowIndex(), currentRowIndex, isCheckbox)) {
+                            if (recordIndex != -1 && !proxy._rowSelectingEventTrigger(this.selectedRowIndex(), recordIndex, isCheckbox, e.type)) {
                                 proxy.selectRows(recordIndex, null, isCheckbox);
                                 proxy._cancelSaveTools();
-                                proxy._rowSelectedEventTrigger(recordIndex, null, isCheckbox);
+                                proxy._rowSelectedEventTrigger(recordIndex, null, isCheckbox, e.type);
                             }
                         }
                 if (model.selectionSettings.selectionType == ej.TreeGrid.SelectionType.Multiple) {
@@ -12525,7 +13557,7 @@
                                 record = model.currentViewData[currentRowIndex];
                                 currentRowIndex = updatedRecords.indexOf(record);
                         proxy._multiSelectShiftRequest = true;
-                        if (!proxy._rowSelectingEventTrigger(this.selectedRowIndex(), currentRowIndex)) {
+                        if (!proxy._rowSelectingEventTrigger(this.selectedRowIndex(), currentRowIndex , false , e.type)) {
                                     if (proxy.getRows() && proxy._prevSelectedItem != null) {
                                         if (proxy.getExpandStatus(proxy._prevSelectedItem))
                                             proxy.selectRows(updatedRecords.indexOf(proxy._prevSelectedItem), currentRowIndex);
@@ -12540,7 +13572,7 @@
                                 proxy._rowSelectedEventTrigger(currentRowIndex, !ej.isNullOrUndefined(proxy._prevSelectedItem) ? model.updatedRecords.indexOf(proxy._prevSelectedItem) : 0);
                             }
                             else {
-                                proxy._rowSelectedEventTrigger(currentRowIndex);
+                                proxy._rowSelectedEventTrigger(currentRowIndex, null, false, e.type);
                             }
                         }
                     }
@@ -12554,10 +13586,10 @@
                         record = model.currentViewData[rowIndex];
                         currentRowIndex = updatedRecords.indexOf(record);
                        
-                        if (model.allowSelection &&!proxy._rowSelectingEventTrigger(this.selectedRowIndex(), currentRowIndex)){
-                            proxy.selectRows(currentRowIndex);                        
+                        if (model.allowSelection && !proxy._rowSelectingEventTrigger(this.selectedRowIndex(), currentRowIndex, false, e.type)) {
+                            proxy.selectRows(currentRowIndex);
                             proxy._cancelSaveTools();
-                            proxy._rowSelectedEventTrigger(currentRowIndex);  
+                            proxy._rowSelectedEventTrigger(currentRowIndex, null, false, e.type);
                         }                      
                     }
                 }
@@ -12708,10 +13740,14 @@
                 proxy._editdblClickHandler(e);
             proxy._isEmptyRowDeleted = false;
         },
+        //Check TreeGrid is in filtered state or not
+        _isInFilteredState: function () {
+            return ((this.model.allowFiltering && this.model.filterSettings.filteredColumns.length > 0) || this._searchString.length > 0);
+        },
 		// Method to check/uncheck all the records
         selectAllRows: function (checkAll) {
             var proxy = this, model = proxy.model, index = -1,
-                data = (proxy._flatFilteredRecords.length > 0) ? proxy._flatFilteredRecords : model.flatRecords,
+                data = proxy._isInFilteredState() ? proxy._flatFilteredRecords : model.flatRecords,
                 updatedRecords = proxy.getUpdatedRecords(),
                 length = 0;
             if (!model.selectionSettings.enableSelectAll && !proxy._isFromSetmodel)
@@ -12721,7 +13757,7 @@
                 data = proxy._spliceSummaryRows(data);
             if (!ej.isNullOrUndefined(checkAll)) {                
                 if (!checkAll)
-                    data = proxy._flatFilteredRecords.length > 0 ? proxy._flatFilteredRecords : $.extend([], model.selectedItems);
+                    data = proxy._isInFilteredState() ? proxy._flatFilteredRecords : $.extend([], model.selectedItems);
 
                 for (var i = 0; i < data.length; i++) {
                     if (checkAll) {
@@ -12745,7 +13781,7 @@
                 }                
                 proxy._cancelSaveTools();
             }
-            if (proxy._flatFilteredRecords.length > 0 && model.selectedItems.length > 0) {
+            if (proxy._isInFilteredState() && proxy._flatFilteredRecords.length > 0 && model.selectedItems.length > 0) {
                 var selectedFilteredRecords = proxy._flatFilteredRecords.filter(function (data) {
                     return data.checkboxState == "checked";
                 });
@@ -12753,7 +13789,7 @@
             }
             else
                 length = model.selectedItems.length;
-            if (length > 0) {
+            if (length > 0 && data.length > 0) {
                 if (length != data.length) {
                     $('#' + this._id + "_headerCheckbox").removeClass("e-checkmark").addClass("e-stop");
                     $('#' + this._id + "_headerCheckbox").parent("span").removeAttr("class").addClass("e-chk-indeter");
@@ -13056,8 +14092,9 @@
                 detailsCellElement.removeClass("e-detailscellwrapper").addClass("e-detailscellwrapperfly");
                 model.cssClass && detailsCellElement.addClass(model.cssClass);
                 var scrollerLeft = proxy.getScrollElement().ejScroller("isHScroll") ? proxy.getScrollElement().ejScroller("option", "scrollLeft") : 0;
-                if (scrollerLeft > proxy.getMaxScrollWidth())
-                    scrollerLeft = proxy.getMaxScrollWidth();
+                var maxScrollWidth = proxy.getMaxScrollWidth();
+                if (maxScrollWidth > 0 && scrollerLeft > maxScrollWidth)
+                    scrollerLeft = maxScrollWidth;
                 var frozenTableWidth = 0;
                 if (this._frozenColumnsLength > 0) {
                     frozenTableWidth = $(this.element).find("#e-frozencontentdiv" + this._id).width();
@@ -13160,6 +14197,11 @@
 
             if ($target.hasClass("e-column-filter-icon") || $target.hasClass("e-column-filtered-icon"))
             {
+                if (proxy._batchEditStarts) {
+                    proxy._batchSaveLostWarning("Filtering");
+                    proxy._batchTempDetails.filterTarget = e;                    
+                    return false;
+                }
                 columnFieldName = $target.closest(".e-headercell").find(".e-headercelldiv").attr("data-ej-mappingname");
                 column = proxy.getColumnByField(columnFieldName);
                 proxy._checkFilterType(column);
@@ -13170,13 +14212,19 @@
                         $target.data("isClicked", true);
                     }
                     else {
-                        var dlgWidth = 266, xPos = $target.position().left + 18, yPos = $target.position().top + 2, gridwidth = $("#" + proxy._id).width(),
-                            rightPosWidth = (proxy.element.offset().left + proxy.element.width()) - $target.offset().left, rightWidth = dlgWidth - rightPosWidth,
-                            leftPosWidth = $target.offset().left - proxy.element.offset().left, leftWidth = dlgWidth - leftPosWidth,
-                            colType = column.filterEditType ? column.filterEditType : column.editType;
+                        var targetWidth = $target[0].offsetWidth,
+                            targetHeight = $target[0].offsetHeight,
+                            position = proxy.getOffsetRect($target[0]);
+
+                        position.top = position.top + targetHeight;
+                        position.left = position.left + targetWidth;
+
+                        var containerOffset = proxy.getOffsetRect(proxy.element[0]),
+                        rightPosWidth = containerOffset.left + proxy.element.width(),
+                        xPos = position.left, yPos = position.top,
+                        colType = column.filterEditType ? column.filterEditType : column.editType;
                         colType = colType.toLowerCase();
-                        if ($target.offset().left + 18 + dlgWidth > gridwidth && rightWidth > leftWidth)
-                            xPos = xPos - dlgWidth - 3;
+
                         switch (colType) {
                             case "numericedit":
                                 colType = "number";
@@ -13220,6 +14268,10 @@
                                 if (!record.isSummaryRow)
                                     records.push(record.item);
                             });
+                            var dlgWidth = $("#" + proxy._id + colType + "_excelDlg").width();
+                            if (rightPosWidth < xPos + dlgWidth)
+                                xPos = xPos - dlgWidth - targetWidth;
+
                             proxy._excelFilter.openXFDialog({ field: column.field, enableResponsiveRow: true, displayName: column.headerText, dataSource: records, query: null, position: { X: xPos, Y: yPos }, dimension: { height: $(window).height(), width: $(window).width() }, cssClass: "resFilter", type: colType, format: column.format, localizedStrings: localXFLabel });
                             $(".e-filtericon").data("isClicked", false);
                             $target.data("isClicked", true);
@@ -14040,7 +15092,7 @@
             if ($target.hasClass("e-hhandle") || $target.hasClass("e-hscrollbar") || $target.hasClass("e-hup") || $target.hasClass("e-hdown") || $target.hasClass("e-hhandlespace") || $target.hasClass("e-hscroll"))
                 return;
           //  e.stopPropagation();
-            if ($target.closest(".e-gridcontent").length > 0 || $target.hasClass(".e-gridcontent")) {
+            if ($target.closest(".e-gridcontent").length > 0 || $target.hasClass(".e-gridcontent") || $target.hasClass('e-summarytreegridexpand') || $target.hasClass('e-summarytreegridcollapse')) {
                 if (proxy._isRowEdit) {
                     if ($target.closest("form#" + proxy._id + "EditForm").length == 0 && $target.closest("form#" + proxy._id + "EditFrozenForm").length == 0 &&  $("#" + proxy._id + "EditForm").length > 0)
                         proxy.saveRow();
@@ -14164,9 +15216,10 @@
 
                    
                     if (model.selectionSettings.selectionMode == "row") {
-                        if (model.allowSelection &&!(proxy._rowSelectingEventTrigger(this.selectedRowIndex(), recordIndexr))){
+                        if (model.allowSelection && !(proxy._rowSelectingEventTrigger(this.selectedRowIndex(), recordIndexr, false, e.type))) {
                             proxy.selectRows(recordIndexr);
-                            proxy._rowSelectedEventTrigger(recordIndexr);}
+                            proxy._rowSelectedEventTrigger(recordIndexr, null, false, e.type);
+                        }
                     }
                     if (model.selectionSettings.selectionMode == "cell") {
                         var selectCellIndex = proxy.getCellIndex(e);
@@ -14251,7 +15304,7 @@
                 row = $target.closest('tr'),
                 record,
                 cellEditingDetails = proxy._cellEditingDetails;
-            if (model.readOnly == true || $target.hasClass("e-unboundcelldiv") || $target.hasClass("e-unboundcell") || $target.closest('td').hasClass("e-unboundcell") || e.ctrlKey) {
+            if ((model.isFromGantt && model.readOnly == true) || $target.hasClass("e-unboundcelldiv") || $target.hasClass("e-unboundcell") || $target.closest('td').hasClass("e-unboundcell") || e.ctrlKey) {
                 return true;
             }
             
@@ -14288,7 +15341,7 @@
 
                 if ($form.length === 0 && proxy.getRows() !== null) {
 
-                    if (model.editSettings.editMode.toLowerCase() == "cellediting") {
+                    if (model.editSettings.editMode.toLowerCase() == "cellediting" || (model.editSettings.editMode.toLowerCase() == "batchediting" && model.editSettings.batchEditSettings.editMode.toLowerCase() == "cell")) {
                         proxy._focusTreeGridElement();
                         proxy._cellEditingDetails.columnIndex = proxy.getCellIndex(e);
                         if (model.editSettings.beginEditAction != "click")
@@ -14302,12 +15355,10 @@
                         var fieldName = proxy._cellEditingDetails.columnIndex >= 0 && model.columns[proxy._cellEditingDetails.columnIndex].field;
                         if (fieldName) {
                             proxy.updateScrollBar();
-                            model.editSettings.allowEditing &&
-                                model.editSettings.editMode.toLowerCase() == ej.TreeGrid.EditMode.CellEditing.toLowerCase() &&
-                                proxy.cellEdit(proxy._cellEditingDetails.rowIndex, fieldName);
+                            model.editSettings.allowEditing && proxy.cellEdit(proxy._cellEditingDetails.rowIndex, fieldName);
                         }
                     }
-                    else if (model.editSettings.editMode.toLowerCase() == "rowediting" || model.editSettings.editMode.toLowerCase() == "dialogediting") {
+                    else if (model.editSettings.editMode.toLowerCase() == "rowediting" || model.editSettings.editMode.toLowerCase() == "dialogediting" || (model.editSettings.editMode.toLowerCase() == "batchediting" && (model.editSettings.batchEditSettings.editMode.toLowerCase() == "row" || model.editSettings.batchEditSettings.editMode.toLowerCase() == "dialog"))) {
                         model.currentViewData = proxy.getCurrentViewData();
                         if (proxy.getCellIndex(e) != -1 && proxy.getRowIndex(e) != -1) {
                             proxy._cellEditingDetails.columnIndex = proxy.getCellIndex(e);
@@ -14316,7 +15367,7 @@
                                 var selectedItem = model.selectionSettings.selectionMode == "row" ? model.selectedItem : model.updatedRecords[proxy._rowIndexOfLastSelectedCell];
                                 rowIndex = updatedRecords.indexOf(selectedItem);
                             }
-                            if ((proxy.model.editSettings.editMode.toLowerCase() == "dialogediting")) {
+                            if ((proxy.model.editSettings.editMode.toLowerCase() == "dialogediting" || (proxy.model.editSettings.editMode.toLowerCase() == "batchediting" && model.editSettings.batchEditSettings.editMode.toLowerCase() == "dialog"))) {
                                 proxy._showTreeGridAddEditDialog(rowIndex);
                             } else {
                                 proxy.updateScrollBar();
@@ -14565,7 +15616,7 @@
             }
         },
         /*Select row on shift pluse down arrow key*/
-        _selectedItemDown:function(){
+        _selectedItemDown: function (action) {
             var proxy = this,
             model = this.model,
             fromIndex, toIndex, index,
@@ -14589,12 +15640,12 @@
             proxy.updateScrollBar(toIndex);
             proxy._multiSelectShiftRequest = true;
             proxy.selectRows(fromIndex, toIndex);
-            proxy._rowSelectedEventTrigger(fromIndex, toIndex);
+            proxy._rowSelectedEventTrigger(fromIndex, toIndex, false, action);
             proxy._multiSelectShiftRequest = false;
             proxy._shiftSelectedRecord = model.updatedRecords[toIndex];
         },
         /*Select row on shift pluse up arrow key*/
-        _selectedItemUp: function () {
+        _selectedItemUp: function (action) {
             var proxy = this,
             model = this.model, shiftUpIndex, nextRowIndex,
             fromIndex, toIndex, index,
@@ -14618,7 +15669,7 @@
             proxy.updateScrollBar(toIndex);
             proxy._multiSelectShiftRequest = true;
             proxy.selectRows(fromIndex, toIndex);
-            proxy._rowSelectedEventTrigger(fromIndex, toIndex);
+            proxy._rowSelectedEventTrigger(fromIndex, toIndex, false, action);
             proxy._multiSelectShiftRequest = false;
             proxy._shiftSelectedRecord = model.updatedRecords[toIndex];
         },
@@ -14852,13 +15903,13 @@
                     if (contextMenu.length == 0 && columnMenu.length == 0 && headerContextMenu.length==0) {
                         if ($form.length > 0) {
                             var editMode = model.editSettings.editMode;
-                            if (editMode.toLowerCase() == "cellediting") {
+                            if (editMode.toLowerCase() == "cellediting" || (editMode.toLowerCase() == "batchediting" && model.editSettings.batchEditSettings.editMode == "cell")) {
                                 if (proxy._isRowEdit)
                                     proxy.cancelRowEditCell();
                                 else
                                     proxy.cancelEditCell();
                             }
-                            else if (editMode.toLowerCase() == "rowediting") {
+                            else if (editMode.toLowerCase() == "rowediting" || (editMode.toLowerCase() == "batchediting" && model.editSettings.batchEditSettings.editMode == "row")) {
                                 proxy.cancelRowEditCell();
                             }
                             proxy._cancelSaveTools();
@@ -14891,14 +15942,15 @@
                     }
                     break;
                 case "editRecord":
+                    if (model.isFromGantt && model.readOnly == true) return;
                     if (contextMenu.length == 0 && columnMenu.length == 0) {
                         if (model.selectionSettings.selectionMode == "cell" && model.editSettings.editMode != "dialogEditing") {
                             model.editSettings.editMode = "cellEditing";
                         }
                         var editSettings = model.editSettings,
                             editMode = editSettings.editMode;
-                        if (model.readOnly == false && ((editSettings.allowEditing && model.selectedItems.length == 1) || (editSettings.allowEditing && model.selectionSettings.selectionMode == "cell") ||
-                            (editSettings.allowEditing && model.selectedItem && proxy._checkboxSelection))) {
+                        if ((editSettings.allowEditing && model.selectedItems.length == 1) || (editSettings.allowEditing && model.selectionSettings.selectionMode == "cell") ||
+                            (editSettings.allowEditing && model.selectedItem && proxy._checkboxSelection)) {
                             if (editMode.toLowerCase() == "cellediting" || model.selectionSettings.selectionMode == "cell") {
                                 var column = proxy.model.columns[proxy._cellIndex];
                                 if (ej.isNullOrUndefined(column) || !column.visible || column.allowEditing == false)
@@ -14945,17 +15997,23 @@
                                 var record = proxy._getNextRecord(topRowIndex +1, updatedRecords, action);
                                 topRowIndex = updatedRecords.indexOf(record);
                             }
-                            if (!proxy._rowSelectingEventTrigger(this.selectedRowIndex(), topRowIndex)) {
+                            if (!proxy._rowSelectingEventTrigger(this.selectedRowIndex(), topRowIndex, false, action)) {
                                 proxy.selectRows(topRowIndex);
-                               proxy._focusTreeGridElement();
+                                proxy._focusTreeGridElement();
                                 proxy.updateScrollBar();
-                                proxy._rowSelectedEventTrigger(topRowIndex);
+                                proxy._rowSelectedEventTrigger(topRowIndex, null, false, action);
                             }
                         }
                     }
                     break;
                     //Move to next page
                 case "nextPage":
+                    if (proxy._currentPage() < model.pageSettings.totalPages && proxy.model.pageSettings.pageSizeMode == ej.TreeGrid.PageSizeMode.Root
+                        && proxy._batchEditStarts && !(proxy._confirmDialog).is(":visible")) {
+                        proxy._batchSaveLostWarning("Paging");
+                        proxy._batchTempDetails.currentPage = proxy._currentPage() + 1;
+                        return true;
+                    }
                     if (model.allowPaging) {
                         var currentPage = proxy._currentPage();
                        proxy._focusTreeGridElement();
@@ -14965,6 +16023,12 @@
                     break;
                     //Move to previous page
                 case "prevPage":
+                    if (proxy._currentPage() !=1 && proxy.model.pageSettings.pageSizeMode == ej.TreeGrid.PageSizeMode.Root
+                        && proxy._batchEditStarts && !(proxy._confirmDialog).is(":visible")) {
+                        proxy._batchSaveLostWarning("Paging");
+                        proxy._batchTempDetails.currentPage = proxy._currentPage() - 1;
+                        return true;
+                    }
                     if (model.allowPaging) {
                         var currentPage = proxy._currentPage();
                        proxy._focusTreeGridElement();
@@ -14984,11 +16048,11 @@
                                 var record = proxy._getNextRecord(bottomRowIndex - 1, updatedRecords, action);
                                 bottomRowIndex = updatedRecords.indexOf(record);
                             }
-                            if (!proxy._rowSelectingEventTrigger(this.selectedRowIndex(), bottomRowIndex)) {
+                            if (!proxy._rowSelectingEventTrigger(this.selectedRowIndex(), bottomRowIndex, false, action)) {
                                 proxy.selectRows(bottomRowIndex);
-                               proxy._focusTreeGridElement();
+                                proxy._focusTreeGridElement();
                                 proxy.updateScrollBar();
-                                proxy._rowSelectedEventTrigger(bottomRowIndex);
+                                proxy._rowSelectedEventTrigger(bottomRowIndex, null, false, action);
                             }
                         }
 
@@ -15005,12 +16069,12 @@
                             if (model.selectionSettings.selectionMode == "row") {
                                 if (model.allowPaging)
                                     proxy.gotoPage(1);
-                                if (model.allowSelection && !(proxy._rowSelectingEventTrigger(this.selectedRowIndex(), 0))){
+                                if (model.allowSelection && !(proxy._rowSelectingEventTrigger(this.selectedRowIndex(), 0, false, action))) {
                                     proxy.selectRows(0);
                                     proxy.updateScrollBar();
                                     proxy._focusTreeGridElement();
-
-                                    proxy._rowSelectedEventTrigger(0);}
+                                    proxy._rowSelectedEventTrigger(0, null, false, action);
+                                }
                             }
                                 //Select first cell of a row.
                             else if (model.selectionSettings.selectionMode == "cell") {
@@ -15044,11 +16108,12 @@
                             }
                             selectingRowIndex = updatedRecords.indexOf(currentSelectingRecord);
                             if (model.selectionSettings.selectionMode == "row") {
-                                if (model.allowSelection && !(proxy._rowSelectingEventTrigger(this.selectedRowIndex(), selectingRowIndex))){
+                                if (model.allowSelection && !(proxy._rowSelectingEventTrigger(this.selectedRowIndex(), selectingRowIndex, false, action))) {
                                     proxy.selectRows(selectingRowIndex);
                                     proxy._focusTreeGridElement();
                                     proxy.updateScrollBar();
-                                    proxy._rowSelectedEventTrigger(selectingRowIndex);}
+                                    proxy._rowSelectedEventTrigger(selectingRowIndex, null, false, action);
+                                }
                             }
                                 //Select last cell of a row.
                             else if (model.selectionSettings.selectionMode == "cell") {
@@ -15109,7 +16174,7 @@
                                 var nextElement =cellIndex!=-1 && proxy._getNextElement($target, cellIndex);
                             if (nextElement.length)
                                 proxy._focusElementsForRowEdit(nextElement);
-                        } else if (model.editSettings.allowEditing && (model.editSettings.editMode == "cellEditing" || model.selectionSettings.selectionMode == "cell")
+                        } else if (model.editSettings.allowEditing && (model.editSettings.editMode == "cellEditing" || model.editSettings.editMode == "batchEditing" || model.selectionSettings.selectionMode == "cell")
                             && $target && $form.length > 0 && this.editFormValidate()) {
                             $target.blur();
                             returnValue = proxy._moveCurrentCell("right");
@@ -15150,11 +16215,12 @@
                                                                   
                                         selectingRowIndex = updatedRecords.indexOf(currentSelectingRecord);
                                         if (currentSelectingRecord && selectingRowIndex <= lastRowIndex) {
-                                            if (model.allowSelection && !(proxy._rowSelectingEventTrigger(this.selectedRowIndex(), selectingRowIndex))){
+                                            if (model.allowSelection && !(proxy._rowSelectingEventTrigger(this.selectedRowIndex(), selectingRowIndex, false, action))) {
                                                 proxy.selectRows(selectingRowIndex);
                                                 proxy.updateScrollBar();
                                                 proxy._focusTreeGridElement();
-                                                proxy._rowSelectedEventTrigger(proxy.selectedRowIndex());}
+                                                proxy._rowSelectedEventTrigger(proxy.selectedRowIndex(), null, false, action);
+                                            }
                                         }
                                 }
                             proxy._cancelSaveTools();
@@ -15379,11 +16445,11 @@
                                     currentSelectingRecord = proxy._getNextRecord(selectingRowIndex - 1, expandedRecords, action);
                                 selectingRowIndex = updatedRecords.indexOf(currentSelectingRecord);
 
-                                if (selectingRowIndex !=-1  && !proxy._rowSelectingEventTrigger(this.selectedRowIndex(), selectingRowIndex)) {
+                                if (selectingRowIndex != -1 && !proxy._rowSelectingEventTrigger(this.selectedRowIndex(), selectingRowIndex, false, action)) {
                                     proxy.selectRows(selectingRowIndex);
                                     proxy.updateScrollBar();
                                     proxy._focusTreeGridElement();
-                                    proxy._rowSelectedEventTrigger(proxy.selectedRowIndex());
+                                    proxy._rowSelectedEventTrigger(proxy.selectedRowIndex(), null, false, action);
                                 }
                             proxy._cancelSaveTools();
                         }
@@ -15454,7 +16520,8 @@
 					}
                     break;
                 case "deleteRecord":
-                    if (model.readOnly == false && model.editSettings.allowDeleting && contextMenu.length == 0 && columnMenu.length == 0) {
+                    if (model.isFromGantt && model.readOnly == true) return;
+                    if (model.editSettings.allowDeleting && contextMenu.length == 0 && columnMenu.length == 0) {
                         if (proxy._isRowEdit || proxy.model.isEdit) return true;
                         if (proxy.selectedRowIndex() >= 0) {
                             proxy.deleteRow();
@@ -15496,10 +16563,10 @@
                     }
                 }
                 if (proxy._checkboxSelection && $target.hasClass('e-treegrid') && $("#" + proxy._id + "EditForm").length == 0) {
-                    if (!proxy._rowSelectingEventTrigger(this.selectedRowIndex(), this.selectedRowIndex(), true)) {
+                    if (!proxy._rowSelectingEventTrigger(this.selectedRowIndex(), this.selectedRowIndex(), true, action)) {
                         proxy.selectRows(this.selectedRowIndex(), null, true);
                         proxy._cancelSaveTools();
-                        proxy._rowSelectedEventTrigger(this.selectedRowIndex(), null, true);
+                        proxy._rowSelectedEventTrigger(this.selectedRowIndex(), null, true, action);
                     }
                 }
                 break;
@@ -15543,7 +16610,7 @@
                             }
                         }
                         else {
-                            proxy._selectedItemDown();
+                            proxy._selectedItemDown(action);
                         }
                     }
                     break;
@@ -15581,7 +16648,7 @@
                             }
                         }
                         else
-                            proxy._selectedItemUp();
+                            proxy._selectedItemUp(action);
                     }
                     break;
 
@@ -15716,7 +16783,7 @@
                 cellIndex = this._frozenColumnsLength;
             }
             if ($target.length != 0) {
-                if ((!ej.isNullOrUndefined(columns[cellIndex]) && ej.isNullOrUndefined(columns[cellIndex].allowEditing)) || columns[cellIndex].allowEditing)
+                if (!ej.isNullOrUndefined(columns[cellIndex]) && ej.isNullOrUndefined(columns[cellIndex].allowEditing))
                     return $target;
                 else {
                     if (cellIndex + 1 < columns.length)
@@ -15763,6 +16830,13 @@
                 filteredColumns = model.filterSettings.filteredColumns;
             if (!this.model.allowFiltering)
                 return;
+            if (proxy._batchEditStarts && !(proxy._confirmDialog).is(":visible")) {
+                proxy._batchSaveLostWarning("Filtering");
+                var details = proxy._batchTempDetails;
+                details["fieldName"] = fieldName, details["filterOperator"] = filterOperator, details["filterValue"] = filterValue,
+                details["predicate"] = predicate, details["matchcase"] = matchcase, details["actualFilterValue"] = actualFilterValue;                
+                return false;
+            }
             var args = {};
             args.requestType = ej.TreeGrid.Actions.Filter;
             args.currentFilterObject = [];           
@@ -15900,7 +16974,7 @@
                         proxy._filteredColumnValueID.push(filterObject.field);
                 }
                 else if (filterType == "filterbar") {
-                    var filterBarCell = proxy.getHeaderTable().find("#" + proxy._id + "_" + filterObject.field + "_filterbarcell");
+                    var filterBarCell = proxy.getHeaderTable().find("#" + proxy._id + "_" + filterObject.field.split('.').join("") + "_filterbarcell");
                     if (column.filterEditType == "numericedit")
                         $(filterBarCell).ejNumericTextbox({ value: filterObject.value });
                     else if (column.filterEditType == "datepicker")
@@ -15956,7 +17030,7 @@
         },
 
         //ROWSELECTING EVENT METHOD
-        _rowSelectingEventTrigger: function (previousIndex, currentIndex, isCheckboxUpdate) {
+        _rowSelectingEventTrigger: function (previousIndex, currentIndex, isCheckboxUpdate, actionType) {
 
             var proxy = this,
                 model = proxy.model,
@@ -15972,6 +17046,7 @@
                 args.previousData = updatedRecords[previousIndex];
                 args.recordIndex = currentIndex;
                 args.previousIndex = previousIndex;
+                args.actionType = !ej.isNullOrUndefined(actionType) ? actionType : null;
                 if (proxy.model.isFromGantt) {
                     args.target = "ejTreeGrid";
                 } else {
@@ -15985,7 +17060,7 @@
 
 
         //ROWSELECTED EVENT METHOD
-        _rowSelectedEventTrigger: function (index, toIndex, isCheckboxUpdate) {
+        _rowSelectedEventTrigger: function (index, toIndex, isCheckboxUpdate, actionType) {
 
             var proxy = this, model = proxy.model,
                 args = {}, updatedRecords = proxy.getUpdatedRecords();
@@ -15999,6 +17074,7 @@
                 targetRow: ej.TreeGrid.getRowByIndex(proxy, index),
                 recordIndex: index
             };
+            args.actionType = !ej.isNullOrUndefined(actionType) ? actionType : null;
             if (!isCheckboxUpdate)
                 isCheckboxUpdate = false;
             if (!ej.isNullOrUndefined(toIndex)) args.toIndex = toIndex;
@@ -16153,7 +17229,7 @@
             }
             if (model.isFromGantt)
                 ganttObject.model.sortSettings = model.sortSettings;
-            if (!proxy._moveRow) proxy._trigger("actionComplete", args);
+            if ((!proxy._moveRow && model.editSettings.editMode.toLowerCase() != "batchediting") || args.requestType === ej.TreeGrid.Actions.Refresh) proxy._trigger("actionComplete", args);
         },
 
 
@@ -16290,13 +17366,15 @@
             } else {
                 if (proxy._frozenColumnsLength > 0) {
                     var $emptyTd = ej.buildTag('td', model.emptyRecordText, {}, { colSpan: this._frozenColumns.length }), doc = document;
-                    proxy.getContent().find("#e-frozencontentdiv" + proxy._id + " .e-table tbody").empty().append($(doc.createElement("tr")).append($emptyTd));
+                    proxy.getContent().find("#e-frozencontentdiv" + proxy._id + " .e-table tbody").empty().append($(doc.createElement("tr")).addClass("e-emptyText").height(30).append($emptyTd));
                     $emptyTd = ej.buildTag('td', model.emptyRecordText, { visibility: "hidden" }, { colSpan: this._unFrozenColumns.length });
-                    proxy.getContent().find("#e-movablecontentdiv" + proxy._id + " .e-table tbody").empty().append($(doc.createElement("tr")).append($emptyTd));
-                    proxy._$gridContainer.find("#e-movablecontentdiv" + proxy._id + ",#e-frozencontentdiv" + proxy._id).css("height", "30px");
+                    proxy.getContent().find("#e-movablecontentdiv" + proxy._id + " .e-table tbody").empty().append($(doc.createElement("tr")).addClass("e-emptyText").height(30).append($emptyTd));
+                    if (model.updatedRecords.length == 0)
+                        proxy._$gridContainer.find("#e-movablecontentdiv" + proxy._id + ",#e-frozencontentdiv" + proxy._id).css("height", "30px");
                 } else {
                     proxy.getContentTable().find('tbody').empty().append(proxy._getEmptyTbody());
-                    proxy._$gridContainer && proxy._$gridContainer.css({ height: "30px" }); // for render no record text
+                    if (model.updatedRecords.length == 0)
+                        proxy._$gridContainer && proxy._$gridContainer.css({ height: "30px" }); // for render no record text
                 }
                 proxy._gridRows = null;
                 proxy.setGridRows(null);
@@ -16510,21 +17588,14 @@
         //DELETE THE PARTICULAR RECORD AND MULTIPLE RECORD
         deleteRow: function ($tr, isFromContextmenu, index) {
 
-            var proxy = this,
-                deletedRowIndex,
-                deletedRow,
-                args = {},
-                eveArgs = {},
-                model = proxy.model,
-                selectedItems = $.extend([],model.selectedItems),
-                length = isFromContextmenu ? 1 : selectedItems.length,
-                updatedRecords = proxy.getUpdatedRecords();
-            
-            if (proxy._isEmptyRow && model.selectionSettings.selectionMode == "cell")
-                length = 1;
-            if (!model.editSettings.allowDeleting || length == 0)
+            var proxy = this, model = proxy.model,
+                editMode = model.editSettings.editMode.toLowerCase(),
+                updatedRecords = proxy.getUpdatedRecords(),
+                deletedRows = [];
+
+            if (!model.editSettings.allowDeleting)
                 return false;
-            if (model.editSettings.showDeleteConfirmDialog && !(proxy._confirmDialog).is(":visible")) {
+            if (model.editSettings.showDeleteConfirmDialog && !(proxy._confirmDialog).is(":visible") && editMode != "batchediting") {
                 if (!proxy._isEmptyRow) {
                     proxy._isFromContextmenu = isFromContextmenu;
                     proxy._deleteRowIndex = index;
@@ -16532,19 +17603,140 @@
                     return;
                 }
             }
-            for (var del = 0; del < length; del++) {
-                if (model.isFromGantt && isFromContextmenu)
+            var args = {};
+            args.requestType = ej.TreeGrid.Actions.Delete;
+            args.isFromContextmenu = isFromContextmenu;
+
+            if (isFromContextmenu) {
+                if (model.isFromGantt)
                     args.data = updatedRecords[index];
-                else if (!model.allowSelection && isFromContextmenu && (!ej.isNullOrUndefined(index) && index > -1))
+                else if (!model.allowSelection && (!ej.isNullOrUndefined(index) && index > -1))
                     args.data = updatedRecords[index];
-                else if (proxy._checkboxSelection && isFromContextmenu) {
-                    args.data = model.selectionSettings.selectionMode == "row" ? model.selectedItem : updatedRecords[proxy._rowIndexOfLastSelectedCell];
-                }
                 else
-                    args.data = model.selectionSettings.selectionMode == "row" ? selectedItems[del] : proxy._rowIndexOfLastSelectedCell > -1 ? updatedRecords[proxy._rowIndexOfLastSelectedCell] : updatedRecords[proxy._emptyRowIndex];
-                deletedRow = args.data;
-                var rindex = model.flatRecords.indexOf(deletedRow);
-                if (proxy.model.enableWBS) {
+                    args.data = model.selectionSettings.selectionMode == "row" ? model.selectedItem :
+                                    proxy._rowIndexOfLastSelectedCell > -1 ? updatedRecords[proxy._rowIndexOfLastSelectedCell] :
+                                        updatedRecords[proxy._emptyRowIndex];
+
+                deletedRows.push(args.data);
+                // Delete empty row when save new record
+                if (proxy._isEmptyRow) {
+                    args.deletedItems = deletedRows;
+                    proxy._updateDeleteAction(args);
+                    return true;
+                }
+            }
+            else {
+                var deletedRows = $.extend([], model.selectedItems);
+                args.data = model.selectedItem;
+            }
+            if (!deletedRows.length) deletedRows.push(args.data);
+            args.deletedItems = deletedRows;
+            if (editMode == "batchediting") {
+                if (proxy._batchSaveCancel == "save") {
+                    args.data = {};
+                    args.deletedItems = proxy.batchChanges.deleted;
+                }
+                else if (proxy._batchSaveCancel == "cancel") {
+                    args.data = {};
+                    args.deletedItems = proxy.batchChanges.added;
+                }
+                else {
+                    for (var d = 0; d < deletedRows.length; d++) {
+                        proxy._batchDeleteAction(deletedRows[d]);
+                        proxy._updateBatchDeletedRecords(deletedRows[d]);
+                    }
+                    proxy.clearSelection();
+                    proxy._batchEditStarts = true;
+                    proxy._cancelSaveTools();
+                    return true;
+                }                
+            }
+            if (proxy._trigger("actionBegin", args)) return true;
+            else {
+                if (proxy._updateAction(args)) {
+                    proxy._updateDeleteAction(args);
+                }
+            }
+        },
+        _batchDeleteAction: function (data) {
+            var proxy = this,
+                model = proxy.model,
+                updatedRecords = model.allowPaging ? proxy._updatedPageData : model.updatedRecords,
+                index = updatedRecords.indexOf(data);
+            data.isBatchDelete = true,
+            proxy.refreshRow(index);
+            if (data.hasChildRecords) {
+                var childs = data.childRecords;
+                for (var c = 0; c < childs.length; c++)
+                    this._batchDeleteAction(childs[c]);
+            }
+        },
+        //To update deleted collection of batch edit
+        _updateBatchDeletedRecords: function (deletedRecord) {
+            var proxy = this,
+                batchChangedGrp = proxy.batchChanges.changed,
+                batchAddedGrp = proxy.batchChanges.added;
+            if (batchAddedGrp.length > 0 && batchAddedGrp.indexOf(deletedRecord) != -1) {
+                batchAddedGrp.splice(batchAddedGrp.indexOf(deletedRecord), 1);
+            }
+            else if (batchChangedGrp.length > 0 && batchChangedGrp.indexOf(deletedRecord) != -1) {
+                batchChangedGrp.splice(batchChangedGrp.indexOf(deletedRecord), 1);
+            }
+            if (proxy.batchChanges.deleted.indexOf(deletedRecord) == -1)
+                proxy.batchChanges.deleted.push(deletedRecord);
+        },
+
+        _updateDeleteAction: function (args) {
+            var proxy = this, model = proxy.model,
+                cArgs = {}, editMode = model.editSettings.editMode.toLowerCase();
+
+            var length = args.deletedItems.length;
+            for (var del = 0; del < length; del++) {
+                args.data = args.deletedItems[del];
+                proxy._selectedCellDetails = [];
+                proxy._removeRecords(args);
+            }
+            if (editMode == "batchediting" && (proxy._batchSaveCancel == "save" || proxy._batchSaveCancel == "cancel")) return true;
+
+            proxy._ensureDataSource(args);
+            proxy.updateHeight();
+            if (model.currentViewData.length > 0 && model.enableAltRow)
+                ej.TreeGrid.updateAltRow(proxy, model.currentViewData[0], 0, 0);
+
+            if (proxy._checkboxSelection) {
+                model.selectedCellIndexes = [];
+                proxy._prevSelectedItem = null;
+                if (!args.isFromContextmenu)
+                    model.selectedItems = [];
+                model.selectedItem = null;
+                proxy.selectedRowIndex(-1);
+                proxy.selectAllRows();
+            }
+            else {
+                model.selectedItems = [];
+                model.selectedCellIndexes = [];
+                model.selectedItem = null;
+                proxy.selectedRowIndex(-1);
+                proxy._prevSelectedItem = null;
+                if (proxy._multiSelectPopup && proxy._multiSelectPopup.is(":visible") && !proxy.model.isFromGantt)
+                    proxy._clearMultiSelectPopup();
+            }
+            if (proxy._isLoadonDemand && model.allowPaging)
+                proxy._refreshDataSource();
+        },
+
+		//Delete selected records
+        _removeRecords: function(args){
+            var proxy = this,
+                model = proxy.model,
+                editMode = model.editSettings.editMode.toLowerCase(),
+                isUnassignedTaskUpdate = false,
+                dataSource =this.dataSource();
+            if (args && (model.editSettings.allowDeleting || args.isDragAndDropDelete) && args.requestType === ej.TreeGrid.Actions.Delete) {
+                var deletedRow = args.data,
+                    recordIndex, rowindex;
+
+                if (model.isFromGantt && proxy.model.enableWBS) {
                     var dataRows, targetRowIndex, isUpdateWBS = false;
                     if (deletedRow && deletedRow.parentItem) {
                         dataRows = deletedRow.parentItem.childRecords,
@@ -16559,76 +17751,6 @@
                     }
                     if (targetRowIndex != dataRows.length - 1)
                         isUpdateWBS = true;
-                }
-                if (model.flatRecords.indexOf(args.data) != -1) {
-                    args.requestType = ej.TreeGrid.Actions.Delete;
-                    args.isFromContextmenu = isFromContextmenu;
-                    proxy._selectedCellDetails = [];
-                    if (proxy._removeRecords(args))
-                        return true;
-                    if (!isFromContextmenu && selectedItems.length > 0)
-                        args.deletedItems = selectedItems;
-                    else {
-                        args.deletedItems = [];
-                        args.deletedItems.push(args.data);
-                    }
-            }
-                if (isUpdateWBS) {
-                    var targetRow;
-                    if (deletedRow.parentItem)
-                        targetRow = dataRows[targetRowIndex];//Here we are having the updated 'dataRows'
-                    else {
-                        //for level 0 records
-                        dataRows.splice(targetRowIndex, 1);
-                        targetRow = dataRows[targetRowIndex];
-            }
-                    proxy.updateWBSdetails(targetRow);
-                }
-                if (model.isFromGantt) {
-                    proxy.updateSerialNumber(rindex);
-                    model.enableSerialNumber && proxy.updateSerialNumberPredecessors(rindex);
-                }
-            }
-
-            proxy._ensureDataSource(args);
-            proxy.updateHeight();
-            if (model.currentViewData.length > 0 && model.enableAltRow)
-                ej.TreeGrid.updateAltRow(proxy, model.currentViewData[0], 0, 0);
-
-            if (proxy._checkboxSelection) {                
-                model.selectedCellIndexes = [];
-                proxy._prevSelectedItem = null;
-                if (!isFromContextmenu)
-                    model.selectedItems = [];
-                model.selectedItem = null;
-                proxy.selectedRowIndex(-1);
-                proxy.selectAllRows();
-            }
-            else {
-                model.selectedItems = [];
-                model.selectedCellIndexes = [];
-                model.selectedItem = null;
-				proxy.selectedRowIndex(-1);
-                proxy._prevSelectedItem = null;
-				if (this._multiSelectPopup && this._multiSelectPopup.is(":visible") && !proxy.model.isFromGantt)
-				proxy._clearMultiSelectPopup();
-            }
-            if (proxy._isLoadonDemand && model.allowPaging)
-                proxy._refreshDataSource();
-        },
-
-		//Delete selected records
-        _removeRecords: function(args){
-            var proxy = this,
-                model = proxy.model,
-                isUnassignedTaskUpdate = false,
-                dataSource =this.dataSource();
-            if (args && (model.editSettings.allowDeleting || args.isDragAndDropDelete) && args.requestType === ej.TreeGrid.Actions.Delete) {
-                var deletedRow = args.data,
-                    recordIndex, rowindex;
-
-                if (!args.isDragAndDropDelete && proxy._trigger("actionBegin", args)) {
-                    return true;
                 }
 
                 recordIndex = model.flatRecords.indexOf(deletedRow);
@@ -16649,6 +17771,19 @@
                         childIndex = childRecords.indexOf(deletedRow);
 
                         deletedRow.parentItem.childRecords.splice(childIndex, 1);
+                        //Update hierarchyRowIndex for level 1 and above records
+                        args.updatedHierarchyRowIndexData = [];
+                        for (var e = childIndex; e < childRecords.length; e++) {
+                            childRecords[e].hierarchyRowIndex = e;
+                            if (model.hierarchyRowIndexMapping)
+                                childRecords[e].item[model.hierarchyRowIndexMapping] = e;
+                            if (!deletedRow.isBatchAdd) {
+                                if (editMode != "batchediting")
+                                    args.updatedHierarchyRowIndexData.push(childRecords[e]);
+                                else
+                                    proxy.batchChanges.updatedHierarchyRowIndexData.indexOf(childRecords[e]) == -1 && proxy.batchChanges.updatedHierarchyRowIndexData.push(childRecords[e]);
+                            }
+                        }
                         //Delete the summary row of one parent after deleted the all child records of the parent
                         if (model.showSummaryRow) {
                             var summaryRowLength = model.summaryRows.length;
@@ -16677,6 +17812,20 @@
                 if (parentIndex!== -1)
                 {
                     model.parentRecords.splice(parentIndex, 1);
+                    //Update hierarchyRowIndex for level 0 records
+                    var parentRecords = model.parentRecords;
+                    args.updatedHierarchyRowIndexData = [];
+                    for (var e = parentIndex; e < parentRecords.length; e++) {
+                        parentRecords[e].hierarchyRowIndex = e;
+                        if (model.hierarchyRowIndexMapping)
+                            parentRecords[e].item[model.hierarchyRowIndexMapping] = e;
+                        if (!deletedRow.isBatchAdd) {
+                            if (editMode != "batchediting")
+                                args.updatedHierarchyRowIndexData.push(parentRecords[e]);
+                            else
+                                proxy.batchChanges.updatedHierarchyRowIndexData.indexOf(parentRecords[e]) == -1 && proxy.batchChanges.updatedHierarchyRowIndexData.push(parentRecords[e]);
+                        }
+                    }
                 }
                 
                 if (recordIndex !== -1) {
@@ -16758,6 +17907,22 @@
                     proxy._updateSummaryRow(args);
                 if (model.showTotalSummary)
                     proxy._updateTotalSummaryRow(args);
+
+                if (isUpdateWBS) {
+                    var targetRow;
+                    if (deletedRow.parentItem)
+                        targetRow = dataRows[targetRowIndex];//Here we are having the updated 'dataRows'
+                    else {
+                        //for level 0 records
+                        dataRows.splice(targetRowIndex, 1);
+                        targetRow = dataRows[targetRowIndex];
+                    }
+                    proxy.updateWBSdetails(targetRow);
+                }
+                if (model.isFromGantt) {
+                    proxy.updateSerialNumber(recordIndex);
+                    model.enableSerialNumber && proxy.updateSerialNumberPredecessors(recordIndex);
+                }
             }
         },
         /* To update serial number predecessor for target records */
@@ -16974,13 +18139,13 @@
         //SEND SAVE REQUEST
         endEdit: function () {
 
-            var proxy = this;
+            var proxy = this, model = proxy.model;
 
             if (proxy.model.editSettings.editMode.toLowerCase() == "cellediting" && !proxy._isRowEdit) {
                 if (!this.editFormValidate())
                     return true;
                 return proxy.saveCell();
-            } else if (proxy.model.editSettings.editMode.toLowerCase() == "dialogediting") {
+            } else if (proxy.model.editSettings.editMode.toLowerCase() == "dialogediting" || (model.editSettings.editMode.toLowerCase() == "batchediting" && model.editSettings.batchEditSettings.editMode == "dialog")) {
                 return proxy.saveRow();
             }
 
@@ -17327,11 +18492,17 @@
             }
             if (totWidth < (this._gridWidth - frozenColumnWidth) && model.columns[columnLength - 1].visible) {
                 $headerTable.addClass('e-tableLastCell');
-                $contentTable.addClass('e-tableLastCell');
+                if (model.currentViewData.length > 0) {
+                    $contentTable.addClass('e-tableLastCell');
+                }
+                else
+                    $contentTable.removeClass('e-tableLastCell');
+                $contentTable.addClass('e-fixed-border');
              //   $totalSummaryTable && $totalSummaryTable.addClass('e-tableLastCell');
             } else {
                 $headerTable.removeClass('e-tableLastCell');
                 $contentTable.removeClass('e-tableLastCell');
+                $contentTable.removeClass('e-fixed-border');
               //  $totalSummaryTable && $totalSummaryTable.removeClass('e-tableLastCell');
             }
         },
@@ -17404,7 +18575,7 @@
                     validationRules: ej.isNullOrUndefined(column.validationRules) ? {} : $.extend(true, {},
                         column.validationRules),
                     columnName: column.field,
-                    value: !ej.isNullOrUndefined(cellValue) ? cellValue : data.item && data.item[fieldName],
+                    value: !ej.isNullOrUndefined(cellValue) ? cellValue : ej.isNullOrUndefined(data.item[fieldName]) ? null : data.item[fieldName],
                     data: data,
                     columnObject: column,
                     cell: $targetTd
@@ -17415,7 +18586,7 @@
                     args.value = args.value ? proxy._convertHtml(args.value) : args.value;
                 }
                 else {
-                    args.value = !ej.isNullOrUndefined(cellValue) ? cellValue : data.item && data.item[fieldName];
+                    args.value = !ej.isNullOrUndefined(cellValue) ? cellValue : ej.isNullOrUndefined(data.item[fieldName]) ? null : data.item[fieldName];
                 }
             if (model.isFromGantt && args.columnName === "predecessor") {
 
@@ -17454,10 +18625,7 @@
                 }
                 args.columnIndex = columnIndex;
                 proxy._renderCellEditObject(args, $targetTd);
-                if (!$targetTr.hasClass("e-templaterow")) {
-                    $targetTr.addClass("e-editedrow");
-                }
-
+                $targetTr.addClass("e-editedrow");
                 args.cell && args.cell.addClass("e-editedcell");
                 proxy._updateHorizontalScrollBar(fieldName);
                 proxy._updateWrapRowHeights("total,header", null, proxy._cellEditingDetails.rowIndex, "cellEdit");
@@ -17601,9 +18769,10 @@
         saveCell: function () {
 
             var proxy = this,
-                model = proxy.model;
+                model = proxy.model,
+                $form = $("#" + proxy._id + "EditForm");
 
-            if ($("#" + proxy._id + "EditForm").length > 0) {
+            if ($form.length > 0) {
 
                 if (!proxy.editFormValidate()) return true;
                 if (proxy._isRowEdit)
@@ -17611,20 +18780,20 @@
                 if (proxy._cellEditingDetails.columnIndex >= 0) {
                     proxy._focusTreeGridElement();
 
-                    var $form = $("#" + proxy._id + "EditForm"),
-                        recordIndex = model.allowPaging ? proxy._updatedPageData.indexOf(proxy._cellEditingDetails.data) : model.updatedRecords.indexOf(proxy._cellEditingDetails.data),
+                    var recordIndex = proxy.getUpdatedRecords().indexOf(proxy._cellEditingDetails.data),
                         $targetTr = ej.TreeGrid.getRowByIndex(this, recordIndex),
                         $targetTd = $form.closest("td"),
                         formattedValue, args = {},
                         column = model.columns[proxy._cellEditingDetails.columnIndex],
                         $element = $("#" + proxy._id + proxy._cellEditingDetails.fieldName.split('.').join("")),
-                        cellElement;
+                        cellElement, isLocalData = true;
 
                     args = {
                         columnName: column.field,
                         value: proxy.getCurrentEditCellData(),
                         data: proxy._cellEditingDetails.data,
                         previousValue: proxy._cellEditingDetails.cellValue,
+                        rowIndex: proxy._cellEditingDetails.rowIndex,
                         columnObject: column,
                         cellElement: $targetTd,
                         rowElement: $targetTr,
@@ -17658,16 +18827,10 @@
                         }
                         else args.cellElement.empty().html(args.value);
                     }
+                    var editType = proxy._cellEditingDetails.cellEditType,
+                        fieldName = proxy._cellEditingDetails["fieldName"],
+                        isValueModified = proxy._checkModfiedCellValue(args.previousValue, args.value, args.columnObject);
 
-                    var isValueModified = ((proxy._cellEditingDetails.cellEditType == "datepicker" ||
-                            proxy._cellEditingDetails.cellEditType == "datetimepicker") &&
-                        args.value instanceof Date && args.previousValue instanceof Date) ?
-                        (args.value.getTime() !== args.previousValue.getTime()) :
-                        (args.value !== args.previousValue);
-
-                    model.isEdit = false;
-
-                    var fieldName = proxy._cellEditingDetails["fieldName"];
 
                     //To avoid duplicate ID for TreeGrid on self reference while editing ID value
                     if (!model.isFromGantt && model.idMapping && model.parentIdMapping && fieldName == model.idMapping) {
@@ -17676,317 +18839,371 @@
                             isValueModified = false;
                         }
                     }
+                    if (model.isFromGantt)
+                        proxy._setGanttCellValue(args, fieldName, isValueModified);
 
-                    if (model.isFromGantt && fieldName === "taskMode") {
-                        isValueModified = (args.value !== args.previousValue) ? true : false;
-                    }
-                    //check start or end date value is changed on cell edit in Gantt
-                    if (model.isFromGantt && args.value && (fieldName === "startDate" || fieldName === "endDate")) {
-                        if (this.getFormatedDate(args.value) == this.getFormatedDate(args.data[fieldName])) {
-                            isValueModified = false;
+                    else if (isValueModified || !proxy._isRemoteData) {
+                        if (isValueModified && proxy.model.editSettings.editMode.toLowerCase() == "batchediting") {
+                            //Take backup of original field values
+                            !args.data.isBatchAdd && proxy._createBatchEditedFields(args.data, fieldName, args.value, args.columnObject);
+                            proxy._batchEditStarts = true;
                         }
-                    }
-
-                    if (model.isFromGantt && fieldName === "predecessor") {
-
-                        var eventArg = {}, stringResult, logicResult;
-                        args.value = $.trim(args.value);
-                        stringResult = proxy._validatePredecessorString(args.value);
-                        if (stringResult) {
-                            eventArg.predecessorString = args.value.split(',');
-                            eventArg.currentRecord = args.data;
-                            eventArg.requestType = "validatePredecessor";
-                            proxy._trigger("actionComplete", eventArg);
-                            logicResult = eventArg.result;
-                            if (!logicResult) {
-                                args.value = args.previousValue;
-                            }
-                        }
-                        else {
-                            args.value = args.previousValue;
-                        }
-                        var ganttPredecessor = [],
-                        prevPredecessors = [],
-                        modifiedPredecessors = [],
-                        count = 0,
-                        length, predecessor;
-                        args.previousValue = args.data.predecessor;
-                        prevPredecessors = args.previousValue;
-                        if (args.value.length > 0) {
-                            var ganttProxy = $("#" + this._id.replace("ejTreeGrid", "")).data("ejGantt");
-                            modifiedPredecessors = args.data._calculatePredecessor(args.value, model.durationUnitEditText, model.durationUnit, ganttProxy);                            
-                        }
-                        length = modifiedPredecessors.length;
-                        var index = 0,
-                            prevPrdecessorlength = args.previousValue && args.previousValue.length;
-                        for (index = 0; index < prevPrdecessorlength; index++) {
-                            predecessor = prevPredecessors[index];
-                            if (predecessor.from === args.data.taskId.toString()) {
-                                ganttPredecessor.push(predecessor);
-                            }
-                        }
-                        for (count = 0; count < length; count++) {
-                            ganttPredecessor.push(modifiedPredecessors[count]);
-                        }
-                        args.data[proxy._cellEditingDetails["fieldName"]] = ganttPredecessor;
-                        if (ganttProxy && !ganttProxy._isValidPredecessorString) {
-                            args.value = proxy._getPredecessorsValue(args.data);
-                            ganttProxy._isValidPredecessorString = true;
-                        }
-                        args.data.item[model.predecessorMapping] = args.value;
-                        args.data.predecessorsName = args.value;
-                        if (model.enableWBS && model.enableWBSPredecessor)
-                            proxy.updateWBSPredecessor(args.data);
-
-                    }
-                    else if (model.isFromGantt && fieldName === "serialNumberPredecessor") {
-
-                        var eventArg = {}, stringResult, logicResult, defaultPredecessor;
-                        args.value = $.trim(args.value);
-                        args.value = proxy._checkSerialPredecessor(args.value);
-                        stringResult = proxy._validatePredecessorString(args.value);
-                        if (stringResult) {
-                            eventArg.predecessorString = args.value.split(',');
-                            eventArg.currentRecord = args.data;
-                            eventArg.requestType = "validateSerialPredecessor";
-                            proxy._trigger("actionComplete", eventArg);
-                            logicResult = eventArg.result;
-                            if (!logicResult) {
-                                args.value = args.previousValue;
-                            }
-                        }
-                        else {
-                            args.value = args.previousValue;
-                        }
-                        defaultPredecessor = proxy._predecessorFromSerialPredecessor(args.value);
-                        var ganttPredecessor = [],
-                        prevDefaultPredecessors = [],
-                        modifiedPredecessors = [],
-                        count = 0,
-                        length, predecessor;                        
-                        prevDefaultPredecessors = args.data.predecessor;
-                        args.prevDefaultPredecessors = prevDefaultPredecessors;
-                        args.previousValue = args.data.serialNumberPredecessor;                        
-                        if (defaultPredecessor.length > 0) {
-                            var ganttProxy = $("#" + this._id.replace("ejTreeGrid", "")).data("ejGantt");
-                            modifiedPredecessors = args.data._calculatePredecessor(defaultPredecessor, model.durationUnitEditText, model.durationUnit, ganttProxy);
-                        }
-                        length = modifiedPredecessors.length;
-                        var index = 0,
-                            prevPrdecessorlength = prevDefaultPredecessors && prevDefaultPredecessors.length;
-                        for (index = 0; index < prevPrdecessorlength; index++) {
-                            predecessor = prevDefaultPredecessors[index];
-                            if (predecessor.from === args.data.taskId.toString()) {
-                                ganttPredecessor.push(predecessor);
-                            }
-                        }
-                        for (count = 0; count < length; count++) {
-                            ganttPredecessor.push(modifiedPredecessors[count]);
-                        }                        
-                        args.data.predecessor = ganttPredecessor;
-                        args.data.item[model.predecessorMapping] = defaultPredecessor;
-                        args.data.predecessorsName = defaultPredecessor;                        
-                        args.data.item["serialNumberPredecessor"] = args.value;
-                        args.data.serialNumberPredecessor = args.value;
-                        if (model.enableWBS && model.enableWBSPredecessor)
-                            proxy.updateWBSPredecessor(args.data);
-                    }
-                    else if (model.isFromGantt && fieldName === "duration") {
-                        //validate text from duration field
-                        var val = args.value,
-                        duration = args.data.duration,
-                        durationUnit = args.data.durationUnit;
-
-                        var values = val.match(/(\d*\.*\d+|[A-z]+)/g);
-                        if (values && values.length <= 2) {
-                            duration = parseFloat(values[0]);
-                            durationUnit = values[1] ? values[1].toLowerCase() : "";
-                            if (model.durationUnitEditText.minute.indexOf(durationUnit) != -1)
-                                durationUnit = ej.Gantt.DurationUnit.Minute;
-                            else if (model.durationUnitEditText.hour.indexOf(durationUnit) != -1)
-                                durationUnit = ej.Gantt.DurationUnit.Hour;
-                            else if (model.durationUnitEditText.day.indexOf(durationUnit) != -1)
-                                durationUnit = ej.Gantt.DurationUnit.Day;
-                            else
-                                durationUnit = model.durationUnit;
-                        }
-                        if (!isNaN(duration) && (parseFloat(args.data.duration.toFixed(2)) != duration || args.data.durationUnit.toLowerCase() !=durationUnit)) {
-                            args.data.item[model.durationMapping] = args.data.duration = duration;
-                            args.data.durationUnit = durationUnit;
-                        } else {
-                            args.data.item[model.durationMapping] = args.previousValue;
-                        }
-
-                    } else if (isValueModified) {
-                        if (model.isFromGantt) {
-
-                            switch (fieldName) {
-
-                                case "taskId":
-                                    args.data.item[model.idMapping] = args.value;
-                                    break;
-                                case "taskName":
-                                    args.data.item[model.taskNameMapping] = args.value;
-                                    break;
-                                case "startDate":
-                                    if (!args.value)
-                                        args.value = args.previousValue;
-                                    args.data.item[model.startDateMapping] = args.value;
-                                    break;
-                                case "endDate":
-                                    if (!args.value)
-                                        args.value = args.previousValue;
-                                    args.data.item[model.endDateMapping] = args.value;
-                                    break;
-                                case "resourceInfo":
-                                    args.data.item[model.resourceInfoMapping] = proxy._getResourceId(args.value);
-                                    break;
-                                    //case "duration":
-                                    //    args.data.item[model.durationMapping] = args.value;
-                                    //    break;
-                                case "status":
-                                    args.data.item[model.progressMapping] = args.value;
-                                    break;
-                                case "notesText":
-                                    args.data.item[model.notesMapping] = args.value;
-                                    args.data["notes"] = args.value;
-                                    args.data["notesText"] = args.value;
-                                    break;
-                                case "taskMode":
-                                    args.data.item[model.taskSchedulingModeMapping] = args.value;
-                                    args.data["isAutoSchedule"] = args.value == true ? false : true;
-                                    break;
-                                case "work":
-                                    if (model.workMapping)
-                                        args.data.item[model.workMapping] = args.value;
-                                    else
-                                        args.data.item[proxy._cellEditingDetails.fieldName] = args.value;
-                                    break;
-                                case "baselineStartDate":
-                                    args.data.item[model.baselineStartDateMapping] = args.value;
-                                    break;
-                                case "baselineEndDate":
-                                    args.data.item[model.baselineEndDateMapping] = args.value;
-                                    break;
-                                case "eResourceName":
-                                    if (args.data.eResourceTaskType == "groupTask")
-                                        args.data.item[model.groupNameMapping] = args.value;
-                                    else if (args.data.eResourceTaskType == "resourceTask")
-                                        args.data.item[model.resourceNameMapping] = args.value;
-                                    args.data.eResourceName = args.value;
-                                    break;
-                                default:
-                                    args.data.item[proxy._cellEditingDetails.fieldName] = args.value;
-                                    break;
-                            }
-
-                        } else {
-                            var splits = (proxy._cellEditingDetails.fieldName || "").split(".")
-                            if (splits <= 1)
-                                args.data.item[proxy._cellEditingDetails.fieldName] = args.value;
-                            else
-                                args.data.item = proxy._restoreCustomData(args.data.item, args.value);
-                        }
-                        var splits = (proxy._cellEditingDetails.fieldName || "").split(".")
-                        if (splits <= 1)
-                            args.data[proxy._cellEditingDetails.fieldName] = args.value;
+                        if (fieldName.indexOf(".") != -1)
+                            ej.createObject(fieldName, args.value, args.data[fieldName]);
                         else
-                            args.data = proxy._restoreCustomData(args.data, args.value);
-                        
-                    }
+                            args.data[fieldName] = args.value;
 
-                    if (model.isFromGantt && (args.columnName === "startDate" ||
-                        args.columnName === "endDate" ||
-                        args.columnName === "duration" ||
-                        (args.columnName === "taskMode" && isValueModified) ||
-                        args.columnName === "predecessor" ||
-                        args.columnName === "serialNumberPredecessor" ||
-                        args.columnName == "status") ||
-                        args.columnName == "baselineStartDate" ||
-                        args.columnName == "baselineEndDate") {
-
-                        args.isModified = true;
+                        args.data.item[fieldName] = args.data[fieldName]
+                        args.requestType = "saveCellValue";
+                        isLocalData = proxy._updateAction(args);
 
                     }
-                    if (this._frozenColumnsLength > 0) {
-                        if (!model.allowSelection)
-                            args.data.isSelected = false;
-                        if (proxy._cellEditingDetails.columnIndex < this._frozenColumnsLength)
-                            cellElement = $($.render[proxy._id + "_JSONFrozenTemplate"](args.data))[0].cells[proxy._cellEditingDetails.columnIndex];
-                        else
-                            cellElement = $($.render[proxy._id + "_Template"](args.data))[0].cells[(proxy._cellEditingDetails.columnIndex - this._frozenColumnsLength)];
-                    } else {
-                        if (!model.allowSelection)
-                            args.data.isSelected = false;
-                        cellElement = $($.render[proxy._id + "_Template"](args.data))[0].cells[proxy._cellEditingDetails.columnIndex];
-                    }
-                    args.cellElement.removeClass("e-editedcell").replaceWith(cellElement);
-                    args.cellElement = $(cellElement);
-                    /* refresh details Row */
-                    if (model.showDetailsRow && !model.showDetailsRowInfoColumn && model.detailsTemplate) {
-                        this._refreshDetailsRow(model.currentViewData.indexOf(args.data));
-                    }
-
-                    proxy._trigger("refresh");
-                    if (!args.data.treeMappingName)
-                        args.data.treeMappingName = [];
-                    args.data.treeMappingName.push(args.columnName);
-                    if (proxy._trigger("endEdit", args)) {
-                        args.data[args.columnName] = args.previousValue;
-                        args.data.item[args.columnObject.field] = args.previousValue;
-                        proxy.selectRows(this.selectedRowIndex());
-                        ej.TreeGrid.refreshRow(proxy, model.currentViewData.indexOf(args.data));
-                    }
-                    else {
-                        if (model.idMapping && model.parentIdMapping) {
-                            proxy._updateLastInsertedId(args.data[model.idMapping]);
-                        }
-                    }
-                   
-                    proxy._cellEventTrigger(args.cellElement[0], args.data, args.columnObject);
-                    $targetTr.removeClass("e-editedrow");
-
-                    if (model.showSummaryRow) {
-                        args.editType = "celledit";
-                        proxy._updateSummaryRow(args);
-                    }
-                    if (model.showTotalSummary) {
-                        args.editType = "celledit";
-                        proxy._updateTotalSummaryRow(args);
-                }
-                if (model.allowTextWrap) {
-                    if (proxy._$frozenTableContent.length > 0) {
-                        proxy._updateRowHeight(proxy._cellEditingDetails.rowIndex, "savecell");
-                        proxy._updateGridContentHeight();
-                        proxy.getScrollElement().ejScroller("refresh");
-                        var movableScrollTop = proxy.getScrollElement().ejScroller("model.scrollTop");
-                        proxy._getFrozenScrollElement().scrollTop(movableScrollTop);
-                        if (model.enableVirtualization) {
-                            proxy.updateHeight();
-                        }
-                    } else {
-                        proxy.getScrollElement().ejScroller("refresh");
-                    }
-                    if (model.allowPaging && !model.sizeSettings.height) {
-                        proxy.updateHeight();
-                    }
-                }
-                if (model.allowTextWrap && proxy._$frozenTableContent.length == 0) {
-                    var height = proxy._getViewPortHeight();
-                    proxy._$gridContainer.css({
-                        "height": height + "px",
-                    });
-                    $("#" + proxy._id + "e-gridcontent").css("height", height)
-                    if (model.sizeSettings.height == "auto")
-                        proxy.getScrollElement().ejScroller("refresh");
-                }
-                proxy._cancelSaveTools();
-                var colObject = args.columnObject;
-                if (model.allowFiltering && colObject && model.filterSettings.filterType == "filterbar" && colObject.filterEditType == "dropdownedit" && colObject.editType != "dropdownedit")
-                        proxy._resizeFilteringElements();
+                    if (isLocalData)
+                        proxy._refreshAfterSaveCell(args, true);
                 }
             }
-            return false;
+        },
+
+        _createBatchEditedFields: function (data, fieldItem, newValue, columnObject) {
+            var proxy = this, model = proxy.model, isDifferent;
+            if (!data.batchEditedFields) {
+                data.batchEditedFields = {};
+                data.batchEditedFields[fieldItem] = data[fieldItem] ? data[fieldItem] : "";
+            }
+            else if (data.batchEditedFields && ej.isNullOrUndefined(data.batchEditedFields[fieldItem]))
+                data.batchEditedFields[fieldItem] = data[fieldItem];
+            else if (data.batchEditedFields && !ej.isNullOrUndefined(data.batchEditedFields[fieldItem])) {
+                //To check whether edited value is same as Original value
+                isDifferent = proxy._checkModfiedCellValue(data.batchEditedFields[fieldItem], newValue, columnObject);
+                if (!isDifferent)
+                    delete data.batchEditedFields[fieldItem];
+            }
+            proxy._updateBatchChanges(data);
+        },
+
+        //Update batch changes collection
+        _updateBatchChanges: function (targetData) {
+            var proxy = this,
+                model = proxy.model,                
+                batchChangedGrp = proxy.batchChanges.changed,
+                batchAddedGrp = proxy.batchChanges.added;
+            //Insert into batchChanges collection
+            if (!$.isEmptyObject(targetData.batchEditedFields)) {
+                if (batchAddedGrp.indexOf(targetData) == -1 && batchChangedGrp.indexOf(targetData) == -1) {
+                    batchChangedGrp.push(targetData);
+                }
+            }
+            else {
+                if (batchChangedGrp.indexOf(targetData) != -1)
+                    batchChangedGrp.splice(batchChangedGrp.indexOf(targetData), 1);
+            }
+        },
+
+        _refreshAfterSaveCell: function (args, isValueModified) {
+            var proxy = this, model = proxy.model,
+                cellElement;
+
+            if (this._frozenColumnsLength > 0) {
+                if (!model.allowSelection)
+                    args.data.isSelected = false;
+                if (proxy._cellEditingDetails.columnIndex < this._frozenColumnsLength)
+                    cellElement = $($.render[proxy._id + "_JSONFrozenTemplate"](args.data))[0].cells[proxy._cellEditingDetails.columnIndex];
+                else
+                    cellElement = $($.render[proxy._id + "_Template"](args.data))[0].cells[(proxy._cellEditingDetails.columnIndex - this._frozenColumnsLength)];
+            } else {
+                if (!model.allowSelection)
+                    args.data.isSelected = false;
+                cellElement = $($.render[proxy._id + "_Template"](args.data))[0].cells[proxy._cellEditingDetails.columnIndex];
+            }
+            args.cellElement.removeClass("e-editedcell").replaceWith(cellElement);
+            args.cellElement = $(cellElement);
+
+            /* refresh details Row */
+            if (model.showDetailsRow && !model.showDetailsRowInfoColumn && model.detailsTemplate) {
+                this._refreshDetailsRow(model.currentViewData.indexOf(args.data));
+            }
+
+            proxy._trigger("refresh");
+            if (!args.data.treeMappingName)
+                args.data.treeMappingName = [];
+            args.data.treeMappingName.length == 0 && args.data.treeMappingName.push(args.columnName);
+            if ((isValueModified || args.isModified) && model.editSettings.editMode.toLowerCase() != "batchediting" && proxy._trigger("endEdit", args)) {
+                args.data[args.columnName] = args.previousValue;
+                args.data.item[args.columnObject.field] = args.previousValue;
+                proxy.selectRows(this.selectedRowIndex());
+                ej.TreeGrid.refreshRow(proxy, model.currentViewData.indexOf(args.data));
+            }
+            else {
+                if (model.idMapping && model.parentIdMapping) {
+                    proxy._updateLastInsertedId(args.data[model.idMapping]);
+                }
+            }
+            model.isEdit = false;
+            proxy._cellEventTrigger(args.cellElement[0], args.data, args.columnObject);
+            $(args.rowElement).removeClass("e-editedrow");
+
+            if (model.showSummaryRow) {
+                args.editType = "celledit";
+                proxy._updateSummaryRow(args);
+            }
+            if (model.showTotalSummary) {
+                args.editType = "celledit";
+                proxy._updateTotalSummaryRow(args);
+            }
+            if (model.allowTextWrap) {
+                if (proxy._$frozenTableContent.length > 0) {
+                    proxy._updateRowHeight(proxy._cellEditingDetails.rowIndex, "savecell");
+                    proxy._updateGridContentHeight();
+                    proxy.getScrollElement().ejScroller("refresh");
+                    var movableScrollTop = proxy.getScrollElement().ejScroller("model.scrollTop");
+                    proxy._getFrozenScrollElement().scrollTop(movableScrollTop);
+                    if (model.enableVirtualization) {
+                        proxy.updateHeight();
+                    }
+                } else {
+                    proxy.getScrollElement().ejScroller("refresh");
+                }
+                if (model.allowPaging && !model.sizeSettings.height) {
+                    proxy.updateHeight();
+                }
+            }
+            if (model.allowTextWrap && proxy._$frozenTableContent.length == 0) {
+                var height = proxy._getViewPortHeight();
+                proxy._$gridContainer.css({
+                    "height": height + "px",
+                });
+                $("#" + proxy._id + "e-gridcontent").css("height", height)
+                if (model.sizeSettings.height == "auto")
+                    proxy.getScrollElement().ejScroller("refresh");
+            }
+            proxy._cancelSaveTools();
+            var colObject = args.columnObject;
+            if (model.allowFiltering && colObject && model.filterSettings.filterType == "filterbar" && colObject.filterEditType == "dropdownedit" && colObject.editType != "dropdownedit")
+                proxy._resizeFilteringElements();
+        },
+
+        _setGanttCellValue: function (args, fieldName, isValueModified) {
+            var proxy = this, model = proxy.model;
+
+            if (fieldName === "taskMode") {
+                isValueModified = (args.value !== args.previousValue) ? true : false;
+            }
+
+            if (fieldName === "predecessor") {
+
+                var eventArg = {}, stringResult, logicResult;
+                args.value = $.trim(args.value);
+                stringResult = proxy._validatePredecessorString(args.value);
+                if (stringResult) {
+                    eventArg.predecessorString = args.value.split(',');
+                    eventArg.currentRecord = args.data;
+                    eventArg.requestType = "validatePredecessor";
+                    proxy._trigger("actionComplete", eventArg);
+                    logicResult = eventArg.result;
+                    if (!logicResult) {
+                        args.value = args.previousValue;
+                    }
+                }
+                else {
+                    args.value = args.previousValue;
+                }
+                var ganttPredecessor = [],
+                prevPredecessors = [],
+                modifiedPredecessors = [],
+                count = 0,
+                length, predecessor;
+                args.previousValue = args.data.predecessor;
+                prevPredecessors = args.previousValue;
+                if (args.value.length > 0) {
+                    var ganttProxy = $("#" + this._id.replace("ejTreeGrid", "")).data("ejGantt");
+                    modifiedPredecessors = args.data._calculatePredecessor(args.value, model.durationUnitEditText, model.durationUnit, ganttProxy);
+                }
+                length = modifiedPredecessors.length;
+                var index = 0,
+                    prevPrdecessorlength = args.previousValue && args.previousValue.length;
+                for (index = 0; index < prevPrdecessorlength; index++) {
+                    predecessor = prevPredecessors[index];
+                    if (predecessor.from === args.data.taskId.toString()) {
+                        ganttPredecessor.push(predecessor);
+                    }
+                }
+                for (count = 0; count < length; count++) {
+                    ganttPredecessor.push(modifiedPredecessors[count]);
+                }
+                args.data[proxy._cellEditingDetails["fieldName"]] = ganttPredecessor;
+                if (ganttProxy && !ganttProxy._isValidPredecessorString) {
+                    args.value = proxy._getPredecessorsValue(args.data);
+                    ganttProxy._isValidPredecessorString = true;
+                }
+                args.data.item[model.predecessorMapping] = args.value;
+                args.data.predecessorsName = args.value;
+                if (model.enableWBS && model.enableWBSPredecessor)
+                    proxy.updateWBSPredecessor(args.data);
+
+            }
+            else if (fieldName === "serialNumberPredecessor") {
+
+                var eventArg = {}, stringResult, logicResult, defaultPredecessor;
+                args.value = $.trim(args.value);
+                args.value = proxy._checkSerialPredecessor(args.value);
+                stringResult = proxy._validatePredecessorString(args.value);
+                if (stringResult) {
+                    eventArg.predecessorString = args.value.split(',');
+                    eventArg.currentRecord = args.data;
+                    eventArg.requestType = "validateSerialPredecessor";
+                    proxy._trigger("actionComplete", eventArg);
+                    logicResult = eventArg.result;
+                    if (!logicResult) {
+                        args.value = args.previousValue;
+                    }
+                }
+                else {
+                    args.value = args.previousValue;
+                }
+                defaultPredecessor = proxy._predecessorFromSerialPredecessor(args.value);
+                var ganttPredecessor = [],
+                prevDefaultPredecessors = [],
+                modifiedPredecessors = [],
+                count = 0,
+                length, predecessor;
+                prevDefaultPredecessors = args.data.predecessor;
+                args.prevDefaultPredecessors = prevDefaultPredecessors;
+                args.previousValue = args.data.serialNumberPredecessor;
+                if (defaultPredecessor.length > 0) {
+                    var ganttProxy = $("#" + this._id.replace("ejTreeGrid", "")).data("ejGantt");
+                    modifiedPredecessors = args.data._calculatePredecessor(defaultPredecessor, model.durationUnitEditText, model.durationUnit, ganttProxy);
+                }
+                length = modifiedPredecessors.length;
+                var index = 0,
+                    prevPrdecessorlength = prevDefaultPredecessors && prevDefaultPredecessors.length;
+                for (index = 0; index < prevPrdecessorlength; index++) {
+                    predecessor = prevDefaultPredecessors[index];
+                    if (predecessor.from === args.data.taskId.toString()) {
+                        ganttPredecessor.push(predecessor);
+                    }
+                }
+                for (count = 0; count < length; count++) {
+                    ganttPredecessor.push(modifiedPredecessors[count]);
+                }
+                args.data.predecessor = ganttPredecessor;
+                args.data.item[model.predecessorMapping] = defaultPredecessor;
+                args.data.predecessorsName = defaultPredecessor;
+                args.data.item["serialNumberPredecessor"] = args.value;
+                args.data.serialNumberPredecessor = args.value;
+                if (model.enableWBS && model.enableWBSPredecessor)
+                    proxy.updateWBSPredecessor(args.data);
+            }
+            else if (fieldName === "duration") {
+                //validate text from duration field
+                var val = args.value,
+                duration = args.data.duration,
+                durationUnit = args.data.durationUnit;
+
+                if (val == "") {
+                    duration = val;
+                    if (model.allowUnscheduledTask)
+                        duration = null;
+                    else
+                        isValueModified = false;                    
+                }
+                else {
+                    var values = val.match(/(\d*\.*\d+|[A-z]+)/g);
+                    if (values && values.length <= 2) {
+                        duration = parseFloat(values[0]);
+                        durationUnit = values[1] ? values[1].toLowerCase() : "";
+                        if (model.durationUnitEditText.minute.indexOf(durationUnit) != -1)
+                            durationUnit = ej.Gantt.DurationUnit.Minute;
+                        else if (model.durationUnitEditText.hour.indexOf(durationUnit) != -1)
+                            durationUnit = ej.Gantt.DurationUnit.Hour;
+                        else if (model.durationUnitEditText.day.indexOf(durationUnit) != -1)
+                            durationUnit = ej.Gantt.DurationUnit.Day;
+                        else
+                            durationUnit = model.durationUnit;
+                    }
+                }
+                if (!isNaN(duration) && (isValueModified || args.data.durationUnit.toLowerCase() != durationUnit)) {
+                    args.data.item[model.durationMapping] = args.data.duration = duration;
+                    args.data.durationUnit = durationUnit;
+                    isValueModified = true;
+                } else {
+                    args.data.item[model.durationMapping] = args.previousValue;
+                    isValueModified = false;
+                }
+
+            } else if (isValueModified) {
+
+                switch (fieldName) {
+
+                    case "taskId":
+                        args.data.item[model.idMapping] = args.value;
+                        break;
+                    case "taskName":
+                        args.data.item[model.taskNameMapping] = args.value;
+                        break;
+                    case "startDate":
+                    case "endDate":
+                        if (!model.allowUnscheduledTask && (!args.value || args.value == "")) {
+                            isValueModified = false;
+                            args.value = args.previousValue;
+                        }
+                        else if (fieldName == "startDate")
+                            args.data.item[model.startDateMapping] = args.value;
+                        else if (fieldName == "endDate")
+                            args.data.item[model.endDateMapping] = args.value;
+                        break;
+                    case "resourceInfo":
+                        args.data.item[model.resourceInfoMapping] = proxy._getResourceId(args.value);
+                        break;
+                    case "status":
+                        args.data.item[model.progressMapping] = args.value;
+                        break;
+                    case "notesText":
+                        args.data.item[model.notesMapping] = args.value;
+                        args.data["notes"] = args.value;
+                        args.data["notesText"] = args.value;
+                        break;
+                    case "taskMode":
+                        args.data.item[model.taskSchedulingModeMapping] = args.value;
+                        args.data["isAutoSchedule"] = args.value == true ? false : true;
+                        break;
+                    case "work":
+                        if (model.workMapping)
+                            args.data.item[model.workMapping] = args.value;
+                        else
+                            args.data.item[proxy._cellEditingDetails.fieldName] = args.value;
+                        break;
+                    case "baselineStartDate":
+                        args.data.item[model.baselineStartDateMapping] = args.value;
+                        break;
+                    case "baselineEndDate":
+                        args.data.item[model.baselineEndDateMapping] = args.value;
+                        break;
+                    case "eResourceName":
+                        if (args.data.eResourceTaskType == "groupTask")
+                            args.data.item[model.groupNameMapping] = args.value;
+                        else if (args.data.eResourceTaskType == "resourceTask")
+                            args.data.item[model.resourceNameMapping] = args.value;
+                        args.data.eResourceName = args.value;
+                        break;
+                    default:
+                        args.data.item[proxy._cellEditingDetails.fieldName] = args.value;
+                        break;
+                }
+                args.data[fieldName] = args.value;
+            }
+
+            if ((args.columnName === "startDate" ||
+                args.columnName === "endDate" ||
+                args.columnName === "duration" ||
+                args.columnName === "taskMode" ||
+                args.columnName === "predecessor" ||
+                args.columnName === "serialNumberPredecessor" ||
+                args.columnName == "status") ||
+                args.columnName == "baselineStartDate" ||
+                args.columnName == "baselineEndDate") {
+
+                args.isModified = isValueModified;
+            }
         },
 
         /*Check and update string case*/
@@ -17994,7 +19211,7 @@
             var newString = "", sNo, pArray = [], values;
             if (string.length > 0) {
                 string.split(',').forEach(function (pl) {
-                    values = pl.split('+');                    
+                    values = pl.split('+');
                     if (pl.indexOf('-') >= 0)
                         values = pl.split('-');
                     sNo = values[0].match(/(\d+|[A-z]+)/g);
@@ -18077,7 +19294,7 @@
                             cellValue = $element.ejDropDownList("model.value") == "true" ? true : false;
                         }
                         else
-                            cellValue = $element.ejDropDownList("model.value");
+                            cellValue = ($element.ejDropDownList("model.showCheckbox") == false && $element.ejDropDownList("model.multiSelectMode") == ej.MultiSelectMode.None) ? $element.ejDropDownList("model.itemValue") : $element.ejDropDownList("getSelectedValue");
                         break;
 
                     case ej.TreeGrid.EditingType.Boolean:
@@ -18099,8 +19316,7 @@
 
                         var dateTimePickerValue = $element.ejDateTimePicker("model.value"),
                             dateTimePickerFormat = $element.ejDateTimePicker("model.dateTimeFormat"),
-                            dateTimePickerLocale = $element.ejDateTimePicker("model.locale"),
-                            tempValue;
+                            dateTimePickerLocale = $element.ejDateTimePicker("model.locale");
 
                         if (column && !column.format) {
                             cellValue = ej.format($element.ejDateTimePicker("model.value"), this.model.dateFormat, this.model.locale)
@@ -18109,8 +19325,8 @@
                             cellValue = $element.ejDateTimePicker("model.value");
                         }
                         cellDate = ej.format($element.val(), dateTimePickerFormat, dateTimePickerLocale);
-                        tempValue = ej.format(dateTimePickerValue, dateTimePickerFormat, dateTimePickerLocale);
-                        if (cellDate !== tempValue && model.isFromGantt)
+                        var tempValue = ej.format(dateTimePickerValue, dateTimePickerFormat, dateTimePickerLocale);
+                        if (cellDate !== tempValue && model.isFromGantt && !model.allowUnscheduledTask)
                             cellValue = proxy._cellEditingDetails.cellValue;
                         break;
                     case "edittemplate":
@@ -18141,7 +19357,7 @@
                 model = proxy.model,
                 columns = model.columns,
                 column, field = field.split('.').join(""), length, $element, isDialogEdit;
-            if (proxy.model.editSettings.allowEditing && proxy.model.editSettings.editMode == "dialogEditing") {
+            if (proxy.model.editSettings.allowEditing && (proxy.model.editSettings.editMode == "dialogEditing" || (model.editSettings.editMode.toLowerCase() == "batchediting" && model.editSettings.batchEditSettings.editMode == "dialog"))) {
                 length = $("#" + proxy._id + "EditFormDialog").length;
                 $element = $("#" + proxy._id + field);
                 isDialogEdit = true;
@@ -18171,7 +19387,7 @@
 
                     case ej.TreeGrid.EditingType.Dropdown:
                         if ($element.data("ejDropDownList"))
-                            cellValue = $element.ejDropDownList("model.value");
+                            cellValue = ($element.ejDropDownList("model.showCheckbox") == false && $element.ejDropDownList("model.multiSelectMode") == ej.MultiSelectMode.None) ? $element.ejDropDownList("model.itemValue") : $element.ejDropDownList("getSelectedValue");
                         else
                             cellValue = $element.val();
                         if (!isDialogEdit)
@@ -18833,13 +20049,11 @@
                         if (proxy._prevSelectedItem && proxy._prevSelectedItem != model.selectedItem) {
                             proxy._prevSelectedItem.isSelected = false;
                         }
-
-
-
                         proxy._prevSelectedItem = updatedRecords[rowIndex];
-                        this.selectedRowIndex(rowIndex);
+                        proxy.selectedRowIndex(rowIndex);
                         model.selectedItems = proxy.getSelectedRecords();
-                        return false;                                                    
+                        return false;
+
                         case ej.TreeGrid.SelectionType.Multiple:                        
                         if (proxy._multiSelectCtrlRequest && rowIndex != -1) {
                             var currentRecord = updatedRecords[rowIndex],
@@ -18933,13 +20147,29 @@
         getSelectedRecords: function () {
             var proxy = this,
                 model = this.model,
+                filteredRecords,
+                selectionType = model.selectionSettings.selectionType,
                 selectedRecords = [];
-            selectedRecords = model.updatedRecords.filter(function (record) {
-                if (model.selectionSettings.selectionType == "checkbox")
-                    return record.checkboxState == "checked"
-                else
+
+            if ((model.allowFiltering && model.filterSettings.filteredColumns.length > 0) || proxy._searchString.length > 0) {
+                if (model.isFromGantt || selectionType == ej.TreeGrid.SelectionType.Single)
+                    filteredRecords = model.updatedRecords;
+                else if (selectionType == ej.TreeGrid.SelectionType.Multiple || selectionType == ej.TreeGrid.SelectionType.Checkbox)
+                    filteredRecords = proxy._flatFilteredRecords;
+            }
+            else
+                filteredRecords = model.flatRecords;
+
+            if (selectionType == "checkbox") {
+                selectedRecords = filteredRecords.filter(function (record) {
+                    return record.checkboxState == "checked";
+                });
+            }
+            else {
+                selectedRecords = filteredRecords.filter(function (record) {
                     return record.isSelected;
-            });
+                });
+            }
             return selectedRecords.slice();
         },
         /* Clear all selected rows and cells*/
@@ -19048,8 +20278,6 @@
         _cancelEditState: function (e) {
             var proxy = this;
             if (!ej.isNullOrUndefined(e)) {
-                if (!ej.isNullOrUndefined(e.target))
-                    e.stopImmediatePropagation();
                 /*Change scrollLeft of content while header is auto scrolled on filtering element focus*/
                 var scrollLeft = proxy.getScrollElement().ejScroller("option", "scrollLeft"),
                     headerScrollLeft = 0;
@@ -19183,13 +20411,9 @@
             else if ($tr.hasClass('e-addedrow')) {
                 proxy._isRefreshAddedRecord = false;
                 proxy._isEmptyRow = true;
-			// Only checked records delete by toolbar action, hence passing it as contextMenu deletion
-                if (proxy._checkboxSelection)
-                    proxy.deleteRow(null, true, null);
-                else
-                    proxy.deleteRow();
+                proxy.deleteRow(null, true, null);
                 proxy._isEmptyRow = false;
-            }           
+            }
             model.isEdit = proxy._isRowEdit = false;
             model.editSettings.allowDeleting = temp;
             proxy._updateWrapRowHeights("total,header", null, rowIndex);
@@ -19365,6 +20589,7 @@
                 proxy.renderNewAddedRow(index, data);
             }
             proxy.updateHeight();
+            proxy._updateFixedTableBorder();
         },
 
         //insert new item in DOM 
@@ -19619,6 +20844,9 @@
                     proxy._updateColumnMenuVisibility();
                 }
                 proxy._addInitTemplate();
+                if (model.showTotalSummary && model.collapsibleTotalSummary) {
+                    proxy._updateSummaryTitleColumn();
+                }
                 if (model.editSettings.allowEditing && model.editSettings.editMode == "dialogEditing" && (ej.isNullOrUndefined(model.editSettings.dialogEditorTemplateID) || model.editSettings.dialogEditorTemplateID == "")) {
                     proxy._treeGridAddEditDialog();
                 } else if (model.editSettings.allowEditing && model.editSettings.editMode == "dialogEditing" && (!ej.isNullOrUndefined(model.editSettings.dialogEditorTemplateID) && model.editSettings.dialogEditorTemplateID != "")) {
@@ -19728,7 +20956,7 @@
                 if (currentColumnSummaryTitle)
                     return;
                 else
-                    $(summaryRow.childNodes[cell]).append(summaryTitleElement);
+                    $(summaryRow.childNodes[cell]).prepend(summaryTitleElement);
                 return;
 
             }
@@ -19851,6 +21079,9 @@
                     });
                 }
                 proxy._addInitTemplate();
+                if (model.showTotalSummary && model.collapsibleTotalSummary) {
+                    proxy._updateSummaryTitleColumn();
+                }
                 var gridContent = proxy.getScrollElement();
                 if (model.isFromGantt) {
                     proxy._trigger("refreshScrollCss");
@@ -20213,17 +21444,17 @@
                 if (isVscroll) {
                     if (!this.mobileDevice())
                     proxy._$gridHeaderContent.addClass("e-scrollcss");
-                    if (model.showTotalSummary && proxy._$totalSummaryRowContainer && proxy._$totalSummaryRowContainer.height() <= 90 && proxy._$totalSummaryRowContainer.find(".e-vscrollbar").length == 0) {
-                        if (!this.mobileDevice())
-                            proxy._$totalSummaryRowContainer.addClass("e-scrollcss");
-                        if (!this.mobileDevice())
+                    if (model.showTotalSummary && proxy._$totalSummaryRowContainer && proxy._$totalSummaryRowContainer.height() <= model.totalSummaryHeight && proxy._$totalSummaryRowContainer.find(".e-vscrollbar").length == 0) {
+                        if (!this.mobileDevice()) {
+                            proxy._$totalSummaryRowContainer.addClass("e-scrollcss");                            
                             proxy._$totalSummaryRowContainer.width(proxy._$gridContent.width() - 17);
+                        }
                         else
                             proxy._$totalSummaryRowContainer.width(proxy._$gridContent.width());
                     }
                 } else {
                     proxy._$gridHeaderContent.removeClass("e-scrollcss");
-                    if (model.showTotalSummary && proxy._$totalSummaryRowContainer && proxy._$totalSummaryRowContainer.height() <= 90) {
+                    if (model.showTotalSummary && proxy._$totalSummaryRowContainer && proxy._$totalSummaryRowContainer.height() <= model.totalSummaryHeight) {
                         proxy._$totalSummaryRowContainer.removeClass("e-scrollcss");
                         proxy._$totalSummaryRowContainer.width(proxy._$gridContent.width());
                     }
@@ -20454,7 +21685,7 @@
                 $emptyTd = ej.buildTag('td', proxy.model.emptyRecordText, {}, { colSpan: (proxy.model.columns.length - this._hiddenColumns.length) });
             var element = document.createElement("tr");
             element.className = "e-emptyText";
-            return $(element).append($emptyTd);
+            return $(element).height(30).append($emptyTd);
 
         },
 
@@ -20574,8 +21805,8 @@
         //REFRESH THE EDITED FORM
         _refreshEditForm: function (args) {
 
-            var proxy = this, $form, rowHeight, isDialogEdit;
-            if (proxy.model.editSettings.allowEditing && proxy.model.editSettings.editMode == "dialogEditing") {
+            var proxy = this, model = proxy.model, $form, rowHeight, isDialogEdit;
+            if (proxy.model.editSettings.allowEditing && (proxy.model.editSettings.editMode == "dialogEditing" || (model.editSettings.editMode.toLowerCase() == "batchediting" && model.editSettings.batchEditSettings.editMode == "dialog"))) {
                 $form = $("#" + proxy._id + "EditFormDialog");
                 rowHeight = "";
                 isDialogEdit = true;
@@ -20605,14 +21836,14 @@
                 $element = $formElement.eq(i);
                 cellEditType = $element.attr("data-edittype");
                 column = ej.TreeGrid.getColumnByField(model.columns, $element.prop("name"));
-                if (ej.isNullOrUndefined(column) && proxy.model.editSettings.editMode == "dialogEditing") {
+                if (ej.isNullOrUndefined(column) && (proxy.model.editSettings.editMode == "dialogEditing" || (model.editSettings.editMode.toLowerCase() == "batchediting" && model.editSettings.batchEditSettings.editMode == "dialog"))) {
                     if (($element).hasClass("e-btn") || (proxy.model.editSettings.editMode == "dialogEditing" && (!ej.isNullOrUndefined(model.editSettings.dialogEditorTemplateID) && model.editSettings.dialogEditorTemplateID != ""))) {
                         return;
                     } else
                         $element.closest("tr").addClass("e-hide");
                 } else {
               
-                    if (proxy.model.editSettings.editMode == "dialogEditing" && (!ej.isNullOrUndefined(model.editSettings.dialogEditorTemplateID) && model.editSettings.dialogEditorTemplateID != ""))
+                    if ((proxy.model.editSettings.editMode == "dialogEditing" || (model.editSettings.editMode.toLowerCase() == "batchediting" && model.editSettings.batchEditSettings.editMode == "dialog")) && (!ej.isNullOrUndefined(model.editSettings.dialogEditorTemplateID) && model.editSettings.dialogEditorTemplateID != ""))
                         cellEditType = column.editType;
               
                         inputWidth = "100%";
@@ -20722,20 +21953,21 @@
                             fieldName = column.field;
                         }
 
-                        if(model.isFromGantt && fieldName === "resourceInfo"){
-                            $element.ejDropDownList({
-                                width: inputWidth,
-                                height: rowHeight,
-                                showCheckbox: true,
-                                dataSource: dataSource,
-                                fields: {
-                                    id: model.resourceIdMapping,
-                                    text: model.resourceNameMapping,
-                                    value: model.resourceNameMapping
-                                },
-                                selectedItems: proxy.getIndexofresourceInfo(dataSource)
-                            });
-                        
+                        if (model.isFromGantt && fieldName === "resourceInfo") {
+                            params = {};
+                            params.width = inputWidth;
+                            params.height = rowHeight;
+                            params.showCheckbox = true;
+                            params.dataSource = dataSource;
+                            params.fields = {
+                                id: model.resourceIdMapping,
+                                text: model.resourceNameMapping,
+                                value: model.resourceNameMapping
+                            };
+                            params.selectedItems = proxy.getIndexofresourceInfo(dataSource);
+                            if (!ej.isNullOrUndefined(column["editParams"]))
+                                $.extend(params, column["editParams"]);
+                            $element.ejDropDownList(params);
                         } else {
                             var controlArgs = {};
                             controlArgs.cssClass = model.cssClass;
@@ -20910,9 +22142,12 @@
                 if (!ej.isNullOrUndefined(model.columns[i]["validationRules"]) && model.columns[i].visible == true) {
                     if (model.editSettings.editMode == ej.TreeGrid.EditMode.RowEditing
                          || model.editSettings.editMode == ej.TreeGrid.EditMode.DialogEditing || proxy.element.find(".e-rowedit").length > 0
-						 || proxy.element.find(".e-addedrow").length > 0)
+						 || proxy.element.find(".e-addedrow").length > 0 || (model.editSettings.editMode == ej.TreeGrid.EditMode.BatchEditing &&
+                        (model.editSettings.batchEditSettings.editMode == "dialog" || model.editSettings.batchEditSettings.editMode == "row")))
                         this.setValidationToField(model.columns[i].field, model.columns[i].validationRules);
-                    else if (model.editSettings.editMode == ej.TreeGrid.EditMode.CellEditing && proxy._cellEditingDetails.columnIndex == i) {
+                    else if ((model.editSettings.editMode == ej.TreeGrid.EditMode.CellEditing ||
+                        (model.editSettings.editMode == ej.TreeGrid.EditMode.BatchEditing && model.editSettings.batchEditSettings.editMode == "cell"))
+                        && proxy._cellEditingDetails.columnIndex == i) {
                         this.setValidationToField(model.columns[i].field, model.columns[i].validationRules);
                         return;
                     }
@@ -21160,6 +22395,20 @@
                 }
             }
         },
+        //Method to update last cell border as per records length and column resize mode
+        _updateFixedTableBorder: function (action) {
+            //Remove fixed column border when no record text displayed
+            if (action == "sorting" || action == "dragAndDrop")
+                return;
+            var contentTable = this._frozenColumnsLength > 0 ? $(this.getContentTable()[1]) : $(this.getContentTable()),
+                model = this.model;
+            if (!model.isFromGantt && contentTable && contentTable.hasClass("e-fixed-border")) {
+                if (model.currentViewData.length > 0 && !contentTable.hasClass("e-tableLastCell"))
+                    contentTable.addClass("e-tableLastCell");
+                else if (model.currentViewData.length == 0)
+                    contentTable.removeClass("e-tableLastCell");
+            }
+        },
         //check scroller position in virtualization
         _setScrollTop: function (requestType) {
 
@@ -21229,12 +22478,12 @@
             if (proxy._$totalSummaryRowContainer) {
                 proxy._$totalSummaryRowContainer.ejScroller({ 'height': 'auto' });
                 proxy._$footerContainer.css({ 'overflow': 'hidden' });
-                if (proxy._$totalSummaryRowContainer.find(".e-footercontainer").height() < 90) {
+                if (proxy._$totalSummaryRowContainer.find(".e-footercontainer").height() < model.totalSummaryHeight) {
                     if (proxy.isVScroll())
                         proxy._$totalSummaryRowContainer.addClass("e-scrollcss");
                 } else {
                     proxy._$totalSummaryRowContainer.removeClass("e-scrollcss");
-                    proxy._$totalSummaryRowContainer.ejScroller({ 'height': model.sizeSettings.height == "auto" ? 0 : 90 });
+                    proxy._$totalSummaryRowContainer.ejScroller({ 'height': model.sizeSettings.height == "auto" ? 0 : model.totalSummaryHeight });
                     proxy._$totalSummaryRowContainer.width(proxy._$gridContent.width());
                     if (model.sizeSettings.height != "auto")
                     proxy._$totalSummaryRowContainer.width('auto');
@@ -21309,7 +22558,7 @@
             return count;
         },
         //UPDATE THE FILTERED RECORDS FOR ADDING PARENTRECORDS
-        _updateFilteredRecords: function (data,isSearching) {
+        _updateFilteredRecords: function (data, isSearching) {
 
             var proxy = this,
                 count = 0,
@@ -21324,7 +22573,8 @@
             for (count; count < length; count++) {
 
                 record = data[count];
-                if (proxy.model.filterSettings.filterHierarchyMode == "child" || proxy.model.filterSettings.filterHierarchyMode == "none")
+                if ((!isSearching && (proxy.model.filterSettings.filterHierarchyMode == "child" || proxy.model.filterSettings.filterHierarchyMode == "none"))
+                    || (isSearching && (proxy.model.searchSettings.searchHierarchyMode == "child" || proxy.model.searchSettings.searchHierarchyMode == "none")))
                     proxy._isHierarchyFiltering = true;
                 proxy._addParentRecord(record,isSearching);
 
@@ -21395,7 +22645,8 @@
             var childRecords = record.childRecords, proxy = this,
                 length = childRecords.length, isExsist = false;
             for (var count = 0; count < length; count++) {
-                if (!isSearching && (proxy.model.filterSettings.filterHierarchyMode == "child" || proxy.model.filterSettings.filterHierarchyMode == "both")) {
+                if ((!isSearching && (proxy.model.filterSettings.filterHierarchyMode == "child" || proxy.model.filterSettings.filterHierarchyMode == "both"))
+                    || (isSearching && (proxy.model.searchSettings.searchHierarchyMode == "child" || proxy.model.searchSettings.searchHierarchyMode == "both"))) {
                     if ($.inArray(childRecords[count], proxy._flatFilteredRecords) != -1) {
                         isExsist = true;
                         break;
@@ -21451,7 +22702,8 @@
         _addParentRecord: function (record,isSearching) {
 
             var proxy = this;
-            if (proxy.model.filterSettings.filterHierarchyMode == "none" && !isSearching) {
+            if ((proxy.model.filterSettings.filterHierarchyMode == "none" && !isSearching)
+                || (proxy.model.searchSettings.searchHierarchyMode == "none" && isSearching)) {
                 if (record.parentItem == null) {
                     if ($.inArray(record, proxy._filteredData) != -1) {
                         if ($.inArray(record, proxy._flatFilteredRecords) == -1) {
@@ -21476,7 +22728,8 @@
             }
             else {
                 if (record.parentItem)
-                    if (proxy.model.filterSettings.filterHierarchyMode == "child" && !isSearching) {
+                    if ((proxy.model.filterSettings.filterHierarchyMode == "child" && !isSearching)
+                        || (proxy.model.searchSettings.searchHierarchyMode == "child" && isSearching)) {
                         if ($.inArray(record.parentItem, proxy._filteredData) != -1)
                             proxy._addParentRecord(record.parentItem, isSearching);
                     }
@@ -22580,7 +23833,15 @@
                     var idText = this._id + (columns[i].field ? columns[i].field : "") + $.inArray(columns[i], this.model.columns) + "_HeaderTemplate";
                     $("#" + idText).remove();
                 }
-            }            
+            }     
+            // remove jsrender helpers
+            var helpers = $.views.helpers;
+            for (var key in helpers) {
+                if (key.indexOf(this._id) != -1) {
+                    delete helpers[key];
+                }
+            }
+            proxy._columnChooserList.remove();
         },
 
         
@@ -22863,9 +24124,9 @@
         _clearContextMenu: function () {
             //remove context menu items and header context menu items
             var proxy = this;
-            $('.e-contextmenu').remove();
-            $('.e-innerContextmenu').remove();
-            $('.e-headerContextmenu').remove();
+            $('.e-tgcontextmenu').remove();
+            $('.e-tginnerContextmenu').remove();
+            $('.e-tgheaderContextmenu').remove();
             $("#" + proxy._id + "ccDiv").ejDialog("close");
         },
         // create and append a context menu and also bind the events for context menu option
@@ -22909,7 +24170,7 @@
             if (proxy._trigger("contextMenuOpen", args)) return false;
             proxy._activeMenuItemId = null;
             proxy._contextMenuItems = args.contextMenuItems;
-            contextMenu = ej.buildTag("div.e-contextmenu e-js", "", {
+            contextMenu = ej.buildTag("div.e-tgcontextmenu e-js", "", {
                 'display': 'table',
                 'position': 'absolute',
                 'z-index': proxy.getMaxZIndex() + 1,
@@ -22951,10 +24212,17 @@
                     posx = treeGridOffset.left + 10;
                 }
             }
-            if (treeGridOffset.bottom < posy + (contextMenuHeight)) {
-                var tempPosY = posy - (contextMenuHeight);
-                if (tempPosY > 0) {
+            if (treeGridOffset.bottom < (posy + contextMenuHeight)) {
+                var tempPosY = posy - (contextMenuHeight),
+                    exceededHeight = (posy + contextMenuHeight) - treeGridOffset.bottom,
+                    scrollTop = window.pageYOffset || document.documentElement.scrollTop || document.body.scrollTop;
+                if (tempPosY > treeGridOffset.top) {
                     posy = tempPosY;
+                } else if ((posy + contextMenuHeight) > (scrollTop + window.innerHeight)) {
+                    var extraHeight = (posy + contextMenuHeight) - (scrollTop + window.innerHeight),
+                        cTop = posy - extraHeight;
+                    if (cTop > 0)
+                        posy = parseInt(cTop);
                 }
             }         
             contextMenu.css({ 'left': posx + 'px', 'top': posy + 'px', });
@@ -22971,8 +24239,8 @@
             //Mouseenter and mouse leave handler for contextmenu items and Subcontextmenuitems
             $(contextMenuItems).mouseenter(function () {
                 if (!$(this).hasClass("e-disable")) {
-                    contextMenu.find(".e-contextmenu-mouseover").removeClass("e-contextmenu-mouseover");
-                    $(this).addClass("e-contextmenu-mouseover");
+                    contextMenu.find(".e-tgcontextmenu-mouseover").removeClass("e-tgcontextmenu-mouseover");
+                    $(this).addClass("e-tgcontextmenu-mouseover");
                     proxy._activeMenuItemId = $(this).attr("id");
                     proxy._showSubContextMenu(this, args.contextMenuItems);
                 }
@@ -23026,7 +24294,7 @@
             if (proxy._trigger("contextMenuOpen", args)) return false;
             args.headerContextMenuItems = proxy._headerContextMenuItems;
             proxy._headerContextMenuItems = args.headerContextMenuItems;
-            headerContextMenu = ej.buildTag("div.e-headerContextmenu e-js", "", {
+            headerContextMenu = ej.buildTag("div.e-tgheaderContextmenu e-js", "", {
                 'display': 'table',
                 'position': 'absolute',
                 'z-index': proxy.getMaxZIndex() + 1,
@@ -23051,7 +24319,7 @@
             if (ej.browserInfo().name == "msie" && ej.browserInfo().version < 9 && model.isResponsive)
                 proxy._off($(window), "resize", proxy.windowResize);
             var headerContextMenuHeight = $(headerContextMenu).outerHeight(),
-                  headerContextMenuWidth = ($(".e-headerContextmenu").outerWidth() + 0.5),
+                  headerContextMenuWidth = ($(".e-tgheaderContextmenu").outerWidth() + 0.5),
                   headerContextMenuItems = headerContextMenu.find(".e-menuitem"),
                   headerContextMenuSelectItem = headerContextMenuItems.eq(0);
             proxy._activeMenuItemId = $(headerContextMenuSelectItem).attr("id");
@@ -23156,11 +24424,11 @@
                 }
             });
 
-            $(".e-headerContextmenu .e-menuitem").on("mouseenter click", function (e) {
+            $(".e-tgheaderContextmenu .e-menuitem").on("mouseenter click", function (e) {
                 var $target = $(e.target)
                 var targetid = $target.closest(".e-menuitem").attr("id");
                 if (targetid == "contextMenu_Columns") {
-                    $(".e-innerContextmenu").remove();
+                    $(".e-tginnerContextmenu").remove();
                 }
                 else if (targetid == "contextMenu_SortAscending" || targetid == "contextMenu_SortDescending" || targetid == "contextMenu_Freeze" || targetid == "contextMenu_Unfreeze" || targetid == "contextMenu_FreezePreceding") {
                     $("#" + proxy._id + "ccDiv").ejDialog("close");
@@ -23199,14 +24467,14 @@
             });
 
             if (!currentMenuItem.parentMenuId)
-                $(".e-innerContextmenu").remove();
+                $(".e-tginnerContextmenu").remove();
 
             if (currentMenuItem.parentMenuId) {
                 this._removeContextMenu(currentMenuItem, menuItems);
             }
 
             if (subMenuItems.length > 0) {
-                subContextMenu = ej.buildTag("div.e-innerContextmenu e-js", "", {
+                subContextMenu = ej.buildTag("div.e-tginnerContextmenu e-js", "", {
                     'display': 'table',
                     'position': 'absolute',
                     'z-index': proxy.getMaxZIndex() + 1,
@@ -23230,8 +24498,8 @@
                 $(subContextMenuItems).mouseenter(function () {
                     if (!$(this).hasClass("e-disable")) {
                         proxy._showSubContextMenu(this, menuItems);
-                        $(this).closest(".e-innerContextmenu").find(".e-contextmenu-mouseover").removeClass("e-contextmenu-mouseover");
-                        $(this).addClass("e-contextmenu-mouseover");
+                        $(this).closest(".e-tginnerContextmenu").find(".e-tgcontextmenu-mouseover").removeClass("e-tgcontextmenu-mouseover");
+                        $(this).addClass("e-tgcontextmenu-mouseover");
                         proxy._activeMenuItemId = $(this).attr("id");
                     }
                 });
@@ -23249,7 +24517,7 @@
         _removeContextMenu: function (menuItem, menuItems) {
 
             var currentMeuItemContainer = $("#" + this._id + "_SubContextMenu" + menuItem.parentMenuId),
-                expandedMenu = $(currentMeuItemContainer).find(".e-contextmenu-mouseover");
+                expandedMenu = $(currentMeuItemContainer).find(".e-tgcontextmenu-mouseover");
             if ($(expandedMenu).length > 0 ) {
                 var innerMenu = menuItems.filter(function (value) {
                     if (value.menuId == $(expandedMenu).attr("id"))
@@ -23271,9 +24539,9 @@
                 subContextMenuWidth,
                 subContextMenuHeight, contextMenuWidth,posx,posy,
                 elementOffset, subMenuOffset = { top: "", left: "" }
-            parentElement = this._isContextMenuItems ? $(element).closest(".e-contextmenu") : $(element).closest(".e-headerContextmenu")
+            parentElement = this._isContextMenuItems ? $(element).closest(".e-tgcontextmenu") : $(element).closest(".e-tgheaderContextmenu")
             if (parentElement.length == 0)
-                parentElement = $(element).closest(".e-innerContextmenu");
+                parentElement = $(element).closest(".e-tginnerContextmenu");
 
             if (ej.browserInfo().name == "msie" && ej.browserInfo().version < 9 && model.isResponsive)
                 proxy._off($(window), "resize", proxy.windowResize);
@@ -23284,6 +24552,7 @@
 
             contextMenuWidth = $(parentElement).outerWidth();
             subMenuOffset.top = elementOffset.top - 1;
+            subMenuOffset.bottom = elementOffset.top + $(element).outerHeight();
             subMenuOffset.left = elementOffset.left + $(parentElement).width() + 1;
             posx = subMenuOffset.left;
 
@@ -23300,10 +24569,16 @@
                 }
             }
             if (treeGridOffset.bottom < subMenuOffset.top + subContextMenuHeight) {
-                var tempPosY = (subMenuOffset.top + subContextMenuHeight) - treeGridOffset.bottom;
-                tempPosY = subMenuOffset.top - tempPosY - 2;
-                if (tempPosY > 0) {
+                var tempPosY = subMenuOffset.bottom - subContextMenuHeight,
+                    exceededHeight = (subMenuOffset.top + subContextMenuHeight) - treeGridOffset.bottom,
+                    scrollTop = window.pageYOffset || document.documentElement.scrollTop || document.body.scrollTop;
+                if (tempPosY > treeGridOffset.top) {
                     subMenuOffset.top = tempPosY;
+                } else if ((subMenuOffset.top + subContextMenuHeight) > (scrollTop + window.innerHeight)) {
+                    var extraHeight = (subMenuOffset.top + subContextMenuHeight) - (scrollTop + window.innerHeight),
+                        cTop = subMenuOffset.top - extraHeight;
+                    if (cTop > 0)
+                        subMenuOffset.top = parseInt(cTop) - 2; //border
                 }
             }
             return subMenuOffset;
@@ -23382,12 +24657,12 @@
             var menuItemList = "<li style='list-style-type:none;margin:0px;'>";
             var listChild = "<div class='e-menuitem {{if disable}}e-disable{{/if}}{{if ~_" + proxy._id + "getHeaderName(#data)}} e-parent-menuitem{{/if}}' id={{:menuId}}  style='display:table;cursor:{{if disable}}default{{else}}pointer{{/if}};min-width:100px;'>" +
                             "{{if iconPath}}" +
-                           "<div class='e-icon e-contextmenu-image'" +
+                           "<div class='e-icon e-tgcontextmenu-image'" +
                             " style='background-image:{{:iconPath}};background-repeat:no-repeat;'/> " + 
                             "{{else}}" +
-                            "<div class='e-icon {{:iconClass}} e-contextmenu-icon'/>" +
+                            "<div class='e-icon {{:iconClass}} e-tgcontextmenu-icon'/>" +
                             "{{/if}}" +
-                            "<div class='e-contextmenu-label'>" +
+                            "<div class='e-tgcontextmenu-label'>" +
                             "<span>{{:headerText}}</span></div>" +
                             "{{if ~_" + proxy._id + "getHeaderName(#data)}}<div class='e-icon e-expander'/> {{/if}}";
 
@@ -23613,17 +24888,17 @@
                         htmlString = $cellEditTemplate.find("#" + columnField + "_CellEdit").html();
                         var value = proxy._getCustomCellValue(updatedRecords[index], columns[column]["field"]);
                         data[columnField] = value;
-                            if (columns[column]["editType"] == "dropdownedit" && data[columns[column]["field"]] == false)
-                                data[columnField] = data[columnField].toString();
-                            var $element = $($.templates(htmlString).render(data));
-                        if (proxy._isCommandColumn(columns[column])) {                              
+                        if (columns[column]["editType"] == "dropdownedit" && data[columns[column]["field"]] == false)
+                            data[columnField] = data[columnField].toString();
+                        var $element = $($.templates(htmlString).render(data));
+                        if (proxy._isCommandColumn(columns[column])) {
                             var $td = ej.buildTag('td.e-rowcell e-unboundcell e-unboundeditedcell', "", { "height": rowHeight, "vertical-align": "middle;", "overflow": "hidden" }, {});
                         }
                         else {
                             var $td = ej.buildTag('td.e-rowcell e-editedcell', "", { "height": rowHeight, "vertical-align": "middle;", "overflow": "hidden" }, {});
                             $td.addClass('e-validError');
                         }
-                        if (columns[column].allowEditing == false && proxy._commandColumnLength == 0)
+                        if (!proxy._isCommandColumn(columns[column]) && columns[column].allowEditing == false)
                             $element.attr('disabled', true).addClass('e-disable');
 
                         if ($element.get(0).tagName == "SELECT") {
@@ -24250,6 +25525,12 @@
                 column = proxy.getColumnByField(columnFieldName),
                 filtermenuindex,
                 allowSorting = column.allowSorting == undefined ? true : column.allowSorting;
+            
+            if (proxy._batchEditStarts && !(proxy._confirmDialog).is(":visible")) {
+                proxy._batchSaveLostWarning("ColumnMenu");
+                proxy._batchTempDetails.menuTarget = e;
+                return true;
+            }
             posX = columnListPosX = columnFilterPosX = posY = 0;
             proxy._clearColumnMenu("columnmenu");
             proxy._columnMenuTarget = $target;
@@ -25729,7 +27010,7 @@
                 $("#" + proxy._id + "_dialogColumnAdd").ejDialog("close");
             }
 
-            if (this.model.editSettings.editMode == "dialogEditing") {
+            if (this.model.editSettings.editMode == "dialogEditing" || (model.editSettings.editMode.toLowerCase() == "batchediting" && model.editSettings.batchEditSettings.editMode == "dialog")) {
                 if (e.target.id == "EditFormDialog_" + this._id + "_Save") {
                     if (!proxy.editFormValidate())
                         return true;
@@ -25758,21 +27039,18 @@
 
         // Method to save the newly added record via Add dialog or Add template dialog
         _treegridDialogAddRow: function () {
-            var proxy = this, columns = proxy.model.columns, newItem = {}, value, column;
+            var proxy = this, columns = proxy.model.columns, newItem = {}, value;
             for (var i = 0; i < columns.length; i++) {
-                column = columns[i];
-                if (!ej.isNullOrUndefined(column) && column["field"] != "") {
-                    if (column.visible && !proxy._isCommandColumn(column)) {
-                        value = proxy.getCurrentEditCellDataForRowEdit(column["field"], column["editType"], i);
-                        if (proxy._checkboxSelection && column["field"] == "checkboxState") {
-                            continue;
-                        }
-                        var splits = (column["field"] || "").split(".");
-                        if (splits.length <= 1) {
-                            newItem[column["field"]] = value;
-                        } else {
-                            newItem = proxy._restoreCustomData(newItem, value, column["field"]);
-                        }
+                var column = columns[i], fieldName = column["field"];
+                if (!ej.isNullOrUndefined(column) && fieldName != "") {
+                    if (!proxy._isCommandColumn(column)) {
+                        if (proxy._checkboxSelection && column["nonColumn"]) continue;
+                        value = proxy.getCurrentEditCellDataForRowEdit(fieldName, column["editType"], i);
+                        value = (ej.isNullOrUndefined(value) || (column.editType == ej.TreeGrid.EditingType.Numeric && isNaN(value))) ? null : value;
+                        if (fieldName.indexOf(".") != -1)
+                            ej.createObject(fieldName, value, newItem);
+                        else
+                            newItem[fieldName] = value;
                     }
                 }
             }
@@ -26134,6 +27412,9 @@
                 }
                 if (columnIndex <= model.treeColumnIndex)
                     model.treeColumnIndex = model.treeColumnIndex - 1;
+                if (model.showTotalSummary && model.collapsibleTotalSummary && columnIndex == proxy._summaryColumnIndex) {
+                    proxy._summaryColumnIndex = 0;                    
+                }
                 proxy._refreshFrozenColumns();
                 proxy._updateWrapRowHeights(null,"virtualRefresh");
                 if (model.isFromGantt)
@@ -26209,7 +27490,7 @@
                     }
                     break;
                 case "collapse":
-                    subContextMenu = $(currentMenuItem).closest(".e-innerContextmenu");
+                    subContextMenu = $(currentMenuItem).closest(".e-tginnerContextmenu");
                     if (subContextMenu.length > 0) {
                         parentMenuId = subContextMenu.attr("id").replace(proxy._id + "_SubContextMenu", "");
                         var nextMenuItem = $("#" + parentMenuId);
@@ -26237,7 +27518,7 @@
             }
 
             if (nextMenuItem.length > 0) {
-                var currentClassName = this._isContextMenuItems || model.isFromGantt ? "e-contextmenu-mouseover" : "e-columnmenuselection";
+                var currentClassName = this._isContextMenuItems || model.isFromGantt ? "e-tgcontextmenu-mouseover" : "e-columnmenuselection";
                 if ((move == "next" || move == "prev")) 
                     currentMenuItem.removeClass(currentClassName);
                     nextMenuItem.addClass(currentClassName);
@@ -26355,6 +27636,23 @@
                         });
 
                         if (isValidColumn) {
+                            if (model.editSettings.editMode == "batchEditing") {
+                                var column = {},
+                                    currentValue = ej.copyObject({}, record.item),
+                                columnObj = model.columns.filter(function (key) {
+                                    if (key.field == fieldName) {
+                                        column = key;
+                                    }
+                                });
+                                if (column.editType == ej.TreeGrid.EditingType.DatePicker || column.editType == ej.TreeGrid.EditingType.DateTimePicker) {
+                                    fieldValue = ej.parseDate(fieldValue, model.dateFormat, model.locale);
+                                }
+                                if (proxy._checkModfiedCellValue(ej.getObject(fieldName, currentValue), fieldValue, column)) {
+                                    proxy._createBatchEditedFields(record, fieldName, fieldValue, column);
+                                    proxy._batchEditStarts = true;
+                                    proxy._updateBatchChanges(record.item);
+                                }
+                            }
                             record = proxy._restoreCustomData(record, fieldValue, fieldName);
                             record.item = proxy._restoreCustomData(record.item, fieldValue, fieldName);
                         }
@@ -26385,6 +27683,9 @@
                 proxy._updateSummaryRow(args);
             if (model.showTotalSummary)
                 proxy._updateTotalSummaryRow(args);
+            if (model.editSettings.editMode == "batchEditing") {
+                proxy._cancelSaveTools();
+            }
         },
         _saveEditedElements: function () {
             var proxy = this,
@@ -26441,6 +27742,14 @@
         None: "none"
     };
 
+    //ENUM FOR SEARCH HIERARCHY MODE IN TREEGRID
+    ej.TreeGrid.SearchHierarchyMode = {
+        Parent: "parent",
+        Child: "child",
+        Both: "both",
+        None: "none"
+    };
+
     //ENUM FOR HEADERTEXTOVERFLOW IN TREEGRID
     ej.TreeGrid.HeaderTextOverflow = {
         None: "none",
@@ -26452,6 +27761,14 @@
         CellEditing: "cellEditing",
         RowEditing: "rowEditing",
         DialogEditing: "dialogEditing",
+        BatchEditing: "batchEditing",
+    };
+
+    //ENUM FOR DIFFERENT BATCH EDIT MODE IN TREEGRID
+    ej.TreeGrid.BatchEditMode = {
+        Cell: "cell",
+        Row: "row",
+        Dialog: "dialog"
     };
 
     //ENUM FOR DIFFERENT WRAP MODE IN TREEGRID
@@ -26604,6 +27921,7 @@
                                               value: "{{:~_" + proxy._id + "cellValue(#data,'" + columnName + "')}}",
                                               id: id + proxy._getFieldValue(column.field,columnCount) + dialogId,
                                               name: column.field,
+                                              autocomplete: "off",
                                               "data-dialog": dialogId
                                           });
                 }
@@ -26748,6 +28066,7 @@
         MaximumDate: "maximumDate",
         TrueCount: "trueCount",
         FalseCount: "falseCount",
+        Custom: "custom"
     };
 
     //Enum Value of selectionMode.
@@ -26883,6 +28202,11 @@
         cancelButtonText: "Cancel",
         confirmDeleteText: "Confirm Delete",
 
+        //Locale Text for batch edit confirm dialog
+        batchSaveConfirmText: "Are you sure you want to save changes?",
+        batchSaveLostChangesText: "Unsaved changes will be lost. Are you sure you want to continue?",
+        cancelEditText: "Are you sure you want to cancel the changes?",
+
         //String to be displayed in drop down list for filtering blank items
         dropDownListBlanksText: "(Blanks)",
         //String to be displayed in drop down list to clear filtered items
@@ -26915,6 +28239,10 @@
         if (proxy.data.footerSummaryRowRecord) {
             rowClass += " ";
             rowClass += "e-footersummaryrow";
+        }
+        if (proxy.data.isFirstFooterSummary) {
+            rowClass += " ";
+            rowClass += "e-firstfootersummaryrow";
         }
 
         return rowClass;

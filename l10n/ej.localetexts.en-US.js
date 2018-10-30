@@ -9,7 +9,7 @@
                 ej.Autocomplete.Locale['en-US'] = {
                     addNewText: "Add New",
                     emptyResultText: "No suggestions",
-                    actionFailure: "The specified field doesn't exist in given data source",
+                    actionFailure: "The specified field doesn't exist in the given data source",
                     watermarkText: " "
                 };
                 break;
@@ -24,21 +24,21 @@
 
                     tooltipText: {
                         switcher: "Switcher",
-                        addButton: "Add Color",
+                        addButton: "Add color",
                         basic: "Basic",
-                        monoChrome: "Mono Chrome",
-                        flatColors: "Flat Colors",
-                        seaWolf: "Sea Wolf",
-                        webColors: "Web Colors",
+                        monoChrome: "Mono chrome",
+                        flatColors: "Flat colors",
+                        seaWolf: "Sea wolf",
+                        webColors: "Web colors",
                         sandy: "Sandy",
-                        pinkShades: "Pink Shades",
+                        pinkShades: "Pink shades",
                         misty: "Misty",
                         citrus: "Citrus",
                         vintage: "Vintage",
-                        moonLight: "Moon Light",
-                        candyCrush: "Candy Crush",
-                        currentColor: "Current Color",
-                        selectedColor: "Selected Color",
+                        moonLight: "Moon light",
+                        candyCrush: "Candy crush",
+                        currentColor: "Current color",
+                        selectedColor: "Selected color",
                     }
                 };
                 break;
@@ -57,8 +57,8 @@
                         cancel: "Cancel",
                         reset: "Reset"
                     },
-                    watermarkText: "Select Range",
-                    customPicker: "Custom Picker"
+                    watermarkText: "Select range",
+                    customPicker: "Custom picker"
                 };
                 break;
             case "ejDateTimePicker":
@@ -172,7 +172,7 @@
                     MatchCase: "Match Case",
                     Cancel: "Cancel",
                     NoResult: "No Matches Found",
-                    CheckBoxStatusMsg: "Not all items showing",
+                    CheckBoxStatusMsg: "Not showing all items",
                     DatePickerWaterMark: "Select date",
                     DateTimePickerWaterMark: "Select date time",
                     True: "true",
@@ -292,13 +292,13 @@
                     emptyRecord: "No records to display",
                     unassignedTask: "Unassigned Task",
                     alertTexts: {
-                        indentAlert: "There is no gantt record is selected to perform the Indent",
-                        outdentAlert: "There is no gantt record is selected to perform the Outdent",
-                        predecessorEditingValidationAlert: "Cyclic Dependency Occured, Please Check The Predecessor",
+                        indentAlert: "There is no Gantt record is selected to perform the indent",
+                        outdentAlert: "There is no Gantt record is selected to perform the outdent",
+                        predecessorEditingValidationAlert: "Cyclic dependency occurred, please check the predecessor",
                         predecessorAddingValidationAlert: "Fill all the columns in predecessor table",
                         idValidationAlert: "Duplicate ID",
-                        dateValidationAlert: "Invalid End date",
-                        dialogResourceAlert: "Fill All the columns in resource table"
+                        dateValidationAlert: "Invalid end date",
+                        dialogResourceAlert: "Fill all the columns in resource table"
                     },
 
                     //headerText to be displayed in treegrid
@@ -328,7 +328,7 @@
                         resourceName: "Resource Name"
                     },
 
-                    //string to display in dialog 
+                    //string to display in dialog
                     editDialogTexts: {
                         addFormTitle: "New Task",
                         editFormTitle: "Edit Task",
@@ -339,7 +339,7 @@
                         removePredecessor: "Remove",
                         addButton: "Add"
                     },
-                    //string to display in column add dialog 
+                    //string to display in column add dialog
                     columnDialogTexts: {
                         field: "Field",
                         headerText: "Header Text",
@@ -381,7 +381,7 @@
                         clip: "Clip",
                         ellipsis: "Ellipsis"
                     },
-                    //string to be displayed in Toolbox's tooltip 
+                    //string to be displayed in Toolbox's tooltip
                     toolboxTooltipTexts: {
                         addTool: "Add",
                         editTool: "Edit",
@@ -401,7 +401,7 @@
                         pdfExportTool: "PDF Export"
                     },
 
-                    //string to be displayed in taskbar tooltip for duration unit 
+                    //string to be displayed in taskbar tooltip for duration unit
                     durationUnitTexts: {
                         days: "days",
                         hours: "hours",
@@ -429,7 +429,7 @@
                         yes: "Yes",
                         no: "No"
                     },
-                    //string to be displayed in context menu 
+                    //string to be displayed in context menu
                     contextMenuTexts: {
                         taskDetailsText: "Task Details...",
                         addNewTaskText: "Add New Task",
@@ -440,12 +440,12 @@
                         belowText: "Below"
                     },
 
-                    //Name to be displayed for New Task while adding  
+                    //Name to be displayed for New Task while adding
                     newTaskTexts: {
                         newTaskName: "New Task"
                     },
 
-                    //string to be displayed in column menu 
+                    //string to be displayed in column menu
                     columnMenuTexts: {
                         sortAscendingText: "Sort Ascending",
                         sortDescendingText: "Sort Descending",
@@ -459,7 +459,7 @@
                         manual: "Manual",
                         auto: "Auto"
                     },
-                    //string to be displayed in column add dialog title 
+                    //string to be displayed in column add dialog title
                     columnDialogTitle: {
                         insertColumn: "Insert Column",
                         deleteColumn: "Delete Column",
@@ -494,7 +494,7 @@
                     },
                     linkValidationDialogTitle: "Validate Editing",
                     linkValidationRuleOptions: {
-                        cancel: "Cancel, Keep the existing link",
+                        cancel: "Cancel, keep the existing link",
                         removeLink: "Remove the link and move '{0}' to start on '{1}'.",
                         preserveLink: "Move the '{0}' to start on '{1}' and keep the link."
                     },
@@ -507,7 +507,8 @@
                         cancelButtonText: "Cancel",
                         deleteButtonText: "Delete",
                         title: "Task Dependency"
-                    }
+                    },
+                    nullText: "Null"
                 };
                 break;
             case "ejGrid":
@@ -673,7 +674,26 @@
                     EMF: "EMF",
                     GIF: "GIF",
                     JPG: "JPG",
-                    BMF: "BMF"
+                    BMP: "BMP",
+                    ZoomIn: "Zoom In",
+                    ZoomOut: "Zoom Out",
+                    Legend: "Legend",
+                    SmartLabels: "Smart Labels",
+                    Interactions: "Interactions",
+                    Zooming: "Zooming",
+                    Rotate45: "Rotate45",
+                    Rotate90: "Rotate90",
+                    Trim: "Trim",
+                    MultipleRows: "Multiple Rows",
+                    Wrap: "Wrap",
+                    Hide: "Hide",
+                    WrapByWord: "Wrap By word",
+                    CrossHair: "Cross Hair",
+                    TrackBall: "Track Ball",
+                    DisableTD: "Disable 3D Charts",
+                    None: "None",
+                    Exception: "Exception",
+                    OK: "OK"
                 };
                 break;
             case "ejPivotClient":
@@ -681,35 +701,38 @@
                 ej.PivotClient.Locale["en-US"] = {
                     NoReports: "No Reports Found in DB",
                     Sort: "Sort",
-                    SelectField: "Select Field",
+                    Search: "Search",
+                    SelectField: "Select field",
                     LabelFilterLabel: "Show the items for which the label",
                     ValueFilterLabel: "Show the items for which",
                     ClearSorting: "Clear Sorting",
                     ClearFilterFrom: "Clear Filter From",
                     SortAtoZ: "Sort A to Z",
                     SortZtoA: "Sort Z to A",
-                    LabelFilters: "Label Filters",
+
+                    LabelFilters: "Label Filters  ",
                     BeginsWith: "Begins With",
-                    NotBeginsWith: "Not Begins With",
+                    DoesNotBeginsWith: "Does Not Begin With",
                     EndsWith: "Ends With",
                     NotEndsWith: "Not Ends With",
+                    DoesNotEndsWith: "Does Not End With",
                     Contains: "Contains",
-                    NotContains: "Not Contains",
+                    DoesNotContains: "Does Not Contain",
+
                     ValueFilters: "Value Filters",
                     ClearFilter: "Clear Filter",
                     Equals: "Equals",
+                    DoesNotEquals: "Does Not Equal",
                     NotEquals: "Not Equals",
-                    GreaterThan: "Greater Than ",
-                    GreaterThanOrEqualTo: "Greater Than Or Equal To ",
-                    LessThan: "Less Than ",
-                    LessThanOrEqualTo: "Less Than Or Equal To ",
+                    GreaterThan: "Greater Than",
+                    GreaterThanOrEqualTo: "Greater Than Or Equal To",
+                    LessThan: "Less Than",
+                    LessThanOrEqualTo: "Less Than Or Equal To",
                     Between: "Between",
                     NotBetween: "Not Between",
                     Top10: "Top Count",
-                    DoesNotBeginsWith: "Does Not Begins With",
-                    DoesNotEndsWith: "Does Not Ends With",
-                    DoesNotContains: "Does Not Contains",
-                    DoesNotEquals: "Does Not Equals",
+
+                    GreaterThan: "Greater Than",
                     IsGreaterThan: "Is Greater Than",
                     IsGreaterThanOrEqualTo: "Is Greater Than Or Equal To",
                     IsLessThan: "Is Less Than",
@@ -725,11 +748,12 @@
                     CubeDimensionBrowser: "Cube Dimension Browser",
                     AddReport: "Add Report",
                     RemoveReport: "Remove Report",
-                    CannotRemoveSingleReport: "Can not remove single report",
+                    CannotRemoveSingleReport: "Cannot remove single report",
                     AreYouSureToDeleteTheReport: "Are you sure to delete the Report",
                     RenameReport: "Rename Report",
                     ChartTypes: "Chart Types",
                     ToggleAxis: "Toggle Axis",
+                    Load: "Load",
                     ExportToExcel: "Export To Excel",
                     ExportToWord: "Export To Word",
                     ExportToPdf: "Export To Pdf",
@@ -786,35 +810,29 @@
                     Doughnut: "Doughnut",
                     Scatter: "Scatter",
                     Bubble: "Bubble",
+                    WaterFall: "WaterFall",
                     TreeMap: "TreeMap",
                     Alert: "Alert",
-                    MDXAlertMsg: "Please add a measure, dimension or hierarchy in an appropriate axis to view the MDX Query.",
-                    FilterSortRowAlertMsg: "Dimension not found in row axis. Please add Dimension element in row axis for sorting/filtering.",
-                    FilterSortColumnAlertMsg: "Dimension not found in column axis. Please add Dimension element in column axis for sorting/filtering.",
-                    FilterSortcolMeasureAlertMsg: "Please add measure to the Column axis",
-                    FilterSortrowMeasureAlertMsg: "Please add measure to the Row axis",
-                    FilterSortElementAlertMsg: "Element not found in column axis. Please add an element in column axis for sorting/filtering.",
+                    MDXAlertMsg: "Please add a measure, dimension, or hierarchy in an appropriate axis to view the MDX Query.",
+                    FilterSortRowAlertMsg: "Dimension is not found in the row axis. Please add Dimension element in the row axis for sorting/filtering.",
+                    FilterSortColumnAlertMsg: "Dimension is not found in the column axis. Please add Dimension element in the column axis for sorting/filtering.",
+                    FilterSortcolMeasureAlertMsg: "Please add measure to the column axis",
+                    FilterSortrowMeasureAlertMsg: "Please add measure to the row axis",
+                    FilterSortElementAlertMsg: "Element is not found in the column axis. Please add an element in column axis for sorting/filtering.",
+                    SelectRecordAlertMsg: "Please select a valid report.",
                     FilterMeasureSelectionAlertMsg: "Please select a valid measure.",
                     FilterConditionAlertMsg: "Please set a valid condition.",
                     FilterStartValueAlertMsg: "Please set a start value.",
                     FilterEndValueAlertMsg: "Please set a end value.",
                     FilterInvalidAlertMsg: "Invalid operation !",
-                    SelectRecordAlertMsg: "Please select a valid record.",
-                    RecordName: "Record Name",
-                    RemoveRecord: "Remove Record",
-                    RenameRecord: "Rename Record",
-                    Load: "Load",
                     Remove: "Remove",
                     Save: "Save",
-                    SaveAs: "SaveAs",
-                    SelectRecord: "Select Record",
+                    SaveAs: "Save As",
                     SelectReport: "Select Report",
                     DBReport: "Report Manipulation in DB",
                     Rename: "Rename",
                     Remove: "Remove",
-                    SetRecordNameAlertMsg: "Please set record name.",
                     SetReportNameAlertMsg: "Please set report name.",
-                    Search: "Search",
                     MultipleItems: "Multiple items",
                     All: "All",
                     CalculatedMember: "Calculated Member",
@@ -823,11 +841,11 @@
                     MemberType: "MemberType:",
                     FormatString: "Format String:",
                     MultipleMeasure: "More than one measure cannot be sliced.",
-                    DuplicateCalcMeasure: "Calculated Member with same name already exist.",
-                    EmptyField: "Calculated Member name or Expression cannot be empty.",
+                    DuplicateCalcMeasure: "Calculated Member with same name already exists.",
+                    EmptyField: "Calculated Member name or Expression should not be empty.",
                     EmptyFormat: "Format String for Calculated Member is empty.",
                     Warning: "Warning",
-                    Confirm: "Calculated Member with the same name already exists. Due to want to Replace ?",
+                    Confirm: "Calculated Member with the same name already exists. Do you want to replace?",
                     KPIs: "KPIs",
                     Collection: "Collection",
                     Report: "Report",
@@ -838,15 +856,17 @@
                     Success: "Success",
                     KpiAlertMsg: "The field you are moving cannot be placed in that area of the report",
                     NotAllItemsShowing: "Not all child nodes are shown",
-                    EditorLinkPanelAlert: "The members has more than 1000 items under one or more parent. Only the first 1000 items are displayed under each parent.",
-                    NamedSetAlert: "A named set cannot be added to the PivotTable report at the same time as another named set based on the same field. Click OK to remove ' <Set 1> ' named set and add ' <Set 2> ' named set."
+                    EditorLinkPanelAlert: "The members have more than 1000 items under one or more parent. Only the first 1000 items are displayed under each parent.",
+                    NamedSetAlert: "Named sets of same field cannot be added to the PivotTable report at the same time. Click OK to remove ' <Set 1> ' named set and add ' <Set 2> ' named set.",
+                    Exception: "Exception"
                 };
                 break;
             case "ejPivotGauge":
                 ej.PivotGauge.Locale = ej.PivotGauge.Locale || {};
                 ej.PivotGauge.Locale["en-US"] = {
                     RevenueGoal: "Revenue Goal",
-                    RevenueValue: "Revenue Value"
+                    RevenueValue: "Revenue Value",
+                    Exception: "Exception"
                 };
                 break;
             case "ejPager":
@@ -922,8 +942,8 @@
                             contentText: 'Highlight text in the PDF pages.',
                         },
                         strikeout: {
-                            headerText: 'StrikeOut Text',
-                            contentText: 'StrikeOut text in the PDF pages.',
+                            headerText: 'Strikethrough Text',
+                            contentText: 'Strikethrough text in the PDF pages.',
                         },
                         underline: {
                             headerText: 'Underline Text',
@@ -953,7 +973,7 @@
                             contentText: 'Find:',
                         },
                         matchCase: {
-                            contentText: 'matchCase',
+                            contentText: 'Match Case',
                         },
                         auto: {
                             contentText: 'Auto',
@@ -1023,11 +1043,11 @@
                             contentText: "Clear"
                         },
                     },
-					waitingPopup: {
-						print: {
-							contentText: "Preparing document for printing..."
-						}
-					}
+                    waitingPopup: {
+                        print: {
+                            contentText: "Preparing document for printing..."
+                        }
+                    }
                 };
                 break;
             case "ejPivotGrid":
@@ -1061,7 +1081,7 @@
                     LessThanOrEqualTo: "Less Than Or Equal To ",
                     Between: "Between",
                     NotBetween: "Not Between",
-                    DoesNotBeginsWith: "Does Not Begins With",
+                    DoesNotBeginsWith: "Does Not Begin With",
                     DoesNotEndsWith: "Does Not Ends With",
                     DoesNotContains: "Does Not Contains",
                     DoesNotEquals: "Does Not Equals",
@@ -1090,7 +1110,7 @@
                     ToolTip: "Tool Tip",
                     RTL: "RTL",
                     CollapseByDefault: "Collapse By Default",
-                    EnableDisablePaging: "Enalbe / Disable Paging",
+                    EnableDisablePaging: "Enable / Disable Paging",
                     PagingOptions: "Paging Options",
                     CategoricalPageSize: "Categorical Page Size",
                     SeriesPageSize: "Series Page Size",
@@ -1148,7 +1168,7 @@
                     Goal: "Goal",
                     Status: "Status",
                     Trend: "Trend",
-                    Value: "value",
+                    Value: "Value",
                     ConditionalFormattingErrorMsg: "The given value is not matched",
                     ConditionalFormattingConformMsg: "Are you sure you want to remove the selected format?",
                     EnterOperand1: "Enter Operand1",
@@ -1167,20 +1187,6 @@
                     Fontstyle: "Font Style",
                     Bordercolor: "Border Color",
                     NoMeasure: "Please add any measure",
-                    AliceBlue: "AliceBlue",
-                    Black: "Black",
-                    Blue: "Blue",
-                    Brown: "Brown",
-                    Gold: "Gold",
-                    Green: "Green",
-                    Lime: "Lime",
-                    Maroon: "Maroon",
-                    Orange: "Orange",
-                    Pink: "Pink",
-                    Red: "Red",
-                    Violet: "Violet",
-                    White: "White",
-                    Yellow: "Yellow",
                     Solid: "Solid",
                     Dashed: "Dashed",
                     Dotted: "Dotted",
@@ -1218,7 +1224,7 @@
                     EmptyField: "Please enter Calculated field name or formula",
                     NotValid: "Given formula is not valid",
                     NotPresent: "Value field used in any of the Calculated Field formula is not present in the PivotGrid",
-                    Confirm: "Calculated field with the same name already exists. Due to want to Replace ?",
+                    Confirm: "Calculated field with the same name already exists. Do you want to Replace ?",
                     CalcValue: "Calculated field can be inserted only in value area field",
                     MultipleItems: "Multiple items",
                     All: "All",
@@ -1238,7 +1244,8 @@
                     Edit: "Edit",
                     DuplicateFormatName: "Duplicate Format Name",
                     NotAllItemsShowing: "Not all child nodes are shown",
-                    EditorLinkPanelAlert: "The members has more than 1000 items under one or more parent. Only the first 1000 items are displayed under each parent."
+                    EditorLinkPanelAlert: "The members have more than 1000 items under one or more parent. Only the first 1000 items are displayed under each parent.",
+                    Exception: "Exception"
                 };
                 break;
             case "ejPivotPager":
@@ -1301,13 +1308,13 @@
                     Goal: "Goal",
                     Status: "Status",
                     Trend: "Trend",
-                    Value: "value",
+                    Value: "Value",
                     AddToFilter: "Add to Filter",
                     AddToRow: "Add to Row",
                     AddToColumn: "Add to Column",
                     AddToValues: "Add to Value",
                     PivotTableFieldList: "PivotTable Field List",
-                    ChooseFieldsToAddToReport: "Choose fields to add to report:",
+                    ChooseFieldsToAddToReport: "Choose fields to add to the report:",
                     DragFieldBetweenAreasBelow: "Drag fields between areas below:",
                     ReportFilter: "Filter",
                     ColumnLabel: "Column",
@@ -1319,10 +1326,11 @@
                     Cancel: "Cancel",
                     Close: "Close",
                     Search: "Search",
+                    Remove: "Remove",
                     AddCurrentSelectionToFilter: "Add current selection to filter",
                     NotAllItemsShowing: "Not all child nodes are shown",
-                    EditorLinkPanelAlert: "The members has more than 1000 items under one or more parent. Only the first 1000 items are displayed under each parent.",
-                    NamedSetAlert: "A named set cannot be added to the PivotTable report at the same time as another named set based on the same field. Click OK to remove ' <Set 1> ' named set and add ' <Set 2> ' named set."
+                    EditorLinkPanelAlert: "The members have more than 1000 items under one or more parent. Only the first 1000 items are displayed under each parent.",
+                    NamedSetAlert: "Named sets cannot be added to the PivotTable report at the same time. Click OK to remove ' <Set 1> ' named set and add ' <Set 2> ' named set."
                 };
                 break;
             case "ejDiagram":
@@ -1333,15 +1341,15 @@
                     paste: "Paste",
                     undo: "Undo",
                     redo: "Redo",
-                    selectAll: "SelectAll",
+                    selectAll: "Select All",
                     grouping: "Grouping",
                     group: "Group",
                     ungroup: "Ungroup",
                     order: "Order",
-                    bringToFront: "BringToFront",
-                    moveForward: "MoveForward",
-                    sendBackward: "SendBackward",
-                    sendToBack: "SendToBack"
+                    bringToFront: "Bring To Front",
+                    moveForward: "Move Forward",
+                    sendBackward: "Send Backward",
+                    sendToBack: "Send To Back"
                 };
                 break;
             case "ejChart":
@@ -1463,6 +1471,7 @@
                         }
                     },
                     pagesetupDialog: {
+                        close: 'Close',
                         paperSize: 'Paper Size',
                         height: 'Height',
                         width: 'Width',
@@ -1478,6 +1487,41 @@
                         doneButton: 'Done',
                         cancelButton: 'Cancel'
                     },
+                    credential: {
+                        userName: 'Username',
+                        password: 'Password'
+                    },
+                    waterMark: {
+                        selectOption: 'Select option',
+                        selectValue: 'Select a value'
+                    },
+                    errorMessage: {
+                        startMessage: 'Report Viewer encountered some problems loading this report. Please',
+                        middleMessage: ' Click here',
+                        endMessage: 'to see the details of the error',
+                        closeMessage: 'Close this message'
+                    },
+                    alertMessage: {
+                        close: 'Close',
+                        title: 'ReportViewer',
+                        done: 'OK',
+                        showDetails: 'Show details',
+                        hideDetails: 'Hide details',
+                        reportLoad: 'Report loaded:',
+                        RVERR0001: 'ReportViewer could not load the Report',
+                        RVERR0002: 'ReportViewer could not process the Report',
+                        RVERR0003: 'An error occurred in the return of ajax data',
+                        RVERR0004: 'Select a value for the parameter',
+                        RVERR0005: 'The parameter {parameter name} is missing a value',
+                        RVERR0006: 'Please enter the input of the float data type',
+                        RVERR0007: 'Enter the integer data type entry',
+                        RVERR0008: 'ReportViewer could not validate Datasource credentials',
+                        RVERR0009: 'The margins are superimposed or are outside the paper. Enter a different margin size.',
+                        RVERR0010: 'Enter a value for the parameter',
+                        RVERR0011: 'The parameter cannot be blank',
+                        RVERR0012: 'The value provided for the report parameter {parameterprompt} is not valid for its type.'
+                    },
+                    selectAll: 'Select All',
                     viewButton: 'View Report'
                 };
                 break;
@@ -1784,7 +1828,7 @@
                     CustomView: "Custom View",
                     Agenda: "Agenda",
                     Detailed: "Edit Appointment",
-                    EventBeginsin: "Appointment Begins in",
+                    EventBeginsin: "Appointment begins in",
                     Editevent: "Edit Appointment",
                     Editfollowingevent: "Following Events",
                     Editseries: "Edit Series",
@@ -1815,7 +1859,7 @@
                     WrongPattern: "The recurrence pattern is not valid",
                     CreateError: "The duration of the appointment must be shorter than how frequently it occurs. Shorten the duration, or change the recurrence pattern in the Appointment Recurrence dialog box.",
                     DragResizeError: "Cannot reschedule an occurrence of the recurring appointment if it skips over a later occurrence of the same appointment.",
-                    StartEndError: "End time should be greater than start time",
+                    StartEndError: "The selected end date occurs before the start date.",
                     MouseOverDeleteTitle: "Delete Appointment",
                     DeleteConfirmation: "Are you sure you want to delete this appointment?",
                     Time: "Time",
@@ -1955,15 +1999,15 @@
                     TopandBottomBorder: "Top and Bottom Border",
                     BorderColor: "Line Color",
                     BorderStyle: "Line Style",
-                    Number: "Number is used for general display of numbers.  Currency and Accounting offer specialized formatting for monetary value.",
+                    Number: "Number is used for general display of numbers. Currency and Accounting offer specialized formatting for monetary value.",
                     General: "General format cells have no specific number format.",
-                    Currency: "Currency formats are used for general monetary values.  Use Accounting formats to align decimal points in a column.",
+                    Currency: "Currency formats are used for general monetary values. Use Accounting formats to align decimal points in a column.",
                     Accounting: "Accounting formats line up the currency symbols and decimal points in a column.",
                     Text: "Text format cells are treated as text even when a number is in the cell.  The cell is displayed exactly as entered.",
                     Percentage: "Percentage formats multiply the cell value by 100 and displays the result with a percent symbol.",
                     CustomMessage: "Type number format code, using one of existing codes as a starting point.",
-                    Fraction: "",
-                    Scientific: "",
+                    Fraction: "Fraction is used to indicate a part of a whole number or a ratio between two numbers.",
+                    Scientific: "Scientific is used to represent a decimal number between 1 and 10 multiplied by ten, so the large numbers using less digits.",
                     Type: "Type:",
                     CustomFormatAlert: "Enter a valid format",
                     Date: "Date formats display date and time serial numbers as date values.",
@@ -2190,7 +2234,7 @@
                     NumberValidationMsg: "Enter only digits",
                     DateValidationMsg: "Enter only date",
                     Required: "Required",
-                    TimeValidationMsg: "The time you entered for the Time is invalid.",
+                    TimeValidationMsg: "The value you entered for the Time is invalid.",
                     CellAddrsValidationMsg: "Reference is not valid.",
                     PivotTable: "Pivot Table",
                     PivotTableContent: "Easily arrange and summarize complex data in a PivotTable.",
@@ -2247,7 +2291,7 @@
                     MergeAndCenter: "Merge & Center",
                     MergeAndCenterContent: "Combine and center the contents of the selected cells in a new larger cell.",
                     MergeCellsAlert: "Merging Cells keeps only upper left cell value and discards the other values.",
-                    MergeInsertAlert: "This operation will causes some merged cells to unmerge. Do you wish to continue ?",
+                    MergeInsertAlert: "This operation will causes some merged cells to unmerge. Do you wish to continue?",
                     Axes: "Axes",
                     PHAxis: "Primary Horizontal",
                     PVAxis: "Primary Vertical",
@@ -2355,7 +2399,7 @@
                     RefreshContent: "Get the latest data from the source connected to the active cell",
                     FieldListTitle: "Field List",
                     FieldListContent: "Show or hide the Field List.",
-                    FieldListRemoveContent: " The field list allows you to add and remove fields from your PivotTable report",
+                    FieldListRemoveContent: "The field list allows you to add and remove fields from your PivotTable report",
                     AddChartElement: "Add Chart Element",
                     AddChartElementContent: "Add elements to the created chart.",
                     SwitchRowColumn: "Switch Row/ Column",
@@ -2573,7 +2617,7 @@
                     LocationRange: "Location Range",
                     EmptyDLRnge: "Data Source or Location reference is not valid",
                     SourceDataRange: "Select a source data range for the sparkline",
-                    SparklineAlert: "Location reference is not valid because the cells are not all in same column or same row. Select cells that are all in single row or single column ",
+                    SparklineAlert: "Location reference is not valid because the cells are not all in same column or same row. Select cells that are all in single row or single column.",
                     SparklineDataAlert: "Enter the Correct Data Format",
                     SparklineLocAlert: "The reference for the location or data range is not valid",
                     SDataRangeAlert: "Data Source reference is not valid",
@@ -2587,19 +2631,28 @@
                     CreateSparkline: "Create Sparkline",
                     SelectDataSource: "Select a source data range for the sparkline",
                     SPARKLINEDESIGN: "Sparkline Design",
-					CancellationRequested: "Couldn't open within the timeout specified"
+                    CancellationRequested: "Couldn't open within the timeout specified",
+                    ImportPreventedOnUnknownFormula: "This file cannot be loaded since it contains unsupported formulas.",
+                    PivotTableName: "PivotTable Name",
+                    ArrayaFormula: "You can't change part of an array",
+                    ArrayaFormulaTableAlert: "Multi-cell array formulas aren't allowed in tables",
+                    ValueFieldSettings: "Value Field Settings",
+                    FieldTab: "Summarize Values By",
+                    SummarizeValue: "Summarize Value Field By",
+                    SummarizeChooseType: "Choose the type of calculation that you want to use to summarize data from the selected field",
+                    FieldValue: "Source Name:"
                 };
                 break;
             case "ejTimePicker":
                 ej.TimePicker.Locale = ej.TimePicker.Locale || {};
                 ej.TimePicker.Locale["en-US"] = {
-                    watermarkText: "select time",
+                    watermarkText: "Select time",
                 };
                 break;
             case "ejTreeGrid":
                 ej.TreeGrid.Locale = ej.TreeGrid.Locale || {};
                 ej.TreeGrid.Locale["en-US"] = {
-                    //string to be displayed in Toolbox's tooltip 
+                    //string to be displayed in Toolbox's tooltip
                     toolboxTooltipTexts: {
                         addTool: "Add",
                         editTool: "Edit",
@@ -2613,7 +2666,7 @@
                         printTool: "Print",
                         searchTool: "Search"
                     },
-                    //string to be displayed in context menu 
+                    //string to be displayed in context menu
                     contextMenuTexts: {
                         addRowText: "Add Row",
                         editText: "Edit",
@@ -2623,7 +2676,7 @@
                         aboveText: "Above",
                         belowText: "Below"
                     },
-                    //string to be displayed in column menu 
+                    //string to be displayed in column menu
                     columnMenuTexts: {
                         sortAscendingText: "Sort Ascending",
                         sortDescendingText: "Sort Descending",
@@ -2637,7 +2690,7 @@
                         renameColumn: "Rename Column",
                         menuFilter: "Filter"
                     },
-                    //string to display in column add dialog 
+                    //string to display in column add dialog
                     columnDialogTexts: {
                         field: "Field",
                         headerText: "Header Text",
@@ -2681,7 +2734,7 @@
                         clip: "Clip",
                         ellipsis: "Ellipsis"
                     },
-                    //string to be displayed in column add dialog title 
+                    //string to be displayed in column add dialog title
                     columnDialogTitle: {
                         insertColumn: "Insert Column",
                         deleteColumn: "Delete Column",
@@ -2711,6 +2764,10 @@
                     okButtonText: "OK",
                     cancelButtonText: "Cancel",
                     confirmDeleteText: "Confirm Delete",
+                    //Locale Text for batch edit confirm dialog
+                    batchSaveConfirmText: "Are you sure you want to save changes?",
+                    batchSaveLostChangesText: "Unsaved changes will be lost. Are you sure you want to continue?",
+                    cancelEditText: "Are you sure you want to cancel the changes?",
                     //String to be displayed in drop down list for filtering blank items
                     dropDownListBlanksText: "(Blanks)",
                     //String to be displayed in drop down list to clear filtered items
@@ -2777,20 +2834,20 @@
                     Mute: "Mute",
                     Unmute: "Unmute",
                     Settings: "Settings",
-                    FullScreen: "Full Screen",
-                    ExitFullScreen: "Exit Full Screen",
-                    HidePlaylist: "Hide Playlist",
+                    FullScreen: "Full screen",
+                    ExitFullScreen: "Exit full screen",
+                    HidePlaylist: "Hide playlist",
                     Previous: "Previous",
                     Next: "Next",
-                    TogglePlaylist: "Toggle Playlist",
+                    TogglePlaylist: "Toggle playlist",
                     Rewind: "Rewind",
                     Forward: "Forward",
                     Playlist: "Playlist",
-                    RepeatPlaylist: "Repeat Playlist",
+                    RepeatPlaylist: "Repeat playlist",
                     Shuffle: "Shuffle",
                     VideoTitle: "Video",
                     PlaylistTitle: "Playlist",
-                    PlaylistItemName: "List Item",
+                    PlaylistItemName: "List item",
                     PlaylistItemAuthor: "Author",
                     Media: "Media",
                     Speed: "Speed",

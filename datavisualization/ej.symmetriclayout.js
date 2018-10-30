@@ -9,118 +9,40 @@ var GraphForceNode = (function () {
     function GraphForceNode(gnNode) {
         this.m_fVelocityX = 0;
         this.m_fVelocityY = 0;
-        this.m_lstNodes = [];
-        this.m_gnNode = gnNode;
+        this.nodes = [];
+        this.velocityX = this.m_fVelocityX;
+        this.velocityY = this.m_fVelocityY;
+        this.graphNode = gnNode;
         var bounds = ej.datavisualization.Diagram.Util.bounds(gnNode);
-        this.m_ptLocation = bounds._center;
-        this.m_lstNodes = [];
+        this.location = bounds._center;
+        this.nodes = [];
         if (!gnNode._parents) {
             gnNode._parents = [];
         }
         if (!gnNode._children) {
             gnNode._children = [];
         }
-        this.m_lstNodes = (gnNode._parents).concat(gnNode._children);
+        this.nodes = (gnNode._parents).concat(gnNode._children);
     }
-    Object.defineProperty(GraphForceNode.prototype, "graphNode", {
-        get: function () {
-            return this.m_gnNode;
-        },
-        enumerable: true,
-        configurable: true
-    });
-    Object.defineProperty(GraphForceNode.prototype, "nodes", {
-        get: function () {
-            return this.m_lstNodes;
-        },
-        enumerable: true,
-        configurable: true
-    });
-    Object.defineProperty(GraphForceNode.prototype, "location", {
-        get: function () {
-            return this.m_ptLocation;
-        },
-        set: function (value) {
-            this.m_ptLocation = value;
-        },
-        enumerable: true,
-        configurable: true
-    });
-    Object.defineProperty(GraphForceNode.prototype, "velocityX", {
-        get: function () {
-            return this.m_fVelocityX;
-        },
-        set: function (value) {
-            this.m_fVelocityX = value;
-        },
-        enumerable: true,
-        configurable: true
-    });
-    Object.defineProperty(GraphForceNode.prototype, "velocityY", {
-        get: function () {
-            return this.m_fVelocityY;
-        },
-        set: function (value) {
-            this.m_fVelocityY = value;
-        },
-        enumerable: true,
-        configurable: true
-    });
     GraphForceNode.prototype.ApplyChanges = function () {
-        this.m_gnNode._center = this.m_ptLocation;
+        this.graphNode._center = this.location;
     };
     return GraphForceNode;
 }());
 var SymmetricLayoutManager = (function () {
-    function SymmetricLayoutManager() {
+    function SymmetricLayoutManager(diagram) {
         this.m_szMaxForceVelocity = new SizeF(SymmetricLayoutManager.c_fMAX_VELOCITY, SymmetricLayoutManager.c_fMAX_VELOCITY);
         this.m_fVertexDistance = 0;
         this.m_dSpringFactor = SymmetricLayoutManager.c_dCOEF;
         this.m_nMaxIteraction = SymmetricLayoutManager.c_nMAX_ITERACTION;
-        this.m_fVertexDistance = SymmetricLayoutManager.c_nSPRING_LENGTH;
+        this.SpringLength = this.m_fVertexDistance;
+        this.SpringFactor = this.m_dSpringFactor;
+        this.MaxIteraction = this.m_nMaxIteraction;
+        this.selectedNode = this.m_objSelectedNode;
+        this.m_fVertexDistance = diagram.model.layout.springLength;
+        this.m_dSpringFactor = diagram.model.layout.springFactor;
+        this.m_nMaxIteraction = diagram.model.layout.maxIteration;
     }
-    Object.defineProperty(SymmetricLayoutManager.prototype, "SpringLength", {
-        get: function () {
-            return this.m_fVertexDistance;
-        },
-        set: function (value) {
-            this.m_fVertexDistance = value;
-        },
-        enumerable: true,
-        configurable: true
-    });
-    Object.defineProperty(SymmetricLayoutManager.prototype, "SpringFactor", {
-        get: function () {
-            return this.m_dSpringFactor;
-        },
-        set: function (value) {
-            this.m_dSpringFactor = value;
-        },
-        enumerable: true,
-        configurable: true
-    });
-    Object.defineProperty(SymmetricLayoutManager.prototype, "MaxIteraction", {
-        get: function () {
-            return this.m_nMaxIteraction;
-        },
-        set: function (value) {
-            this.m_nMaxIteraction = value;
-        },
-        enumerable: true,
-        configurable: true
-    });
-    Object.defineProperty(SymmetricLayoutManager.prototype, "selectedNode", {
-        get: function () {
-            return this.m_objSelectedNode;
-        },
-        set: function (value) {
-            if (this.m_objSelectedNode !== value) {
-                this.m_objSelectedNode = value;
-            }
-        },
-        enumerable: true,
-        configurable: true
-    });
     SymmetricLayoutManager.prototype.doGraphLayout = function (graphLayoutManager) {
         var graph = this.selectedNode;
         this.diagram = graphLayoutManager.diagram;
@@ -334,35 +256,8 @@ var GraphLayoutManager = (function () {
     function GraphLayoutManager() {
         this.visitedStack = [];
         this.cycleEdgesCollection = [];
-        this.m_hashPassedNodes = {};
+        this.passedNodes = {};
     }
-    Object.defineProperty(GraphLayoutManager.prototype, "selectedNode", {
-        get: function () {
-            return this.m_objSelectedNode;
-        },
-        set: function (value) {
-            if (this.m_objSelectedNode !== value) {
-                this.m_objSelectedNode = value;
-            }
-        },
-        enumerable: true,
-        configurable: true
-    });
-    Object.defineProperty(GraphLayoutManager.prototype, "passedNodes", {
-        get: function () {
-            if (this.m_hashPassedNodes == null) {
-                this.m_hashPassedNodes = {};
-            }
-            return this.m_hashPassedNodes;
-        },
-        set: function (value) {
-            if (this.m_hashPassedNodes !== value) {
-                this.m_hashPassedNodes = value;
-            }
-        },
-        enumerable: true,
-        configurable: true
-    });
     GraphLayoutManager.prototype.updateLayout = function (diagram, smtLayout) {
         this.diagram = diagram;
         var selectionList = diagram.nodes();
@@ -464,8 +359,8 @@ var GraphLayoutManager = (function () {
                     connector._isCycleEdge = false;
                 });
             }
-            this.m_hashPassedNodes = null;
-            this.m_objSelectedNode = null;
+            this.passedNodes = null;
+            this.selectedNode = null;
         }
         return false;
     };

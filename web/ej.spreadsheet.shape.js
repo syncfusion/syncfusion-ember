@@ -18,6 +18,7 @@
         this._changePicture = false;
         this._picCellIdx = {};
         this._insertShape = false;
+        this._isRowGreater = false;
     };
 
     ej.spreadsheetFeatures.shape.prototype = {
@@ -58,7 +59,7 @@
             shapeObj.data = shapeMngr.sharedPics.indexOf(url);
             details.cur.data = shapeObj.data;
             this._changePicture = false;
-            xlObj.setSheetFocus();
+            xlObj._setSheetFocus();
             xlObj._completeAction(details);
             xlObj._trigActionComplete(details);
         },
@@ -136,7 +137,7 @@
             this._updateShapeMngr(activeCell, { "picture": { data: imgData, id: id, height: height, width: width, left: left, top: top, rowIndex: rowIdx, colIndex: colIdx, bwidth: bwidth, bcolor: bcolor, bstyle: bstyle } }, "picture");
             if (!xlObj._isExport)
                 this._refreshPictureElement({top: top, left: left, width: width, height: height, bcolor: bcolor, bstyle: bstyle, bwidth: bwidth, imgData: imgData, cnt: cnt, sheetIdx: sheetIdx});
-            xlObj.setSheetFocus();
+            xlObj._setSheetFocus();
             if ((!sheet._isImported || sheet._isLoaded) && !xlObj._isUndoRedo && !xlObj._isPaste && !xlObj.XLClipboard._isShape && !xlObj._isExport) {
                 details = { sheetIndex: sheetIdx, reqType: "shape", shapeType: "picture", action: "create", id: id, actCell: activeCell, img: imgData, cnt: cnt };
                 details.position = { top: top, left: left, height: height, width: width };
@@ -167,7 +168,7 @@
             if (xlObj._isTouchEvt)
                 this._imgMouseMove(e);
             if (actElemId.indexOf("PictureHeight") > -1 || actElemId.indexOf("PictureWidth") > -1)
-                xlObj.setSheetFocus();
+                xlObj._setSheetFocus();
             var prop, id = e.target.id, $trgt = $(e.target), imgElem = $trgt.get(0), left = imgElem.offsetLeft, top = imgElem.offsetTop, xy = xlObj._setXY(e);
             this._selectImg($trgt);
             this._picCellIdx = this._getCellIndexFromOffset(top, left);
@@ -269,7 +270,7 @@
             if ($trgt.hasClass("e-ss-picture") || $trgt[0].id.indexOf(xlObj._id + "_picture") > -1)
                 if(xlObj.model.showRibbon)
                 xlObj.XLRibbon._formatTabUpdate();
-			if(((imgElem.localName === "svg" || imgElem.localName === "rect") && imgElem && imgElem.id.indexOf("chart") < 0 ) || imgElem.localName === "path" || imgElem.localName === "circle")
+			if((imgElem.localName === "svg" || imgElem.localName === "rect" || imgElem.localName === "path" || imgElem.localName === "circle") && imgElem && imgElem.id.indexOf("chart") < 0 )
 				imgElem = $(imgElem).closest("div.e-sparkline")[0];
 			else if($(imgElem).hasClass("e-sparkline"))
 				imgElem = imgElem;
@@ -361,7 +362,7 @@
                 var imgElem = $actImg.get(0), location = imgElem.getBoundingClientRect(), xy = xlObj._setXY(e), x = xy[0], y = xy[1], extra, left, top;
                 if (this._shapeROStart) {
                     if (this.XLObj._trigger("dragShape", e))
-                        return;
+                        return false;
                     $visualImg.show();
                     if (imgElem.id.indexOf("picture") > -1)
                         $visualImg.addClass("e-ss-picture");
@@ -529,7 +530,7 @@
                 shapeIdx = shapeMngr.sharedPics.indexOf(shapeObj[type].data);
                 shape[shapeObj[type].id].data = shapeIdx;
             }
-            if (xlObj._isPaste || this._insertShape || xlObj.XLClipboard._isShape || xlObj.isImport || !xlObj.getSheet(sheetIdx)._isUpdated) {
+            if (xlObj._isPaste || this._insertShape || xlObj.XLClipboard._isShape || xlObj.isImport || xlObj.model.isImport || !xlObj.getSheet(sheetIdx)._isUpdated) {
 				obj[type] = shapeObj[type].id;
                 xlObj.XLEdit._updateDataContainer(cell, { dataObj: obj, sheetIdx: sheetIdx });
                 this._insertShape = false;
@@ -738,9 +739,9 @@
             }
         },
 
-        _refreshChartdataInsDel: function (action, count, startIdx, sIdx, canChartRefresh) {
-            var i, xlObj = this.XLObj, sheet = xlObj.getSheet(sIdx), chartMngr = sheet.shapeMngr.chart, key, cObj, cRange, diff;
-
+        _refreshChartdataInsDel: function (val, count, startIdx, sIdx, canChartRefresh) {
+            var i, xlObj = this.XLObj, sheet = xlObj.getSheet(sIdx), chartMngr = sheet.shapeMngr.chart, action = val.status, seriesRange = [], key, cObj, newCObj, cRange, diff, rDiff, cDiff;
+            this._isRowGreater = false;
             if (!canChartRefresh) {
                 for (i = 0; i < count; i++) {
                     diff = action.indexOf("insert") > -1 ? (action.indexOf("Column") > -1 ? sheet.columnsWidthCollection[startIdx + i] : sheet.rowsHeightCollection[startIdx + i]) * 2 : 0;
@@ -749,33 +750,108 @@
                 if (xlObj.isUndefined(canChartRefresh))
                     canChartRefresh = true;
             }
-
             if (canChartRefresh) {
                 for (key in chartMngr) {
                     cObj = chartMngr[key];
                     cRange = cObj.range;
-                    if (!cRange)
-                        continue;
+                    xRange = cObj.isRowColSwitched ? cObj.lRange : cObj.xRange;
+                    yRange = cObj.yRange;
+                    lRange = cObj.isRowColSwitched ? cObj.xRange : cObj.lRange;
                     switch (action) {
                         case "insertColumn":
-                        case "deleteColumn":
-                            if (startIdx <= cRange[1]) {
-                                if (action == "insertColumn") {
+                            if (cRange) {
+                                rDiff = cRange[2] - cRange[0];
+                                cDiff = cRange[3] - cRange[1];
+                                if (rDiff > cDiff) {
+                                    this._isRowGreater = true;
+                                }
+                            }
+                            if (xlObj._isUndo) {
+                                !ej.isNullOrUndefined(val.prevChartDetails) && xlObj.XLChart.refreshChart(val.prevChartDetails.id, val.prevChartDetails);
+                            } else if (!xlObj._isUndo && xlObj._isUndoRedo) {
+                                !ej.isNullOrUndefined(val.curChartDetails) && xlObj.XLChart.refreshChart(val.curChartDetails.id, val.curChartDetails);
+                            } else if (cRange && (startIdx <= cRange[1]) && !cObj.isChartSeries) {
+                                 xlObj._prevChartDetails = $.extend(true, {}, { id: cObj.id, range: cObj.range, xRange: cObj.xRange, yRange: cObj.yRange, lRange: cObj.lRange, isChartSeries: cObj.isChartSeries, seriesRange: cObj.seriesRange, isRowColSwitched: cObj.isRowColSwitched });
+                                 cRange[1] += count;
+                                 cRange[3] += count;
+                                 cObj.range = cRange;
+                                 xlObj.XLChart.refreshChart(cObj.id, { range: cObj.range });
+                                 xlObj._curChartDetails = $.extend(true, {}, { id: cObj.id, range: cObj.range, xRange: cObj.xRange, yRange: cObj.yRange, lRange: cObj.lRange, isChartSeries: cObj.isChartSeries, seriesRange: cObj.seriesRange, isRowColSwitched: cObj.isRowColSwitched });
+                            }
+                            else if (!this._isRowGreater && xlObj._inColumn(cRange, startIdx) && !cObj.isChartSeries) {
+                                cObj.seriesRange = null;
+                                xlObj._prevChartDetails = $.extend(true, {}, { id: cObj.id, range: cObj.range, xRange: cObj.xRange, yRange: cObj.yRange, lRange: cObj.lRange, isChartSeries: cObj.isChartSeries, seriesRange: cObj.seriesRange, isRowColSwitched: cObj.isRowColSwitched });
+                                if (startIdx < yRange[1] || startIdx < xRange[1]) {
                                     cRange[1] += count;
                                     cRange[3] += count;
+                                    cObj.range = cRange;
+                                    cObj.isChartSeries = false;
+                                    xlObj.XLChart.refreshChart(cObj.id, { range: cObj.range, isChartSeries: cObj.isChartSeries });
                                 }
-                                else {
+                                else if (startIdx > yRange[1] && startIdx <= yRange[3]) {
+                                    cRange[3] += count;
+                                    cObj.range = cRange;
+                                    cObj.isChartSeries = false;
+                                    xlObj.XLChart.refreshChart(cObj.id, { range: cObj.range, isChartSeries: cObj.isChartSeries });
+                                }
+                                else if (startIdx <= yRange[1]) {
+                                    yRange[1] += count;
+                                    yRange[3] += count;
+                                    xRange[1] += count;
+                                    xRange[3] += count;
+                                    cObj.range = null;
+                                    cObj.xRange = null;
+                                    cObj.yRange = null;
+                                    cObj.lRange = null;
+                                    cObj.isChartSeries = true;
+                                    cObj.isRowColSwitched = false;
+                                    cObj.seriesRange = [{ xRange: [xRange[0], xRange[1], xRange[2], xRange[3]], yRange: [yRange[0], yRange[1], yRange[2], yRange[3]], lRange: [lRange[0], lRange[1], lRange[2], lRange[3]] }];
+                                    cObj.seriesRange = this._constructSeriesRange(cObj, this._isRowGreater);
+                                    xlObj.XLChart._refreshChart(cObj);
+                                }
+                                xlObj._curChartDetails = $.extend(true, {}, { id: cObj.id, range: cObj.range, xRange: cObj.xRange, yRange: cObj.yRange, lRange: cObj.lRange, isChartSeries: cObj.isChartSeries, seriesRange: cObj.seriesRange, isRowColSwitched: cObj.isRowColSwitched });
+                            } else if (this._isRowGreater || cObj.seriesRange.length) {
+                                xlObj._prevChartDetails = $.extend(true, {}, { id: cObj.id, range: cObj.range, isChartSeries: cObj.isChartSeries, seriesRange: cObj.seriesRange, xRange: cObj.xRange, yRange: cObj.yRange, lRange: cObj.lRange, isRowColSwitched: cObj.isRowColSwitched });
+                                if (ej.isNullOrUndefined(cObj.seriesRange) || cObj.seriesRange.length == 0) {
+                                    seriesRange = this._constructSeriesRange(cObj, this._isRowGreater);
+                                }
+                                cObj.seriesRange = this._isInSeriesRange(cObj, seriesRange.length != 0 ? seriesRange : cObj.seriesRange, startIdx, count, action);
+                                seriesRange = [];
+                                cObj.range = null;
+                                cObj.xRange = null;
+                                cObj.yRange = null;
+                                cObj.lRange = null;
+                                cObj.isChartSeries = true;
+                                xlObj.XLChart._refreshChart(cObj);
+                                xlObj._curChartDetails = $.extend(true, {}, { id: cObj.id, range: cObj.range, xRange: cObj.xRange, yRange: cObj.yRange, lRange: cObj.lRange, isChartSeries: cObj.isChartSeries, seriesRange: cObj.seriesRange, isRowColSwitched: cObj.isRowColSwitched });
+                            }
+                            break;
+                        case "deleteColumn":
+                            xlObj._prevChartDetails = $.extend(true, {}, { id: cObj.id, range: cObj.range, isChartSeries: cObj.isChartSeries, seriesRange: cObj.seriesRange, xRange: cObj.xRange, yRange: cObj.yRange, lRange: cObj.lRange, isRowColSwitched: cObj.isRowColSwitched });
+                            if (xlObj._isUndo) {
+                                !ej.isNullOrUndefined(val.prevChartDetails) && xlObj.XLChart.refreshChart(val.prevChartDetails.id, val.prevChartDetails);
+                            } else if (!xlObj._isUndo && xlObj._isUndoRedo) {
+                                !ej.isNullOrUndefined(val.curChartDetails) && xlObj.XLChart.refreshChart(val.curChartDetails.id, val.curChartDetails);
+                            } else if (cRange) {
+                                if (startIdx < cRange[1]) {
                                     cRange[1] -= count;
                                     cRange[3] -= count;
+                                } else if (startIdx > cRange[1] && startIdx <= cRange[3]) {
+                                    cRange[3] -= count;
+                                } else if (startIdx == cRange[1]) {
+                                    cRange[3] -= count;
                                 }
-                                xlObj.XLChart.refreshChart(cObj.id, { range: cRange });
+                                cObj.range = cRange;
+                                xlObj.XLChart.refreshChart(cObj.id, cObj);
+                            } else if (cObj.seriesRange.length) {
+                                cObj.seriesRange = this._isInSeriesRange(cObj, cObj.seriesRange, startIdx, count, action);
+                                xlObj.XLChart._refreshChart(cObj);
                             }
-                            else if (xlObj._inColumn(cObj.range, startIdx))
-                                xlObj.XLChart.refreshChart(cObj.id, { range: cRange });
+                            xlObj._curChartDetails = $.extend(true, {}, { id: cObj.id, range: cObj.range, xRange: cObj.xRange, yRange: cObj.yRange, lRange: cObj.lRange, isChartSeries: cObj.isChartSeries, seriesRange: cObj.seriesRange, isRowColSwitched: cObj.isRowColSwitched });
                             break;
                         case "insertRow":
                         case "deleteRow":
-                            if (startIdx <= cRange[0]) {
+                            if (!ej.isNullOrUndefined(cRange) && startIdx <= cRange[0]) {
                                 if (action == "insertRow") {
                                     cRange[0] += count;
                                     cRange[2] += count;
@@ -792,7 +868,80 @@
                     }
                 }
             }
+        },
+        _constructSeriesRange: function (cObj, isRowGreater) {
+            var i = 0, xlObj = this.XLObj, xRangeSeries, yRangeSeries, lRangeSeries, xRangeArray = [], lRangeArray = [], yRangeArray = [], sRange = cObj.seriesRange, xRange, yRange, lRange, lendIndex,
+            yendIndex, lDiff, ydiff, seriesLen, yinitialRange, linitialRange;
+            xRange = !ej.isNullOrUndefined(cObj.xRange) ? cObj.xRange : (!ej.isNullOrUndefined(sRange) && !ej.isNullOrUndefined(sRange[0]) && !ej.isNullOrUndefined(sRange[0].xRange)) ? sRange[0].xRange : null;
+            yRange = !ej.isNullOrUndefined(cObj.yRange) ? cObj.yRange : (!ej.isNullOrUndefined(sRange) && !ej.isNullOrUndefined(sRange[0]) && !ej.isNullOrUndefined(sRange[0].yRange)) ? sRange[0].yRange : null;
+            lRange = !ej.isNullOrUndefined(cObj.lRange) ? cObj.lRange : (!ej.isNullOrUndefined(sRange) && !ej.isNullOrUndefined(sRange[0]) && !ej.isNullOrUndefined(sRange[0].lRange)) ? sRange[0].lRange : null;
+            if (!ej.isNullOrUndefined(lRange)) {
+                lendIndex = lRange[3];
+                lDiff = lRange[3] - lRange[1];
+                linitialRange = [lRange[0], lRange[1], lRange[2], (lRange[3] - lDiff)]
+            }
+            if (!ej.isNullOrUndefined(yRange)) {
+                yendIndex = yRange[3];
+                ydiff = yRange[3] - yRange[1];
+                seriesLen = ydiff;
+                yinitialRange = [yRange[0], yRange[1], yRange[2], (yRange[3] - ydiff)];
+            }
+            if (!isRowGreater) {
+                lDiff = (lRange[2] - lRange[0]);
+                ydiff = (yRange[2] - yRange[0]);
+                seriesLen = ydiff;
+                linitialRange = [lRange[0], lRange[1], (lRange[2] - lDiff), lRange[3]];
+                yinitialRange = [yRange[0], yRange[1], (yRange[2] - ydiff), yRange[3]];
+            }
+            seriesRange = [];
+            while (i <= seriesLen) {
+                if (isRowGreater) {
+                    yRangeSeries = xlObj.getAlphaRange(yinitialRange[0], yinitialRange[1]++, yinitialRange[2], yinitialRange[3]++);
+                    yRangeArray.push(yRangeSeries);
+                    lRangeSeries = xlObj.getAlphaRange(linitialRange[0], linitialRange[1]++, linitialRange[2], linitialRange[3]++);
+                    lRangeArray.push(lRangeSeries);
+                } else {
+                    yRangeSeries = xlObj.getAlphaRange(yinitialRange[0]++, yinitialRange[1], yinitialRange[2]++, yinitialRange[3]);
+                    yRangeArray.push(yRangeSeries);
+                    lRangeSeries = xlObj.getAlphaRange(linitialRange[0]++, linitialRange[1], linitialRange[2]++, linitialRange[3]);
+                    lRangeArray.push(lRangeSeries);
+                }
+                xRangeSeries = !ej.isNullOrUndefined(xRange) ? xlObj.getAlphaRange(xRange[0], xRange[1], xRange[2], xRange[3]) : null;
+                yRangeSeries = yRangeArray[i];
+                lRangeSeries = lRangeArray[i];
+                seriesRange.push({ xRange: xRangeSeries, yRange: yRangeSeries, lRange: lRangeSeries });
+                i++;
+            }
+            return seriesRange;
+        },
+        _isInSeriesRange: function (cObj, seriesRange, startIdx, count, action) {
+            var xlObj = this.XLObj, isInsertColumn = (action == 'insertColumn');
+            cObj.seriesRange = []
+            for (var i = 0; i < seriesRange.length; i++) {
+                xRange = ej.isNullOrUndefined(seriesRange[i].xRange) ? [] : xlObj.getRangeIndices(seriesRange[i].xRange);
+                yRange = ej.isNullOrUndefined(seriesRange[i].yRange) ? [] : xlObj.getRangeIndices(seriesRange[i].yRange);
+                lRange = ej.isNullOrUndefined(seriesRange[i].lRange) ? [] : xlObj.getRangeIndices(seriesRange[i].lRange);
+                if (startIdx <= xRange[1]) {
+                    xRange[1] = isInsertColumn ? xRange[1] + count : xRange[1] - count;
+                    xRange[3] = isInsertColumn ? xRange[3] + count : xRange[3] - count;
+                } else if (startIdx > xRange[1] && startIdx <= xRange[3]) {
+                    xRange[3] = isInsertColumn ? xRange[3] + count : xRange[3] - count;
+                }
+                if (startIdx <= yRange[1]) {
+                    yRange[1] = isInsertColumn ? yRange[1] + count : yRange[1] - count;
+                    yRange[3] = isInsertColumn ? yRange[3] + count : yRange[3] - count;
+                } else if (startIdx > yRange[1] && startIdx <= yRange[3]) {
+                    yRange[3] = isInsertColumn ? yRange[3] + count : yRange[3] - count;
+                }
+                if (startIdx <= lRange[1]) {
+                    lRange[1] = isInsertColumn ? lRange[1] + count : lRange[1] - count;
+                    lRange[3] = isInsertColumn ? lRange[3] + count : lRange[3] - count;
+                } else if (startIdx > lRange[1] && startIdx <= lRange[3]) {
+                    lRange[3] = isInsertColumn ? lRange[3] + count : lRange[3] - count;
+                }
+                cObj.seriesRange.push({ xRange: xRange.length == 0 ? null : xlObj.getAlphaRange(xRange[0], xRange[1], xRange[2], xRange[3]), yRange: yRange.length == 0 ? null : xlObj.getAlphaRange(yRange[0], yRange[1], yRange[2], yRange[3]), lRange: lRange.length == 0 ? null : xlObj.getAlphaRange(lRange[0], lRange[1], lRange[2], lRange[3]) });
+            }
+            return cObj.seriesRange;
         }
     };
-
 })(jQuery, Syncfusion);

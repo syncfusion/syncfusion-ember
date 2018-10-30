@@ -90,7 +90,7 @@ var InternalDragAndDrop = (function () {
         var kObj = this.kanbanObj, lastDrpIndex, eleDrpIndex, trgtColData = [], pCheck = false, prKey = kObj.model.fields.priority, filter, selEle;
         var sibling = target.parent().has(element).length;
         if (!ej.isNullOrUndefined(kObj._filterToolBar))
-            filter = kObj._filterToolBar.find('.e-select');
+            filter = kObj._filterToolBar.find('li.e-select');
         if (target.hasClass('e-targetclone'))
             target = target.parent();
         if (target.hasClass('e-columnkey'))
@@ -144,8 +144,6 @@ var InternalDragAndDrop = (function () {
             }
         }
         this._updateDropAction(target, element);
-        if (sibling == 0 && !ej.isNullOrUndefined(kObj.model.fields.swimlaneKey) && kObj.model.swimlaneSettings.allowDragAndDrop)
-            kObj.refresh(true);
     };
     InternalDragAndDrop.prototype._updateDropAction = function (trgt, ele) {
         var trgtTd, kObj = this._externalDrop ? this._externalObj : this.kanbanObj, rowCell;
@@ -216,7 +214,7 @@ var InternalDragAndDrop = (function () {
         var kObj = this._externalDrop ? this._externalObj : this.kanbanObj, targetKey = 0, prevKey = 0, nextKey = 0, nextAll, prevAll, dropIndex, cards, initTarget, prevCard, nextCard, trgtColData = [], prCardId, prKey = kObj.model.fields.priority, filter, primeKey, selEle;
         var sibling = target.parent().has(element).length;
         if (!ej.isNullOrUndefined(kObj._filterToolBar))
-            filter = kObj._filterToolBar.find('.e-select');
+            filter = kObj._filterToolBar.find('li.e-select');
         primeKey = kObj.model.fields.primaryKey;
         this._selectedPrevCurrentCards();
         if (prKey && ((!ej.isNullOrUndefined(kObj._filterToolBar) && filter.length > 0) || (kObj._searchBar != null && kObj._searchBar.find(".e-cancel").length > 0)))
@@ -349,8 +347,6 @@ var InternalDragAndDrop = (function () {
         }
         this._updateDropAction(target, element);
         this._dropTarget = null;
-        if (sibling == 0 && !ej.isNullOrUndefined(kObj.model.fields.swimlaneKey) && kObj.model.swimlaneSettings.allowDragAndDrop)
-            kObj.refresh(true);
     };
     InternalDragAndDrop.prototype._updateDropData = function (target, element, cardId) {
         var kObj = this._externalDrop ? this._externalObj : this.kanbanObj;
@@ -386,7 +382,7 @@ var InternalDragAndDrop = (function () {
                     tempCard[0][kObj.model.keyField] = columnKey;
                 }
                 if (kObj.model.fields.swimlaneKey) {
-                    var sKey = $(target).parents("tr.e-columnrow").prev().find("div.e-slkey").html();
+                    var sKey = $(target).parents("tr.e-columnrow").prev().find("div.e-slkey").attr("data-ej-slmappingkey");
                     if (!ej.isNullOrUndefined(sKey))
                         tempCard[0][kObj.model.fields.swimlaneKey] = sKey;
                     else
@@ -405,7 +401,7 @@ var InternalDragAndDrop = (function () {
                 }
                 if (!ej.isNullOrUndefined(dropData) && tempCard.length > 0)
                     tempCard[0][prKey] = dropData["dropKey"];
-                if (!ej.isNullOrUndefined(kObj._filterToolBar) && kObj._filterToolBar.find('.e-select').length > 0 && !ej.isNullOrUndefined(dropData) || (kObj._searchBar != null && kObj._searchBar.find(".e-cancel").length > 0)) {
+                if (!ej.isNullOrUndefined(kObj._filterToolBar) && kObj._filterToolBar.find('li.e-select').length > 0 && !ej.isNullOrUndefined(dropData) || (kObj._searchBar != null && kObj._searchBar.find(".e-cancel").length > 0)) {
                     for (var k = 0; k < kObj._initialData.length; k++) {
                         if (dropData["primaryKey"] == kObj._initialData[k][primeKey]) {
                             if (tempCard.length > 0)
@@ -539,8 +535,8 @@ var InternalDragAndDrop = (function () {
                 if (lastEle.hasClass('e-targetclone'))
                     lastEle = lastEle.prev();
                 cEleSiblings = clonedElement.siblings().not('.e-shrinkheader').not('.e-customaddbutton').not('.e-limits');
-                if ($(target).children().length == 0 || cEleSiblings.length <= 0 || (lastEle.hasClass('e-customaddbutton') && lastEle.prev().hasClass('e-targetclone')) || (!lastEle.hasClass('e-customaddbutton') && ($(lastEle).offset().top + $(lastEle).height() < $(clonedElement).offset().top))) {
-                    if (lastEle.next().hasClass('e-targetclone') || cEleSiblings.length <= 0)
+                if ($(target).children().length == 0 || cEleSiblings.length >= 0 || (lastEle.hasClass('e-customaddbutton') && lastEle.prev().hasClass('e-targetclone')) || (!lastEle.hasClass('e-customaddbutton') && ($(lastEle).offset().top + $(lastEle).height() < $(clonedElement).offset().top))) {
+                    if (lastEle.hasClass("e-customaddbutton") || lastEle.next().hasClass('e-targetclone') || cEleSiblings.length <= 0)
                         proxy._dropToColumn($(target), $(args.element));
                     else {
                         pre = false;
@@ -636,7 +632,7 @@ var InternalDragAndDrop = (function () {
         return true;
     };
     InternalDragAndDrop.prototype._getCursorElement = function (e) {
-        var tgtCl = $(e.target).closest(".dragClone"), evt = e.event;
+        var tgtCl = $(e.target).closest(".dragClone.e-kanbancard"), evt = e.event;
         if (tgtCl.length > 0) {
             tgtCl.hide();
             if (evt.type == "touchmove" || evt.type == "touchstart" || evt.type == "touchend")
@@ -936,7 +932,7 @@ var InternalDragAndDrop = (function () {
                 }
                 if (kObj.model.allowScrolling || kObj.model.isResponsive)
                     proxy._kanbanAutoScroll(args);
-                if ($(args.target).closest(".dragClone").length > 0) {
+                if ($(args.target).closest(".dragClone.e-kanbancard").length > 0) {
                     args.target = prevTd;
                     clearTimeout(timeot);
                     timeot = setTimeout(function () {

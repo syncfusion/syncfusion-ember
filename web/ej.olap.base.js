@@ -105,8 +105,25 @@
                 mdxQuery = "\nSelect \n" + (columnQuery == "" ? "{}" : columnQuery) + "\ndimension properties MEMBER_TYPE,CHILDREN_CARDINALITY, PARENT_UNIQUE_NAME  ON COLUMNS \n" + (rowQuery == "" ? "" : "," + rowQuery + "\ndimension properties MEMBER_TYPE,CHILDREN_CARDINALITY, PARENT_UNIQUE_NAME  ON ROWS") + "\n " + ej.olap._mdxParser._getIncludefilterQuery(olapReport, cube, this.olapCtrlObj) + slicerQuery + "\n CELL PROPERTIES VALUE, FORMAT_STRING, FORMATTED_VALUE \n ";
                 if (columnQuery == "")
                     mdxQuery.replace(/NON EMPTY/g, " ");
+                mdxQuery = this._getCalculatedItems(mdxQuery);
             }
             return mdxQuery;
+        },
+        _getCalculatedItems: function (mdxQuery) {
+            var calcMembers = this.olapCtrlObj.model.calculatedMembers;
+            if (calcMembers && calcMembers.length > 0) {
+                var calcQuery = "\nWITH";
+                for (var i = 0; i < calcMembers.length; i++) {
+                    var prefName = (calcMembers[i].expression.indexOf("Measure") > -1 ? "[Measures]." : calcMembers[i].hierarchyUniqueName + ".");
+                    var alsName = prefName + "[" + (calcMembers[i].caption || calcMembers[i].name) + "]";
+                    var formatString = (!ej.isNullOrUndefined(calcMembers[i].formatString) ? calcMembers[i].formatString : (!ej.isNullOrUndefined(calcMembers[i].format) ? calcMembers[i].format : null));
+                    calcQuery += ("\n MEMBER " + alsName + " as (" + calcMembers[i].expression + " ) " + (!ej.isNullOrUndefined(formatString) ? ", FORMAT_STRING =\"" + $.trim(formatString) + "\"" : ""));
+                }
+                calcQuery = calcQuery.replace(/\&/g, "&amp;");
+                return calcQuery + " " + mdxQuery;
+            }
+            else
+                return mdxQuery;
         },
         _getPagingQuery: function (rowQuery, columnQuery) {
             var categCurrPage = (Math.ceil(this._colCount / this.olapCtrlObj.model.dataSource.pagerOptions.categoricalPageSize) < parseInt(this.olapCtrlObj.model.dataSource.pagerOptions.categoricalCurrentPage) || parseInt(this.olapCtrlObj.model.dataSource.pagerOptions.categoricalCurrentPage) == 0) ? ((Math.ceil(this._colCount / this.olapCtrlObj.model.dataSource.pagerOptions.categoricalPageSize) < parseInt(this.olapCtrlObj._categCurrentPage) && this._colCount > 0) ? Math.ceil(this._colCount / this.olapCtrlObj.model.dataSource.pagerOptions.categoricalPageSize) : this.olapCtrlObj._categCurrentPage) : parseInt(this.olapCtrlObj.model.dataSource.pagerOptions.categoricalCurrentPage);
@@ -597,7 +614,10 @@
         _getHeaderCollection : function(axisData, axis){
             var headerCollection, setIndx, tempIndx = [], level, type = "", maxLvlLen = [], KPIIndx = null, kpiInfo = {}, measuredt = {}, currentObj = this;
             headerCollection = $(axisData).filter(function (index, mem1) {
-                var mem = $(mem1).find('Member'), mCol = [], preIsAll = $(mem[0]).find('LName').text().indexOf("[(All)]") != -1, allCnt = (preIsAll ? 1 : 0), curIsAll = 0;
+                var mem = $(mem1).find('Member'), mCol = [],
+                    preIsAll = (!($(mem[0]).find('MEMBER_TYPE').text() == "4") && $(mem[0]).find('LName').text().indexOf("[(All)]") != -1),
+                    allCnt = (preIsAll ? 1 : 0),
+                    curIsAll = 0;
                 KPIIndx = null;
                 if(preIsAll){
                     level = 0; type = "total";
@@ -611,7 +631,16 @@
                     mLen = 0;
                 for(mLen;mLen < mem.length; mLen++)
                 {
-                    if($(mem[mLen]).find('LName').text().toLowerCase().indexOf("[measures]")!= -1){
+                    var isCalcMember = false;
+                    if (axis == "colheader" && currentObj._OlapDataSource.columns[mLen]) {
+                        if (currentObj._OlapDataSource.columns[mLen].hasAllMember || currentObj._OlapDataSource.columns[mLen].expression != null)
+                            isCalcMember = true;
+                    }
+                    else if (axis == "rowheader" && currentObj._OlapDataSource.rows[mLen])
+                        if (currentObj._OlapDataSource.rows[mLen].hasAllMember || currentObj._OlapDataSource.rows[mLen].expression != null)
+                            isCalcMember = true;
+
+                    if ($(mem[mLen]).find('LName').text().toLowerCase().indexOf("[measures]") != -1 || isCalcMember) {
                         curIsAll = preIsAll; measuredt.axis = axis; measuredt.posision = mLen;
                         if (parseInt($(mem[mLen]).find('MEMBER_TYPE').text()) == 4) {
                             var memUName = $(mem[mLen]).find('UName').text().toLowerCase();
@@ -643,7 +672,7 @@
                         }
                     }
                     else
-                        curIsAll =($(mem[mLen]).find('LName').text().indexOf("[(All)]")!= -1);
+                        curIsAll = ($(mem[mLen]).find('LName').text().indexOf("[(All)]") != -1);
                     if((preIsAll == false && curIsAll == true) || (preIsAll == true && curIsAll == false)){	
                         allCnt++; level = mLen, type = "total";
                     }
@@ -659,23 +688,35 @@
                 var mem = $(ele).find('Member'), mCol = [];
                 for(var mLen =0;mLen < mem.length; mLen++)
                 {
+                    var isCalcMem = false;
                     var levNum = parseInt($(mem[mLen]).find('LNum').text()), pUName;
 
                     if (axis == "colheader" && currentObj._OlapDataSource.columns[mLen]) {
-                        if (currentObj._OlapDataSource.columns[mLen].hasAllMember)
+                        if (currentObj._OlapDataSource.columns[mLen].hasAllMember|| currentObj._OlapDataSource.columns[mLen].expression != null) 
+                        {
                             levNum += 1;
+                        }
+                        else
+                            isCalcMem = (currentObj._OlapDataSource.columns[mLen].expression != null);
                     }
                     else if (axis == "rowheader" && currentObj._OlapDataSource.rows[mLen])
-                        if (currentObj._OlapDataSource.rows[mLen].hasAllMember)
+                    if (currentObj._OlapDataSource.rows[mLen].hasAllMember|| currentObj._OlapDataSource.rows[mLen].expression != null) 
+                    {
                             levNum += 1;
+                    }
+                    else
+                        isCalcMem = (currentObj._OlapDataSource.rows[mLen].expression != null);
 
                     pUName = $(mem[mLen]).find('PARENT_UNIQUE_NAME').length ? $(mem[mLen]).find('PARENT_UNIQUE_NAME').text() : "";
                     mCol.push({
                         CSS: axis, Value: $(mem[mLen]).find('Caption').text() == "" ? "(Blank)" : $(mem[mLen]).find('Caption').text(), ColSpan: 1, RowSpan: 1, HUName: $(mem[mLen]).attr('Hierarchy'), LName: $(mem[mLen]).find('LName').text(), UName: $(mem[mLen]).find('UName').text(),
-                        ChildCount: parseInt($(mem[mLen]).find('CHILDREN_CARDINALITY').text()), PUName: pUName, LNum: levNum, MemberType: parseInt($(mem[mLen]).find('MEMBER_TYPE').text())
+                        ChildCount: parseInt($(mem[mLen]).find('CHILDREN_CARDINALITY').text()), PUName: pUName,
+                        isCalcMem: isCalcMem,
+                        LNum: levNum,
+                        MemberType: parseInt($(mem[mLen]).find('MEMBER_TYPE').text())
                     });
 
-                    if ($(mem[mLen]).find('LName').text().toLowerCase().indexOf("[measures]") != -1 && tempIndx[index].kpi) {
+                    if (($(mem[mLen]).find('LName').text().toLowerCase().indexOf("[measures]") != -1 || isCalcMem) && tempIndx[index].kpi) {
                         mCol[mCol.length - 1].kpiInfo = tempIndx[index].kpiInfo;
                         mCol[mCol.length - 1].kpi = tempIndx[index].kpi;
                     }
@@ -1718,18 +1759,20 @@
         },
 
         _getCaption: function (fieldItem, fieldInfo) {
-            var fieldName = fieldItem.fieldName, captionInfo=[];
-            if (fieldInfo.length > 0) {
-                captionInfo = $.map(fieldInfo, function (obj, index) { if (obj.tag != undefined && obj.tag.toLowerCase() == $.trim(fieldName.toLowerCase())) { return obj; } });
-                if (fieldName.toLowerCase().indexOf("[measures]") >= 0 && captionInfo.length == 0 && fieldName.split(".[").length > 0)
-                    fieldItem["fieldCaption"] = fieldName.split(".[")[1].replace(/]/g, "");
-                else if (captionInfo.length > 0) {
-                    fieldItem["hasAllMember"] = captionInfo[0]["hasAllMember"] ? true : false;
-                    fieldItem["fieldCaption"] = captionInfo[0].name;
+            var fieldName = fieldItem.fieldName, captionInfo = [];
+            if (ej.isNullOrUndefined(fieldItem["fieldCaption"])) {
+                if (fieldInfo.length > 0) {
+                    captionInfo = $.map(fieldInfo, function (obj, index) { if (obj.tag != undefined && obj.tag.toLowerCase() == $.trim(fieldName.toLowerCase())) { return obj; } });
+                    if (fieldName.toLowerCase().indexOf("[measures]") >= 0 && captionInfo.length == 0 && fieldName.split(".[").length > 0)
+                        fieldItem["fieldCaption"] = fieldName.split(".[")[1].replace(/]/g, "");
+                    else if (captionInfo.length > 0) {
+                        fieldItem["hasAllMember"] = captionInfo[0]["hasAllMember"] ? true : false;
+                        fieldItem["fieldCaption"] = captionInfo[0].name;
+                    }
                 }
+                else if (captionInfo.length == 0)
+                    fieldItem["fieldCaption"] = fieldName;
             }
-            else if (captionInfo.length==0)
-                fieldItem["fieldCaption"] = fieldName;
             return fieldItem;
         },
         clearDrilledItems: function (dataSource, args,ctrlObj) {
@@ -1963,7 +2006,7 @@
                 $.each(itm.split("--"), function (i, v) {
                     v = v.replace(drillExtension[i], "");
                     if (prevElements.split("--").length > 0 && !ej.isNullOrUndefined(prevElements.split("--")[i]))
-                        availCnt += (v.indexOf(prevElements.split("--")[i]) > -1 || prevElements.split("--")[i].indexOf(v) > -1) ? 1 : 0;
+                        availCnt += ((v.indexOf(prevElements.split("--")[i]) > -1 && !((v + "$").indexOf(prevElements.split("--")[i]) > -1)) || (prevElements.split("--")[i].indexOf(v) > -1 && !(prevElements.split("--")[i].indexOf(v + "$") > -1))) ? 1 : 0;
                 });
                 return availCnt;
             },
@@ -2069,7 +2112,12 @@
                     return item;
                 });
 
-                var expandCollection = $.map(reportInfo, function (item, index) { if (!ej.isNullOrUndefined(item._prevDimElements)) return item._prevDimElements }).filter(function (itm) { if (itm.indexOf("!#collapse") == -1) return itm; });
+                var expandCollection = $.map(reportInfo, function (item, index) {
+                    if (!ej.isNullOrUndefined(item._prevDimElements))
+                        return item._prevDimElements
+                }).filter(function (itm) {
+                    if (itm.indexOf("!#collapse") == -1) return itm;
+                });
                 var collapseCollection = $.map(reportInfo, function (item, index) { if (!ej.isNullOrUndefined(item._prevDimElements)) return item._prevDimElements }).filter(function (itm) { if (itm.indexOf("!#collapse") > -1) return itm; }).map(function (v) { return v.replace("!#collapse", "") });
                 var curDrillLen = prevElements.length == 0 ? reportInfo.length : prevElements.split("--").length, tmpColl = [];
 
@@ -2151,15 +2199,13 @@
                             return me._getSortedMembers(obj, reportInfo);
                         }
                     });
-                    var prevDimElements = reportInfo.length > 1 ? $.map(reportInfo, function (item, index) { if (!ej.isNullOrUndefined(item._prevDimElements)) return item._prevDimElements }) : [];
                     if (ej.olap.base._isRowDrilled && "rows" == ej.olap.base._currIndex["axis"] && reportInfo[ej.olap.base._currIndex.Index] != undefined && reportInfo[ej.olap.base._currIndex.Index]["drilledItems"] != undefined) {
                         var members = $.map(updateQuery, function (obj, index) { if (obj.indexOf("DrillDownlevel") >= 0) obj = obj.replace("DrillDownlevel", "DrillDownlevel(") + ")"; return obj; });
                         reportInfo[ej.olap.base._currIndex.Index]["drilledItems"].push(members);
-                        dimensionSet = reportInfo.length > 1 ? me._updateDrillQuery(reportInfo, dimensionSet, axis, updateQuery) : dimensionSet;
+                      
                         ej.olap.base._isRowDrilled = false;
                     }
-                    else if (!ej.olap.base._isRowDrilled && prevDimElements.length > 0)                        
-                        dimensionSet = reportInfo.length > 1 ? me._updateDrillQuery(reportInfo, dimensionSet, axis, updateQuery) : dimensionSet;                    
+                   
                     else if (drillRowInfo.length > 0 && (ej.olap.base._currIndex["axis"] == undefined || (ej.olap.base._currIndex["axis"] == "columns" && !ej.olap.base._isRowDrilled)))
                         dimensionSet = this._getDrillQuery(drillRowInfo, dimensionSet, reportInfo);
 
@@ -2172,27 +2218,22 @@
                             return me._getSortedMembers(obj, reportInfo);
                         }
                     });
-                    var prevDimElements = reportInfo.length > 1 ? $.map(reportInfo, function (item, index) { if (!ej.isNullOrUndefined(item._prevDimElements)) return item._prevDimElements }) : [];
                     if (ej.olap.base._isColDrilled && "columns" == ej.olap.base._currIndex["axis"] && reportInfo[ej.olap.base._currIndex.Index] != undefined && reportInfo[ej.olap.base._currIndex.Index]["drilledItems"] != undefined) {
                         var members = $.map(updateQuery, function (obj, index) { if (obj.indexOf("DrillDownlevel") >= 0) obj = obj.replace("DrillDownlevel", "DrillDownlevel(") + ")"; return obj; });
-                        reportInfo[ej.olap.base._currIndex.Index]["drilledItems"].push(members);
-                        dimensionSet = reportInfo.length > 1 ? me._updateDrillQuery(reportInfo, dimensionSet, axis, updateQuery) : dimensionSet;
+                        reportInfo[ej.olap.base._currIndex.Index]["drilledItems"].push(members);                     
                         ej.olap.base._isColDrilled = false;
                     }
-                    else if (!ej.olap.base._isColDrilled && prevDimElements.length > 0)
-                        dimensionSet = reportInfo.length > 1 ? me._updateDrillQuery(reportInfo, dimensionSet, axis, updateQuery) : dimensionSet;
                     else if (drillColInfo.length > 0 && (ej.olap.base._currIndex["axis"] == undefined || (ej.olap.base._currIndex["axis"] == "rows" && !ej.olap.base._isColDrilled)))
                         dimensionSet = this._getDrillQuery(drillColInfo, dimensionSet, reportInfo);
                     if (!ej.isNullOrUndefined(ej.olap.base._currIndex["axis"]) && ej.olap.base._currIndex["axis"] == "columns")
                         ej.olap.base._currIndex = {};
                 }
-                ej.olap.base.olapCtrlObj._prevDrillElements = [];
                 return dimensionSet;
             },
 
 
             _getDrillQuery: function (drilledInfo, mdx, report) {
-                var query = "",collapseQuery="", expandColl = ej.isNullOrUndefined(drilledInfo.expandCollection) ? drilledInfo : drilledInfo.expandCollection, collapseColl = ej.isNullOrUndefined(drilledInfo.collapseCollection) ? [] : drilledInfo.collapseCollection;
+                var query = "", collapseQuery = "", expandColl = drilledInfo; //ej.isNullOrUndefined(drilledInfo.expandCollection) ? drilledInfo : drilledInfo.expandCollection, collapseColl = ej.isNullOrUndefined(drilledInfo.collapseCollection) ? [] : drilledInfo.collapseCollection;
                 for (var i = 0; i < expandColl.length; i++) {
                     if (!(expandColl[i][expandColl[i].length - 1].toLowerCase().indexOf(".children") >= 0) && !(expandColl[i][expandColl[i].length - 1].toLowerCase().indexOf("drilldownlevel") >= 0) && !(expandColl[i][expandColl[i].length - 1].toLowerCase().indexOf("members") >= 0)) {
                         expandColl[i][expandColl[i].length - 1] = expandColl[i][expandColl[i].length - 1] + ".children";
@@ -2212,17 +2253,14 @@
                     else
                         query = query + "" + (i > 0 ? "," : "") + "\n (" + expandColl[i].toString() + ")\n";
                 }
-                for (var i = 0; i < collapseColl.length; i++) {
-                    collapseQuery = collapseQuery + "\n" + (i > 0 ? "," : "") + "(" + collapseColl[i].toString() + ")\n";
-                }
-                return "{(" + mdx + ")," + query + "}" + (collapseQuery == "" ? "" : "-{" + collapseQuery + "}");
+                return "(" + mdx + ")," + query;
             },
 
 			_createDrillThroughQuery: function (text, args) {
 			    if (args.model.operationalMode == ej.PivotGrid.OperationalMode.ServerMode) {
 			        args._waitingPopup.show();
 			        var rpt =  $(args.element).hasClass("e-pivotclient")?  args.element.find(".e-pivotgrid").data("ejPivotGrid"): args;
-			        args.doAjaxPost("POST", args.model.url + "/" + args.model.serviceMethodSettings.drillThroughDataTable, JSON.stringify({ "currentReport": $(args.element).parents(".e-pivotclient").length > 0 ? args.currentReport : JSON.parse(rpt.getOlapReport()).Report, "layout": args.model.layout, "cellPos": "", "selector": text }), function (args) {
+			        args.doAjaxPost("POST", args.model.url + "/" + args.model.serviceMethodSettings.drillThroughDataTable, JSON.stringify({ "currentReport": $(args.element).parents(".e-pivotclient").length > 0 ? args.currentReport : JSON.parse(rpt.getOlapReport()).Report, "layout": $(args.element).hasClass("e-pivotclient") ? args.model.gridLayout : args.model.layout, "cellPos": "", "selector": text }), function (args) {
 			            this._trigger("drillThrough", { element: args.element, data: args });
 			        });
 			        args._waitingPopup.hide();
@@ -2241,26 +2279,16 @@
 
 			_getDimensionQuery: function (dimElement, report, axis, index, isDrillOnPaging) {
 
-			    var dimQuery = "";
-			    if (!ej.isNullOrUndefined(dimElement["drillCellInfo"]) && !ej.isNullOrUndefined(dimElement["drillCellInfo"].previousElements) && dimElement["drillCellInfo"].previousElements != "")
-			        ej.olap.base.olapCtrlObj._prevDrillElements = dimElement["drillCellInfo"].previousElements.split("][").join("]>#>[").split(">#>");
+			    var dimQuery = "";		   
 
                 if (dimElement["drillCellInfo"] != undefined && !isDrillOnPaging) {
-                    dimQuery = "{(" + dimElement["drillCellInfo"].uniqueName + ")}";
-                    if (!ej.isNullOrUndefined(dimElement["drillCellInfo"].previousElements) && dimElement["drillCellInfo"].previousElements != "") {
-                        var prevElements = $.map(report[axis], function (item, index) {
-                            var members = ($.map(dimElement["drillCellInfo"].previousElements.split("][").join("]>#>[").split(">#>"), function (itm, idx) {
-                                if (itm.indexOf(item.fieldName) > -1) return itm;
-                            })).join("$");
-                            if (members != "") return members;
-                        }).join("--");
-                        dimElement["_prevDimElements"] = ej.isNullOrUndefined(dimElement["_prevDimElements"]) ? [] : dimElement["_prevDimElements"];
-                        dimElement["_prevDimElements"].push(prevElements + ((!ej.isNullOrUndefined(dimElement.hasAllMember) && dimElement.hasAllMember) ? ".levels(0).AllMembers" : ".children"));
-                    }
+                    dimQuery = "{(" + dimElement["drillCellInfo"].uniqueName + ")}";                  
                     delete dimElement.drillCellInfo;
                 }
                 else {
-                    if (ej.isNullOrUndefined(dimElement.hasAllMember) || !dimElement.hasAllMember) {
+                    if (!ej.isNullOrUndefined(dimElement.expression))
+                        dimQuery = "(" + dimElement.hierarchyUniqueName + ".[" + (dimElement.fieldCaption || dimElement.fieldName) + "])";
+                    else if(ej.isNullOrUndefined(dimElement.hasAllMember) || !dimElement.hasAllMember) {
                         dimQuery = ej.olap.base._isPaging ? "((" + $.trim(dimElement.fieldName) + ").children)" : "DrillDownlevel((" + $.trim(dimElement.fieldName) + "))";
                     }
                     else
@@ -2329,6 +2357,8 @@
                     reportInfo = $.map(fieldItems, function (obj, index) {
                         if (obj.fieldName != undefined && ($.trim(obj.fieldName).toLowerCase() == $.trim(cellInfo.hierarchyUniqueName).toLowerCase()))
                             return { report: obj, index: index };
+                        else if (obj.hierarchyUniqueName != undefined && ($.trim(obj.hierarchyUniqueName).toLowerCase() == $.trim(cellInfo.hierarchyUniqueName).toLowerCase()))
+                            return { report: obj, index: index };
                     });
                     reportItem = reportInfo[0].report;
                     cellInfo.itemPosition = reportInfo[0].index;
@@ -2376,7 +2406,12 @@
                                         var headerDrillInfo = this._splitCellInfo(currCellInfo);
                                         headerDrillInfo.uniqueName = headerDrillInfo.uniqueName.replace(/&/g, "&amp;")
                                         preRepItm = headerDrillInfo.uniqueName + (pvtGridObj._isMondrian ? ">#>" : "") + preRepItm;
-                                        currReport = $.map(fieldItems, function (obj, index) { if (obj.fieldName != undefined && ($.trim(obj.fieldName).toLowerCase() == $.trim(headerDrillInfo.hierarchyUniqueName).toLowerCase())) return index; });
+                                        currReport = $.map(fieldItems, function (obj, index) {
+                                            if (obj.fieldName != undefined && ($.trim(obj.fieldName).toLowerCase() == $.trim(headerDrillInfo.hierarchyUniqueName).toLowerCase()))
+                                                return index;
+                                            else if (obj.expression != undefined && ($.trim(obj.hierarchyUniqueName).toLowerCase() == $.trim(headerDrillInfo.hierarchyUniqueName).toLowerCase()))
+                                                return index;
+                                        });
                                         if (args.action != "collapse")
                                             pvtGridObj.model.dataSource.columns[currReport[0]]["drillCellInfo"] = headerDrillInfo;
                                         currentHierarchyName = headerDrillInfo.hierarchyUniqueName;
@@ -2395,7 +2430,12 @@
                                         var headerDrillInfo = this._splitCellInfo(currCellInfo);
                                         headerDrillInfo.uniqueName = headerDrillInfo.uniqueName.replace(/&/g, "&amp;");
                                         preRepItm = headerDrillInfo.uniqueName + ">#>" + preRepItm;
-                                        currReport = $.map(fieldItems, function (obj, index) { if (obj.fieldName != undefined && ($.trim(obj.fieldName).toLowerCase() == $.trim(headerDrillInfo.hierarchyUniqueName).toLowerCase())) return index; });
+                                        currReport = $.map(fieldItems, function (obj, index) {
+                                            if (obj.fieldName != undefined && ($.trim(obj.fieldName).toLowerCase() == $.trim(headerDrillInfo.hierarchyUniqueName).toLowerCase()))
+                                                return index;
+                                            else if (obj.hierarchyUniqueName != undefined && ($.trim(obj.hierarchyUniqueName).toLowerCase() == $.trim(headerDrillInfo.hierarchyUniqueName).toLowerCase()))
+                                                return index;
+                                        });
                                         if (args.action != "collapse")
                                             pvtGridObj.model.dataSource.rows[currReport[0]]["drillCellInfo"] = headerDrillInfo;
                                         currentHierarchyName = headerDrillInfo.hierarchyUniqueName;
@@ -2673,7 +2713,7 @@
             },
             getSoapMsg: function (mdx, url, catlogName) {
                 var conStr = ej.olap.base._getConnectionInfo(url), dsInfo = "", xmlMsg;
-                if (!ej.isNullOrUndefined(this["_controlObj"]) || ej.olap.base.olapCtrlObj._isMondrian)
+                if (!ej.isNullOrUndefined(this["_controlObj"]) || (!ej.isNullOrUndefined(ej.olap.base.olapCtrlObj) && ej.olap.base.olapCtrlObj._isMondrian))
                 {
                     dsInfo = ej.isNullOrUndefined(this["_controlObj"]) ? ej.olap.base.olapCtrlObj.model.dataSource.sourceInfo : this._controlObj.model.dataSource.sourceInfo;
                     xmlMsg = "<SOAP-ENV:Envelope xmlns:SOAP-ENV=\"http://schemas.xmlsoap.org/soap/envelope/\" xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\" xmlns:xsd=\"http://www.w3.org/2001/XMLSchema\" SOAP-ENV:encodingStyle=\"http://schemas.xmlsoap.org/soap/encoding/\"><SOAP-ENV:Body><Execute xmlns=\"urn:schemas-microsoft-com:xml-analysis\"><Command><Statement><![CDATA[" + mdx + "]]></Statement></Command><Properties><PropertyList><DataSourceInfo>" + dsInfo + "</DataSourceInfo><Catalog>" + catlogName + "</Catalog><AxisFormat>TupleFormat</AxisFormat><Content>Data</Content><Format>Multidimensional</Format></PropertyList></Properties></Execute></SOAP-ENV:Body></SOAP-ENV:Envelope>";

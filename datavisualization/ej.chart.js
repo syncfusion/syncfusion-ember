@@ -214,6 +214,7 @@
                 var trendlines, len, currentPoint, currentSeries, nullValue = false, trendLineType, datasource;
                 this.model._drawTrendline = false;
                 for (var j = 0; j < this.model.series.length; j++) {
+					datasource = null;
                     if (!ej.util.isNullOrUndefined(this.model.series[j].dataSource) || !ej.util.isNullOrUndefined(this.model.commonSeriesOptions.dataSource)) {
                         if (!ej.util.isNullOrUndefined(this.model.series[j].dataSource))
                             datasource = this.model.series[j].dataSource;
@@ -651,6 +652,8 @@
             this.model.outsideDataRegionPoints = [];
             this.model.regionCount = null;
             this.model.circularRadius = [];
+			this.model.circleCenterX = [];
+            this.model.circleCenterY = [];
             this.model.innerRadius = [];
             this.model.bounds = [];
             this.accDataLabelRegion = [];
@@ -784,6 +787,8 @@
                 var seriesLength = this.model.series.length;
                 var orientation = this.model._axes[k].orientation.toLowerCase();
                 var padding = this.model._axes[k].rangePadding.toLowerCase();
+                if (ej.util.isNullOrUndefined(this.model._axes[k]._rangePadding))
+                    this.model._axes[k]._rangePadding = this.model._axes[k].rangePadding;
                 if (padding == "auto") {
                     if (orientation == "vertical") {
                         axis.rangePadding = (!this.model.requireInvertedAxes) ? "normal" : "none";
@@ -2034,8 +2039,6 @@
         seriesRender: function (params, excludeDataUpdate) {
             this.model.allPoints = [];
             this.model.markerRegion = [];
-            this.model.circleCenterX = [];
-            this.model.circleCenterY = [];
             this.model.startX = [];
             this.model.startY = [];
             this.model.centerCount = 0;
@@ -2070,7 +2073,7 @@
                 s, series, templateContainer, dataLabel, clipRect,
                 trendlines, trendline, trendlineType, options, trendLineLength, duration,
                 seriesEle, symbolEle, svgObjectId, waterfallLineEle, size, detachEle,
-                seriesIndex, seriesType, minhightwidth, showLabels, l, visibility, xVisibleRange, yVisibleRange, zoomed = this.zoomed;
+                seriesIndex, seriesType, minhightwidth, showLabels, l, visibility, xVisibleRange, yVisibleRange, yValue, zoomed = this.zoomed;
 
             this.gSeriesEle = renderer.createGroup(serOptions);
 
@@ -2198,8 +2201,9 @@
                             currentPointYPos = isCanvas ? currentPoint.yPos - this.canvasY : currentPoint.yPos;
                             xVisibleRange = currentSeries.xAxis.visibleRange;
                             yVisibleRange = currentSeries.yAxis.visibleRange;
+							yValue = (type.indexOf("100") != -1) ? parseFloat(currentPoint.percentage) : currentPoint.y;
                             if ((currentPointXPos - currentPoint.width / 2 < 0) || (currentPointXPos + currentPoint.width / 2 > areaBounds.Width) ||
-                                (currentPointYPos + currentPoint.height / 2 > areaBounds.Height) || (currentPointYPos - currentPoint.height / 2 < 0) || (zoomed && currentPoint.xValue <= xVisibleRange.min || currentPoint.xValue >= xVisibleRange.max) || currentPoint.y <= yVisibleRange.min || currentPoint.y >= yVisibleRange.max)
+                                (currentPointYPos + currentPoint.height / 2 > areaBounds.Height) || (currentPointYPos - currentPoint.height / 2 < 0) || (zoomed && currentPoint.xValue <= xVisibleRange.min || currentPoint.xValue >= xVisibleRange.max) || yValue <= yVisibleRange.min || yValue >= yVisibleRange.max)
                                 currentPoint.hide = true;
                         }
                     }
@@ -2230,6 +2234,7 @@
                                     } else if (currentSeries._enableSmartLabels)
                                         this.drawConnectorLines(i, h, currentPoint);
                                 }
+								currentPoint.newConnectorFlag = false;
                             }
                         }
                     }
@@ -2915,10 +2920,6 @@
                     this.svgRenderer.append(element, this.gSeriesEle);
 
                     if (options.tooltip.visible || type == "scatter") {
-                        if (!this.model.enableCanvasRendering)
-                            var elements = $(this.gSymbolGroupEle).children().not("defs");
-                        else
-                            elements = this.model.series[seriesIndex].points;
                         if (this.vmlRendering) {
                             this.cloneSeriesEle = $(this.gSeriesEle).clone();
                             this.cloneobj = $(this.element).clone();
@@ -4403,7 +4404,7 @@
                 jsonLength = !!document.createElementNS && !!document.createElementNS('http://www.w3.org/2000/svg', "svg") ? jsonObj.length : jsonObj[jsonObj.length - 1] === undefined ? jsonObj.length - 1 : jsonObj.length,
                 yLength = yNames.length,
                 isBubble = type == 'bubble',
-                checkString = !!jsonObj[0][xName].indexOf || (!series._hiloTypes ? !!(jsonObj[0][yNames] == 0 ? 0 : jsonObj[0][yNames] || jsonObj[0][series.size]).indexOf : (jsonObj[0][series.high] && jsonObj[0][series.high].indexOf)),
+                checkString = !!jsonObj[0][xName].indexOf || (!series._hiloTypes ? !!(jsonObj[0][yNames] == 0 ? 0 : jsonObj[0][yNames] || jsonObj[0][series.size] || 0).indexOf : (jsonObj[0][series.high] && jsonObj[0][series.high].indexOf)),
                 isDate = checkString && jsonObj[0][xName].indexOf && (jsonObj[0][xName].indexOf("/Date(") != -1),
                 point, m = 0, x, y,
                 hiddenIndex = this.model._hiddenPointIndex;
@@ -4414,7 +4415,7 @@
                 while (m < jsonLength) {
                     x = jsonObj[m][xName];
                     if (!series._hiloTypes)
-                        y = jsonObj[m][yNames];
+                        y = typeof jsonObj[m][yNames] == "string" ? parseFloat(jsonObj[m][yNames]) : jsonObj[m][yNames];
                     series.points[m++] = { x: x, xValue: x, y: y, YValues: [y] };
                 }
             }
@@ -5151,7 +5152,13 @@
             if (this.model.AreaType == 'cartesianaxes') {
                 //Remove zoom buttons before adding them
                 this._removeZoomkit();
-                var toolbar = this.model.zooming.toolbarItems;
+                var isRTL = this.model.zooming.isReversed;
+                if (!this.toolbarItems)
+                {
+                    this.toolbarItems = $.extend(true, [],  this.model.zooming.toolbarItems);
+                    this.toolbarItems.reverse();
+                }
+                var toolbar = isRTL ? this.toolbarItems : this.model.zooming.toolbarItems;
                 var length = toolbar.length;
                 var currentItem, index;
                 for (var i = length - 1; i >= 0; i--) {
@@ -5312,6 +5319,9 @@
         },
         getLegendData: function (evt) {
             var mouseMoveCords = this.calMousePosition(evt);
+            var vScrollerWidth = 18;
+            var isRTL = this.model.legend.isReversed;           
+            mouseMoveCords.X = isRTL && ($("#legend_" + this._id).find('[class*="e-vscrollbar"]').length || $("#legend_" + this._id)[0].style.overflowY == "scroll") ? mouseMoveCords.X - vScrollerWidth : mouseMoveCords.X;
             mouseMoveCords.X -= parseFloat($(this.element).css("padding-left"));
             mouseMoveCords.Y -= parseFloat($(this.element).css("padding-top"));
             var isEjScroll = this.model.legend._ejScroller;
@@ -5319,6 +5329,14 @@
             var scrollleft = 0;
             scrolltop = isEjScroll ? $("#legend_" + this._id).ejScroller('instance').model.scrollTop : $("#legend_" + this._id).scrollTop();
             scrollleft = isEjScroll ? $("#legend_" + this._id).ejScroller('instance').model.scrollLeft : $("#legend_" + this._id).scrollLeft();
+            if (isRTL && isEjScroll) {
+                    if (scrollleft == 0)
+                        scrollleft = $("#legend_" + this._id).ejScroller('instance')._rtlScrollLeftValue;
+                    else if ($("#legend_" + this._id).ejScroller('instance').model.scrollLeft == $("#legend_" + this._id).ejScroller('instance')._rtlScrollLeftValue)
+                        scrollleft = 0;
+                    else
+                        scrollleft = $("#legend_" + this._id).ejScroller('instance')._rtlScrollLeftValue - $("#legend_" + this._id).ejScroller('instance').model.scrollLeft;         
+            }
             this.scrolltop = scrolltop ? scrolltop : 0;
             this.scrollleft = scrollleft ? scrollleft : 0;
             this.mousemoveX = mouseMoveCords.X + scrollleft;
@@ -7485,6 +7503,7 @@
             var seriesPoint = (series.type == "pieofpie") ? this._getPieOfPiePoint(region.Region.PointIndex, series) : (series.type == "pie" || series.type == "doughnut") && !this.model.enable3D ? series._visiblePoints[region.Region.Index] : series._visiblePoints[region.Region.PointIndex];
             var point = (this.dragPoint) ? series.pointCollection[region.Region.PointIndex] : $.extend(true, {}, seriesPoint);
             var tooltipMargin = 10;
+            var isRTL = series.tooltip.isReversed;
             if (point.visible !== false) {
                 var format = series.tooltip.format;
                 if (series.type == "boxandwhisker") {
@@ -7595,6 +7614,11 @@
                 var templateRect = $(tooltipdiv)[0].getBoundingClientRect();
                 if (templateRect.top < areaBounds.Y + position.top)
                     $(tooltipdiv).css('top', areaBounds.Y + position.top + $(document).scrollTop());
+                if (isRTL) {
+                    $(tooltipdiv).css('left', xPos - (tooltipWidth + (tooltipMargin*2)));
+                    if (xPos - (tooltipWidth + (tooltipMargin*2)) < series.xAxis.x)
+                        $(tooltipdiv).css('left', xPos);
+                }
             }
         },
 
@@ -9726,6 +9750,7 @@
         },
 
         chartTrackball: function (chart, mouseLocation, evt) {
+            this.crosshairLinePath = [];
             var requireInvertedAxes = chart.model.requireInvertedAxes, store = [], color = [], point, seriesColor, closePointLength, seriesIndex, series, dir, indicators = this.model.indicators, seriesCollection = this.model._visibleSeries,
                 showTrackLine = false, seriesIndex, serX, insideBounds, closestPoint, seriesArray = [], visibleRange, chartPos, pathOptions, leftPos, topPos, chartAreaStartPos, chartAreaEndPos, pointPos, seriesLength, data,
                 crossHairTrans, tToolOptions, prePoint, initialPoint, rectxt, tooltipfont, textarea, tgap = 0, currentLength, tX, tY, chartLocation, element, visiblepts = [], tooltipRanges = [],
@@ -9774,7 +9799,7 @@
                 }
                 seriesLength = seriesCollection.length;
                 for (var i = 0; i < seriesLength; i++) {
-                    if (seriesCollection[i].visibility == "visible") {
+                    if (seriesCollection[i].visibility == "visible" && seriesCollection[i].enableTrackTooltip) {
                         seriesIndex = i;
                         serX = [];
 
@@ -9801,13 +9826,12 @@
                             }
                         }
                     }
-
                 }
                 for (var i = 0; i < seriesLength; i++) {
                     //   if(seriesCollection[0].xAxis.name == seriesCollection[i].xAxis.name)
                     seriesIndex = i, series = seriesCollection[i];
                     var trackPoints = [];
-                    if (series.visibility.toLowerCase() == 'visible') {
+                    if (series.visibility.toLowerCase() == 'visible' && series.enableTrackTooltip) {
                         serX = [];
                         if (!requireInvertedAxes)
                             insideBounds = chart.mousemoveX + seriesCollection[i].xAxis.plotOffset > series.xAxis.x && chart.mousemoveX < series.xAxis.x + series.xAxis.width + seriesCollection[i].xAxis.plotOffset;
@@ -9882,6 +9906,7 @@
                                                     'stroke': chart.model.crosshair.line.color,
                                                     'd': dir
                                                 };
+                                                this.crosshairLinePath.push(pathOptions);
                                                 if ($("#" + chart.svgObject.id + "_Tracker").length == 0) {
                                                     if (enableCanvas) {
                                                         var obj = this.svgRenderer.createCrosshairCanvas();
@@ -11487,6 +11512,8 @@
 
             var legenddata = this.getLegendData(evt);
             if (legenddata) {
+                var isLegendRTL = this.model.legend.isReversed;
+                var font = this.model.legend.font;
                 var commonLegendMoveEventArgs = $.extend({}, ej.EjSvgRender.commonChartEventArgs);
                 commonLegendMoveEventArgs.data = legenddata;
                 if (legenddata.series.highlightSettings.enable) {
@@ -11513,12 +11540,12 @@
                     $(this.legendContainer).children().css({ "cursor": "pointer" });
                     if ((mousemoveX >= legendBounds.X) && (mousemoveX <= legendBounds.X + model.LegendViewerBounds.Width)) {
                         if ((mousemoveY <= legendBounds.Y + (model.LegendViewerBounds.Height)) && (mousemoveY >= legendBounds.Y)) {
-                            this._textTooltip(evt, model.legendTextRegion);
+                            this._textTooltip(evt, model.legendTextRegion, isLegendRTL, font);
                         }
                     }
                 }
                 else
-                    this._textTooltip(evt, model.legendTextRegion);
+                    this._textTooltip(evt, model.legendTextRegion, isLegendRTL, font);
             }
             else if (enableCanvas)
                 $(this.legendContainer).children().css('cursor', 'default');
@@ -11545,11 +11572,13 @@
             if (model.xAxisTitleRegion) {
                 var currentX = this.mousemoveX,
                     currentY = this.mousemoveY;
+                var isTitleRTL = this.model.primaryXAxis.title.isReversed,
+                    titleFont = this.model.primaryXAxis.font;
                 $.each(model.xAxisTitleRegion, function (index, regionItem) {
                     if ((currentX >= regionItem.Bounds.X) && (currentX <= regionItem.Bounds.X + regionItem.Bounds.Width)) {
                         if ((currentY >= regionItem.Bounds.Y - (regionItem.Bounds.Height)) && (currentY <= regionItem.Bounds.Y)) {
                             if (regionItem.trimText != regionItem.labelText) {
-                                proxy.showAxisTooltip(evt.pageX, evt.pageY, regionItem.labelText);
+                                proxy.showAxisTooltip(evt.pageX, evt.pageY, regionItem.labelText, regionItem.trimText, isTitleRTL, titleFont);
                             }
                         }
                     }
@@ -11558,11 +11587,13 @@
             if (model.yAxisTitleRegion) {
                 var currentX = this.mousemoveX,
                     currentY = this.mousemoveY;
+                var isTitleRTL = this.model.primaryXAxis.title.isReversed,
+                   titleFont = this.model.primaryXAxis.font;
                 $.each(model.yAxisTitleRegion, function (index, regionItem) {
                     if ((currentX >= regionItem.Bounds.X) && (currentX <= regionItem.Bounds.X + regionItem.Bounds.Width)) {
                         if ((currentY >= regionItem.Bounds.Y - (regionItem.Bounds.Height)) && (currentY <= regionItem.Bounds.Y)) {
                             if (regionItem.trimText != regionItem.labelText) {
-                                proxy.showAxisTooltip(evt.pageX, evt.pageY, regionItem.labelText);
+                                proxy.showAxisTooltip(evt.pageX, evt.pageY, regionItem.labelText, regionItem.trimText, isTitleRTL, titleFont);
                             }
                         }
                     }
@@ -11628,7 +11659,7 @@
                                 this._hideTooltip();
                                 this._removeTrackBall();
                             }
-                            this.showAxisTooltip(evt.pageX, evt.pageY, str);
+                            this.showAxisTooltip(evt.pageX, evt.pageY, str, ele.displayText);
                         }
                     }
                 }
@@ -11646,6 +11677,8 @@
                 if (axis && (axis.enableTrim || axis.labelIntersectAction.toLowerCase() == "trim" || axis.labelIntersectAction.toLowerCase() == "wrapbyword")) {
                     // Loop to find the labels in the axis
                     visibleLabelsLength = axis.visibleLabels.length;
+                    var xLabelRTL = axis.isInversed;
+                    var font = axis.font;
                     for (var i = 0; i < visibleLabelsLength && this.model.AreaType == 'cartesianaxes'; i++) {
                         if (targetid == svgId + '_' + hAxes[j].name + '_XLabel_' + i) {
                             var ele = axis.visibleLabels[i];
@@ -11655,7 +11688,7 @@
                                 this._hideTooltip();
                                 this._removeTrackBall();
                             }
-                            this.showAxisTooltip(evt.pageX, evt.pageY, str);
+                            this.showAxisTooltip(evt.pageX, evt.pageY, str, ele.displayText, xLabelRTL, font);
                         }
                     }
                 }
@@ -11673,20 +11706,24 @@
                 subTitleEnableTrim = model.title.subTitle.enableTrim,
                 subTitleTextOverflow = model.title.subTitle.textOverflow.toLowerCase(),
                 titleText = model.title.text, subTitleText = model.title.subTitle.text;
+                titleRTL = model.title.isReversed;
+
             if (titleEnableTrim && this.model.trimTooltip) {
+                trimmedText = ej.EjSvgRender.utils._trimText(titleText, model.title.maximumWidth, model.title.font);
                 if (targetid.indexOf("ChartTitleText") >= 0)
-                    this.showAxisTooltip(evt.pageX, evt.pageY, titleText);
+                    this.showAxisTooltip(evt.pageX, evt.pageY, titleText, trimmedText, titleRTL, model.title.font);
                 else if (this.model.enableCanvasRendering && currentX >= titleLocation.X - elementSpacing && currentX <= titleLocation.X - elementSpacing + titleLocation.size.width &&
                     currentY >= (titleLocation.Y - (titleLocation._height)) && currentY <= titleLocation.Y + titleLocation.size.height)
-                    this.showAxisTooltip(evt.pageX, evt.pageY, titleText);
+                    this.showAxisTooltip(evt.pageX, evt.pageY, titleText, trimmedText, titleRTL, model.title.font);
             }
 
             if (subTitleEnableTrim && model.subTitleTooltip) {
+                trimmedText = ej.EjSvgRender.utils._trimText(subTitleText, model.title.subTitle.maximumWidth,model.title.subTitle.font);
                 if (targetid.indexOf("ChartSubTitleText") >= 0)
-                    this.showAxisTooltip(evt.pageX, evt.pageY, subTitleText);
+                    this.showAxisTooltip(evt.pageX, evt.pageY, subTitleText, trimmedText, titleRTL, model.title.subTitle.font);
                 else if (model.enableCanvasRendering && currentX >= subTitleLocation.X && currentX <= subTitleLocation.X + subTitleLocation.size.width &&
                     currentY >= (subTitleLocation.Y) && currentY <= (subTitleLocation.Y) + subTitleLocation.size.height)
-                    this.showAxisTooltip(evt.pageX, evt.pageY, subTitleText);
+                    this.showAxisTooltip(evt.pageX, evt.pageY, subTitleText, trimmedText, titleRTL, model.title.subTitle.font);
             }
         },
 
@@ -11832,14 +11869,19 @@
             }
         },
         // Tooltip in svg 
-        showAxisTooltip: function (pageX, pageY, str) {
+        showAxisTooltip: function (pageX, pageY, str, trimmedText, isRTL, font) {
             var id = this._id;
             var tooltipdiv = $("<div></div>").attr({ 'id': id + "_tooltip", 'class': 'ejTooltip' + id });
             $(tooltipdiv).html(str);
+            if (isRTL && !ej.util.isNullOrUndefined(font)) {
+                var labelTextWidth = ej.EjSvgRender.utils._measureText(str, null, font).width;
+                var trimmedTextWidth = ej.EjSvgRender.utils._measureText(trimmedText, null, font).width;
+                var textWidth = trimmedTextWidth <= labelTextWidth ? labelTextWidth : trimmedTextWidth;
+            }
             $(document.body).append(tooltipdiv);
             // adding css prop to the div
             $(tooltipdiv).css({
-                "left": pageX + 10,
+                "left": isRTL ? pageX - textWidth : pageX + 10,
                 "top": pageY + 10,
                 "display": "block",
                 "position": "absolute",
@@ -11854,12 +11896,13 @@
                 "border": "1px solid #707070"
             });
         },
-        _textTooltip: function (evt, region) {
+        _textTooltip: function (evt, region, isRTL, font) {
             var chart = this,
                 mouseMoveCords = this.calMousePosition(evt),
                 isEjScroll = this.model.legend._ejScroller,
                 scrollleft = 0, scrolltop = 0,
-                mousemoveX = mouseMoveCords.X,
+				vScrollerWidth = 18,
+                mousemoveX = isRTL && ($("#legend_" + this._id).find('[class*="e-vscrollbar"]').length || $("#legend_" + this._id)[0].style.overflowY == "scroll")? mouseMoveCords.X - vScrollerWidth : mouseMoveCords.X,
                 mousemoveY = mouseMoveCords.Y,
                 currentX = mousemoveX,
                 currentY = mousemoveY,
@@ -11871,7 +11914,15 @@
                 displayText, tooltipdiv;
             scrolltop = isEjScroll ? $("#legend_" + this._id).ejScroller('instance').model.scrollTop : $("#legend_" + this._id).scrollTop();
             scrollleft = isEjScroll ? $("#legend_" + this._id).ejScroller('instance').model.scrollLeft : $("#legend_" + this._id).scrollLeft();
+            if (isRTL && isEjScroll) {
+                if (scrollleft == 0)
+                    scrollleft = $("#legend_" + this._id).ejScroller('instance')._rtlScrollLeftValue;
+                else if ($("#legend_" + this._id).ejScroller('instance').model.scrollLeft == $("#legend_" + this._id).ejScroller('instance')._rtlScrollLeftValue)
+                    scrollleft = 0;
+                else
+                    scrollleft = $("#legend_" + this._id).ejScroller('instance')._rtlScrollLeftValue - $("#legend_" + this._id).ejScroller('instance').model.scrollLeft;
 
+            }
             if (isScroll || isEjScroll) {
                 currentX = mousemoveX + (scrollleft ? scrollleft : 0);
                 currentY = mousemoveY + (scrolltop ? scrolltop : 0);
@@ -11887,10 +11938,12 @@
                         displayText = jQuery.type(regionItem.trimText) == "array" ? regionItem.trimText.join(" ") : regionItem.trimText;
                         if (displayText != regionItem.labelText) {
                             $(tooltipdiv).html(regionItem.labelText);
+                            if (isRTL && !ej.util.isNullOrUndefined(font))
+                                var labelTextWidth = ej.EjSvgRender.utils._measureText(regionItem.labelText, null, font).width;
                             $(document.body).append(tooltipdiv);
                             // adding css prop to the div
                             $(tooltipdiv).css({
-                                "left": evt.pageX + 10,
+                                "left": isRTL ? evt.pageX - labelTextWidth - 15 : evt.pageX + 10,
                                 "top": evt.pageY + 10,
                                 "display": "block",
                                 "position": "absolute",
@@ -11996,8 +12049,8 @@
                 y = ej.util.isNullOrUndefined(y) ? 0 : y;
                 templateLocX = this.model.m_AreaBounds.X;
                 templateLocY = this.model.m_AreaBounds.Y;
-                xLoc = (isTrans) ? seriesCollection[i].series.yAxis.y : location.X + x + templateLocX + this.model.crosshair.marker.size.width + padding;
-                yLoc = (isTrans) ? seriesCollection[i].series.xAxis.x + location.Y : this.model.m_AreaBounds.Height / 2 + templateLocY;
+                xLoc = ((isTrans) || this.model.requireInvertedAxes) ? seriesCollection[i].series.yAxis.y : location.X + x + templateLocX + this.model.crosshair.marker.size.width + padding;
+                yLoc = ((isTrans) || this.model.requireInvertedAxes) ? seriesCollection[i].series.xAxis.x + location.Y : this.model.m_AreaBounds.Height / 2 + templateLocY;
                 div = $("#" + this.model.crosshair.trackballTooltipSettings.tooltipTemplate).clone();
                 $(div).css("background-color", color[i].seriesColor);
                 $(div).css("display", "block");
@@ -12016,12 +12069,12 @@
             var templateHeight = parseFloat($(tooltipdiv).css('height'));
             var templateWidth = parseFloat($(tooltipdiv).css('width'));
 
-            yLoc = (isTrans) ? yLoc : yLoc - templateHeight / 2;
+            yLoc = ((isTrans) || this.model.requireInvertedAxes) ? yLoc : yLoc - templateHeight / 2;
 
             if ((seriesLength == 1) && !isTrans) {
                 yLoc = location.Y + templateLocY + templateHeight / 2;
             }
-            if (seriesLength == 1 && isTrans) {
+            if (seriesLength == 1 && ((isTrans) || this.model.requireInvertedAxes)) {
                 xLoc = location.X + x + templateLocX + this.model.crosshair.marker.size.width + padding - templateWidth / 2;
                 yLoc = location.Y + templateLocY - templateHeight - this.model.crosshair.marker.size.height - padding;
             }
@@ -12055,13 +12108,13 @@
                     if (!series._isTransposed) {
                         axisX = axes[j].Location.X1;
                     } else {
-                        axisY = axes[j].Location.Y1;
+                        axisY = axes[j].Location.Y2;
                     }
                 } else if (pointYAxis == axes[j].name) {
                     if (!series._isTransposed) {
                         axisY = axes[j].Location.Y2;
                     } else {
-                        axisX = axes[j].Location.X2;
+                        axisX = axes[j].Location.X1;
                     }
                 }
             }
@@ -12085,11 +12138,11 @@
             yLoc -= parseFloat($(tooltipdiv).css('height')) / 2;
             var templateHeight = parseFloat($(tooltipdiv).css('height'));
             var templateWidth = parseFloat($(tooltipdiv).css('width'));
-            if (series.isTransposed) {
+            if ((series.isTransposed) || (this.model.requireInvertedAxes)) {
                 yLoc = (location.Y + this.model.m_AreaBounds.Y) - templateHeight - padding - this.model.crosshair.marker.size.height;
                 xLoc = location.X + templateLocX - templateWidth / 2;
             }
-            if ((yLoc + templateHeight < this.model.m_AreaBounds.Y) && (series.isTransposed)) {
+            if ((yLoc + templateHeight < this.model.m_AreaBounds.Y) && ((series.isTransposed) || this.model.requireInvertedAxes)) {
                 yLoc += templateHeight + this.model.crosshair.marker.size.height + padding + chartLoc.top;
             }
             if (xLoc + templateWidth > templateLocX + this.model.m_AreaBounds.Width) {
@@ -12256,6 +12309,7 @@
             // common variables for both grouping and float
             var crosshair = this.model.crosshair, trackball = crosshair.trackballTooltipSettings, rx = trackball.rx, ry = trackball.ry, trackballBorder = trackball.border,
                 m_AreaBounds = this.model.m_AreaBounds;
+            var isRTL = this.model.crosshair.isReversed;
             if (grouping) {
                 var series = tooltipCollections.series, groupSize, groupHeight, container = document.getElementById(this._id),
                     offset = $(container).offset(),
@@ -12416,14 +12470,20 @@
                                 }
                                 else {
 
-                                    if (location.X + swp + maxWidth - m_AreaBounds.X >= axisWidth) {
+                                    if (location.X + swp + maxWidth - m_AreaBounds.X >= axisWidth || isRTL) {
                                         if (this.model.financial) {
                                             x = location.X - rectWidth / 2; y = location.Y - rectHeight - padding - hsize; tx = x + padding; ty = y + tip_pos + rectHeight;
                                             position = "bottom";
                                         }
                                         else {
-                                            x = location.X - swp - rectWidth; y = location.Y - rectHeight / 2 + tip_pos; tx = x + padding; ty = location.Y + tip_pos + rectHeight / 2;
-                                            position = "right";
+                                            if (location.X - maxWidth <= this.model.m_AreaBounds.X && isRTL) {
+                                                x = location.X + swp; y = location.Y - rectHeight / 2 + tip_pos; tx = x + padding; ty = location.Y + tip_pos + rectHeight / 2;
+                                                position = "left";
+                                            }
+                                            else {
+                                                x = location.X - swp - rectWidth; y = location.Y - rectHeight / 2 + tip_pos; tx = x + padding; ty = location.Y + tip_pos + rectHeight / 2;
+                                                position = "right";
+                                            }
                                         }
                                         toolRectOptions = {
                                             'x': x,
@@ -12569,8 +12629,7 @@
                                 this.svgRenderer.drawText.call(obj, textOptions, text, gTooltip, font);
 
                             }
-                        }
-
+                        }                        
                         if ($('#' + this.svgObject.id + "_TrackToolTip_" + seriesIndex).length == 0)
                             this.svgRenderer.append($(gTooltip), this.gTrackball);
                     }
@@ -12939,6 +12998,7 @@
         },
         displayShowTooltip: function (location, point, series, pointIndex) {
             var requireInvertedAxes = this.model.requireInvertedAxes;
+            var isRTL = series.tooltip.isReversed;
             if (point.visible !== false) {
                 // fixed multiple tooltip issue in mobile
                 $(".ejTooltip" + this._id).not("#" + this.svgObject.id + "_TrackToolTip").remove();
@@ -12961,7 +13021,9 @@
                 switch (this.model.AreaType) {
 
                     case "cartesianaxes":
-                        x = location.X + ((!series.isIndicator && !series.isTrendLine) ? ((ej.util.isNullOrUndefined(series._trackMarker)) ?
+                        x = isRTL ? location.X - ((!series.isIndicator && !series.isTrendLine) ? ((ej.util.isNullOrUndefined(series._trackMarker)) ?
+                            (type == "bubble" ? (point.radius + bubbleSpacing) : series.marker.size.width) : (series._trackMarker.size.width)) : 0) + (type == "column" || type == "bar" || type == "stackingbar" || type == "stackingcolumn" || type == "waterfall" || type == "rangecolumn" ? chartPos.X : (requireInvertedAxes) ? series.yAxis.x : series.xAxis.x)
+                            : location.X + ((!series.isIndicator && !series.isTrendLine) ? ((ej.util.isNullOrUndefined(series._trackMarker)) ?
                             (type == "bubble" ? (point.radius + bubbleSpacing) : series.marker.size.width) : (series._trackMarker.size.width)) : 0) + (type == "column" || type == "bar" || type == "stackingbar" || type == "stackingcolumn" || type == "waterfall" || type == "rangecolumn" ? chartPos.X : (requireInvertedAxes) ? series.yAxis.x : series.xAxis.x);
                         //condition checked for multipleaxis line tooltip position changed
                         y = (location.Y) + (type.indexOf("column") != -1 || type.indexOf("waterfall") != -1 || type.indexOf("bar") != -1 || type.indexOf("rangearea") != -1 || type == "scatter" || type == "bubble" ?
@@ -12974,13 +13036,13 @@
                         break;
 
                     case "polaraxes":
-                        x = location.X + padding + ((ej.util.isNullOrUndefined(series._trackMarker)) ? series.marker.size.width : (series._trackMarker.size.width));
+                        x = isRTL ? location.X - padding + ((ej.util.isNullOrUndefined(series._trackMarker)) ? series.marker.size.width : (series._trackMarker.size.width)) :location.X + padding + ((ej.util.isNullOrUndefined(series._trackMarker)) ? series.marker.size.width : (series._trackMarker.size.width));
                         y = location.Y;
                         seriesColor = this.getSeriesColor(point, seriesIndex, series);
                         break;
 
                     case "none":
-                        x = location.X + series.marker.size.width + padding;
+                        x = isRTL ? location.X - series.marker.size.width + padding : location.X + series.marker.size.width + padding;
                         y = (location.Y);
                         seriesColor = this.model.pointColors[pointIndex];
                         break;
@@ -13115,7 +13177,7 @@
 
                     $("#" + this.svgObject.id + "_TrackToolTip").css("top", ($(document).scrollTop() + box.top + position.top - ((textHeight + 4) / 2)));
                     $("#" + this.svgObject.id + "_TrackToolTip").css("left", ($(document).scrollLeft() + box.left + position.left + (box.left - x)));
-                    if ((x + (textWidth + padding)) >= maxWidth + series.xAxis.x) {
+                    if ((x + (textWidth + padding)) >= maxWidth + series.xAxis.x && !isRTL) {
                         var areaPos = document.getElementById(this.svgObject.id).getClientRects()[0];
                         var diff = x - ((textWidth + padding * 2) + ((!series.isIndicator && !series.isTrendLine) ? ((ej.util.isNullOrUndefined(series._trackMarker)) ? ((series.marker.visible) ?
                             series.marker.size.width : (type == "bubble" ? (point.radius + bubbleSpacing) : 0)) : series._trackMarker.size.width) : 0) + (2 * padding));
@@ -13134,6 +13196,16 @@
                     }
                     if (box.top < position.top || box.top < 0)
                         $("#" + this.svgObject.id + "_TrackToolTip").css("top", (position.top < 0 ? $(document).scrollTop() : position.top) + 'px');
+                    if (isRTL) {
+                        var boxWidth = box.right - box.left;
+                        $("#" + this.svgObject.id + "_TrackToolTip").css("left", box.x - boxWidth);
+						if (box.x < series.xAxis.x) // to display tooltip within chartarea when it is outside for RTL
+                        {
+                            var diff = ((textWidth + padding * 2) + ((!series.isIndicator && !series.isTrendLine) ? ((ej.util.isNullOrUndefined(series._trackMarker)) ? ((series.marker.visible) ?
+                            series.marker.size.width : (type == "bubble" ? (point.radius + bubbleSpacing) : 0)) : series._trackMarker.size.width) : 0) + (2 * padding));
+                            $("#" + this.svgObject.id + "_TrackToolTip").css("left", box.x + diff);
+                        }
+                    }
                     $("#" + this.svgObject.id + "_TrackToolTip").show();
                 }
             }
@@ -13366,6 +13438,7 @@
                 textAlignment = title.textAlignment.toLowerCase(),
                 textOverflow = title.textOverflow.toLowerCase(),
                 titleText = title.text,
+                isRTL = title.isReversed;
                 titleEnable = enableTrim && (textOverflow == "wrap" || textOverflow == "wrapandtrim") && (collection.length > 1) ? true : false;
             if (maxTitleWidth.toString() == 'auto' || maxTitleWidth.toString() == '') {
                 maxTitleWidth = (areaBounds.Width * 0.75);
@@ -13395,10 +13468,10 @@
                 var locX = ((areaType != "cartesianaxes") ? (svgWidth - margin.left - margin.right) / 2 + (margin.left + legendSpace) : (leftSpace + (svgWidth - rightSpace) / 2)) - textSize.width / 2;
 
                 if (this.model.title.textAlignment.toLowerCase() == "near") {
-                    locX = leftSpace;
+                    locX = isRTL ? (svgWidth - rightSpace - measureTitle.width) : leftSpace;
                 }
                 else if (this.model.title.textAlignment.toLowerCase() == "far") {
-                    locX = (svgWidth - rightSpace - textSize.width);
+                    locX = isRTL ? leftSpace : (svgWidth - rightSpace - textSize.width);
                 }
                 var commonEventArgs = $.extend({}, ej.EjSvgRender.commonChartEventArgs);
                 commonEventArgs.data = { title: titleText, location: { x: locX, y: titleLocation }, size: measureTitle };
@@ -13484,6 +13557,7 @@
         _drawSubTitle: function () {
 
             var title = this.model.title;
+            var isTitleRTL = title.isReversed;
             var subTitle = title.subTitle;
             var svgWidth = $(this.svgObject).width();
             var measureTitle = ej.EjSvgRender.utils._measureText(title.text, svgWidth - this.model.margin.left - this.model.margin.right, title.font);
@@ -13536,12 +13610,12 @@
                 var locX = this.model._titleLocation.X + (this.model._titleLocation.size.width / 2);
 
                 if (subTitleTextAlignment == "near") {
-                    locX = regionX = this.model._titleLocation.X;
-                    textanchor = "start";
+                    locX = regionX = isTitleRTL ? this.model._titleLocation.X + this.model._titleLocation.size.width : this.model._titleLocation.X;
+                    textanchor = isTitleRTL ? "end" : "start";
                 }
                 else if (subTitleTextAlignment == "far") {
-                    locX = this.model._titleLocation.X + this.model._titleLocation.size.width;
-                    textanchor = "end";
+                    locX = isTitleRTL ? this.model._titleLocation.X : this.model._titleLocation.X + this.model._titleLocation.size.width;
+                    textanchor = isTitleRTL ? "start" : "end";
 
                 }
                 var commonEventArgs = $.extend({}, ej.EjSvgRender.commonChartEventArgs);
@@ -14006,11 +14080,11 @@
             if (textOverflow == "trim") {
                 if (textWidth > textMaxWidth) {
                     legendItem = ej.EjSvgRender.utils._trimText(legendItem, textMaxWidth, legendFont);
-                    this.model._legendMaxWidth = textMaxWidth;
+                    chart.model._legendMaxWidth = textMaxWidth;
                 }
             }
             else if (textOverflow == "wrap" || textOverflow == "wrapandtrim") {
-                legendItem = this._rowsCalculation(commonEventArgs.data, textMaxWidth, this.model.legend.textOverflow.toLowerCase()).textCollection;
+                legendItem = chart._rowsCalculation(commonEventArgs.data, textMaxWidth, this.model.legend.textOverflow.toLowerCase()).textCollection;
             }
             return { commonEventArgs: commonEventArgs, legendItem: legendItem };
         },
@@ -14035,6 +14109,7 @@
                 padding = 10,
                 legendSizeHeight = legend.size.height,
                 legendSizeWidth = legend.size.width,
+                isRTL = legend.isReversed,
                 itemPadding = legend.itemPadding > 0 ? legend.itemPadding : 0,
                 position = legend.position.toLowerCase(),
                 width = 0, height = 0,
@@ -14052,7 +14127,7 @@
                 legendHeightTemp, legendWidthTemp,
                 tempSeries = {},
                 legendSeries = [], trendLineLength, trendLines,
-                trendLine,
+                trendLine, j,
                 trendlineType,
                 areaType = chartModel.AreaType,
                 visibleSeries = chartModel._visibleSeries,
@@ -14078,7 +14153,7 @@
                     series = visibleSeries[0];
                     visiblePoints = ej.EjSeriesRender.prototype._calculateVisiblePoints(series).legendPoints;
                     length = visiblePoints.length;
-                    for (var j = 0; j < length; j++) {
+                    for (isRTL && (position == "top" || position == "bottom") ? j = length - 1 : j = 0; isRTL && (position == "top" || position == "bottom") ? j >= 0 : j < length; isRTL && (position == "top" || position == "bottom") ? j-- : j++) {
                         legendColor = legend.fill ? (!(legend.fill._gradientStop) ? legend.fill : legend.fill._gradientStop) : chartModel.pointColors[visiblePoints[j].actualIndex];
                         point = visiblePoints[j];
                         legendName = !ej.util.isNullOrUndefined(point.x) ? point.x : 'series' + j;
@@ -14105,7 +14180,7 @@
                 }
                 else {
                     length = visibleSeries.length;
-                    for (var j = 0; j < length; j++) {
+                    for (isRTL && (position == "top" || position == "bottom") ? j = length - 1 : j = 0; isRTL && (position == "top" || position == "bottom") ? j >= 0 : j < length; isRTL && (position == "top" || position == "bottom") ? j-- : j++) {
                         legendColor = legend.fill ? (!(legend.fill._gradientStop) ? legend.fill : legend.fill._gradientStop) : ej.util.isNullOrUndefined(chartModel.seriesColors[j]) ? chartModel.pointColors[j] : chartModel.seriesColors[j];
                         series = visibleSeries[j];
                         legendName = series.name ? series.name : 'series' + j;
@@ -14285,10 +14360,17 @@
                 legendContainer.css({ "visibility": 'hidden', "width": chartModel.LegendViewerBounds.Width, "height": chartModel.LegendViewerBounds.Height });
                 legendSvgContainer.css({ "height": chartModel.LegendBounds.Height, "width": chartModel.LegendBounds.Width });
 
-                if (legend._ejScroller)
+                if (legend._ejScroller) {
+                    if (legend._ejScroller && isRTL) {
+                        legendContainer.addClass("e-rtl");
+                    }
                     $('#' + legendContainer[0].id).ejScroller({ width: chartModel.LegendViewerBounds.Width, height: chartModel.LegendViewerBounds.Height })
-                else
+                }
+                else {
                     legendContainer.css({ "overflow": "scroll" });
+                    if(legendContainer.hasClass("e-rtl"))
+                        legendContainer.removeClass("e-rtl");
+                }
 
                 if (chartModel.LegendBounds.Width > chartModel.LegendViewerBounds.Width && chartModel.LegendBounds.Height > chartModel.LegendViewerBounds.Height) {
                     if (legend._ejScroller) {

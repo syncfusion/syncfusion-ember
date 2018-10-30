@@ -274,7 +274,10 @@
                 connectorObj["milestoneParent"] = parentGanttRecord.isMilestone ? true : false;
                 connectorObj["milestoneChild"] = childGanttRecord.isMilestone ? true : false;
 
-                return connectorObj;
+                if(ej.isNullOrUndefined(parentGanttRecord._isScheduledTask()) || ej.isNullOrUndefined(childGanttRecord._isScheduledTask()))
+                    return null;                
+                else
+                    return connectorObj;                
             }
         },
 
@@ -299,7 +302,8 @@
             model = proxy.model,
             predecessorType;
 
-            if (proxy._editedTaskBarItem === childGanttRecord || (model.viewType == "resourceView" && proxy._editedTaskBarItem && proxy._editedTaskBarItem.taskId == childGanttRecord.taskId)) {
+            if (proxy._editedTaskBarItem === childGanttRecord || ej.isNullOrUndefined(parentGanttRecord._isScheduledTask()) || ej.isNullOrUndefined(childGanttRecord._isScheduledTask()) ||
+                (model.viewType == "resourceView" && proxy._editedTaskBarItem && proxy._editedTaskBarItem.taskId == childGanttRecord.taskId)) {
                 return;
             }
             if (predecessorValidation && (childGanttRecord.isAutoSchedule || model.validateManualTasksOnLinking)) {
@@ -311,7 +315,7 @@
                             childPredecessor = predecessorsCollection.filter(function (data) { return data.to === currentTaskId }),
                             minStartDate = proxy._getPredecessorDate(childGanttRecord, childPredecessor, predecessor.predecessorsType);
 
-                        childGanttRecord.startDate = new Date(minStartDate);
+                        childGanttRecord.startDate = minStartDate;
                         childGanttRecord._calculateEndDate(this);
                         childGanttRecord.left = childGanttRecord._calculateLeft(this);
                         childGanttRecord.width = childGanttRecord._calculateWidth(this);
@@ -324,7 +328,7 @@
                             childPredecessor = predecessorsCollection.filter(function (data) { return data.to === currentTaskId }),
                             minStartDate = proxy._getPredecessorDate(childGanttRecord, childPredecessor, predecessor.predecessorsType);
 
-                        childGanttRecord.startDate = new Date(minStartDate);
+                        childGanttRecord.startDate = minStartDate;
                         childGanttRecord._calculateEndDate(this);
                         childGanttRecord.left = childGanttRecord._calculateLeft(this);
                         childGanttRecord.width = childGanttRecord._calculateWidth(this);
@@ -338,7 +342,7 @@
                             childPredecessor = predecessorsCollection && predecessorsCollection.filter(function (data) { return data.to === currentTaskId }),
                             maxStartDate = proxy._getPredecessorDate(childGanttRecord, childPredecessor, predecessor.predecessorsType);
 
-                        childGanttRecord.startDate = new Date(maxStartDate);
+                        childGanttRecord.startDate = maxStartDate;
                         childGanttRecord._calculateEndDate(this);
                         childGanttRecord.left = childGanttRecord._calculateLeft(this);
                         childGanttRecord.width = childGanttRecord._calculateWidth(this);
@@ -383,9 +387,11 @@
             var type = predecessor.predecessorsType,
                 offset = predecessor.offset,
                 tempDate, returnStartDate;
+            parentGanttRecord = this._updateToScheduledValue(parentGanttRecord, true);
+            ganttRecord = this._updateToScheduledValue(ganttRecord);
             switch (type) {
                 case "FS":
-                    tempDate = new Date(parentGanttRecord.endDate);
+                    tempDate = this._getValidEndDate(parentGanttRecord);
                     if (!ganttRecord.isMilestone || offset != 0)
                         tempDate = this._checkStartDate(tempDate, ganttRecord);
                     if (offset != 0)
@@ -396,7 +402,7 @@
                         returnStartDate = new Date(tempDate);
                     break;
                 case "FF":
-                    tempDate = new Date(parentGanttRecord.endDate);
+                    tempDate = this._getValidEndDate(parentGanttRecord);
                     if (offset != 0)
                         tempDate = this._updateDateByOffset(tempDate, predecessor, ganttRecord.isMilestone, ganttRecord);
                     if (!ganttRecord.isMilestone)
@@ -404,7 +410,7 @@
                     returnStartDate = this._getStartDate(tempDate, ganttRecord.duration, ganttRecord.durationUnit, ganttRecord);
                     break;
                 case "SF":
-                    tempDate = new Date(parentGanttRecord.startDate);
+                    tempDate = this._getValidStartDate(parentGanttRecord);
                     if (offset != 0)
                         tempDate = this._updateDateByOffset(tempDate, predecessor, ganttRecord.isMilestone, ganttRecord);
                     if (!ganttRecord.isMilestone)
@@ -412,7 +418,7 @@
                     returnStartDate = this._getStartDate(tempDate, ganttRecord.duration, ganttRecord.durationUnit, ganttRecord);
                     break;
                 case "SS":
-                    tempDate = new Date(parentGanttRecord.startDate);
+                    tempDate = this._getValidStartDate(parentGanttRecord);
                     if (offset != 0)
                         tempDate = this._updateDateByOffset(tempDate, predecessor, ganttRecord.isMilestone, ganttRecord);
                     if (!ganttRecord.isMilestone)
@@ -445,9 +451,9 @@
                     childGanttRecord = this._getRecordByTaskId(predecessor.to);
                     tempStartDate = this._getValidatedStartDate(childGanttRecord, parentGanttRecord, predecessor);
                     if (maxStartDate == null)
-                        maxStartDate = new Date(tempStartDate);
-                    else if (tempStartDate.getTime() > maxStartDate.getTime())
-                        maxStartDate = new Date(tempStartDate);
+                        maxStartDate = tempStartDate;
+                    else if (this._compareDates(tempStartDate, maxStartDate) == 1)
+                        maxStartDate = tempStartDate;
                 }
             }
             return maxStartDate;
@@ -665,8 +671,10 @@
 
                     if (validationOn != "predecessor" && proxy._isValidationEnabled)
                         proxy._validateChildGanttRecord(parentGanttRecord, record, predecessor, model.enablePredecessorValidation, isOffsetChanged);
-                    if ((model.enableVirtualization === false && (parentGanttRecord.isExpanded === false || record.isExpanded == false)))
+                    if ((model.enableVirtualization === false && (parentGanttRecord.isExpanded === false || record.isExpanded == false))) {
+                        record && proxy._validatePredecessor(record, undefined, "successor");
                         continue;
+                    }
 
                     if (!isResourceView) {
                         connectorLineObject = proxy._createConnectorLineObject(parentGanttRecord, record, predecessor);
@@ -1108,17 +1116,62 @@
                ganttRecord = args.data,
                j = 0,
                parentGanttRecord = [],
-               record = [],
                templateArgs = {},
                predecessorArray = [],
-               predecessor = ganttRecord.predecessor,
-               preLength = predecessor && predecessor.length,
-               previousArgs = proxy._$ganttchartHelper.ejGanttChart("taskbarEditedArguments");
+               predecessor, preLength,
+               previousArgs = proxy._$ganttchartHelper.ejGanttChart("taskbarEditedArguments");            
+            if (args.editMode == "dialogEdit") {
+                var treeGridId = "#treegrid" + proxy._id + "predecessorEdit",
+                    predecessorTable, predecessor = [], predecessorString = [],
+                    types = proxy._predecessorCollectionText;
+                if ($(treeGridId).length > 0) {
+                    if ($(treeGridId).ejTreeGrid("model.isEdit"))
+                        $(treeGridId).ejTreeGrid("saveCell");
+
+                    predecessorTable = $(treeGridId).ejTreeGrid("option", "dataSource");
+                    for (var i = 0; i < predecessorTable.length; i++) {
+                        var predObj = {}, tempType;
+                        predObj["from"] = model.enableSerialNumber ? proxy._recordIdFromSerialnumber(predecessorTable[i].id) : predecessorTable[i].id;
+                        predObj["to"] = ganttRecord.taskId.toString();
+                        predObj["isdrawn"] = false;
+                        predObj["offset"] = predecessorTable[i].offset;
+                        for (var t = 0; t < types.length; t++) {
+                            if (predecessorTable[i].type == types[t].text) {
+                                predObj["predecessorsType"] = types[t].id;
+                                tempType = types[t].id;
+                                break;
+                            }
+                        }
+                        var tem = predObj["from"] + tempType
+                        predecessorTable[i].offset = parseFloat(predecessorTable[i].offset);
+                        if (predecessorTable[i].offset !== 0) {
+                            if (predecessorTable[i].offset < 0)
+                                tem += predObj["offset"].toString();
+                            else
+                                tem += "+" + predObj["offset"].toString();
+                        }
+                        predecessorString.push(tem);
+                    }
+                    if (predecessorString.length > 0) {
+                        predecessor = ganttRecord._calculatePredecessor(predecessorString.join(','), proxy._durationUnitEditText, proxy.model.durationUnit, proxy);
+                        if (!ej.isNullOrUndefined(ganttRecord.predecessor)) {
+                            ganttRecord.predecessor.forEach(function (data) {
+                                if (data.from == ganttRecord.taskId.toString())
+                                    predecessor.push(data);
+                            });
+                        }
+                    }
+                }
+                else
+                    predecessor = ganttRecord.predecessor;                
+            }
+            else
+                predecessor = ganttRecord.predecessor;
+            preLength = predecessor && predecessor.length;
             proxy._editMode = args.editMode;
             if (!args.cancel && !ej.isNullOrUndefined(predecessor)) {
                 for (var i = 0; i < preLength; i++) {
-                    parentGanttRecord = proxy._getRecordByTaskId(predecessor[i].from),
-                    record = proxy._getRecordByTaskId(predecessor[i].to);
+                    parentGanttRecord = proxy._getRecordByTaskId(predecessor[i].from);
                     var startdate = proxy._getPredecessorDate(ganttRecord, predecessor);
                     if (predecessor[i].predecessorsType == "FS") {
                         //To check whether user dragged the task that is below to predecessor end date
@@ -1159,7 +1212,7 @@
                        "click keypress", "#ValidationRuleDialog_" + proxy._id + "_validationOk ,#ValidationRuleDialog_" + proxy._id + "_validationCancel", { args: args }, proxy._validationDialogButtonClick);
                     }
 
-                    if (args.editMode == "dialogEdit" || args.editMode == "cellEdit") {
+                    if (args.editMode == "dialogEdit" || args.editMode == "cellEdit" || args.editMode == "recordUpdate") {
                         if (!args.validateMode.removeLink && !args.validateMode.respectLink && !args.validateMode.preserveLinkWithEditing)
                             proxy._renderValidationDialog(templateArgs);
                         else if (args.validateMode.removeLink || args.validateMode.respectLink || args.validateMode.preserveLinkWithEditing) {
@@ -1197,6 +1250,8 @@
                 type = "dialog";
                 if (e.keyCode != 0 && e.keyCode !== undefined && e.keyCode != 13)
                     return true;
+                else if (args.editMode == "recordUpdate")
+                    previousArgs.data = args.data;
             }
             else if (e.target.id == proxy._id + "_dialogValidationRule_closebutton") {
                 type = "dialog";
@@ -1204,9 +1259,11 @@
             else {
                 args = e;
                 type = "argument";
+                if (args.editMode == "recordUpdate")
+                    previousArgs.data = args.data;
             }
 
-            var ganttRecord = !(ej.isNullOrUndefined(previousArgs.data)) ? previousArgs.data : model.selectedItem,
+            var ganttRecord = !(ej.isNullOrUndefined(previousArgs.data)) ? previousArgs.data : model.viewType == "projectView" ? model.selectedItem : proxy._resourceEditedRecord,
                  arg = {},
                  predecessor = ganttRecord.predecessor,
                  treegridObject = proxy._$treegridHelper.ejTreeGrid("instance"),
@@ -1229,11 +1286,14 @@
                         ganttRecord.status = previousData.status;
                         ganttRecord.progressWidth = ganttRecord._getProgressWidth(ganttRecord.width, ganttRecord.status);
                         //Update parentitem
-                        if (ganttRecord.parentItem && ganttRecord.parentItem.isAutoSchedule) {
-                            proxy._updateParentItem(ganttRecord);
-                        }
-                        else if (ganttRecord.parentItem && !ganttRecord.parentItem.isAutoSchedule)
-                            proxy._updateManualParentItem(ganttRecord);
+                        if (model.viewType == "resourceView") {
+                            proxy._updateSharedResourceTask(ganttRecord);
+                            ganttRecord.parentItem && proxy._updateOverlappingValues(ganttRecord.parentItem, true);
+                            proxy._updateResourceParentItem(ganttRecord);
+                        } else if (ganttRecord.parentItem && ganttRecord.parentItem.isAutoSchedule) {
+                                proxy._updateParentItem(ganttRecord);
+                        } else if (ganttRecord.parentItem && !ganttRecord.parentItem.isAutoSchedule)
+                                proxy._updateManualParentItem(ganttRecord);
                         proxy._isLastRefresh = false;
                         proxy._connectorlineIds = [];
                         proxy._updatedConnectorLineCollection = [];
@@ -1243,7 +1303,10 @@
                             this._updateConnectorLineCollection(proxy._updatedConnectorLineCollection);
                         }
                         proxy._isLastRefresh = true;
-                        proxy.refreshGanttRecord(ganttRecord);
+                        if (model.viewType == "resourceView" && ganttRecord.eResourceTaskType == "resourceChildTask")
+                            proxy.refreshGanttRecord(ganttRecord.parentItem);
+                        else
+                            proxy.refreshGanttRecord(ganttRecord);
                     }
                     else if (proxy._editMode == "dialogEdit") {
                         this._editedDialogRecord = ganttRecord;
@@ -1255,7 +1318,20 @@
                         endEditArguments.data[endEditArguments.columnName] = endEditArguments.previousValue;
                         proxy._triggerEndEdit(endEditArguments);
                     }
-                    type == "dialog" && $("#" + proxy._id + "_dialogValidationRule").ejDialog("close");
+                    else if (proxy._editMode == "recordUpdate") {
+                        var editedArgs = args.actionCompleteArgs,
+                            modifiedData = editedArgs.modifiedRecord,
+                            startDate = editedArgs.previousItem[model.startDateMapping],
+                            endDate = editedArgs.previousItem[model.endDateMapping],
+                            duration = editedArgs.previousItem[model.durationMapping];
+
+                        modifiedData.startDate = modifiedData.item[model.startDateMapping] = startDate;
+                        modifiedData.endDate = modifiedData.item[model.endDateMapping] = endDate;
+                        modifiedData.duration = modifiedData.item[model.durationMapping] = duration;
+
+                        proxy.actionComplete(editedArgs);
+                    }
+            type == "dialog" && $("#" + proxy._id + "_dialogValidationRule").ejDialog("close");
                 }
                     //if the user choosen to remove link and keep the editing 
                 else if ((type == "dialog" && document.getElementById(proxy._id + "_ValidationRemoveline").checked) || (args.validateMode && (args.validateMode.removeLink))) {
@@ -1265,11 +1341,15 @@
                         proxy._updatePredecessorValues(eventArgs);
                         ej.TreeGrid.refreshRow(treegridObject, model.updatedRecords.indexOf(ganttRecord));
                         proxy._isLastRefresh = true;
-                        proxy.refreshGanttRecord(ganttRecord);
+                        if (model.viewType == "reourceView" && ganttRecord.eResourceTaskType == "resourceChildTask")
+                            proxy.refreshGanttRecord(ganttRecord.parentItem);
+                        else
+                            proxy.refreshGanttRecord(ganttRecord);
+
                     }
                     else if (proxy._editMode == "dialogEdit") {
                         var treeGridId = "#treegrid" + proxy._id + "predecessorEdit",
-                            pre = $(treeGridId).ejTreeGrid("option", "dataSource"),
+                            predecessorTable = $(treeGridId).ejTreeGrid("option", "dataSource"),
                             j = 0, index;
                         for (var i = 0; i < proxy._validationPredecessor.length; i++) {
                             if (proxy._validationPredecessor[i].predecessorsType == proxy._validationType) {
@@ -1296,6 +1376,13 @@
                         endEditArguments.data = eventArgs.ganttRecord;
                         proxy._triggerEndEdit(endEditArguments);
                     }
+                    else if (proxy._editMode == "recordUpdate") {
+                        var recordUpdateArgs = args.actionCompleteArgs;
+                        eventArgs.ganttRecord = ganttRecord;
+                        proxy._updatePredecessorValues(eventArgs);
+                        args.data = eventArgs.ganttRecord;
+                        proxy.actionComplete(recordUpdateArgs);
+                    }
                     type == "dialog" && $("#" + proxy._id + "_dialogValidationRule").ejDialog("close");
                 }
                     // if the user choosen to keep the both link and editing.
@@ -1307,6 +1394,10 @@
                     }
                     else if (proxy._editMode == "cellEdit")
                         proxy._triggerEndEdit(endEditArguments);
+                    else if (proxy._editMode == "recordUpdate") {
+                        var recordUpdateArgs = args.actionCompleteArgs;
+                        proxy.actionComplete(recordUpdateArgs);
+                    }
                     type == "dialog" && $("#" + proxy._id + "_dialogValidationRule").ejDialog("close");
                 }
                 else
@@ -2494,6 +2585,32 @@
                         }
                     }
                 }
+            }
+        },
+        _getVaildSuccessorTasks: function (data, ids, idCollection) {
+            var proxy = this,
+                model = proxy.model;
+            if (data.predecessor && data.predecessor.length > 0) {
+                var predecessors = data.predecessor,
+                    fromId = data.taskId;
+                predecessors.forEach(function (item) {
+                    if (item.from.toString() == fromId.toString()) {
+                        var toId = item.to, idIndex;
+                        if (model.enableSerialNumber) {
+                            var ganttRecord = model.flatRecords[model.ids.indexOf(toId)];
+                            idIndex = ids.indexOf(ganttRecord.serialNumber.toString());
+                        }
+                        else {
+                            idIndex = ids.indexOf(toId);
+                        }
+                        if (idIndex > -1) {
+                            ids.splice(idIndex, 1);
+                            idCollection.splice(idIndex, 1);
+                        }
+                        var ganttRecord = proxy._getRecordByTaskId(toId);
+                        proxy._getVaildSuccessorTasks(ganttRecord, ids, idCollection);
+                    }
+                });
             }
         }
     };

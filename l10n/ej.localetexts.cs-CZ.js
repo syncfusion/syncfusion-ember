@@ -474,7 +474,8 @@
                         cancelButtonText: "Zrušit",
                         deleteButtonText: "Vymazat",
 						title: "Závislost úkolů"
-                    }
+                    },
+                    nullText: "neplatný"
                 };
                 break;
             case "ejGrid":
@@ -525,6 +526,7 @@
                     ResponsiveFilter: "Filtr",
                     ResponsiveSorting: "druh",
                     Search: "Vyhledávání",
+					NumericTextBoxWaterMark: "zadejte hodnotu",
                     DatePickerWaterMark: "Vyberte datum",
                     EmptyDataSource: "DataSource nesmí být prázdné při počátečním zatížení, protože sloupce jsou generovány ze zdrojů dat ve sloupci mřížky vytvořeno automaticky",
                     ForeignKeyAlert: "Aktualizovaná hodnota by měla být platná cizí klíč hodnota",
@@ -641,16 +643,35 @@
                     EMF: "EMF",
                     GIF: "GIF",
                     JPG: "JPG",
-                    BMF: "BMF"
+                    BMP: "BMP",
+                    ZoomIn: "přiblížit",
+                    ZoomOut: "Oddálit",
+                    Legend: "Legenda",
+                    SmartLabels: "Inteligentní štítky",
+                    Interactions: "Interakce",
+                    Zooming: "Zvětšení",
+                    Rotate45: "Otočte45",
+                    Rotate90: "Otočte90",
+                    Trim: "Trim",
+                    MultipleRows: "Více řádků",
+                    Wrap: "Zabalit",
+                    Hide: "Skrýt",
+                    WrapByWord: "Wrap podle slova",
+                    CrossHair: "Křížové vlasy",
+                    TrackBall: "Track Ball",
+                    DisableTD: "Zakázat 3D grafy",
+                    None: "Žádný",
+                    Exception: "Výjimka",
+                    OK: "OK"
                 };
                 break;
             case "ejPivotClient":
                 ej.PivotClient.Locale = ej.PivotClient.Locale || {};
                 ej.PivotClient.Locale["cs-CZ"] = {
-                    DoesNotBeginsWith: "Není začíná",
+                    DoesNotBeginsWith: "Nezačíná to",
                     DoesNotEndsWith: "Nekončí s",
-                    DoesNotContains: "Není obsahuje",
-                    DoesNotEquals: "Není rovno",
+                    DoesNotContains: "Neobsahuje",
+                    DoesNotEquals: "Nerovná se",
                     IsGreaterThan: "Je větší než",
                     IsGreaterThanOrEqualTo: "Je větší než nebo rovno",
                     IsLessThan: "Je menší než",
@@ -747,12 +768,12 @@
                     EqualTo: "Rovná",
                     ReportList: "Seznamu zpráv",
                     Alert: "Upozornění",
-                    MDXAlertMsg: "Přidejte prosím změřte rozměr nebo hierarchie v odpovídající ose zobrazíte MDX dotazu.",
-                    FilterSortRowAlertMsg: "Rozměr nebyl nalezen v řádku osy. Přidejte prosím rozměr vložky v řadě osy pro třídění a filtrování",
+                    MDXAlertMsg: "Přidejte opatření, rozměr nebo hierarchii do příslušné osy a zobrazte dotaz MDX.",
+                    FilterSortRowAlertMsg: "Dimenze se nenachází v ose řady. Pro třídění / filtrování doplňte element o dimenzi v ose řady.",
                     FilterSortColumnAlertMsg: "Rozměr nebyl nalezen ve sloupci osy. Přidejte prosím rozměr prvek ve sloupci osy pro třídění a filtrování.",
                     FilterSortcolMeasureAlertMsg: "Přidejte opatření osy sloupku řízení",
                     FilterSortrowMeasureAlertMsg: "Přidejte opatření osy řádku",
-                    FilterSortElementAlertMsg: "Prvek nebyl nalezen ve sloupci osy. Přidejte prvek ve sloupci osy pro třídění a filtrování.",
+                    FilterSortElementAlertMsg: "Element se nenachází v ose sloupce. Přidejte prvek v ose sloupce pro třídění / filtrování.",
                     FilterMeasureSelectionAlertMsg: "Zvolte prosím platné opatření.",
                     FilterConditionAlertMsg: "Zadejte platný stav.",
                     FilterStartValueAlertMsg: "Zadejte počáteční hodnotu.",
@@ -783,11 +804,11 @@
                     MemberType: "Typ:",
                     FormatString: "Řetězec:",
                     MultipleMeasure: "Více než jedno z opatření nemohou být nakrájená na plátky.",
-                    DuplicateCalcMeasure: "Vypočítané s tímto názvem již existuje.",
-                    EmptyField: "Vypočítané členské jméno nebo vyjádření nemůže být prázdný.",
+                    DuplicateCalcMeasure: "Vypočítaný člen se stejným jménem již existuje.",
+                    EmptyField: "Vypočtený název člena nebo výraz nesmí být prázdný.",
                     EmptyFormat: "Textový řetězec formátu pro vypočtená je prázdná.",
                     Warning: "Varování",
-                    Confirm: "Vypočítané se stejným názvem již existuje. V důsledku chcete nahradit?",
+                    Confirm: "Vypočtený člen se stejným jménem již existuje. Chcete nahradit?",
                     KPIs: "KPI",
 					Collection: "Shromažďování",
 					Report: "zpráva",
@@ -798,8 +819,9 @@
                     Success: "Úspěch",
                     KpiAlertMsg: "V oblasti pohybu nesmí být umístěny v oblasti zpráva",
                     NotAllItemsShowing: "Ne všechny děti jsou uzly na obrázku",
-                    EditorLinkPanelAlert: "Členové má více než tisíc položek v rámci jednoho nebo více mateřských. Pouze první 1000 položky jsou zobrazeny v rámci každého rodiče.",
-                    NamedSetAlert:"Pojmenovaný nemohou být přidány do obsahujícího kontingenční tabulku se zobrazí zpráva ve stejné době jako další s názvem založené na stejném poli. Klepnutím na tlačítko OK odeberte ' <Set 1> ' pojmenovanou množinu a přidejte ' <Set 2> ' s názvem."
+                    EditorLinkPanelAlert: "Členové mají více než 1000 položek pod jedním nebo více rodiči. Zobrazeny jsou pouze první 1000 položek pod každým rodičem.",
+                    NamedSetAlert: "Namapované soubory stejného pole nelze přidat do sestavy kontingenční tabulky současně. Klepnutím na tlačítko OK odeberete sadu s názvem <Set 1> a přidáte sadu s názvem <Set 2>.",
+                    Exception: "Výjimka"
                 };
                 break;
             case "ejPivotGauge":
@@ -807,6 +829,7 @@
                 ej.PivotGauge.Locale["cs-CZ"] = {
                     RevenueGoal: "výnosy Cíl",
                     RevenueValue: "Hodnota tržeb",
+                    Exception: "Výjimka"
                 };
                 break;
             case "ejPager":
@@ -1127,20 +1150,6 @@
                     AddNew: "Přidat nový",
                     Format: "Formát",
                     NoMeasure: "Přidejte jakékoli opatření",
-                    AliceBlue: "AliceBlue",
-                    Black: "Black",
-                    Blue: "Blue",
-                    Brown: "Brown",
-                    Gold: "Gold",
-                    Green: "Green",
-                    Lime: "Lime",
-                    Maroon: "Maroon",
-                    Orange: "Orange",
-                    Pink: "Pink",
-                    Red: "Red",
-                    Violet: "Violet",
-                    White: "White",
-                    Yellow: "Yellow",
                     Solid: "Pevné",
                     Dashed: "Čárkované",
                     Dotted: "Tečkovaná čára",
@@ -1178,7 +1187,7 @@
                     EmptyField: "Zadejte prosím pole vypočítat název nebo vzorec",
                     NotValid: "Vzhledem k tomu je vzorec není platná",
                     NotPresent: "Pole Hodnota použít v jakékoli vypočtené podle vzorce na poli není přítomna v PivotGrid",
-                    Confirm: "Vypočítává se stejným názvem již existuje. V důsledku chcete nahradit?",
+                    Confirm: "Vypočtený člen se stejným jménem již existuje. Chcete nahradit?",
                     CalcValue: "Výpočtové pole může být vložena pouze v oblasti hodnota pole",
                     MultipleItems: "Více položek",
                     All: "Všechny",
@@ -1203,7 +1212,8 @@
                     Edit: "Upravit",
                     DuplicateFormatName: "Duplicitní název formátu",
                     NotAllItemsShowing: "Ne všechny děti jsou uzly na obrázku",
-                    EditorLinkPanelAlert: "Členové má více než tisíc položek v rámci jednoho nebo více mateřských. Pouze první 1000 položky jsou zobrazeny v rámci každého rodiče."
+                    EditorLinkPanelAlert: "Členové mají více než 1000 položek pod jedním nebo více rodiči. Zobrazeny jsou pouze první 1000 položek pod každým rodičem.",
+                    Exception: "Výjimka"
                 };
                 break;
             case "ejPivotPager":
@@ -1277,10 +1287,11 @@
                     Cancel: "Zrušit",
                     Close: "Zavřete",
                     Search: "Vyhledávání",
+                    Remove: "Demontujte",
                     AddCurrentSelectionToFilter: "Přidat aktuální výběr k filtrování",
                     NotAllItemsShowing: "Ne všechny děti jsou uzly na obrázku",
                     EditorLinkPanelAlert: "Členové má více než tisíc položek v rámci jednoho nebo více mateřských. Pouze první 1000 položky jsou zobrazeny v rámci každého rodiče.",
-                    NamedSetAlert: "Pojmenovaný nemohou být přidány do obsahujícího kontingenční tabulku se zobrazí zpráva ve stejné době jako další s názvem založené na stejném poli. Klepnutím na tlačítko OK odeberte ' <Set 1> ' pojmenovanou množinu a přidejte ' <Set 2> ' s názvem."
+                    NamedSetAlert: "Namapované soubory stejného pole nelze přidat do sestavy kontingenční tabulky současně. Klepnutím na tlačítko OK odeberete sadu s názvem <Set 1> a přidáte sadu s názvem <Set 2>."
                 };
                 break;
             case "ejRangeNavigator":
@@ -1399,6 +1410,7 @@
                         },
                     },
                     pagesetupDialog: {
+                        close: 'Zavřít',
                         paperSize: 'Velikost papíru',
                         height: 'Výška',
                         width: 'Šířka',
@@ -1414,6 +1426,41 @@
                         doneButton: 'hotový',
                         cancelButton: 'Zrušit'
                     },
+                    credential: {
+                        userName: 'Uživatelské jméno',
+                        password: 'Heslo'
+                    },
+                    waterMark: {
+                        selectOption: 'Vyberte volbu',
+                        selectValue: 'Vyberte hodnotu'
+                    },
+                    errorMessage: {
+                        startMessage: 'Prohlížeč zpráv zaznamenal některé problémy při načítání tohoto přehledu. Prosím',
+                        middleMessage: ' Klikněte zde',
+                        endMessage: 'zobrazit podrobnosti o chybě',
+                        closeMessage: 'Zavřete tuto zprávu'
+                    },
+                    alertMessage: {
+                        close: 'Zavřít',
+                        title: 'ReportViewer',
+                        done: 'OK',
+                        showDetails: 'Ukázat detaily',
+                        hideDetails: 'Skrýt detaily',
+                        reportLoad: 'Nahlásit hlášení:',
+                        RVERR0001: 'Zpráva ReportViewer se nepodařilo načíst',
+                        RVERR0002: 'Zpráva ReportViewer se nezdařila',
+                        RVERR0003: 'Došlo k chybě v ajax postback',
+                        RVERR0004: 'Zvolte prosím hodnotu parametru',
+                        RVERR0005: 'Parametr {paramettername} chybí hodnotu',
+                        RVERR0006: 'Vložte typ datového typu pro float',
+                        RVERR0007: 'Zadejte prosím celý typ datového vstupu',
+                        RVERR0008: 'Zadejte prosím celý typ datového vstupu',
+                        RVERR0009: 'Okraje se překrývají nebo jsou mimo papír. Zadejte jinou velikost okraje.',
+                        RVERR0010: 'Zadejte hodnotu parametru',
+                        RVERR0011: 'Parametr nesmí být prázdný',
+                        RVERR0012: 'Hodnota poskytnutá pro parametr report {parametrprompt} není pro svůj typ platná.'
+                    },
+                    selectAll: 'Vybrat vše',
                     viewButton: "Zobrazit hlášení",
                 };
                 break;
@@ -1641,6 +1688,7 @@
                     Done: "hotový",
                     Cancel: "Zrušit",
                     Ok: "OK",
+                    Repeat: "Opakovat",
                     RepeatBy: "Opakujte podle",
                     RepeatEvery: "opakovat každý",
                     RepeatOn: "Opakujte na",
@@ -1655,7 +1703,7 @@
                     EveryWeekDay: "každý všední den",
                     Never: "Nikdy",
                     After: "Po",
-                    Occurence: "Výskyt (y)",
+                    Occurrence: "Výskyt (y)",
                     On: "Na",
                     Edit: "editovat",
                     RecurrenceDay: "Day (s)",
@@ -2490,6 +2538,16 @@
                     CreateSparkline: "Vytvořte Sparkline",
                     SelectDataSource: "Zvolte zdrojový datový rozsah pro sparkline",
                     SPARKLINEDESIGN: "Sparkline Design",
+                    CancellationRequested: "Nelze otevřít v určeném časovém limitu",
+                    ImportPreventedOnUnknownFormula: "Tento soubor nelze načíst, protože obsahuje nepodporované vzorce.",
+                    PivotTableName: "Název kontingenční tabulky",
+                    ArrayaFormula: "Nemůžete změnit část pole",
+                    ArrayaFormulaTableAlert: "V tabulkách nejsou povoleny vzorce s více buňkami",
+                    ValueFieldSettings: "Nastavení pole hodnot",
+                    FieldTab: "Shrnutí hodnot podle",
+                    SummarizeValue: "Sumární pole hodnot",
+                    SummarizeChooseType: "Zvolte typ výpočtu, který chcete použít k shrnutí údajů z vybraného pole",
+                    FieldValue: "Název zdroje:",
                 };
                 break;
             case "ejTimePicker":
@@ -2610,6 +2668,9 @@
                     okButtonText: "OK",
                     cancelButtonText: "Zrušit",
                     confirmDeleteText: "potvrdit smazání",
+                    batchSaveConfirmText: "Jste si jisti, že chcete uložit změny?",
+                    batchSaveLostChangesText: "Neuložené změny budou ztraceny. Jste si jisti, že chcete pokračovat?",
+                    cancelEditText: "Jste si jisti, že chcete zrušit změny?",
                     dropDownListBlanksText: "(Prázdné)",
                     dropDownListClearText: "(Vymazat filtr)",
                     trueText: "Skutečný",

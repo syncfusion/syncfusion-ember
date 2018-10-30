@@ -450,10 +450,10 @@
                 this._freezeScroll(startCell.rowIndex, startCell.colIndex, sheet);
             else
                 xlObj.XLScroll._scrollSelectedPosition(xlObj.getActiveSheetIndex(), startCell);
-            xlObj.XLDragFill.positionAutoFillElement();
+			xlObj.XLDragFill && xlObj.XLDragFill.positionAutoFillElement();
             sheet._startCell = startCell;
             sheet._endCell = endCell;
-            xlObj.setSheetFocus();
+            xlObj._setSheetFocus();
             isApply = $.grep(xlObj.XLRibbon._addrList, function (e) {
                 return e.value === txt;
             });

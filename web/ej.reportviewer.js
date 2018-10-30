@@ -25,22 +25,26 @@
             reportServerId: "",
             reportCacheID: "",
             serviceAuthorizationToken: "",
+            reportViewerId: "",
             reportPath: "",
             reportServerUrl: "",
             dataSources: [],
             parameters: [],
             exportSettings: {
-                exportOptions: 1 | 2 | 4 | 8 | 16 | 32,
+                exportOptions: 1 | 2 | 4 | 8 | 16 | 32 | 64,
                 excelFormat: "excel97to2003",
                 pptFormat: "powerpoint97to2003",
-                wordFormat: "doc"
+                wordFormat: "doc",
+                customExportItems: []
             },
             toolbarSettings: {
                 items: 1 | 2 | 4 | 8 | 16 | 32 | 64 | 128 | 256 | 512,
                 showToolbar: true,
                 templateId: "",
                 click: "",
-                showTooltip: true
+                showTooltip: true,
+                customToolBarGroups: [],
+                customToolBarItems: [],
             },
             locale: "en-US",
             printMode: false,
@@ -72,6 +76,7 @@
             renderingBegin: null,
             renderingComplete: null,
             reportError: null,
+            showError: null,
             reportExport: null,
             drillThrough: null,
             hyperlink: null,
@@ -82,7 +87,11 @@
             enableDatasourceBlockScroller: true,
             enableNotificationBar: true,
             enableDropDownSearch: false,
-            showExceptionsInDialog: false
+            showExceptionsInDialog: false,
+            autoRender: true,
+            parameterSettings: {
+                delimiterChar: ","
+            },
         },
 
         dataTypes: {
@@ -104,10 +113,11 @@
         _isSelectedPage: false,
         _refresh: false,
         _isToolbarClick: false,
+        _isPopupClick:false,
         _printMode: false,
         _pageSetup: false,
-        _chkBoxSelectAll: true,
         _pageModel: null,
+        _isprint: false,
         _currentPage: 1,
         _pageLayoutPage: 1,
         _machineCulture: null,
@@ -119,6 +129,7 @@
         _actionUrl: null,
         _isDocumentMap: false,
         _isPageDocMap: false,
+        _isDrillThroughReport: false,
         _pageDocMapFlag: false,
         _childReportToken: null,
         _parents: [],
@@ -203,10 +214,7 @@
                         }
                         break;
                     case "parameters":
-                        this._refresh = true;
-                        if (this.model.reportServiceUrl) {
-                            this.doAjaxPost("POST", this._actionUrl, JSON.stringify({ 'reportAction': this._reportAction.setParameters, 'parameters': options.parameters }), "_setParameters");
-                        }
+                        reload = true;
                         break;
                     case "processingMode":
                         update = true;
@@ -226,6 +234,10 @@
                     case "renderMode":
                         this._reInit();
                         break;
+                    case "reportViewerId":
+                        this._reportViewerToken = this.model.reportViewerId ? this.model.reportViewerId : this._reportViewerToken;
+                        break;
+
                     case "pageSettings":
                         for (var setting in options[prop]) {
                             switch (setting) {
@@ -377,6 +389,7 @@
         _init: function () {
             this._svg = (window.SVGSVGElement) ? true : false;
             this._actionUrl = this.model.reportServiceUrl + "/PostReportAction";
+            this._reportViewerToken = this.model.reportViewerId ? this.model.reportViewerId : this._reportViewerToken;
             this._browserInfo = ej.browserInfo();
             if (this.element.hasClass('e-rptdesigner')) {
                 this._isDesign = true;
@@ -388,7 +401,7 @@
             if (this.model.reportServiceUrl) {
                 this.doAjaxPost("POST", this._actionUrl, JSON.stringify({
                     'reportAction': this._reportAction.reportLoad, 'controlId': this._id, 'reportPath': this.model.reportPath,
-                    'reportServerUrl': this.model.reportServerUrl, 'processingMode': this.model.processingMode
+                    'reportServerUrl': this.model.reportServerUrl, 'processingMode': this.model.processingMode, 'locale': this.model.locale
                 }), "_reportLoaded");
             }
         },
@@ -614,10 +627,15 @@
                     $('#' + this._id + '_toolbar_zoom_popup ul').addClass("e-reportviewer-zoomSelection_popup-ul");
                 }
                 this._onToolbarRendering({ target: div });
+                this._customToolbarRendering(div.find('ul'));
                 if (this._isDesign) {
                     this._setTooltip();
                 }
-                div.ejToolbar({ cssClass: 'e-report-responsive-toolbar', isResponsive: true, enableSeparator: !this._isDevice, click: $.proxy(this._toolbarClick, this) });
+                div.ejToolbar({
+                    cssClass: (this._isDesign) ? 'e-rptdesigner' : 'e-rptviewer',
+                    isResponsive: true, enableSeparator: !this._isDevice,
+                    click: $.proxy(this._toolbarClick, this)
+                });
             } else {
                 var templateDiv = $('#' + this.model.toolbarSettings.templateId);
                 targetTag.append(templateDiv);
@@ -628,7 +646,69 @@
                 templateDiv.css('display', 'block');
             }
         },
-
+        _customToolbarRendering: function (childNodes) {
+            var customerItems = $.extend(true, {}, this.model.toolbarSettings.customToolBarItems);
+            var customerGroups = $.extend(true, {}, this.model.toolbarSettings.customToolBarGroups);
+            var sortedCustomerGroups = [];
+            for (var index in customerGroups) {
+                sortedCustomerGroups.push(customerGroups[index]);
+            }
+            sortedCustomerGroups.sort(this._sortComparer);
+            var sortedCustomerItems = [];
+            for (var index in customerItems) {
+                sortedCustomerItems.push(customerItems[index]);
+            }
+            sortedCustomerItems.sort(this._sortComparer);
+            for (var index = 0; index < sortedCustomerGroups.length; index++) {
+                var $ulcust = ej.buildTag("ul.e-reportviewer-toolbarul", "", {});
+                for (var subindex = 0; subindex < sortedCustomerGroups[index].items.length; subindex++) {
+                    var itemType = sortedCustomerGroups[index].items[subindex].itemType;
+                    var $litag = this._getToolbarElement(sortedCustomerGroups[index].items[subindex], sortedCustomerGroups[index].index, itemType);
+                    $ulcust.append($litag);
+                    $(childNodes).eq(sortedCustomerGroups[index].index).after($ulcust);
+                }
+            }
+            for (var index = 0; index < sortedCustomerItems.length; index++) {
+                var itemType = sortedCustomerItems[index].itemType;
+                var $litag = this._getToolbarElement(sortedCustomerItems[index], sortedCustomerItems[index].index, itemType);
+                var liChild = childNodes[sortedCustomerItems[index].groupIndex];
+                $(liChild.childNodes).eq(sortedCustomerItems[index].index).after($litag);
+            }
+        },
+      
+        _sortComparer: function(item1, item2){
+            return item2.index-item1.index;
+        },
+           
+        _getToolbarElement: function (item, groupIndex, itemType) {
+            switch (itemType) {
+                case ej.ReportViewer.InputElement.Default:
+                    $divouter = ej.buildTag("li.e-reportviewer-toolbarli", "", {}, { 'id': this._id + '_toolbar_li_' + item.tooltip.header });
+                    var $spanprint = ej.buildTag("span." + item.cssClass + " " + "e-customoption", "", {}, { 'id': this._id + '_toolbar_' + item.tooltip.header, 'header': item.tooltip.header, 'content': item.tooltip.content, 'value': item.tooltip.value, 'cssClass': item.cssClass, 'groupIndex': ej.isNullOrUndefined(groupIndex) ? item.groupIndex : groupIndex });
+                    $divouter.append($spanprint);
+                    break;
+                case ej.ReportViewer.InputElement.Button:
+                    $divouter = ej.buildTag("li.e-custombutton", "", {}, { 'id': this._id + '_toolbar_li_'+ item.tooltip.header, 'header': item.tooltip.header, 'content': item.tooltip.content, 'value': item.tooltip.value, 'cssClass': item.cssClass, 'groupIndex': ej.isNullOrUndefined(groupIndex) ? item.groupIndex : groupIndex });
+                    var $spanprint = ej.buildTag("input." + item.cssClass + " " + "e-customoption", "", {}, { 'type': 'button', 'id': this._id + '_toolbar_' + item.tooltip.header });
+                    $divouter.append($spanprint);
+                    $($spanprint).ejButton(item.value);
+                    break;
+                case ej.ReportViewer.InputElement.Textbox:
+                    $divouter = ej.buildTag("li.e-customtextbox", "", {}, { 'id': this._id + '_toolbar_li_'+ item.tooltip.header, 'header': item.tooltip.header, 'content': item.tooltip.content, 'value': item.tooltip.value, 'cssClass': item.cssClass, 'groupIndex': ej.isNullOrUndefined(groupIndex) ? item.groupIndex : groupIndex });
+                    var $spanprint = ej.buildTag("input." + item.cssClass + " " + "e-customoption", "", {}, { 'type': 'text', 'id': this._id + '_toolbar_' + item.tooltip.header });
+                    $divouter.append($spanprint);
+                    $spanprint.ejMaskEdit(item.value);
+                    break;
+                case ej.ReportViewer.InputElement.Dropdown:
+                    $divouter = ej.buildTag("li.e-customdropdown", "", {}, { 'id': this._id + '_toolbar_li_' + item.tooltip.header, 'header': item.tooltip.header, 'content': item.tooltip.content, 'value': item.tooltip.value, 'cssClass': item.cssClass, 'groupIndex': ej.isNullOrUndefined(groupIndex) ? item.groupIndex : groupIndex });
+                    var $spanprint = ej.buildTag("select." + item.cssClass + " " + "e-customoption", "", {}, { 'id': this._id + '_toolbar_' + item.tooltip.header });
+                    $divouter.append($spanprint);
+                    $spanprint.ejDropDownList(item.value);
+                    break;
+            }
+            return $divouter;
+        },
+      
         _appendToolbarItems: function (litag, eletype) {
             var $divouter;
             var localeObj = ej.ReportViewer.Locale[this.model.locale] ? ej.ReportViewer.Locale[this.model.locale] : ej.ReportViewer.Locale["en-US"];
@@ -790,7 +870,25 @@
             this._appendToolbarItems($tipExport, 'html');
             this._appendToolbarItems($tipExport, 'ppt');
             this._appendToolbarItems($tipExport, 'csv');
+            this._renderCustomExport($tipExport);
             return $tipExport;
+        },
+
+        _renderCustomExport: function ($tipExport) {
+            var localeObj = ej.ReportViewer.Locale[this.model.locale] ? ej.ReportViewer.Locale[this.model.locale] : ej.ReportViewer.Locale["en-US"];
+            for (var index = 0; index < this.model.exportSettings.customExportItems.length; index++) {
+                $divouter = ej.buildTag("li.e-reportviewer-popupli e-custom", "", {}, { 'id': this._id + '_toolbar_li_customexport_' + index }); 
+                $spanTag = ej.buildTag("span.e-reportviewer-popupspan e-custom", "", {}, { 'id': this._id + '_toolbar_customexport_' + index });
+                if (!ej.isNullOrUndefined(localeObj['toolbar']['exportformat'][this.model.exportSettings.customExportItems[index].value])) {
+                    $spanTag.append(localeObj['toolbar']['exportformat'][this.model.exportSettings.customExportItems[index].value]);
+                } else {
+                    $spanTag.append(this.model.exportSettings.customExportItems[index].value);
+                }
+                $($divouter).addClass(this.model.exportSettings.customExportItems[index].cssClass);
+                $divouter.append($spanTag);
+                $tipExport.append($divouter);
+                $($divouter).insertBefore($tipExport[0].childNodes[this.model.exportSettings.customExportItems[index].index]);
+            }
         },
 
         _renderPageFitPopup: function () {
@@ -881,7 +979,9 @@
                 position: {
                     X: (position.left + (printPageWidth) / 3) + 20,
                     Y: (position.top + (printPageHeight / 2)) / 2
-                }, enableModal: false, title: localeObj['toolbar']['pagesetup']['headerText'],
+                },
+                enableModal: false,
+                title: (localeObj['toolbar']['pagesetup']) ? localeObj['toolbar']['pagesetup']['headerText'] : localeObj['toolbar']['pageSetup'],
                 enableResize: false,
                 enablePersistance: false,
                 enableModal: true,
@@ -893,7 +993,7 @@
             var $paperSizeType = ej.buildTag("div.e-reportviewer-ejdropdownlist", "", { 'width': '100%', 'margin-left': '-2px' }, {});
             $sizeHeader.append(localeObj['pagesetupDialog']['paperSize']);
             cell11.append($sizeHeader);
-            $paperSizeDDl = ej.buildTag("select", "", {}, { 'id': this._id + '_PaperSize' });
+            $paperSizeDDl = ej.buildTag("select.e-rptviewer-pagesetup", "", {}, { 'id': this._id + '_PaperSize' });
             $paperSizeDDl.append('<option value="A3">A3</option>');
             $paperSizeDDl.append('<option value="A4">A4</option>');
             $paperSizeDDl.append('<option value="B4(JIS)">B4(JIS)</option>');
@@ -906,7 +1006,12 @@
             $paperSizeDDl.append('<option value="Tabloid">Tabloid</option>');
             $paperSizeDDl.append('<option value="Custom">Custom</option>');
             $paperSizeType.append($paperSizeDDl);
-            $paperSizeDDl.ejDropDownList({ cssClass: 'e-rptviewer-drpdown', height: '32px', width: '100%', selectedIndex: 10, watermarkText: 'Select Option', change: $.proxy(this._setUpChange, this), enableIncrementalSearch: true });
+            $paperSizeDDl.ejDropDownList({
+                cssClass: 'e-rptviewer-drpdown',
+                height: '32px', width: '100%',
+                selectedIndex: 10, watermarkText: localeObj['waterMark']['selectOption'],
+                change: $.proxy(this._setUpChange, this), enableIncrementalSearch: true
+            });
             cell21.append($paperSizeType);
             var $paperSizeWidthLabel = ej.buildTag("span", "", {}, { 'id': this._id + "_widthLabel" });
             var $paperSizeWidth = ej.buildTag("div", "", {}, {});
@@ -1051,6 +1156,7 @@
             var $submitButton = ej.buildTag("input.e-reportviewer-viewreportbutton e-btn", "", { 'float': 'right' }, { 'type': 'button', 'value': localeObj['pagesetupDialog']['doneButton'], 'id': this._id + '_Submit' });
             var $cancelButton = ej.buildTag("input.e-reportviewer-viewreportbutton e-btn", "", { 'float': 'right', 'margin-left': '10px' }, { 'type': 'button', 'value': localeObj['pagesetupDialog']['cancelButton'], 'id': this._id + '_Cancel' });
             var footerTag = $('#' + this._id + '_printPageSetup_foot');
+            $('#' + this._id + '_printPageSetup_closebutton').attr('title', localeObj['pagesetupDialog']['close']);
             footerTag.append($cancelButton).append($submitButton);
             $submitButton.ejButton({ showRoundedCorner: true, height: 30, click: $.proxy(this._pageSetupSubmit, this), cssClass: 'e-rptviewer-okbtn' });
             $cancelButton.ejButton({ showRoundedCorner: true, height: 30, click: $.proxy(this._pageSetupCancel, this), cssClass: 'e-rptviewer-cancelbtn' });
@@ -1086,7 +1192,7 @@
             var div = ej.buildTag("div.e-reportviewer-viewer e-reportviewer-viewerblock", "", {}, { 'id': this._id + '_viewBlockContainer' });
             targetTag.append(div);
 
-            var $innerConetnt = ej.buildTag("table.e-reportviewer-viewerblockcellcontent e-reportviewer-blockcontainer", "", { 'margin': '1px', 'padding': '5px' }, { 'id': this._id + '_viewerBlockCellContent' });
+            var $innerConetnt = ej.buildTag("table.e-reportviewer-viewerblockcellcontent e-reportviewer-blockcontainer", "", { 'padding': '5px' }, { 'id': this._id + '_viewerBlockCellContent' });
             var $tr = ej.buildTag("tr", "", { 'width': '100%' });
             var $tdleft = ej.buildTag("td.e-reportviewer-viewerblockcontent", "", {});
             var $paramParentDiv = ej.buildTag("div.e-reportviewer-viewerblock-parentdiv", "", { 'width': '100%' }, { 'id': this._id + '_viewer_paramblock' });
@@ -1116,14 +1222,13 @@
             var $reportviewContainer = ej.buildTag("div.e-reportviewer-viewer e-reportviewer-scrollcontainer e-reportviewer-viewercontainer", "", { 'height': '100%', 'width': '100%', 'font-size': '8pt' }, { 'id': this._id + '_viewerContainer' });
 
             var $loadingindicator = ej.buildTag("div", "", { 'margin': '0px', 'height': '99.8%', 'width': '100%' }, { 'id': this._id + '_loadingIndicator' });
-            var $loadingemptybackview = ej.buildTag("div", "", { 'margin': '0px', 'height': '99.8%', 'width': '100%', 'background-color': 'rgba(164, 183, 216, 0.18)', 'display': 'block' }, { 'id': this._id + '_loadingIndicatorBackView' });
 
             var $pageviewOuterContainer = ej.buildTag("div.e-reportviewer-pageviewcontainer", "", {}, { 'id': this._id + '_pageviewOuterContainer' });
             var $pageviewOuterline = ej.buildTag("div.e-reportviewer-pageouterline", "", {}, { 'id': this._id + '_pageviewOuterline' });
             var $pageviewContainer = ej.buildTag("div.e-reportviewer-pageview", "", { 'background-color': '#FFFFFF' }, { 'id': this._id + '_pageviewContainer' });
 
             var $pageviewheaderContainer = ej.buildTag("div.e-reportviewer-box-border", "", { 'position': 'relative', 'background-color': 'transparent' }, { 'id': this._id + '_pageviewheaderContainer' });
-            var $pageviewbodyContainer = ej.buildTag("div.e-reportviewer-box-border", "", { 'position': 'relative', 'background-color': 'transparent' }, { 'id': this._id + '_pageviewbodyContainer' });
+            var $pageviewbodyContainer = ej.buildTag("div.e-reportviewer-box-border", "", { 'position': 'relative', 'background-color': 'transparent','overflow' : 'hidden' }, { 'id': this._id + '_pageviewbodyContainer' });
             var $pageviewfooterContainer = ej.buildTag("div.e-reportviewer-box-border", "", { 'position': 'relative', 'background-color': 'transparent' }, { 'id': this._id + '_pageviewfooterContainer' });
 
             var $pageviewheaderborder = ej.buildTag("div.pageHeaderBorder e-reportviewer-box-border", "", { 'position': 'relative', 'background-color': '#FFFFFF' });
@@ -1142,7 +1247,7 @@
             $pageviewContainer.append($pageviewbodyborder);
             $pageviewContainer.append($pageviewfooterborder);
 
-            $loadingindicator.append($loadingemptybackview);
+ 
             $reportviewContainer.append($loadingindicator);
             $pageviewOuterline.append($pageviewContainer);
             $pageviewOuterContainer.append($pageviewOuterline);
@@ -1156,8 +1261,8 @@
             }
 
             div.append($reportviewContainer);
-            $loadingindicator.ejWaitingPopup({ showOnInit: false, cssClass: 'e-designer-loader' });
-            $reportviewContainer.ejWaitingPopup({ showOnInit: false, cssClass: 'e-designer-loader' });
+            $loadingindicator.ejWaitingPopup({ showOnInit: false, appendTo: '#' + this._id + '_loadingIndicator', target: '#' + this._id + '_loadingIndicator', cssClass: 'e-designer-loader' });
+            $reportviewContainer.ejWaitingPopup({ showOnInit: false, appendTo: '#' + this._id + '_viewerContainer', target: '#' + this._id + '_viewerContainer', cssClass: 'e-designer-loader' });
             return div;
         },
 
@@ -1287,12 +1392,13 @@
         },
 
         _appendCredentialItems: function (targetTag, eleType, datasource) {
+            var localeObj = ej.ReportViewer.Locale[this.model.locale] ? ej.ReportViewer.Locale[this.model.locale] : ej.ReportViewer.Locale["en-US"];
             var $tbcell;
             var txtSpan;
             switch (eleType) {
                 case 'namelbl':
                     $tbcell = ej.buildTag("td.e-reportviewer-viewerblockcellcontent", "", {}, {});
-                    txtSpan = ej.buildTag('span.e-reportviewer-content', 'Username&nbsp;', {}, {});
+                    txtSpan = ej.buildTag('span.e-reportviewer-content', localeObj['credential']['userName'] + '&nbsp;', {}, { 'id': datasource.ControlId + "_username_label" });
                     $tbcell.append(txtSpan);
                     break;
                 case 'nametxt':
@@ -1302,7 +1408,7 @@
                     break;
                 case 'passwdlbl':
                     $tbcell = ej.buildTag("td.e-reportviewer-viewerblockcellcontent", "", {}, {});
-                    txtSpan = ej.buildTag('span.e-reportviewer-content', 'Password&nbsp;', {}, {});
+                    txtSpan = ej.buildTag('span.e-reportviewer-content', localeObj['credential']['password'] + '&nbsp;', {}, { 'id': datasource.ControlId + "_password_label" });
                     $tbcell.append(txtSpan);
                     break;
                 case 'passwdtxt':
@@ -1546,6 +1652,7 @@
             var $parameterSpan;
             var $parameterNull;
             var $optionText;
+            var localeObj = ej.ReportViewer.Locale[this.model.locale] ? ej.ReportViewer.Locale[this.model.locale] : ej.ReportViewer.Locale["en-US"];
             var isIe9 = (this._browserInfo.name == 'msie' && (parseInt(this._browserInfo.version) <= 9.0));
             var selectAll;
 
@@ -1554,7 +1661,7 @@
                 if ($("#" + parameter.ControlId + "_popup_wrapper").length > 0) {
                     $("#" + parameter.ControlId + "_popup_wrapper").remove();
                 }
-                var $paramMultiValuedropdown = ej.buildTag("select", "", {}, { 'id': parameter.ControlId, 'name': parameter.Name, 'data-sf-name': parameter.Name });
+                var $paramMultiValuedropdown = ej.buildTag("select.e-rptviewer-multivalue", "", {}, { 'id': parameter.ControlId, 'name': parameter.Name, 'data-sf-name': parameter.Name });
                 if (parameter.AvailableLabels) {
                     var $CheckBoxInput = $('<input id =' + parameter.ControlId + '_check type=\'checkbox\'/>');
                     var $checkBoxDiv = ej.buildTag("div", "", { 'border-bottom': '1px solid #c8c8c8' });
@@ -1580,19 +1687,24 @@
                     }
                     $contentDiv.append($paramMultiValuedropdown);
                     $paramMultiValuedropdown.ejDropDownList({
-                        cssClass: 'e-reportviewer-param e-rptviewer-drpdown',
+                        cssClass: 'e-js e-reportviewer-param e-rptviewer-drpdown',
                         width: '100%', showCheckbox: true, selectedIndices: itemindex,
-                        watermarkText: 'Select Option',
-                        delimiterChar: ",",
+                        watermarkText: localeObj['waterMark']['selectOption'],
+                        delimiterChar: this.model.parameterSettings.delimiterChar,
                         change: parameter.IsDependent ? this._paramsChangeEvent : '',
                         isInteraction: true,
                         popupHide: parameter.IsDependent ? this._paramsChangeEvent : '',
                         enableFilterSearch: this.model.enableDropDownSearch,
                         headerTemplate: $checkBoxDiv[0].outerHTML,
                         checkChange: this._chkBoxSelectionChange,
+                        isSelectAllChecked: false,
                         height: 28
                     });
-                    $("#" + parameter.ControlId + "_check").ejCheckBox({ cssClass: 'e-reportviewer-paramcheckbox', checked: selectAll, isInteraction: true, name: "chk_SelectAll", size: "small", text: "Select All", change: this._onCheckAll });
+                    $("#" + parameter.ControlId + "_check").ejCheckBox({
+                        cssClass: 'e-reportviewer-paramcheckbox', checked: selectAll,
+                        isInteraction: true, name: "chk_SelectAll", size: "small",
+                        text: localeObj['selectAll'], change: this._onCheckAll
+                    });
                     var textEle = $($("#" + parameter.ControlId + "_check")).siblings('.e-text');
                     textEle.addClass('e-reportviewer-paramcheckboxlabel');
                     if (this._isDevice) {
@@ -1602,8 +1714,10 @@
                     }
                 }
                 else if (parameter.DefaultValues) {
-                    $optionText = $('<option value="parameter_SelectAll">Select All</option>"');
-                    $paramMultiValuedropdown.append($optionText);
+                    $optionText = ej.buildTag("option", localeObj['selectAll'], {}, { 'id': parameter.ControlId + '_selectall', 'value': 'parameter_SelectAll' });
+                    if (parameter.DefaultValues.length > 0) {
+                        $paramMultiValuedropdown.append($optionText);
+                    }
                     var _selectedFieldVals = $.extend(parameter.DefaultValuesfields, true);
                     if (parameter.Values && parameter.Values.length > 0) {
                         _selectedFieldVals = parameter.Values;
@@ -1615,17 +1729,20 @@
                         }
                         $paramMultiValuedropdown.append($optionText);
                     }
-                    if (parameter.DefaultValues.length == itemindex.length) {
+                    if (parameter.DefaultValues.length > 0 && parameter.DefaultValues.length == itemindex.length) {
                         itemindex.push(0);
                     }
                     $contentDiv.append($paramMultiValuedropdown);
                     $paramMultiValuedropdown.ejDropDownList({
-                        cssClass: 'e-reportviewer-param e-rptviewer-drpdown', width: '100%', showCheckbox: true, selectedIndices: itemindex, watermarkText: 'Select Option', change: parameter.IsDependent ? this._paramsChangeEvent : '', popupHide: parameter.IsDependent ? this._paramsChangeEvent : '', checkChange: this._selectionChanged, enableFilterSearch: this.model.enableDropDownSearch,
-                        height: 28
+                        cssClass: 'e-js e-reportviewer-param e-rptviewer-drpdown',
+                        width: '100%', showCheckbox: true, selectedIndices: itemindex,
+                        watermarkText: localeObj['waterMark']['selectOption'], change: parameter.IsDependent ? this._paramsChangeEvent : '',
+                        popupHide: parameter.IsDependent ? this._paramsChangeEvent : '', checkChange: this._selectionChanged,
+                        enableFilterSearch: this.model.enableDropDownSearch, isSelectAllChecked: false, height: 28
                     });
                 }
             } else if (parameter.ParameterElementType == "ComboBox") {
-                var $parameterdropdown = ej.buildTag("select", "", {}, { 'id': parameter.ControlId, 'name': parameter.Name, 'data-data': 'select', 'data-sf-name': parameter.Name });
+                var $parameterdropdown = ej.buildTag("select.e-rptviewer-comboBox", "", {}, { 'id': parameter.ControlId, 'name': parameter.Name, 'data-data': 'select', 'data-sf-name': parameter.Name });
                 var selectindex = 9999;
                 var isSelectVal = false;
 
@@ -1651,7 +1768,11 @@
 
                 $contentDiv.append($parameterdropdown);
                 var _dropDownJson = {
-                    cssClass: 'e-reportviewer-param e-rptviewer-drpdown', width: '100%', watermarkText: 'Select a Value', change: parameter.IsDependent ? this._paramsChangeEvent : '', popupHide: parameter.IsDependent ? this._paramsChangeEvent : '', enableIncrementalSearch: true, enableFilterSearch: this.model.enableDropDownSearch,
+                    cssClass: 'e-js e-reportviewer-param e-rptviewer-drpdown',
+                    width: '100%', watermarkText: localeObj['waterMark']['selectValue'],
+                    change: parameter.IsDependent ? this._paramsChangeEvent : '',
+                    popupHide: parameter.IsDependent ? this._paramsChangeEvent : '',
+                    enableIncrementalSearch: true, enableFilterSearch: this.model.enableDropDownSearch,
                     height: 28
                 };
                 if (selectindex != 9999) {
@@ -1663,7 +1784,7 @@
                 $contentDiv.append($parameterdatepicker);
                 var datestring = ((parameter.Label != null && parameter.Label.indexOf('-')) ? (parameter.Label.replace(/\-/g, "/")) : parameter.Label);
                 $parameterdatepicker.ejDatePicker({
-                    cssClass: isIe9 ? 'e-reportviewer-param-datepicker e-reportviewer-param' : 'e-reportviewer-param', width: parameter.IsNullable ? "75%" : "100%", value: parameter.Label != null && parameter.Label.length > 0 ? new Date(datestring ? datestring : parameter.Label) : null, change: parameter.IsDependent ? this._paramsChangeEvent : '', locale: this.model.locale,
+                    cssClass: isIe9 ? 'e-reportviewer-param-datepicker e-reportviewer-param' : 'e-reportviewer-param', width: parameter.IsNullable ? "75%" : "100%", value: parameter.Label, change: parameter.IsDependent ? this._paramsChangeEvent : '', locale: this.model.locale,
                     height: 28
                 });
                 if (parameter.IsNullable) {
@@ -1782,15 +1903,15 @@
         _onCheckAll: function (event) {
             var paramId = event.model.id.substring(0, event.model.id.indexOf("_check"));
             var ejViewerId = paramId.substr(0, (paramId.lastIndexOf('Param') - 1));
-            var proxy = $('#' + ejViewerId).data('ejReportViewer');
             var obj = $("#" + paramId).ejDropDownList("instance");
+            obj.isSelectAllChecked = (obj._selectedIndices.length == obj.listitems.length);
 
             if (event.isChecked) {
-                proxy._chkBoxSelectAll = true;
+                obj.isSelectAllChecked = true;
                 obj.checkAll();
             }
-            else if (proxy._chkBoxSelectAll) {
-                proxy._chkBoxSelectAll = false;
+            else if (obj.isSelectAllChecked) {
+                obj.isSelectAllChecked = false;
                 obj.uncheckAll();
             }
         },
@@ -1798,21 +1919,26 @@
         _chkBoxSelectionChange: function (event) {
             var paramId = (this._id.indexOf("Param") < 0) ? event.target.id : this._id;
             var ejViewerId = paramId.substr(0, (paramId.lastIndexOf('Param') - 1));
-            var proxy = $('#' + ejViewerId).data('ejReportViewer');
+            var obj = $("#" + paramId).ejDropDownList("instance");
 
             if (this._selectedIndices.length != this.listitems.length) {
-                proxy._chkBoxSelectAll = false;
+                obj.isSelectAllChecked = false;
                 $('#' + paramId + '_check').ejCheckBox({ checked: false });
             }
             else {
-                proxy._chkBoxSelectAll = true;
+                obj.isSelectAllChecked = true;
                 $('#' + paramId + '_check').ejCheckBox({ checked: true });
             }
         },
 
         _selectionChanged: function (event) {
+            var paramId = (this._id.indexOf("Param") < 0) ? event.target.id : this._id;
+            var ejViewerId = paramId.substr(0, (paramId.lastIndexOf('Param') - 1));
+            var proxy = $('#' + ejViewerId).data('ejReportViewer');
+            var localeObj = ej.ReportViewer.Locale[proxy.model.locale] ? ej.ReportViewer.Locale[proxy.model.locale] : ej.ReportViewer.Locale["en-US"];
             var activeItem = this._activeItem;
-            if (this.selectedIndexValue == 0 && this.selectedTextValue == "Select All") {
+
+            if (this.selectedIndexValue == 0 && this.selectedTextValue == localeObj['selectAll']) {
                 if (this.checkedStatus) {
                     for (var index = 1; index < this.listitems.length; index++) {
                         this._setModel({ selectedIndex: index });
@@ -1936,10 +2062,13 @@
         },
 
         _getParameterJson: function (paramJsonData, isUIUpdate) {
+            var localeObj = ej.ReportViewer.Locale[this.model.locale] ? ej.ReportViewer.Locale[this.model.locale] : ej.ReportViewer.Locale["en-US"];
             var parameters = (paramJsonData.parameters) ? paramJsonData.parameters : paramJsonData;
 
             if (paramJsonData.paramName != undefined && paramJsonData.paramName != "") {
-                this._showAlertDialog("ReportViewer", "The '" + paramJsonData.paramName + "' parameter is missing a value", '');
+                var errorMsg = localeObj['alertMessage']['RVERR0005'];
+                var replaceString = errorMsg.substr(errorMsg.indexOf("{"), (errorMsg.indexOf("}") - 3));
+                this._showAlertDialog(errorMsg.replace(replaceString, paramJsonData.paramName), '');
                 return false;
             }
             else {
@@ -1960,7 +2089,7 @@
                             }
                         } else {
                             if (isUIUpdate) {
-                                this._showAlertDialog("ReportViewer", "Please select a value for the parameter '" + parameter.Prompt + "'.", '');
+                                this._showAlertDialog(localeObj['alertMessage']['RVERR0004'] + " '" + parameter.Prompt + "'.", '');
                             }
                             return false;
                         }
@@ -1971,14 +2100,19 @@
                         var ddl = $('#' + parameter.ControlId).data("ejDropDownList");
                         var ddlVal = ddl.getSelectedValue();
                         var ddltxt = ddl.getSelectedItem();
-                        ddlVal = (ddlVal == "") ? parameter.Value : ddlVal;
+                        if(ddlVal == ""){
+                            ddlVal = parameter.Value;
+                        }
+                        else if (parameter.AvailableValues != null && parameter.AvailableValues.length > 0 && parameter.AvailableValues[ddl._selectedIndices[0]] != ddlVal) {
+                            ddlVal = parameter.AvailableValues[ddl._selectedIndices[0]];
+                        }
                         ddltxt = (ddltxt && $(ddltxt).text() == "") ? parameter.Label : $(ddltxt).text();
                         if (ddl._selectedIndices.length > 0) {
                             labels.push(ddltxt);
                             values.push(ddlVal);
                         } else {
                             if (isUIUpdate) {
-                                this._showAlertDialog("ReportViewer", "Please select a value for the parameter '" + parameter.Prompt + "'.", '');
+                                this._showAlertDialog(localeObj['alertMessage']['RVERR0004'] + " '" + parameter.Prompt + "'.", '');
                             }
                             return false;
                         }
@@ -1989,7 +2123,7 @@
                         } else {
                             var dateTime = $('#' + parameter.ControlId).data("ejDatePicker").getValue();
                             if (isUIUpdate && dateTime == null) {
-                                this._showAlertDialog("ReportViewer", "Please enter a value for the parameter '" + parameter.Prompt + "'. The parameter cannot be blank", '');
+                                this._showAlertDialog(localeObj['alertMessage']['RVERR0010'] + " '" + parameter.Prompt + "'. " + localeObj['alertMessage']['RVERR0011'], '');
                                 return false;
                             }
                             labels.push(dateTime);
@@ -2002,7 +2136,7 @@
                         if (isNull == 'true') {
                             nullable = true;
                         } else if (isUIUpdate && !radio1.model.checked && !radio2.model.checked) {
-                            this._showAlertDialog("ReportViewer", "Please enter a value for the parameter '" + parameter.Prompt + "'. The parameter cannot be blank", '');
+                            this._showAlertDialog(localeObj['alertMessage']['RVERR0010'] + " '" + parameter.Prompt + "'. " + localeObj['alertMessage']['RVERR0011'], '');
                             return false;
                         } else if (radio1.model.checked || radio2.model.checked) {
                             labels.push(radio1.model.checked);
@@ -2015,24 +2149,26 @@
                         } else {
                             var val = $('#' + parameter.ControlId).val();
                             if (isUIUpdate) {
+                                var errorMsg = localeObj['alertMessage']['RVERR0012'];
+                                var replaceString = errorMsg.substr(errorMsg.indexOf("{"), (errorMsg.indexOf("}") - 3));
                                 if (parameter.DataType == "Float" && !parameter.AllowBlank) {
                                     if (val == "") {
-                                        this._showAlertDialog("ReportViewer", "Please enter a value for the parameter '" + parameter.Prompt + "'. The parameter cannot be blank", '');
+                                        this._showAlertDialog(localeObj['alertMessage']['RVERR0010'] + " '" + parameter.Prompt + "'. " + localeObj['alertMessage']['RVERR0011'], '');
                                         return false;
                                     } else if (!val.match('^[-+]?[0-9]*\.?[0-9]+$')) {
-                                        this._showAlertDialog("ReportViewer", "The value provided for the report parameter '" + parameter.Prompt + "' is not valid for its type.", '');
+                                        this._showAlertDialog(errorMsg.replace(replaceString, parameter.Prompt), '');
                                         return false;
                                     }
                                 } else if (parameter.DataType == "Integer" && !parameter.AllowBlank) {
                                     if (val == "") {
-                                        this._showAlertDialog("ReportViewer", "Please enter a value for the parameter '" + parameter.Prompt + "'. The parameter cannot be blank", '');
+                                        this._showAlertDialog(localeObj['alertMessage']['RVERR0010'] + " '" + parameter.Prompt + "'. " + localeObj['alertMessage']['RVERR0011'], '');
                                         return false;
-                                    } else if (!val.match('^[-+]?[0-9]+$')){
-                                        this._showAlertDialog("ReportViewer", "The value provided for the report parameter '" + parameter.Prompt + "' is not valid for its type.", '');
+                                    } else if (!val.match('^[-+]?[0-9]+$')) {
+                                        this._showAlertDialog(errorMsg.replace(replaceString, parameter.Prompt), '');
                                         return false;
                                     }
                                 } else if (parameter.DataType == "String" && !parameter.AllowBlank && val == "") {
-                                    this._showAlertDialog("ReportViewer", "Please enter a value for the parameter '" + parameter.Prompt + "'. The parameter cannot be blank", '');
+                                    this._showAlertDialog(localeObj['alertMessage']['RVERR0010'] + " '" + parameter.Prompt + "'. " + localeObj['alertMessage']['RVERR0011'], '');
                                     return false;
                                 }
                             }
@@ -2130,6 +2266,7 @@
 
         //-------------------- Render Exception Block and Actions [Start] -------------------------//
         _renderExceptionBlock: function () {
+            var localeObj = ej.ReportViewer.Locale[this.model.locale] ? ej.ReportViewer.Locale[this.model.locale] : ej.ReportViewer.Locale["en-US"];
             var table = ej.buildTag("table.e-reportviewer-blockcontainer", "", { "display": "none" }, { 'id': this._id + '_viewerBlockErrorMsg' });
             table[0].style.cssText = 'padding: 6px 5px 5px 20px !important';
             var $row = ej.buildTag("tr", "", {}, {});
@@ -2137,12 +2274,20 @@
             table.append($row);
 
             var $cell = ej.buildTag("td", "", { 'width': '100%' }, {}, {});
-            var $contentCell = ej.buildTag("span", "Report Viewer encountered some issues loading this report. Please click <a id=" + this._id + '_viewBlockContainer_errmsg' + " href=javascript:void(0); >here</a>  to see the error details", {}, {});
+            var errorMsg = " <a id=" + this._id + '_viewBlockContainer_errmsg' + " href=javascript:void(0); >" + localeObj['errorMessage']['middleMessage'] + "</a> ";
+            var $prefixContent = ej.buildTag("span", localeObj['errorMessage']['startMessage'], {}, { 'id': this._id + '_prefix_errormsg' });
+            var $suffixContent = ej.buildTag("span", localeObj['errorMessage']['endMessage'], {}, { 'id': this._id + '_suffix_errormsg' });
+            var $contentCell = ej.buildTag("span", errorMsg, {}, { 'id': this._id + '_errormsg' });
             $row.append($cell);
+            $cell.append($prefixContent);
             $cell.append($contentCell);
+            $cell.append($suffixContent);
 
             var $closeCell = ej.buildTag("td", "", { 'width': '100%' }, {});
-            var $cancelbutton = ej.buildTag("span.e-reportviewer-icon e-reportviewer-close", "", { 'padding': '14.5px 0px', 'padding-right': '15px' }, { 'id': this._id + '_closebutton', 'title': 'Close this message' });
+            var $cancelbutton = ej.buildTag("span.e-reportviewer-icon e-reportviewer-close",
+                "",
+                { 'padding': '14.5px 0px', 'padding-right': '15px' },
+                { 'id': this._id + '_closebutton', 'title': localeObj['errorMessage']['closeMessage'] });
             $row.append($closeCell);
             $closeCell.append($cancelbutton);
         },
@@ -2153,27 +2298,29 @@
 
         _errorPopupblock: function (event) {
             var exceptionData = event.data.exceptionArgs;
-            this._showAlertDialog(exceptionData.title, exceptionData.content, exceptionData.description);
+            this._showAlertDialog(exceptionData.content, exceptionData.description);
         },
 
         _onCancelClick: function (ctrlId, event) {
             var dialogObj = $('#' + ctrlId + '_viewer_alert_dialog').data('ejDialog');
+            $('#' + this._id + '_printPageSetup_wrapper').css('z-index', $('#' + this._id + '_printPageSetup_wrapper').css('z-index') + 1);
             if (dialogObj) {
                 dialogObj.close();
             }
         },
 
         _showExceptionDetails: function (ctrlId, args) {
+            var localeObj = ej.ReportViewer.Locale[this.model.locale] ? ej.ReportViewer.Locale[this.model.locale] : ej.ReportViewer.Locale["en-US"];
             var msgContainer = $('#' + ctrlId + '_msg_container');
             if (msgContainer.is(':visible')) {
                 msgContainer.css('display', 'none');
-                $('#' + ctrlId + '_alert_link_detail').text('Show Details');
+                $('#' + ctrlId + '_alert_link_detail').text(localeObj['alertMessage']['showDetails']);
             } else {
                 $('#' + ctrlId + '_viewer_alert_dialog_wrapper').children('.e-dialog-scroller').css('height', 'auto');
                 $('#' + ctrlId + '_viewer_alert_dialog').css('height', 'auto');
                 msgContainer.css('display', 'block');
                 msgContainer.data('ejScroller').refresh();
-                $('#' + ctrlId + '_alert_link_detail').text('Hide Details');
+                $('#' + ctrlId + '_alert_link_detail').text(localeObj['alertMessage']['hideDetails']);
             }
         },
 
@@ -2197,7 +2344,7 @@
         _showException: function (isShow, args) {
             if (isShow && this.model.enableNotificationBar) {
                 if (this._isDevice) {
-                    this._showAlertDialog(args.title, args.content, args.description);
+                    this._showAlertDialog(args.content, args.description);
                 } else {
                     this._showExceptionBlock(isShow, args);
                 }
@@ -2207,29 +2354,61 @@
             }
         },
 
-        _showAlertDialog: function (title, content, description) {
+        _showAlertDialog: function (content, description, errorCode) {
+            var errorInfo = { errorCode: errorCode, errorMessage: content, errorDetail: description };
+            this._onShowError(errorInfo);
+            if (errorInfo.cancel) {
+                return;
+            }
+            var localeObj = ej.ReportViewer.Locale[this.model.locale] ? ej.ReportViewer.Locale[this.model.locale] : ej.ReportViewer.Locale["en-US"];
             var position = $('#' + this._id + '.e-reportviewer')[0].getBoundingClientRect();
-            var ejDialog = this._renderAlertDialog();
+            var ejDialog = this._renderAlertDialog(errorCode);
             var dialogObj = ejDialog.data('ejDialog');
-            dialogObj.setModel({ title: title, height: 'auto' });
-            $('#' + this._id + '_alert_link_detail').text('Show Details');
+            dialogObj.setModel({ height: 'auto' });
+            $('#' + this._id + '_alert_link_detail').text(localeObj['alertMessage']['showDetails']);
             dialogObj.open();
             var footerOk = $('#' + this._id + '_alert_footer_ok');
             var closeBtn = $('#' + this._id + '_viewer_alert_dialog_closebutton');
             $('#' + this._id + '_alert_link_div').css('display', 'block');
 
             if (this._getTextHeight(content, { 'width': '430px', 'font-size': '13px' }) > 150) {
+                if (content.indexOf("StackTrace:") != -1) {
+                    description = content.substring(0, content.indexOf("StackTrace:"));
+                    var stackMessage = (content.substring(content.indexOf("StackTrace:"))).replace("  at", "at");
+                    content = stackMessage.replace("StackTrace: \n", "");
+                }
                 $('#' + this._id + '_short_content').html(description);
                 $('#' + this._id + '_detail_content').html(content);
             } else {
-                $('#' + this._id + '_short_content').html(content);
-                $('#' + this._id + '_alert_link_div').css('display', 'none');
+                if (content.indexOf("StackTrace:") != -1) {
+                    $('#' + this._id + '_short_content').html(content.substring(0, content.indexOf("StackTrace:")));
+                    var stackMessage = (content.substring(content.indexOf("StackTrace:"))).replace("  at", "at");
+                    $('#' + this._id + '_detail_content').html(stackMessage.replace("StackTrace: \n", ""));
+                }
+                else {
+                    $('#' + this._id + '_short_content').html(content);
+                    $('#' + this._id + '_alert_link_div').css('display', 'none');
+                }
             }
+            if (errorCode != null && errorCode != "") {
+                $('#' + this._id + '_errorcode_hyper_link').html(errorCode);
+                $('#' + this._id + '_error_code_div').css('display', 'block');
+            }
+            else {
+                $('#' + this._id + '_error_code_div').css('display', 'none');
+            }
+            $(this.element).find('.e-dialog-scroller').css('border-bottom-style', 'none');
             $('#' + this._id + '_msg_container').css('display', 'none');
+            $('#' + this._id + '_viewer_alert_dialog_title').css('text-align', 'center');
+            $('#' + this._id + '_printPageSetup_wrapper').css('z-index', $('#' + this._id + '_printPageSetup_wrapper').css('z-index') - 1);
             footerOk.unbind('click', $.proxy(this._onCancelClick, this));
             closeBtn.unbind('click', $.proxy(this._onCancelClick, this));
             footerOk.bind('click', $.proxy(this._onCancelClick, this, this._id));
             closeBtn.bind('click', $.proxy(this._onCancelClick, this, this._id));
+        },
+
+        _redirectToOnlineLink: function (errorCode, args) {
+            window.open('https://help.syncfusion.com/wpf/reportviewer/troubleshooting-errors' + '/#' + errorCode.toLowerCase());
         },
 
         _getTextHeight: function (text, style) {
@@ -2240,7 +2419,9 @@
             return height;
         },
 
-        _renderAlertDialog: function (exceptionResult) {
+
+        _renderAlertDialog: function (errorCode) {
+            var localeObj = ej.ReportViewer.Locale[this.model.locale] ? ej.ReportViewer.Locale[this.model.locale] : ej.ReportViewer.Locale["en-US"];
             var ejDialogTag = $('#' + this._id + '_viewer_alert_dialog');
             if (ejDialogTag.length > 0) {
                 return ejDialogTag;
@@ -2250,22 +2431,31 @@
             var contentDiv = ej.buildTag('div', '', { 'display': 'block', 'width': '100%', 'height': 'auto' });
             var dialogTable = ej.buildTag('table.e-reportviewer-alert-table', '', {});
             var tableRow = ej.buildTag('tr', '', {});
-            var iconCell = ej.buildTag('td', '', { 'width': '50px', 'vertical-align': 'middle' }, { 'id': this._id + '_icon_cell' });
-            var iconTag = ej.buildTag('div', '', { 'display': 'inline-block', 'float': 'left', 'width': '40px', 'height': '40px', 'vertical-align': 'middle' });
-            var errorIcon = ej.buildTag('span.e-icon e-cross-circle e-reportviewer-alert-icon', '', { 'display': 'block' }, { 'id': this._id + '_error_icon' });
 
             var contentCell = ej.buildTag('td', '', { 'max-width': '430px' }, { 'id': this._id + '_content_cell' });
-            var errArea = ej.buildTag('div', '', { 'width': 'auto', 'word-wrap': 'break-word', 'text-align': 'justify' });
+            var errArea = ej.buildTag('div', '', { 'width': '513px', 'minHeight': '15px', 'word-wrap': 'break-word', 'text-align': 'justify' });
             var errorContainer = ej.buildTag('span', '', { 'font-size': '13px' }, { 'id': this._id + '_short_content' });
+            var errorCodeDiv = ej.buildTag('div', '', { 'display': 'block', 'width': '100%' }, { 'id': this._id + '_error_code_div' });
+            var errorCodeText = ej.buildTag('span', 'Error code: ', { 'font-size': '14px', 'font-weight': '600' }, { 'id': this._id + '_error_code' });
+            var errorCode = ej.buildTag('span', '', { 'font-size': '13px' }, { 'id': this._id + '_error_code_text' });
+            var errorCodeAnchor = ej.buildTag('a', '', { 'font-size': '14px', 'font-weight': 'Medium', 'color': '#0099FF', 'outline': 'none' }, { 'href': 'javascript:void(0);', 'color': '#0099FF', 'id': this._id + '_errorcode_hyper_link' });
 
             var linkDiv = ej.buildTag('div', '', { 'display': 'block', 'width': '100%' }, { 'id': this._id + '_alert_link_div' });
-            var anchorTag = ej.buildTag('a', 'Show details', { 'font-size': '12px', 'font-family': 'Segoe UI', 'font-weight': '600', 'margin-bottom': '18px', 'margin-top': '18px', 'margin-left': '58px', 'color': '#179bd7', 'text-decoration': 'none', 'outline': 'none' }, { 'href': 'javascript:void(0);', 'color': '#0B0080', 'id': this._id + '_alert_link_detail' });
-            var msgContainer = ej.buildTag('div.e-reportviewer-scroller', '', { 'word-wrap': 'break-word', 'overflow-y': 'hidden', 'height': '200px', 'width': '475px', 'margin': '24px 0px 0px 6px', 'border': '1px solid #c9cbcc', 'display': 'none', 'border-radius': '2px' }, { 'id': this._id + '_msg_container' });
+            var anchorTag = ej.buildTag('a', localeObj['alertMessage']['showDetails'], { 'font-size': '12px', 'font-family': 'Segoe UI', 'font-weight': '600', 'margin-bottom': '18px', 'margin-top': '18px', 'color': '#179bd7', 'text-decoration': 'none', 'outline': 'none' }, { 'href': 'javascript:void(0);', 'color': '#0B0080', 'id': this._id + '_alert_link_detail' });
+            var msgContainer = ej.buildTag('div.e-reportviewer-scroller e-reportviewer-error-content', '', { 'word-wrap': 'break-word', 'max-height': '111px', 'height': 'auto !important', 'margin-top': '16px', 'border': '1px solid #c9cbcc', 'display': 'none', 'border-radius': '2px' }, { 'id': this._id + '_msg_container' });
             var errorContent = ej.buildTag('span.e-reportviewer-error-content', '', { 'width': '100%' }, { 'id': this._id + '_detail_content' });
+
+            if (this._browserInfo.name == 'chrome' || this._browserInfo.name == 'mozilla') {
+                msgContainer.css('overflow-y', 'scroll');
+            }
+            else {
+                msgContainer.css('overflow-y', 'hidden');
+            }
 
             var footerOk = ej.buildTag(
                 'button.e-reportviewer-alert-okbtn',
-                'OK', {
+                localeObj['alertMessage']['done'],
+                {
                     'float': 'right'
                 },
                 {
@@ -2278,9 +2468,11 @@
             dialogDiv.append(contentDiv);
             contentDiv.append(dialogTable);
             dialogTable.append(tableRow);
-            tableRow.append(iconCell).append(contentCell);
-            iconCell.append(iconTag);
-            iconTag.append(errorIcon);
+            tableRow.append(contentCell);
+            contentCell.append(errorCodeDiv);
+            errorCodeDiv.append(errorCodeText);
+            errorCodeDiv.append(errorCode);
+            errorCode.append(errorCodeAnchor);
             contentCell.append(errArea);
             errArea.append(errorContainer);
 
@@ -2291,26 +2483,26 @@
             msgContainer.append(errorContent);
 
             ejDialogTag.ejDialog({
+                title: localeObj['alertMessage']['title'],
                 target: '#' + this.element.attr('id'),
                 enableModal: true,
                 enableResize: false,
                 showRoundedCorner: true,
                 cssClass: 'e-js e-fe-dialog e-reportviewer-alertbox',
-                minWidth: 400,
-                minHeight: 'auto',
                 backgroundScroll: false,
                 height: 'auto',
-                width: 519,
+                width: 573,
                 showOnInit: true,
                 showFooter: true,
             });
 
             anchorTag.bind('click', $.proxy(this._showExceptionDetails, this, this._id));
+            errorCodeAnchor.bind('click', $.proxy(this._redirectToOnlineLink, this, errorCode));
             var footerTag = $('#' + this._id + '_viewer_alert_dialog_foot');
             footerTag.append(footerOk);
 
             footerOk.ejButton({
-                width: '75px', height: '28px', showRoundedCorner: false,
+                width: '80px', height: '28px', showRoundedCorner: false,
                 contentType: ej.ContentType.TextAndImage, size: 'small'
             });
             msgContainer.ejScroller({ buttonSize: 0, height: '100px', scrollerSize: 9 });
@@ -2407,21 +2599,21 @@
                 }
 
                 if (pageData.HeaderModel && pageData.HeaderModel.length > 0) {
-                    this._renderPageControls(pageData.HeaderModel, $('#' + this._id + '_pageviewheaderContainer'), false, null);
+                    this._renderPageControls(pageData, pageData.HeaderModel, $('#' + this._id + '_pageviewheaderContainer'), false, null);
                     if (this._printMode) {
                         $('#' + this._id + '_pageviewheaderContainer').css('overflow', 'hidden');
                     }
                 }
 
                 if (pageData.FooterModel && pageData.FooterModel.length > 0) {
-                    this._renderPageControls(pageData.FooterModel, $('#' + this._id + '_pageviewfooterContainer'), false, null);
+                    this._renderPageControls(pageData, pageData.FooterModel, $('#' + this._id + '_pageviewfooterContainer'), false, null);
                     if (this._printMode) {
                         $('#' + this._id + '_pageviewfooterContainer').css('overflow', 'hidden');
                     }
                 }
 
                 if (pageData.PageModel && pageData.PageModel.length > 0) {
-                    this._renderPageControls(pageData.PageModel, $('#' + this._id + '_pageviewbodyContainer'), false, null);
+                    this._renderPageControls(pageData, pageData.PageModel, $('#' + this._id + '_pageviewbodyContainer'), false, null);
                 }
             }
 
@@ -2472,7 +2664,7 @@
             }
         },
 
-        _renderPageControls: function (pageModelItems, renderArea, printMode, printPageId) {
+        _renderPageControls: function (pageData, pageModelItems, renderArea, printMode, printPageId) {
             var $reportItemsContainer = ej.buildTag("div", "", {}, {});
             renderArea.html($reportItemsContainer);
             for (var index = 0; index < pageModelItems.length; index++) {
@@ -2492,13 +2684,13 @@
                     this._renderCustomReportItemControl(reportItem, false, $reportItemsContainer, null, printMode, printPageId);
                 }
                 else if (reportItem.ItemType == "TablixModel") {
-                    this._renderTablixControl(reportItem, false, {}, $reportItemsContainer, null, printMode, printPageId);
+                    this._renderTablixControl(reportItem, false, {}, $reportItemsContainer, null, printMode, printPageId, pageData);
                 }
                 else if (reportItem.ItemType == "GaugeModel") {
                     this._renderGaugeControl(reportItem, false, false, {}, $reportItemsContainer, null, printMode, printPageId);
                 }
                 else if (reportItem.ItemType == "RectangleModel") {
-                    this._renderRectangleControl(reportItem, false, $reportItemsContainer, null, printMode, printPageId);
+                    this._renderRectangleControl(reportItem, false, $reportItemsContainer, null, printMode, printPageId, pageData);
                 }
                 else if (reportItem.ItemType == "ChartModel") {
                     this._renderChartControl(reportItem, false, false, {}, $reportItemsContainer, null, printMode, printPageId);
@@ -2507,7 +2699,7 @@
                     this._renderMapControl(reportItem, false, $reportItemsContainer, null, printMode, printPageId);
                 }
                 else if (reportItem.ItemType == "SubReportModel") {
-                    this._renderSubReportControl(reportItem, false, $reportItemsContainer, null, printMode, printPageId);
+                    this._renderSubReportControl(reportItem, false, $reportItemsContainer, null, printMode, printPageId, pageData);
                 }
             }
         },
@@ -2653,22 +2845,30 @@
                 var rightBorder = this._getCellBorder(cellBorders.RightBorder, cellBorders);
 
                 if (!ej.isNullOrUndefined(borderWidth)) {
-                    borderWidth.topBorder = topBorder.borderWidth;
-                    borderWidth.bottomBorder = bottomBorder.borderWidth;
-                    borderWidth.leftBorder = leftBorder.borderWidth;
-                    borderWidth.rightBorder = rightBorder.borderWidth;
+                    if (!ej.isNullOrUndefined(topBorder)) {
+                        borderWidth.topBorder = topBorder.borderWidth;
+                    }
+                    if (!ej.isNullOrUndefined(bottomBorder)) {
+                        borderWidth.bottomBorder = bottomBorder.borderWidth;
+                    }
+                    if (!ej.isNullOrUndefined(leftBorder)) {
+                        borderWidth.leftBorder = leftBorder.borderWidth;
+                    }
+                    if (!ej.isNullOrUndefined(rightBorder)) {
+                        borderWidth.rightBorder = rightBorder.borderWidth;
+                    }
                 }
 
-                if (cellModels.rowIndex > 0 || !(tablixBorderState.isDefaultBorder || tablixBorderState.isTopBorder)) {
+                if (!ej.isNullOrUndefined(topBorder) && (cellModels.rowIndex > 0 || !(tablixBorderState.isDefaultBorder || tablixBorderState.isTopBorder))) {
                     this._applyCellBorderStyle("-top", topBorder.cellBorder, tag);
                 }
-                if (cellModels.rowIndex < (cellModels.rowLength - 1) || !(tablixBorderState.isDefaultBorder || tablixBorderState.isBottomBorder)) {
+                if (!ej.isNullOrUndefined(bottomBorder) && (cellModels.rowIndex < (cellModels.rowLength - 1) || !(tablixBorderState.isDefaultBorder || tablixBorderState.isBottomBorder))) {
                     this._applyCellBorderStyle("-bottom", bottomBorder.cellBorder, tag);
                 }
-                if (cellModels.colIndex > 0 || !(tablixBorderState.isDefaultBorder || tablixBorderState.isLeftBorder)) {
+                if (!ej.isNullOrUndefined(leftBorder) && (cellModels.colIndex > 0 || !(tablixBorderState.isDefaultBorder || tablixBorderState.isLeftBorder))) {
                     this._applyCellBorderStyle("-left", leftBorder.cellBorder, tag);
                 }
-                if (cellModels.colIndex < (cellModels.colLength - 1) || !(tablixBorderState.isDefaultBorder || tablixBorderState.isRightBorder)) {
+                if (!ej.isNullOrUndefined(rightBorder) && (cellModels.colIndex < (cellModels.colLength - 1) || !(tablixBorderState.isDefaultBorder || tablixBorderState.isRightBorder))) {
                     this._applyCellBorderStyle("-right", rightBorder.cellBorder, tag);
                 }
             }
@@ -2684,7 +2884,9 @@
 
         _getCellBorder: function (border, cellBorders) {
             if (ej.isNullOrUndefined(border)) {
-                return { cellBorder: cellBorders.Default, borderWidth: cellBorders.Default.Thickness }
+                if (!ej.isNullOrUndefined(cellBorders) && !ej.isNullOrUndefined(cellBorders.Default)){
+                    return { cellBorder: cellBorders.Default, borderWidth: cellBorders.Default.Thickness }
+                }   
             }
             else {
                 return { cellBorder: border, borderWidth: border.Thickness }
@@ -2692,7 +2894,7 @@
         },
 
         //-------------------- Render the Tablix ReportItem [start] -------------------------//
-        _renderTablixControl: function (tablixmodel, isTablixCell, cellSize, renderarea, parentId, printMode, printPageId) {
+        _renderTablixControl: function (tablixmodel, isTablixCell, cellSize, renderarea, parentId, printMode, printPageId, pageData) {
             var proxy = this;
             var _height = tablixmodel.Height;
             var _width = tablixmodel.Width;
@@ -2733,7 +2935,7 @@
             if (tablixmodel.StyleVal) {
                 if (tablixmodel.StyleVal.Font) {
                     if (tablixmodel.StyleVal.Font.FontFamily) {
-                        _tablixtableCss["font-family"] = tablixmodel.StyleVal.Font.FontFamily;
+                        _tablixtableCss["font-family"] = "'" + tablixmodel.StyleVal.Font.FontFamily + "'";
                     }
 
                     //if (tablixmodel.StyleVal.Font.FontSize) {
@@ -2745,7 +2947,7 @@
                     }
 
                     if (tablixmodel.StyleVal.Font.FontWeight) {
-                        _tablixtableCss["font-weight"] = tablixmodel.StyleVal.Font.FontWeight + ' !important';
+                        _tablixtableCss["font-weight"] = this._getConvertedFontWeight(tablixmodel.StyleVal.Font.FontWeight) + ' !important';
                     }
                 }
 
@@ -2851,17 +3053,17 @@
                                 else if (cell.ItemType == "CustomReportItemModel") {
                                     proxy._renderCustomReportItemControl(cell, true, tableCol, ctrlId + 'tablixRow' + rowindex + 'xCol' + colindex, printMode, printPageId);
                                 } else if (cell.ItemType == "TablixModel") {
-                                    proxy._renderTablixControl(cell, true, { height: tablixmodel.RowHeights[rowindex] }, tableCol, ctrlId + 'tablixRow' + rowindex + 'xCol' + colindex, printMode, printPageId);
+                                    proxy._renderTablixControl(cell, true, { height: tablixmodel.RowHeights[rowindex] }, tableCol, ctrlId + 'tablixRow' + rowindex + 'xCol' + colindex, printMode, printPageId, pageData);
                                 } else if (cell.ItemType == "GaugeModel") {
                                     proxy._renderGaugeControl(cell, false, true, { height: tablixmodel.RowHeights[rowindex] }, tableCol, ctrlId + 'tablixRow' + rowindex + 'xCol' + colindex, printMode, printPageId);
                                 } else if (cell.ItemType == "RectangleModel") {
-                                    proxy._renderRectangleControl(cell, true, tableCol, ctrlId + 'tablixRow' + rowindex + 'xCol' + colindex, printMode, printPageId);
+                                    proxy._renderRectangleControl(cell, true, tableCol, ctrlId + 'tablixRow' + rowindex + 'xCol' + colindex, printMode, printPageId, pageData);
                                 } else if (cell.ItemType == "ChartModel") {
                                     this._renderChartControl(cell, false, true, { height: tablixmodel.RowHeights[rowindex] }, tableCol, ctrlId + 'tablixRow' + rowindex + 'xCol' + colindex, printMode, printPageId);
                                 } else if (cell.ItemType == "MapModel") {
                                     this._renderMapControl(cell, false, tableCol, ctrlId + 'tablixRow' + rowindex + 'xCol' + colindex, printMode, printPageId);
                                 } else if (cell.ItemType == "SubReportModel") {
-                                    proxy._renderSubReportControl(cell, true, tableCol, ctrlId + 'tablixRow' + rowindex + 'xCol' + colindex, printMode, printPageId);
+                                    proxy._renderSubReportControl(cell, true, tableCol, ctrlId + 'tablixRow' + rowindex + 'xCol' + colindex, printMode, printPageId, pageData);
                                 }
                             }
 
@@ -2892,6 +3094,10 @@
                         tabixheadertable.append(headerTableRow);
                     }
                 }
+            }
+            var tablixHeight = tablixtable.height();
+            if (tablixHeight > pageData.Height && tablixHeight > (tablixmodel.Height + tablixmodel.Top)) {
+                pageData.Height = tablixHeight + tablixmodel.Top;
             }
         },
         //-------------------- Render the Tablix ReportItem [end] -------------------------//
@@ -2925,8 +3131,8 @@
             }
 
             if (textboxModel.ToggleInfo && !this._printMode) {
-                var cssToggleName = textboxModel.IsToggle ? 'e-reportviewer-collapsetoggle' : 'e-reportviewer-expandtoggle';
-                var toogleiconDiv = ej.buildTag('div.' + cssToggleName + ' txtToggle_' + this._id, '', { 'display': 'block', 'width': '14px', 'height': '14px', 'margin-Top': '2px' }, {});
+                var cssToggleName = textboxModel.IsToggle ? 'ej-reportviewericonscollapse' : 'ej-reportviewericonsexpand';
+                var toogleiconDiv = ej.buildTag('div.e-reportviewer-toggleicon ' + cssToggleName + ' txtToggle_' + this._id, '', { 'display': 'block', 'width': '14px', 'height': '14px', 'margin-Top': '2px' }, {});
                 var _objToogleDivCss = {};
                 if (this._browserInfo.name == 'msie') {
                     _objToogleDivCss["margin-right"] = '1px';
@@ -2945,6 +3151,23 @@
                 _textboxCss["white-space"] = 'inherit';
             }
 
+            if (textboxModel.Sorting && !this._printMode) {
+                var _sortingType = "sortingUpDown";
+                if (textboxModel.Sorting.Sorting == 'UpDown') {
+                    _sortingType = "sortingUpDown";
+                } else if (textboxModel.Sorting.Sorting == 'Up') {
+                    _sortingType = "sortingUp";
+                } else {
+                    _sortingType = "sortingDown";
+                }
+                var sortingiconDiv = ej.buildTag('div.e-reportviewer-' + _sortingType + ' txtSorting_' + this._id + ' e-reportviewer-usersort', '', { 'display': 'block', 'width': '14px', 'height': '14px', 'padding-right': '1px', 'margin-Top': '1px', 'float': 'right', 'vertical-align': 'middle' }, {});
+                sortingiconDiv.data('sortingObj', textboxModel.Sorting);
+                textboxDiv.append(sortingiconDiv);
+                _textboxCss["display"] = this._browserInfo.name == 'msie' ? 'inline-block' : 'block';
+                _textboxCss["word-wrap"] = 'inherit';
+                _textboxCss["white-space"] = 'inherit';
+            }
+
             if (textboxModel.WritingMode != "Default" && textboxModel.WritingMode == "Vertical") {
                 if (this._browserInfo.name == 'msie') {
                     _textboxCss["writing-mode"] = 'tb-rl';
@@ -2954,8 +3177,10 @@
             }
 
             if (textboxModel.ActionInfo) {
-                textboxDiv.data('actionObj', textboxModel.ActionInfo);
-                textboxDiv.addClass('drillAction_' + this._id + ' e-reportviewer-drillhover');
+                var textboxActionDiv = ej.buildTag("div.e-reportviewer-txtboxactioninfo", "", {});
+                textboxActionDiv.data('actionObj', textboxModel.ActionInfo);
+                textboxActionDiv.addClass('drillAction_' + this._id + ' e-reportviewer-drillhover');
+                textboxDiv.append(textboxActionDiv);
             }
 
             if (textboxModel.Paragraphval) {
@@ -2980,7 +3205,7 @@
                         }
 
                         if (run.Style.Font.FontFamily) {
-                            _objSpanDivCss["font-family"] = run.Style.Font.FontFamily;
+                            _objSpanDivCss["font-family"] = "'" + run.Style.Font.FontFamily+ "'";
                         }
 
                         if (run.Style.Font.FontSize) {
@@ -2992,7 +3217,7 @@
                         }
 
                         if (run.Style.Font.FontWeight) {
-                            _objSpanDivCss["font-weight"] = run.Style.Font.FontWeight;
+                            _objSpanDivCss["font-weight"] = this._getConvertedFontWeight(run.Style.Font.FontWeight);
                         }
 
                         if (run.Style.TextColor) {
@@ -3014,9 +3239,9 @@
                             $textboxSpanDiv.find("p").css({ "padding-bottom": "12px", "margin": "0px" });
                         }
 
-                        if (this._browserInfo.name == 'mozilla' && run.Style != null && run.Style.Font != null && run.Style.Font.FontSize != null) {
-                            _objSpanDivCss["line-height"] = run.Style.Font.FontSize * 1.17 + "px";
-                        }
+                        //if (this._browserInfo.name == 'mozilla' && run.Style != null && run.Style.Font != null && run.Style.Font.FontSize != null) {
+                        //    _objSpanDivCss["line-height"] = run.Style.Font.FontSize * 1.17 + "px";
+                        //}
 
                         $textboxSpanDiv.css(_objSpanDivCss);
                         $textboxParaDiv.append($textboxSpanDiv);
@@ -3036,7 +3261,7 @@
                         }
                     }
 
-                    if (textboxModel.VerticalAlign != "Default") {
+                    if (textboxModel.VerticalAlign != "Default" && textboxModel.VerticalAlign != "Top") {
                         _objParaDivCss["vertical-align"] = textboxModel.VerticalAlign;
 
                         if (isTablixCell) {
@@ -3049,6 +3274,13 @@
                     //    _textboxCss["display"] = 'table';
                     //    _objParaDivCss["display"] = 'table-cell';
                     //}
+
+                    if (textboxModel.IsNoRowMessage) {
+                        _objParaDivCss["padding-left"] = textboxModel.Padding.Left;
+                        _objParaDivCss["padding-top"] = textboxModel.Padding.Top;
+                        _objParaDivCss["padding-right"] = textboxModel.Padding.Right;
+                        _objParaDivCss["padding-bottom"] = textboxModel.Padding.Bottom;
+                    }
 
                     if (paragraph.LeftIndent) {
                         _objParaDivCss["padding-left"] = paragraph.LeftIndent;
@@ -3072,9 +3304,9 @@
                         _objParaDivCss["padding-bottom"] = paragraph.SpaceAfter;
                     }
 
-                    if (paragraph.LineHeight) {
-                        _objParaDivCss["line-height"] = paragraph.LineHeight + 'px';
-                    }
+                    //if (paragraph.LineHeight) {
+                    //    _objParaDivCss["line-height"] = paragraph.LineHeight + 'px';
+                    //}
 
                     if (paragraph.ListStyle) {
                         _objParaDivCss["list-style-type"] = paragraph.ListStyle;
@@ -3115,26 +3347,48 @@
                         _objParaDivCss["list-style-type"] = paragraph.ListStyle;
                     }
                     $textboxParaDiv.css(_objParaDivCss);
-                    textboxDiv.append($textboxParaDiv);
+                    if (textboxModel.ActionInfo) {
+                        textboxActionDiv.append($textboxParaDiv);
+                    } else {
+                        textboxDiv.append($textboxParaDiv);
+                    }
+                    
                 }
             }
 
-            if (textboxModel.Sorting) {
-                var _sortingType = "sortingUpDown";
-                if (textboxModel.Sorting.Sorting == 'UpDown') {
-                    _sortingType = "sortingUpDown";
-                } else if (textboxModel.Sorting.Sorting == 'Up') {
-                    _sortingType = "sortingUp";
-                } else {
-                    _sortingType = "sortingDown";
-                }
-                var sortingiconDiv = ej.buildTag('div.e-reportviewer-' + _sortingType + ' txtSorting_' + this._id + ' e-reportviewer-usersort', '', { 'display': 'block', 'width': '14px', 'height': '14px', 'padding-right': '1px', 'margin-Top': '1px', 'float': 'right', 'vertical-align': 'middle', 'position': 'absolute', 'left': (textboxModel.Width - 14) < 0 ? '80%' : ((textboxModel.Width - 14) + 'px'), 'top': '10%' }, {});
-                sortingiconDiv.data('sortingObj', textboxModel.Sorting);
-                textboxDiv.append(sortingiconDiv);
-                _textboxCss["position"] = "relative";
-            }
             textboxDiv.css(_textboxCss);
             return textboxDiv;
+        },
+
+        _getConvertedFontWeight: function (jsonFontweight) {
+            var fontWeight = 'normal';
+            switch (jsonFontweight) {
+                case 'Thin':
+                    fontWeight = '200';
+                    break;
+                case 'ExtraLight':
+                    fontWeight = '300';
+                    break;
+                case 'Light':
+                    fontWeight = '400';
+                    break;
+                case 'Medium':
+                    fontWeight = '500';
+                    break;
+                case 'SemiBold':
+                    fontWeight = '600';
+                    break;
+                case 'Bold':
+                    fontWeight = 'bold';
+                    break;
+                case 'ExtraBold':
+                    fontWeight = '800';
+                    break;
+                case 'Heavy':
+                    fontWeight = '900';
+                    break;
+            }
+            return fontWeight;
         },
 
         //-------------------- Render the Chart ReportItem [start] -------------------------//
@@ -3193,14 +3447,14 @@
                         commonSeriesOptions: {
                             marker: {},
                             enableSmartLabels: false,
-                            enableAnimation: printMode ? false : true
+                            enableAnimation: (printMode || webExport) ? false : true
                         },
                         chartArea: { border: { width: 0 } },
                         isResponsive: true
                     };
 
                     if (chartArea.BackgroundImg) {
-                        chartObj.backGroundImageUrl = (this.model.reportServiceUrl + '/' + resourceName + '/?key=' + chartArea.BackgroundImg + '&resourcetype=sfimg&isPrint=' + printMode);
+                        chartObj.backGroundImageUrl = this.model.reportServiceUrl + '/' + resourceName + '/?key=' + chartArea.BackgroundImg + '&resourcetype=sfimg&isPrint=' + printMode;
                     }
 
                     if (chartArea.Style) {
@@ -3265,13 +3519,51 @@
                         return;
                     }
 
+                    if (chartArea.Chart3D && chartArea.Chart3D.Enabled) {
+                        chartObj.enable3D = chartArea.Chart3D.Enabled;
+                        chartObj.enableRotation = chartArea.Chart3D.Enabled;
+                        chartObj.depth = chartArea.Chart3D.DepthRatio;
+                        chartObj.wallSize = chartArea.Chart3D.WallThickness;
+                        chartObj.tilt = 0;
+                        chartObj.rotation = chartArea.Chart3D.Rotation;
+                        chartObj.perspectiveAngle = chartArea.Chart3D.Perspective == 0 ? 90 : chartArea.Chart3D.Perspective;
+                        chartObj.crosshair = { visible: true };
+                    }
+
                     for (var seriesIndex = 0; seriesIndex < chartArea.ChartSeries.length; seriesIndex++) {
                         var series = chartArea.ChartSeries[seriesIndex];
                         var points = [];
                         var actionInfos = [];
+                        var trendlines = [];
                         var seriesName = (series.Legend && series.Legend.LegendText) ? series.Legend.LegendText : (series.Label == "" && series.Name == "EmptySeriesName") ? series.Name : series.Label;
                         series.TooltipY = seriesName;
+                        var trendlineEnabled = false;
+                        var isValidType = false;
+                        var hideTrendlineLegend = false;
 
+                        if (series.CustomProperties != null) {
+                            for (var propertyIndex = 0; propertyIndex < series.CustomProperties.length; propertyIndex++) {
+                                var customerProperties = series.CustomProperties[propertyIndex];
+                                var propName = customerProperties.Name.toLowerCase();
+                                var propValue =  customerProperties.Value.toLowerCase();
+
+                                if (propName == "enabletrendline" && propValue == "true") {
+                                    trendlineEnabled = true;
+                                }
+                                if (!isValidType) {
+                                    isValidType = this._getTrendlineType(propName, propValue);
+                                }
+                                if (!hideTrendlineLegend) {
+                                    if (propName == "showtrendlinelegend" && propValue == "false") {
+                                        hideTrendlineLegend = true;
+                                    }
+                                }
+                            }
+                            if (trendlineEnabled && isValidType) {
+                                trendlines.push(this._getTrendline(series.CustomProperties, trendlines, hideTrendlineLegend));
+                            }
+                        }
+                            
                         if (series.Style && series.Style.Border && series.Style.Border.Default) {
                             chartObj.commonSeriesOptions.border = {};
                             if (series.Style.Border.Default.BorderBrush) {
@@ -3296,7 +3588,8 @@
                                     points.push({
                                         x: (series.PointValues[pointIndex].X) ? series.PointValues[pointIndex].X : "",
                                         y: (series.PointValues[pointIndex].Y) ? series.PointValues[pointIndex].Y : 0,
-                                        text: (series.PointValues[pointIndex].ChartDataLabel.Label) ? series.PointValues[pointIndex].ChartDataLabel.Label : ''
+                                        text: (series.PointValues[pointIndex].ChartDataLabel.Label) ? series.PointValues[pointIndex].ChartDataLabel.Label : '',
+                                        tooltip:(series.PointValues[pointIndex].ToolTip) ? series.PointValues[pointIndex].ToolTip :''
                                     });
 
                                     if (series.PointValues[pointIndex].ActionInfo) {
@@ -3304,7 +3597,7 @@
                                     }
                                 }
 
-                                chartObj.series.push({ points: points, type: 'column', name: seriesName, visibility: series.Visibility ? 'visible' : 'hide' });
+                                chartObj.series.push({ trendlines: trendlines, points: points, type: 'column', name: seriesName, visibility: series.Visibility ? 'visible' : 'hide' });
                                 chartObj.primaryXAxis = this._getChartAxis(chartXAxis[0], chartModel.IsLabelIndex, 'XAxis', chartArea.ChartSeries[0].Type, chartArea.Chart3D ? chartArea.Chart3D.Enabled : null);
                                 chartObj.primaryYAxis = this._getChartAxis(chartYAxis[0], chartModel.IsLabelIndex, 'YAxis', chartArea.ChartSeries[0].Type, chartArea.Chart3D ? chartArea.Chart3D.Enabled : null);
 
@@ -3314,7 +3607,8 @@
 
                                 if (series.DataPointsStyle && series.DataPointsStyle.length > 0) {
                                     chartObj.series[seriesIndex].marker = this._getSeriesMarker(series.DataPointsStyle[0], series.Type, seriesIndex);
-                                    if (series.PointValues && series.PointValues.length > 0 && series.PointValues[0].ChartDataLabel) {
+                                    if (series.PointValues && series.PointValues.length > 0 && series.PointValues[0].ChartDataLabel &&
+                                        series.PointValues[0].ChartDataLabel.Label && series.PointValues[0].ChartDataLabel.Visible) {
                                         chartObj.series[seriesIndex].marker.dataLabel = this._getMarkerDataLabel(series.PointValues[0].ChartDataLabel);
                                     }
                                 }
@@ -3324,7 +3618,8 @@
                                     points.push({
                                         x: (series.PointValues[pointIndex].X) ? series.PointValues[pointIndex].X : "",
                                         y: (series.PointValues[pointIndex].Y) ? series.PointValues[pointIndex].Y : 0,
-                                        text: (series.PointValues[pointIndex].ChartDataLabel.Label) ? series.PointValues[pointIndex].ChartDataLabel.Label : ''
+                                        text: (series.PointValues[pointIndex].ChartDataLabel.Label) ? series.PointValues[pointIndex].ChartDataLabel.Label : '',
+                                        tooltip: (series.PointValues[pointIndex].ToolTip) ? series.PointValues[pointIndex].ToolTip : ''
                                     });
 
                                     if (series.PointValues[pointIndex].ActionInfo) {
@@ -3333,7 +3628,7 @@
                                 }
 
                                 chartObj.legendBoundsCalculate = this._legendOrder;
-                                chartObj.series.push({ points: points, type: 'stackingcolumn', isStacking: true, name: seriesName, visibility: series.Visibility ? 'visible' : 'hide' });
+                                chartObj.series.push({ trendlines: trendlines, points: points, type: 'stackingcolumn', isStacking: true, name: seriesName, visibility: series.Visibility ? 'visible' : 'hide' });
                                 chartObj.primaryXAxis = this._getChartAxis(chartXAxis[0], chartModel.IsLabelIndex, 'XAxis', chartArea.ChartSeries[0].Type, chartArea.Chart3D ? chartArea.Chart3D.Enabled : null);
                                 chartObj.primaryYAxis = this._getChartAxis(chartYAxis[0], chartModel.IsLabelIndex, 'YAxis', chartArea.ChartSeries[0].Type, chartArea.Chart3D ? chartArea.Chart3D.Enabled : null);
 
@@ -3343,7 +3638,8 @@
 
                                 if (series.DataPointsStyle && series.DataPointsStyle.length > 0) {
                                     chartObj.series[seriesIndex].marker = this._getSeriesMarker(series.DataPointsStyle[0], series.Type, seriesIndex);
-                                    if (series.PointValues && series.PointValues.length > 0 && series.PointValues[0].ChartDataLabel) {
+                                    if (series.PointValues && series.PointValues.length > 0 && series.PointValues[0].ChartDataLabel &&
+                                        series.PointValues[0].ChartDataLabel.Label && series.PointValues[0].ChartDataLabel.Visible) {
                                         chartObj.series[seriesIndex].marker.dataLabel = this._getMarkerDataLabel(series.PointValues[0].ChartDataLabel);
                                     }
                                 }
@@ -3353,7 +3649,8 @@
                                     points.push({
                                         x: (series.PointValues[pointIndex].X) ? series.PointValues[pointIndex].X : "",
                                         y: (series.PointValues[pointIndex].Y) ? series.PointValues[pointIndex].Y : 0,
-                                        text: (series.PointValues[pointIndex].ChartDataLabel.Label) ? series.PointValues[pointIndex].ChartDataLabel.Label : ''
+                                        text: (series.PointValues[pointIndex].ChartDataLabel.Label) ? series.PointValues[pointIndex].ChartDataLabel.Label : '',
+                                        tooltip: (series.PointValues[pointIndex].ToolTip) ? series.PointValues[pointIndex].ToolTip : ''
                                     });
 
                                     if (series.PointValues[pointIndex].ActionInfo) {
@@ -3361,7 +3658,7 @@
                                     }
                                 }
 
-                                chartObj.series.push({ points: points, type: 'stackingcolumn100', name: seriesName, visibility: series.Visibility ? 'visible' : 'hide' });
+                                chartObj.series.push({ trendlines: trendlines, points: points, type: 'stackingcolumn100', name: seriesName, visibility: series.Visibility ? 'visible' : 'hide' });
                                 chartObj.primaryXAxis = this._getChartAxis(chartXAxis[0], chartModel.IsLabelIndex, 'XAxis', chartArea.ChartSeries[0].Type, chartArea.Chart3D ? chartArea.Chart3D.Enabled : null);
                                 chartObj.primaryYAxis = this._getChartAxis(chartYAxis[0], chartModel.IsLabelIndex, 'YAxis', chartArea.ChartSeries[0].Type, chartArea.Chart3D ? chartArea.Chart3D.Enabled : null);
 
@@ -3371,7 +3668,8 @@
 
                                 if (series.DataPointsStyle && series.DataPointsStyle.length > 0) {
                                     chartObj.series[seriesIndex].marker = this._getSeriesMarker(series.DataPointsStyle[0], series.Type, seriesIndex);
-                                    if (series.PointValues && series.PointValues.length > 0 && series.PointValues[0].ChartDataLabel) {
+                                    if (series.PointValues && series.PointValues.length > 0 && series.PointValues[0].ChartDataLabel &&
+                                        series.PointValues[0].ChartDataLabel.Label && series.PointValues[0].ChartDataLabel.Visible) {
                                         chartObj.series[seriesIndex].marker.dataLabel = this._getMarkerDataLabel(series.PointValues[0].ChartDataLabel);
                                     }
                                 }
@@ -3381,7 +3679,8 @@
                                     points.push({
                                         x: (series.PointValues[pointIndex].X) ? series.PointValues[pointIndex].X : "",
                                         y: (series.PointValues[pointIndex].Y) ? series.PointValues[pointIndex].Y : 0,
-                                        text: (series.PointValues[pointIndex].ChartDataLabel.Label) ? series.PointValues[pointIndex].ChartDataLabel.Label : ''
+                                        text: (series.PointValues[pointIndex].ChartDataLabel.Label) ? series.PointValues[pointIndex].ChartDataLabel.Label : '',
+                                        tooltip: (series.PointValues[pointIndex].ToolTip) ? series.PointValues[pointIndex].ToolTip : ''
                                     });
 
                                     if (series.PointValues[pointIndex].ActionInfo) {
@@ -3389,7 +3688,7 @@
                                     }
                                 }
 
-                                chartObj.series.push({ points: points, type: 'bar', name: seriesName, visibility: series.Visibility ? 'visible' : 'hide' });
+                                chartObj.series.push({ trendlines: trendlines, points: points, type: 'bar', name: seriesName, visibility: series.Visibility ? 'visible' : 'hide' });
                                 chartObj.primaryXAxis = this._getChartAxis(chartXAxis[0], chartModel.IsLabelIndex, 'XAxis', chartArea.ChartSeries[0].Type, chartArea.Chart3D ? chartArea.Chart3D.Enabled : null);
                                 chartObj.primaryYAxis = this._getChartAxis(chartYAxis[0], chartModel.IsLabelIndex, 'YAxis', chartArea.ChartSeries[0].Type, chartArea.Chart3D ? chartArea.Chart3D.Enabled : null);
 
@@ -3399,7 +3698,8 @@
 
                                 if (series.DataPointsStyle && series.DataPointsStyle.length > 0) {
                                     chartObj.series[seriesIndex].marker = this._getSeriesMarker(series.DataPointsStyle[0], series.Type, seriesIndex);
-                                    if (series.PointValues && series.PointValues.length > 0 && series.PointValues[0].ChartDataLabel) {
+                                    if (series.PointValues && series.PointValues.length > 0 && series.PointValues[0].ChartDataLabel &&
+                                        series.PointValues[0].ChartDataLabel.Label && series.PointValues[0].ChartDataLabel.Visible) {
                                         chartObj.series[seriesIndex].marker.dataLabel = this._getMarkerDataLabel(series.PointValues[0].ChartDataLabel);
                                     }
                                 }
@@ -3409,7 +3709,8 @@
                                     points.push({
                                         x: (series.PointValues[pointIndex].X) ? series.PointValues[pointIndex].X : "",
                                         y: (series.PointValues[pointIndex].Y) ? series.PointValues[pointIndex].Y : 0,
-                                        text: (series.PointValues[pointIndex].ChartDataLabel.Label) ? series.PointValues[pointIndex].ChartDataLabel.Label : ''
+                                        text: (series.PointValues[pointIndex].ChartDataLabel.Label) ? series.PointValues[pointIndex].ChartDataLabel.Label : '',
+                                        tooltip: (series.PointValues[pointIndex].ToolTip) ? series.PointValues[pointIndex].ToolTip : ''
                                     });
 
                                     if (series.PointValues[pointIndex].ActionInfo) {
@@ -3417,7 +3718,7 @@
                                     }
                                 }
 
-                                chartObj.series.push({ points: points, type: 'stackingbar', name: seriesName, visibility: series.Visibility ? 'visible' : 'hide' });
+                                chartObj.series.push({ trendlines: trendlines, points: points, type: 'stackingbar', name: seriesName, visibility: series.Visibility ? 'visible' : 'hide' });
                                 chartObj.primaryXAxis = this._getChartAxis(chartXAxis[0], chartModel.IsLabelIndex, 'XAxis', chartArea.ChartSeries[0].Type, chartArea.Chart3D ? chartArea.Chart3D.Enabled : null);
                                 chartObj.primaryYAxis = this._getChartAxis(chartYAxis[0], chartModel.IsLabelIndex, 'YAxis', chartArea.ChartSeries[0].Type, chartArea.Chart3D ? chartArea.Chart3D.Enabled : null);
 
@@ -3427,7 +3728,8 @@
 
                                 if (series.DataPointsStyle && series.DataPointsStyle.length > 0) {
                                     chartObj.series[seriesIndex].marker = this._getSeriesMarker(series.DataPointsStyle[0], series.Type, seriesIndex);
-                                    if (series.PointValues && series.PointValues.length > 0 && series.PointValues[0].ChartDataLabel) {
+                                    if (series.PointValues && series.PointValues.length > 0 && series.PointValues[0].ChartDataLabel &&
+                                        series.PointValues[0].ChartDataLabel.Label && series.PointValues[0].ChartDataLabel.Visible) {
                                         chartObj.series[seriesIndex].marker.dataLabel = this._getMarkerDataLabel(series.PointValues[0].ChartDataLabel);
                                     }
                                 }
@@ -3437,7 +3739,8 @@
                                     points.push({
                                         x: (series.PointValues[pointIndex].X) ? series.PointValues[pointIndex].X : "",
                                         y: (series.PointValues[pointIndex].Y) ? series.PointValues[pointIndex].Y : 0,
-                                        text: (series.PointValues[pointIndex].ChartDataLabel.Label) ? series.PointValues[pointIndex].ChartDataLabel.Label : ''
+                                        text: (series.PointValues[pointIndex].ChartDataLabel.Label) ? series.PointValues[pointIndex].ChartDataLabel.Label : '',
+                                        tooltip: (series.PointValues[pointIndex].ToolTip) ? series.PointValues[pointIndex].ToolTip : ''
                                     });
 
                                     if (series.PointValues[pointIndex].ActionInfo) {
@@ -3445,7 +3748,7 @@
                                     }
                                 }
 
-                                chartObj.series.push({ points: points, type: 'stackingbar100', name: seriesName, visibility: series.Visibility ? 'visible' : 'hide' });
+                                chartObj.series.push({ trendlines: trendlines, points: points, type: 'stackingbar100', name: seriesName, visibility: series.Visibility ? 'visible' : 'hide' });
                                 chartObj.primaryXAxis = this._getChartAxis(chartXAxis[0], chartModel.IsLabelIndex, 'XAxis', chartArea.ChartSeries[0].Type, chartArea.Chart3D ? chartArea.Chart3D.Enabled : null);
                                 chartObj.primaryYAxis = this._getChartAxis(chartYAxis[0], chartModel.IsLabelIndex, 'YAxis', chartArea.ChartSeries[0].Type, chartArea.Chart3D ? chartArea.Chart3D.Enabled : null);
 
@@ -3455,7 +3758,8 @@
 
                                 if (series.DataPointsStyle && series.DataPointsStyle.length > 0) {
                                     chartObj.series[seriesIndex].marker = this._getSeriesMarker(series.DataPointsStyle[0], series.Type, seriesIndex);
-                                    if (series.PointValues && series.PointValues.length > 0 && series.PointValues[0].ChartDataLabel) {
+                                    if (series.PointValues && series.PointValues.length > 0 && series.PointValues[0].ChartDataLabel &&
+                                        series.PointValues[0].ChartDataLabel.Label && series.PointValues[0].ChartDataLabel.Visible) {
                                         chartObj.series[seriesIndex].marker.dataLabel = this._getMarkerDataLabel(series.PointValues[0].ChartDataLabel);
                                     }
                                 }
@@ -3465,7 +3769,8 @@
                                     points.push({
                                         x: (series.PointValues[pointIndex].X) ? series.PointValues[pointIndex].X : "",
                                         y: (series.PointValues[pointIndex].Y) ? series.PointValues[pointIndex].Y : 0,
-                                        text: (series.PointValues[pointIndex].ChartDataLabel.Label) ? series.PointValues[pointIndex].ChartDataLabel.Label : ''
+                                        text: (series.PointValues[pointIndex].ChartDataLabel.Label) ? series.PointValues[pointIndex].ChartDataLabel.Label : '',
+                                        tooltip: (series.PointValues[pointIndex].ToolTip) ? series.PointValues[pointIndex].ToolTip : ''
                                     });
 
                                     if (series.PointValues[pointIndex].ActionInfo) {
@@ -3473,7 +3778,7 @@
                                     }
                                 }
 
-                                chartObj.series.push({ points: points, type: 'line', name: seriesName, visibility: series.Visibility ? 'visible' : 'hide' });
+                                chartObj.series.push({ trendlines: trendlines, points: points, type: 'line', name: seriesName, visibility: series.Visibility ? 'visible' : 'hide' });
                                 chartObj.primaryXAxis = this._getChartAxis(chartXAxis[0], chartModel.IsLabelIndex, 'XAxis', chartArea.ChartSeries[0].Type, chartArea.Chart3D ? chartArea.Chart3D.Enabled : null);
                                 chartObj.primaryYAxis = this._getChartAxis(chartYAxis[0], chartModel.IsLabelIndex, 'YAxis', chartArea.ChartSeries[0].Type, chartArea.Chart3D ? chartArea.Chart3D.Enabled : null);
 
@@ -3483,7 +3788,8 @@
 
                                 if (series.DataPointsStyle && series.DataPointsStyle.length > 0) {
                                     chartObj.series[seriesIndex].marker = this._getSeriesMarker(series.DataPointsStyle[0], series.Type, seriesIndex);
-                                    if (series.PointValues && series.PointValues.length > 0 && series.PointValues[0].ChartDataLabel) {
+                                    if (series.PointValues && series.PointValues.length > 0 && series.PointValues[0].ChartDataLabel &&
+                                        series.PointValues[0].ChartDataLabel.Label && series.PointValues[0].ChartDataLabel.Visible) {
                                         chartObj.series[seriesIndex].marker.dataLabel = this._getMarkerDataLabel(series.PointValues[0].ChartDataLabel);
                                     }
                                 }
@@ -3493,7 +3799,8 @@
                                     points.push({
                                         x: (series.PointValues[pointIndex].X) ? series.PointValues[pointIndex].X : "",
                                         y: (series.PointValues[pointIndex].Y) ? series.PointValues[pointIndex].Y : 0,
-                                        text: (series.PointValues[pointIndex].ChartDataLabel.Label) ? series.PointValues[pointIndex].ChartDataLabel.Label : ''
+                                        text: (series.PointValues[pointIndex].ChartDataLabel.Label) ? series.PointValues[pointIndex].ChartDataLabel.Label : '',
+                                        tooltip: (series.PointValues[pointIndex].ToolTip) ? series.PointValues[pointIndex].ToolTip : ''
                                     });
 
                                     if (series.PointValues[pointIndex].ActionInfo) {
@@ -3501,7 +3808,7 @@
                                     }
                                 }
 
-                                chartObj.series.push({ points: points, type: 'spline', name: seriesName, visibility: series.Visibility ? 'visible' : 'hide' });
+                                chartObj.series.push({ trendlines: trendlines, points: points, type: 'spline', name: seriesName, visibility: series.Visibility ? 'visible' : 'hide' });
                                 chartObj.primaryXAxis = this._getChartAxis(chartXAxis[0], chartModel.IsLabelIndex, 'XAxis', chartArea.ChartSeries[0].Type, chartArea.Chart3D ? chartArea.Chart3D.Enabled : null);
                                 chartObj.primaryYAxis = this._getChartAxis(chartYAxis[0], chartModel.IsLabelIndex, 'YAxis', chartArea.ChartSeries[0].Type, chartArea.Chart3D ? chartArea.Chart3D.Enabled : null);
 
@@ -3511,7 +3818,8 @@
 
                                 if (series.DataPointsStyle && series.DataPointsStyle.length > 0) {
                                     chartObj.series[seriesIndex].marker = this._getSeriesMarker(series.DataPointsStyle[0], series.Type, seriesIndex);
-                                    if (series.PointValues && series.PointValues.length > 0 && series.PointValues[0].ChartDataLabel) {
+                                    if (series.PointValues && series.PointValues.length > 0 && series.PointValues[0].ChartDataLabel &&
+                                        series.PointValues[0].ChartDataLabel.Label && series.PointValues[0].ChartDataLabel.Visible) {
                                         chartObj.series[seriesIndex].marker.dataLabel = this._getMarkerDataLabel(series.PointValues[0].ChartDataLabel);
                                     }
                                 }
@@ -3521,7 +3829,8 @@
                                     points.push({
                                         x: (series.PointValues[pointIndex].X) ? series.PointValues[pointIndex].X : "",
                                         y: (series.PointValues[pointIndex].Y) ? series.PointValues[pointIndex].Y : 0,
-                                        text: (series.PointValues[pointIndex].ChartDataLabel.Label) ? series.PointValues[pointIndex].ChartDataLabel.Label : ''
+                                        text: (series.PointValues[pointIndex].ChartDataLabel.Label) ? series.PointValues[pointIndex].ChartDataLabel.Label : '',
+                                        tooltip: (series.PointValues[pointIndex].ToolTip) ? series.PointValues[pointIndex].ToolTip : ''
                                     });
 
                                     if (series.PointValues[pointIndex].ActionInfo) {
@@ -3529,7 +3838,7 @@
                                     }
                                 }
 
-                                chartObj.series.push({ points: points, type: 'stepline', name: seriesName, visibility: series.Visibility ? 'visible' : 'hide' });
+                                chartObj.series.push({ trendlines: trendlines, points: points, type: 'stepline', name: seriesName, visibility: series.Visibility ? 'visible' : 'hide' });
                                 chartObj.primaryXAxis = this._getChartAxis(chartXAxis[0], chartModel.IsLabelIndex, 'XAxis', chartArea.ChartSeries[0].Type, chartArea.Chart3D ? chartArea.Chart3D.Enabled : null);
                                 chartObj.primaryYAxis = this._getChartAxis(chartYAxis[0], chartModel.IsLabelIndex, 'YAxis', chartArea.ChartSeries[0].Type, chartArea.Chart3D ? chartArea.Chart3D.Enabled : null);
 
@@ -3539,7 +3848,8 @@
 
                                 if (series.DataPointsStyle && series.DataPointsStyle.length > 0) {
                                     chartObj.series[seriesIndex].marker = this._getSeriesMarker(series.DataPointsStyle[0], series.Type, seriesIndex);
-                                    if (series.PointValues && series.PointValues.length > 0 && series.PointValues[0].ChartDataLabel) {
+                                    if (series.PointValues && series.PointValues.length > 0 && series.PointValues[0].ChartDataLabel &&
+                                        series.PointValues[0].ChartDataLabel.Label && series.PointValues[0].ChartDataLabel.Visible) {
                                         chartObj.series[seriesIndex].marker.dataLabel = this._getMarkerDataLabel(series.PointValues[0].ChartDataLabel);
                                     }
                                 }
@@ -3551,7 +3861,8 @@
                                         x: (series.PointValues[pointIndex].X) ? series.PointValues[pointIndex].X : "",
                                         y: (series.PointValues[pointIndex].Y) ? series.PointValues[pointIndex].Y : 0,
                                         fill: pointColor,
-                                        text: (series.PointValues[pointIndex].ChartDataLabel.Label) ? series.PointValues[pointIndex].ChartDataLabel.Label : ''
+                                        text: (series.PointValues[pointIndex].ChartDataLabel.Label) ? series.PointValues[pointIndex].ChartDataLabel.Label : '',
+                                        tooltip: (series.PointValues[pointIndex].ToolTip) ? series.PointValues[pointIndex].ToolTip : ''
                                     });
 
                                     if (series.PointValues[pointIndex].Style && series.PointValues[pointIndex].Style.Border && series.PointValues[pointIndex].Style.Border.Default) {
@@ -3564,9 +3875,10 @@
                                 }
 
                                 chartObj.legend.shape = 'rectangle';
-                                chartObj.series.push({ points: points, type: 'pie', name: seriesName, visibility: series.Visibility ? 'visible' : 'hide' });
+                                chartObj.series.push({ trendlines: trendlines, points: points, type: 'pie', name: seriesName, visibility: series.Visibility ? 'visible' : 'hide' });
 
-                                if (series.PointValues && series.PointValues.length > 0 && series.PointValues[0].ChartDataLabel) {
+                                if (series.PointValues && series.PointValues.length > 0 && series.PointValues[0].ChartDataLabel &&
+                                    series.PointValues[0].ChartDataLabel.Label && series.PointValues[0].ChartDataLabel.Visible) {
                                     chartObj.series[seriesIndex].marker = { dataLabel: this._getMarkerDataLabel(series.PointValues[0].ChartDataLabel) };
                                 }
                                 break;
@@ -3577,7 +3889,8 @@
                                         x: (series.PointValues[pointIndex].X) ? series.PointValues[pointIndex].X : "",
                                         y: (series.PointValues[pointIndex].Y) ? series.PointValues[pointIndex].Y : 0,
                                         fill: pointColor,
-                                        text: (series.PointValues[pointIndex].ChartDataLabel.Label) ? series.PointValues[pointIndex].ChartDataLabel.Label : ''
+                                        text: (series.PointValues[pointIndex].ChartDataLabel.Label) ? series.PointValues[pointIndex].ChartDataLabel.Label : '',
+                                        tooltip: (series.PointValues[pointIndex].ToolTip) ? series.PointValues[pointIndex].ToolTip : ''
                                     });
 
                                     if (series.PointValues[pointIndex].Style && series.PointValues[pointIndex].Style.Border && series.PointValues[pointIndex].Style.Border.Default) {
@@ -3590,10 +3903,11 @@
                                 }
 
                                 chartObj.legend.shape = 'rectangle';
-                                chartObj.series.push({ points: points, type: 'pie', explodeAll: true, explodeOffset: 8, name: seriesName, visibility: series.Visibility ? 'visible' : 'hide' });
+                                chartObj.series.push({ trendlines: trendlines, points: points, type: 'pie', explodeAll: true, explodeOffset: 8, name: seriesName, visibility: series.Visibility ? 'visible' : 'hide' });
                                 chartObj.series[seriesIndex].explodeIndex = 0;
 
-                                if (series.PointValues && series.PointValues.length > 0 && series.PointValues[0].ChartDataLabel) {
+                                if (series.PointValues && series.PointValues.length > 0 && series.PointValues[0].ChartDataLabel &&
+                                    series.PointValues[0].ChartDataLabel.Label && series.PointValues[0].ChartDataLabel.Visible) {
                                     chartObj.series[seriesIndex].marker = { dataLabel: this._getMarkerDataLabel(series.PointValues[0].ChartDataLabel) };
                                 }
                                 break;
@@ -3604,7 +3918,8 @@
                                         x: (series.PointValues[pointIndex].X) ? series.PointValues[pointIndex].X : "",
                                         y: (series.PointValues[pointIndex].Y) ? series.PointValues[pointIndex].Y : 0,
                                         fill: pointColor,
-                                        text: (series.PointValues[pointIndex].ChartDataLabel.Label) ? series.PointValues[pointIndex].ChartDataLabel.Label : ''
+                                        text: (series.PointValues[pointIndex].ChartDataLabel.Label) ? series.PointValues[pointIndex].ChartDataLabel.Label : '',
+                                        tooltip: (series.PointValues[pointIndex].ToolTip) ? series.PointValues[pointIndex].ToolTip : ''
                                     });
 
                                     if (series.PointValues[pointIndex].Style && series.PointValues[pointIndex].Style.Border && series.PointValues[pointIndex].Style.Border.Default) {
@@ -3617,9 +3932,10 @@
                                 }
 
                                 chartObj.legend.shape = 'rectangle';
-                                chartObj.series.push({ points: points, type: 'doughnut', name: seriesName, visibility: series.Visibility ? 'visible' : 'hide' });
+                                chartObj.series.push({ trendlines: trendlines, points: points, type: 'doughnut', name: seriesName, visibility: series.Visibility ? 'visible' : 'hide' });
 
-                                if (series.PointValues && series.PointValues.length > 0 && series.PointValues[0].ChartDataLabel) {
+                                if (series.PointValues && series.PointValues.length > 0 && series.PointValues[0].ChartDataLabel &&
+                                    series.PointValues[0].ChartDataLabel.Label && series.PointValues[0].ChartDataLabel.Visible) {
                                     chartObj.series[seriesIndex].marker = { dataLabel: this._getMarkerDataLabel(series.PointValues[0].ChartDataLabel) };
                                 }
                                 break;
@@ -3630,7 +3946,8 @@
                                         x: (series.PointValues[pointIndex].X) ? series.PointValues[pointIndex].X : "",
                                         y: (series.PointValues[pointIndex].Y) ? series.PointValues[pointIndex].Y : 0,
                                         fill: pointColor,
-                                        text: (series.PointValues[pointIndex].ChartDataLabel.Label) ? series.PointValues[pointIndex].ChartDataLabel.Label : ''
+                                        text: (series.PointValues[pointIndex].ChartDataLabel.Label) ? series.PointValues[pointIndex].ChartDataLabel.Label : '',
+                                        tooltip: (series.PointValues[pointIndex].ToolTip) ? series.PointValues[pointIndex].ToolTip : ''
                                     });
 
                                     if (series.PointValues[pointIndex].Style && series.PointValues[pointIndex].Style.Border && series.PointValues[pointIndex].Style.Border.Default) {
@@ -3643,9 +3960,10 @@
                                 }
 
                                 chartObj.legend.shape = 'rectangle';
-                                chartObj.series.push({ points: points, type: 'pyramid', name: seriesName, visibility: series.Visibility ? 'visible' : 'hide' });
+                                chartObj.series.push({ trendlines: trendlines, points: points, type: 'pyramid', name: seriesName, visibility: series.Visibility ? 'visible' : 'hide' });
 
-                                if (series.PointValues && series.PointValues.length > 0 && series.PointValues[0].ChartDataLabel) {
+                                if (series.PointValues && series.PointValues.length > 0 && series.PointValues[0].ChartDataLabel &&
+                                    series.PointValues[0].ChartDataLabel.Label && series.PointValues[0].ChartDataLabel.Visible) {
                                     chartObj.series[seriesIndex].marker = { dataLabel: this._getMarkerDataLabel(series.PointValues[0].ChartDataLabel) };
                                 }
                                 break;
@@ -3656,7 +3974,8 @@
                                         x: (series.PointValues[pointIndex].X) ? series.PointValues[pointIndex].X : "",
                                         y: (series.PointValues[pointIndex].Y) ? series.PointValues[pointIndex].Y : 0,
                                         fill: pointColor,
-                                        text: (series.PointValues[pointIndex].ChartDataLabel.Label) ? series.PointValues[pointIndex].ChartDataLabel.Label : ''
+                                        text: (series.PointValues[pointIndex].ChartDataLabel.Label) ? series.PointValues[pointIndex].ChartDataLabel.Label : '',
+                                        tooltip: (series.PointValues[pointIndex].ToolTip) ? series.PointValues[pointIndex].ToolTip : ''
                                     });
 
                                     if (series.PointValues[pointIndex].Style && series.PointValues[pointIndex].Style.Border && series.PointValues[pointIndex].Style.Border.Default) {
@@ -3669,9 +3988,10 @@
                                 }
 
                                 chartObj.legend.shape = 'rectangle';
-                                chartObj.series.push({ points: points, type: 'funnel', name: seriesName, visibility: series.Visibility ? 'visible' : 'hide' });
+                                chartObj.series.push({ trendlines: trendlines, points: points, type: 'funnel', name: seriesName, visibility: series.Visibility ? 'visible' : 'hide' });
 
-                                if (series.PointValues && series.PointValues.length > 0 && series.PointValues[0].ChartDataLabel) {
+                                if (series.PointValues && series.PointValues.length > 0 && series.PointValues[0].ChartDataLabel &&
+                                    series.PointValues[0].ChartDataLabel.Label && series.PointValues[0].ChartDataLabel.Visible) {
                                     chartObj.series[seriesIndex].marker = { dataLabel: this._getMarkerDataLabel(series.PointValues[0].ChartDataLabel) };
                                 }
                                 break;
@@ -3680,7 +4000,8 @@
                                     points.push({
                                         x: (series.PointValues[pointIndex].X) ? series.PointValues[pointIndex].X : "",
                                         y: (series.PointValues[pointIndex].Y) ? series.PointValues[pointIndex].Y : 0,
-                                        text: (series.PointValues[pointIndex].ChartDataLabel.Label) ? series.PointValues[pointIndex].ChartDataLabel.Label : ''
+                                        text: (series.PointValues[pointIndex].ChartDataLabel.Label) ? series.PointValues[pointIndex].ChartDataLabel.Label : '',
+                                        tooltip: (series.PointValues[pointIndex].ToolTip) ? series.PointValues[pointIndex].ToolTip : ''
                                     });
 
                                     if (series.PointValues[pointIndex].ActionInfo) {
@@ -3688,7 +4009,7 @@
                                     }
                                 }
 
-                                chartObj.series.push({ points: points, type: 'area', name: seriesName, visibility: series.Visibility ? 'visible' : 'hide' });
+                                chartObj.series.push({ trendlines: trendlines, points: points, type: 'area', name: seriesName, visibility: series.Visibility ? 'visible' : 'hide' });
                                 chartObj.primaryXAxis = this._getChartAxis(chartXAxis[0], chartModel.IsLabelIndex, 'XAxis', chartArea.ChartSeries[0].Type, chartArea.Chart3D ? chartArea.Chart3D.Enabled : null);
                                 chartObj.primaryYAxis = this._getChartAxis(chartYAxis[0], chartModel.IsLabelIndex, 'YAxis', chartArea.ChartSeries[0].Type, chartArea.Chart3D ? chartArea.Chart3D.Enabled : null);
 
@@ -3698,7 +4019,8 @@
 
                                 if (series.DataPointsStyle && series.DataPointsStyle.length > 0) {
                                     chartObj.series[seriesIndex].marker = this._getSeriesMarker(series.DataPointsStyle[0], series.Type, seriesIndex);
-                                    if (series.PointValues && series.PointValues.length > 0 && series.PointValues[0].ChartDataLabel) {
+                                    if (series.PointValues && series.PointValues.length > 0 && series.PointValues[0].ChartDataLabel &&
+                                        series.PointValues[0].ChartDataLabel.Label && series.PointValues[0].ChartDataLabel.Visible) {
                                         chartObj.series[seriesIndex].marker.dataLabel = this._getMarkerDataLabel(series.PointValues[0].ChartDataLabel);
                                     }
                                 }
@@ -3708,7 +4030,8 @@
                                     points.push({
                                         x: (series.PointValues[pointIndex].X) ? series.PointValues[pointIndex].X : "",
                                         y: (series.PointValues[pointIndex].Y) ? series.PointValues[pointIndex].Y : 0,
-                                        text: (series.PointValues[pointIndex].ChartDataLabel.Label) ? series.PointValues[pointIndex].ChartDataLabel.Label : ''
+                                        text: (series.PointValues[pointIndex].ChartDataLabel.Label) ? series.PointValues[pointIndex].ChartDataLabel.Label : '',
+                                        tooltip: (series.PointValues[pointIndex].ToolTip) ? series.PointValues[pointIndex].ToolTip : ''
                                     });
 
                                     if (series.PointValues[pointIndex].ActionInfo) {
@@ -3716,7 +4039,7 @@
                                     }
                                 }
 
-                                chartObj.series.push({ points: points, type: 'splinearea', name: seriesName, visibility: series.Visibility ? 'visible' : 'hide' });
+                                chartObj.series.push({ trendlines: trendlines, points: points, type: 'splinearea', name: seriesName, visibility: series.Visibility ? 'visible' : 'hide' });
                                 chartObj.primaryXAxis = this._getChartAxis(chartXAxis[0], chartModel.IsLabelIndex, 'XAxis', chartArea.ChartSeries[0].Type, chartArea.Chart3D ? chartArea.Chart3D.Enabled : null);
                                 chartObj.primaryYAxis = this._getChartAxis(chartYAxis[0], chartModel.IsLabelIndex, 'YAxis', chartArea.ChartSeries[0].Type, chartArea.Chart3D ? chartArea.Chart3D.Enabled : null);
 
@@ -3726,7 +4049,8 @@
 
                                 if (series.DataPointsStyle && series.DataPointsStyle.length > 0) {
                                     chartObj.series[seriesIndex].marker = this._getSeriesMarker(series.DataPointsStyle[0], series.Type, seriesIndex);
-                                    if (series.PointValues && series.PointValues.length > 0 && series.PointValues[0].ChartDataLabel) {
+                                    if (series.PointValues && series.PointValues.length > 0 && series.PointValues[0].ChartDataLabel &&
+                                        series.PointValues[0].ChartDataLabel.Label && series.PointValues[0].ChartDataLabel.Visible) {
                                         chartObj.series[seriesIndex].marker.dataLabel = this._getMarkerDataLabel(series.PointValues[0].ChartDataLabel);
                                     }
                                 }
@@ -3736,7 +4060,8 @@
                                     points.push({
                                         x: (series.PointValues[pointIndex].X) ? series.PointValues[pointIndex].X : "",
                                         y: (series.PointValues[pointIndex].Y) ? series.PointValues[pointIndex].Y : 0,
-                                        text: (series.PointValues[pointIndex].ChartDataLabel.Label) ? series.PointValues[pointIndex].ChartDataLabel.Label : ''
+                                        text: (series.PointValues[pointIndex].ChartDataLabel.Label) ? series.PointValues[pointIndex].ChartDataLabel.Label : '',
+                                        tooltip: (series.PointValues[pointIndex].ToolTip) ? series.PointValues[pointIndex].ToolTip : ''
                                     });
 
                                     if (series.PointValues[pointIndex].ActionInfo) {
@@ -3744,7 +4069,7 @@
                                     }
                                 }
 
-                                chartObj.series.push({ points: points, type: 'stackingarea', name: seriesName, visibility: series.Visibility ? 'visible' : 'hide' });
+                                chartObj.series.push({ trendlines: trendlines, points: points, type: 'stackingarea', name: seriesName, visibility: series.Visibility ? 'visible' : 'hide' });
                                 chartObj.primaryXAxis = this._getChartAxis(chartXAxis[0], chartModel.IsLabelIndex, 'XAxis', chartArea.ChartSeries[0].Type, chartArea.Chart3D ? chartArea.Chart3D.Enabled : null);
                                 chartObj.primaryYAxis = this._getChartAxis(chartYAxis[0], chartModel.IsLabelIndex, 'YAxis', chartArea.ChartSeries[0].Type, chartArea.Chart3D ? chartArea.Chart3D.Enabled : null);
 
@@ -3754,7 +4079,8 @@
 
                                 if (series.DataPointsStyle && series.DataPointsStyle.length > 0) {
                                     chartObj.series[seriesIndex].marker = this._getSeriesMarker(series.DataPointsStyle[0], series.Type, seriesIndex);
-                                    if (series.PointValues && series.PointValues.length > 0 && series.PointValues[0].ChartDataLabel) {
+                                    if (series.PointValues && series.PointValues.length > 0 && series.PointValues[0].ChartDataLabel &&
+                                        series.PointValues[0].ChartDataLabel.Label && series.PointValues[0].ChartDataLabel.Visible) {
                                         chartObj.series[seriesIndex].marker.dataLabel = this._getMarkerDataLabel(series.PointValues[0].ChartDataLabel);
                                     }
                                 }
@@ -3764,7 +4090,8 @@
                                     points.push({
                                         x: (series.PointValues[pointIndex].X) ? series.PointValues[pointIndex].X : "",
                                         y: (series.PointValues[pointIndex].Y) ? series.PointValues[pointIndex].Y : 0,
-                                        text: (series.PointValues[pointIndex].ChartDataLabel.Label) ? series.PointValues[pointIndex].ChartDataLabel.Label : ''
+                                        text: (series.PointValues[pointIndex].ChartDataLabel.Label) ? series.PointValues[pointIndex].ChartDataLabel.Label : '',
+                                        tooltip: (series.PointValues[pointIndex].ToolTip) ? series.PointValues[pointIndex].ToolTip : ''
                                     });
 
                                     if (series.PointValues[pointIndex].ActionInfo) {
@@ -3772,7 +4099,7 @@
                                     }
                                 }
 
-                                chartObj.series.push({ points: points, type: 'stackingarea100', name: seriesName, visibility: series.Visibility ? 'visible' : 'hide' });
+                                chartObj.series.push({ trendlines: trendlines, points: points, type: 'stackingarea100', name: seriesName, visibility: series.Visibility ? 'visible' : 'hide' });
                                 chartObj.primaryXAxis = this._getChartAxis(chartXAxis[0], chartModel.IsLabelIndex, 'XAxis', chartArea.ChartSeries[0].Type, chartArea.Chart3D ? chartArea.Chart3D.Enabled : null);
                                 chartObj.primaryYAxis = this._getChartAxis(chartYAxis[0], chartModel.IsLabelIndex, 'YAxis', chartArea.ChartSeries[0].Type, chartArea.Chart3D ? chartArea.Chart3D.Enabled : null);
 
@@ -3782,7 +4109,8 @@
 
                                 if (series.DataPointsStyle && series.DataPointsStyle.length > 0) {
                                     chartObj.series[seriesIndex].marker = this._getSeriesMarker(series.DataPointsStyle[0], series.Type, seriesIndex);
-                                    if (series.PointValues && series.PointValues.length > 0 && series.PointValues[0].ChartDataLabel) {
+                                    if (series.PointValues && series.PointValues.length > 0 && series.PointValues[0].ChartDataLabel &&
+                                        series.PointValues[0].ChartDataLabel.Label && series.PointValues[0].ChartDataLabel.Visible) {
                                         chartObj.series[seriesIndex].marker.dataLabel = this._getMarkerDataLabel(series.PointValues[0].ChartDataLabel);
                                     }
                                 }
@@ -3793,7 +4121,8 @@
                                         x: (series.PointValues[pointIndex].X) ? series.PointValues[pointIndex].X : "",
                                         low: (series.PointValues[pointIndex].Low) ? series.PointValues[pointIndex].Low : 0,
                                         high: (series.PointValues[pointIndex].High) ? series.PointValues[pointIndex].High : 0,
-                                        text: (series.PointValues[pointIndex].ChartDataLabel.Label) ? series.PointValues[pointIndex].ChartDataLabel.Label : ''
+                                        text: (series.PointValues[pointIndex].ChartDataLabel.Label) ? series.PointValues[pointIndex].ChartDataLabel.Label : '',
+                                        tooltip: (series.PointValues[pointIndex].ToolTip) ? series.PointValues[pointIndex].ToolTip : ''
                                     });
 
                                     if (series.PointValues[pointIndex].ActionInfo) {
@@ -3801,7 +4130,7 @@
                                     }
                                 }
 
-                                chartObj.series.push({ points: points, type: 'rangearea', xName: 'x', high: 'high', low: 'low', name: seriesName, visibility: series.Visibility ? 'visible' : 'hide' });
+                                chartObj.series.push({ trendlines: trendlines, points: points, type: 'rangearea', xName: 'x', high: 'high', low: 'low', name: seriesName, visibility: series.Visibility ? 'visible' : 'hide' });
                                 chartObj.primaryXAxis = this._getChartAxis(chartXAxis[0], chartModel.IsLabelIndex, 'XAxis', chartArea.ChartSeries[0].Type, chartArea.Chart3D ? chartArea.Chart3D.Enabled : null);
                                 chartObj.primaryYAxis = this._getChartAxis(chartYAxis[0], chartModel.IsLabelIndex, 'YAxis', chartArea.ChartSeries[0].Type, chartArea.Chart3D ? chartArea.Chart3D.Enabled : null);
 
@@ -3811,26 +4140,28 @@
 
                                 if (series.DataPointsStyle && series.DataPointsStyle.length > 0) {
                                     chartObj.series[seriesIndex].marker = this._getSeriesMarker(series.DataPointsStyle[0], series.Type, seriesIndex);
-                                    if (series.PointValues && series.PointValues.length > 0 && series.PointValues[0].ChartDataLabel) {
+                                    if (series.PointValues && series.PointValues.length > 0 && series.PointValues[0].ChartDataLabel &&
+                                        series.PointValues[0].ChartDataLabel.Label && series.PointValues[0].ChartDataLabel.Visible) {
                                         chartObj.series[seriesIndex].marker.dataLabel = this._getMarkerDataLabel(series.PointValues[0].ChartDataLabel);
                                     }
                                 }
                                 break;
+                            case 'rangebar':
                             case 'rangecolumn':
                                 for (var pointIndex = 0; pointIndex < series.PointValues.length; pointIndex++) {
                                     points.push({
                                         x: (series.PointValues[pointIndex].X) ? series.PointValues[pointIndex].X : "",
                                         low: (series.PointValues[pointIndex].Low) ? series.PointValues[pointIndex].Low : 0,
                                         high: (series.PointValues[pointIndex].High) ? series.PointValues[pointIndex].High : 0,
-                                        text: (series.PointValues[pointIndex].ChartDataLabel.Label) ? series.PointValues[pointIndex].ChartDataLabel.Label : ''
+                                        text: (series.PointValues[pointIndex].ChartDataLabel.Label) ? series.PointValues[pointIndex].ChartDataLabel.Label : '',
+                                        tooltip: (series.PointValues[pointIndex].ToolTip) ? series.PointValues[pointIndex].ToolTip : ''
                                     });
 
                                     if (series.PointValues[pointIndex].ActionInfo) {
                                         actionInfos.push(series.PointValues[pointIndex].ActionInfo);
                                     }
                                 }
-
-                                chartObj.series.push({ points: points, type: 'rangecolumn', name: seriesName, visibility: series.Visibility ? 'visible' : 'hide' });
+                                chartObj.series.push({ trendlines: trendlines, points: points, type: 'rangecolumn', name: seriesName, visibility: series.Visibility ? 'visible' : 'hide' });
                                 chartObj.primaryXAxis = this._getChartAxis(chartXAxis[0], chartModel.IsLabelIndex, 'XAxis', chartArea.ChartSeries[0].Type, chartArea.Chart3D ? chartArea.Chart3D.Enabled : null);
                                 chartObj.primaryYAxis = this._getChartAxis(chartYAxis[0], chartModel.IsLabelIndex, 'YAxis', chartArea.ChartSeries[0].Type, chartArea.Chart3D ? chartArea.Chart3D.Enabled : null);
 
@@ -3840,7 +4171,40 @@
 
                                 if (series.DataPointsStyle && series.DataPointsStyle.length > 0) {
                                     chartObj.series[seriesIndex].marker = this._getSeriesMarker(series.DataPointsStyle[0], series.Type, seriesIndex);
-                                    if (series.PointValues && series.PointValues.length > 0 && series.PointValues[0].ChartDataLabel) {
+                                    if (series.PointValues && series.PointValues.length > 0 && series.PointValues[0].ChartDataLabel &&
+                                        series.PointValues[0].ChartDataLabel.Label && series.PointValues[0].ChartDataLabel.Visible) {
+                                        chartObj.series[seriesIndex].marker.dataLabel = this._getMarkerDataLabel(series.PointValues[0].ChartDataLabel);
+                                    }
+                                }
+                                break;
+                            case 'boxplot':
+                                for (var pointIndex = 0; pointIndex < series.PointValues.length; pointIndex++) {
+                                    var data = [series.PointValues[pointIndex].High, series.PointValues[pointIndex].Low, series.PointValues[pointIndex].Start, series.PointValues[pointIndex].End, series.PointValues[pointIndex].Mean, series.PointValues[pointIndex].Median]
+                                    points.push({
+                                        x: (series.PointValues[pointIndex].X) ? series.PointValues[pointIndex].X : "",
+                                        y: data,
+                                        text: (series.PointValues[pointIndex].ChartDataLabel.Label) ? series.PointValues[pointIndex].ChartDataLabel.Label : '',
+                                        tooltip: (series.PointValues[pointIndex].ToolTip) ? series.PointValues[pointIndex].ToolTip : ''
+                                    });
+
+                                    if (series.PointValues[pointIndex].ActionInfo) {
+                                        actionInfos.push(series.PointValues[pointIndex].ActionInfo);
+                                    }
+                                }
+
+                                chartObj.loaded = $.proxy(this._boxplotLoaded, this, chartDiv[0].id);
+                                chartObj.series.push({ points: points, type: 'boxandwhisker', boxPlotMode: "exclusive", name: seriesName, visibility: series.Visibility ? 'visible' : 'hide'});
+                                chartObj.primaryXAxis = this._getChartAxis(chartXAxis[0], chartModel.IsLabelIndex, 'XAxis', chartArea.ChartSeries[0].Type, chartArea.Chart3D ? chartArea.Chart3D.Enabled : null);
+                                chartObj.primaryYAxis = this._getChartAxis(chartYAxis[0], chartModel.IsLabelIndex, 'YAxis', chartArea.ChartSeries[0].Type, chartArea.Chart3D ? chartArea.Chart3D.Enabled : null);
+
+                                if (series.PointValues.length > 0 && series.PointValues[0].Style && series.PointValues[0].Style.Border && series.PointValues[0].Style.Border.Default) {
+                                    this._setBorderProp(series.PointValues[0].Style.Border, chartObj.series[seriesIndex]);
+                                }
+
+                                if (series.DataPointsStyle && series.DataPointsStyle.length > 0) {
+                                    chartObj.series[seriesIndex].marker = this._getSeriesMarker(series.DataPointsStyle[0], series.Type, seriesIndex);
+                                    if (series.PointValues && series.PointValues.length > 0 && series.PointValues[0].ChartDataLabel &&
+                                        series.PointValues[0].ChartDataLabel.Label && series.PointValues[0].ChartDataLabel.Visible) {
                                         chartObj.series[seriesIndex].marker.dataLabel = this._getMarkerDataLabel(series.PointValues[0].ChartDataLabel);
                                     }
                                 }
@@ -3853,7 +4217,8 @@
                                         high: (series.PointValues[pointIndex].High) ? series.PointValues[pointIndex].High : 0,
                                         open: (series.PointValues[pointIndex].Start) ? series.PointValues[pointIndex].Start : 0,
                                         close: (series.PointValues[pointIndex].End) ? series.PointValues[pointIndex].End : 0,
-                                        text: (series.PointValues[pointIndex].ChartDataLabel.Label) ? series.PointValues[pointIndex].ChartDataLabel.Label : ''
+                                        text: (series.PointValues[pointIndex].ChartDataLabel.Label) ? series.PointValues[pointIndex].ChartDataLabel.Label : '',
+                                        tooltip: (series.PointValues[pointIndex].ToolTip) ? series.PointValues[pointIndex].ToolTip : ''
                                     });
 
                                     if (series.PointValues[pointIndex].ActionInfo) {
@@ -3861,7 +4226,7 @@
                                     }
                                 }
 
-                                chartObj.series.push({ points: points, type: 'hiloopenclose', name: seriesName, visibility: series.Visibility ? 'visible' : 'hide' });
+                                chartObj.series.push({ trendlines: trendlines, points: points, type: 'hiloopenclose', name: seriesName, visibility: series.Visibility ? 'visible' : 'hide' });
                                 chartObj.primaryXAxis = this._getChartAxis(chartXAxis[0], chartModel.IsLabelIndex, 'XAxis', chartArea.ChartSeries[0].Type, chartArea.Chart3D ? chartArea.Chart3D.Enabled : null);
                                 chartObj.primaryYAxis = this._getChartAxis(chartYAxis[0], chartModel.IsLabelIndex, 'YAxis', chartArea.ChartSeries[0].Type, chartArea.Chart3D ? chartArea.Chart3D.Enabled : null);
 
@@ -3871,7 +4236,8 @@
 
                                 if (series.DataPointsStyle && series.DataPointsStyle.length > 0) {
                                     chartObj.series[seriesIndex].marker = this._getSeriesMarker(series.DataPointsStyle[0], series.Type, seriesIndex);
-                                    if (series.PointValues && series.PointValues.length > 0 && series.PointValues[0].ChartDataLabel) {
+                                    if (series.PointValues && series.PointValues.length > 0 && series.PointValues[0].ChartDataLabel &&
+                                        series.PointValues[0].ChartDataLabel.Label && series.PointValues[0].ChartDataLabel.Visible) {
                                         chartObj.series[seriesIndex].marker.dataLabel = this._getMarkerDataLabel(series.PointValues[0].ChartDataLabel);
                                     }
                                 }
@@ -3884,7 +4250,8 @@
                                         high: (series.PointValues[pointIndex].High) ? series.PointValues[pointIndex].High : 0,
                                         open: (series.PointValues[pointIndex].Start) ? series.PointValues[pointIndex].Start : 0,
                                         close: (series.PointValues[pointIndex].End) ? series.PointValues[pointIndex].End : 0,
-                                        text: (series.PointValues[pointIndex].ChartDataLabel.Label) ? series.PointValues[pointIndex].ChartDataLabel.Label : ''
+                                        text: (series.PointValues[pointIndex].ChartDataLabel.Label) ? series.PointValues[pointIndex].ChartDataLabel.Label : '',
+                                        tooltip: (series.PointValues[pointIndex].ToolTip) ? series.PointValues[pointIndex].ToolTip : ''
                                     });
 
                                     if (series.PointValues[pointIndex].ActionInfo) {
@@ -3892,7 +4259,7 @@
                                     }
                                 }
 
-                                chartObj.series.push({ points: points, type: 'candle', name: seriesName, visibility: series.Visibility ? 'visible' : 'hide' });
+                                chartObj.series.push({ trendlines: trendlines, points: points, type: 'candle', name: seriesName, visibility: series.Visibility ? 'visible' : 'hide' });
                                 chartObj.primaryXAxis = this._getChartAxis(chartXAxis[0], chartModel.IsLabelIndex, 'XAxis', chartArea.ChartSeries[0].Type, chartArea.Chart3D ? chartArea.Chart3D.Enabled : null);
                                 chartObj.primaryYAxis = this._getChartAxis(chartYAxis[0], chartModel.IsLabelIndex, 'YAxis', chartArea.ChartSeries[0].Type, chartArea.Chart3D ? chartArea.Chart3D.Enabled : null);
 
@@ -3902,7 +4269,8 @@
 
                                 if (series.DataPointsStyle && series.DataPointsStyle.length > 0) {
                                     chartObj.series[seriesIndex].marker = this._getSeriesMarker(series.DataPointsStyle[0], series.Type, seriesIndex);
-                                    if (series.PointValues && series.PointValues.length > 0 && series.PointValues[0].ChartDataLabel) {
+                                    if (series.PointValues && series.PointValues.length > 0 && series.PointValues[0].ChartDataLabel &&
+                                        series.PointValues[0].ChartDataLabel.Label && series.PointValues[0].ChartDataLabel.Visible) {
                                         chartObj.series[seriesIndex].marker.dataLabel = this._getMarkerDataLabel(series.PointValues[0].ChartDataLabel);
                                     }
                                 }
@@ -3912,7 +4280,8 @@
                                     points.push({
                                         x: (series.PointValues[pointIndex].X) ? series.PointValues[pointIndex].X : "",
                                         y: (series.PointValues[pointIndex].Y) ? series.PointValues[pointIndex].Y : 0,
-                                        text: (series.PointValues[pointIndex].ChartDataLabel.Label) ? series.PointValues[pointIndex].ChartDataLabel.Label : ''
+                                        text: (series.PointValues[pointIndex].ChartDataLabel.Label) ? series.PointValues[pointIndex].ChartDataLabel.Label : '',
+                                        tooltip: (series.PointValues[pointIndex].ToolTip) ? series.PointValues[pointIndex].ToolTip : ''
                                     });
 
                                     if (series.PointValues[pointIndex].ActionInfo) {
@@ -3920,6 +4289,7 @@
                                     }
                                 }
                                 chartObj.series.push({
+                                    trendlines: trendlines,
                                     points: points,
                                     type: 'scatter',
                                     errorBar: { visibility: "visible", type: 'percentage' },
@@ -3937,7 +4307,8 @@
 
                                 if (series.DataPointsStyle && series.DataPointsStyle.length > 0) {
                                     chartObj.series[seriesIndex].marker = this._getSeriesMarker(series.DataPointsStyle[0], series.Type, seriesIndex);
-                                    if (series.PointValues && series.PointValues.length > 0 && series.PointValues[0].ChartDataLabel) {
+                                    if (series.PointValues && series.PointValues.length > 0 && series.PointValues[0].ChartDataLabel &&
+                                        series.PointValues[0].ChartDataLabel.Label && series.PointValues[0].ChartDataLabel.Visible) {
                                         chartObj.series[seriesIndex].marker.dataLabel = this._getMarkerDataLabel(series.PointValues[0].ChartDataLabel);
                                     }
                                 }
@@ -3947,7 +4318,8 @@
                                     points.push({
                                         x: (series.PointValues[pointIndex].X) ? series.PointValues[pointIndex].X : "",
                                         y: (series.PointValues[pointIndex].Y) ? series.PointValues[pointIndex].Y : 0,
-                                        text: (series.PointValues[pointIndex].ChartDataLabel.Label) ? series.PointValues[pointIndex].ChartDataLabel.Label : ''
+                                        text: (series.PointValues[pointIndex].ChartDataLabel.Label) ? series.PointValues[pointIndex].ChartDataLabel.Label : '',
+                                        tooltip: (series.PointValues[pointIndex].ToolTip) ? series.PointValues[pointIndex].ToolTip : ''
                                     });
 
                                     if (series.PointValues[pointIndex].ActionInfo) {
@@ -3955,6 +4327,7 @@
                                     }
                                 }
                                 chartObj.series.push({
+                                    trendlines: trendlines,
                                     xName: 'x',
                                     yName: 'y',
                                     points: points,
@@ -3971,7 +4344,8 @@
 
                                 if (series.DataPointsStyle && series.DataPointsStyle.length > 0) {
                                     chartObj.series[seriesIndex].marker = this._getSeriesMarker(series.DataPointsStyle[0], series.Type, seriesIndex);
-                                    if (series.PointValues && series.PointValues.length > 0 && series.PointValues[0].ChartDataLabel) {
+                                    if (series.PointValues && series.PointValues.length > 0 && series.PointValues[0].ChartDataLabel &&
+                                        series.PointValues[0].ChartDataLabel.Label && series.PointValues[0].ChartDataLabel.Visible) {
                                         chartObj.series[seriesIndex].marker.dataLabel = this._getMarkerDataLabel(series.PointValues[0].ChartDataLabel);
                                     }
                                 }
@@ -3982,7 +4356,8 @@
                                         x: (series.PointValues[pointIndex].X) ? series.PointValues[pointIndex].X : "",
                                         y: (series.PointValues[pointIndex].Y) ? series.PointValues[pointIndex].Y : 0,
                                         size: 0.5,
-                                        text: (series.PointValues[pointIndex].ChartDataLabel.Label) ? series.PointValues[pointIndex].ChartDataLabel.Label : ''
+                                        text: (series.PointValues[pointIndex].ChartDataLabel.Label) ? series.PointValues[pointIndex].ChartDataLabel.Label : '',
+                                        tooltip: (series.PointValues[pointIndex].ToolTip) ? series.PointValues[pointIndex].ToolTip : ''
                                     });
 
                                     if (series.PointValues[pointIndex].ActionInfo) {
@@ -3990,7 +4365,7 @@
                                     }
                                 }
 
-                                chartObj.series.push({ points: points, type: 'bubble', name: seriesName, visibility: series.Visibility ? 'visible' : 'hide' });
+                                chartObj.series.push({ trendlines: trendlines, points: points, type: 'bubble', name: seriesName, visibility: series.Visibility ? 'visible' : 'hide' });
 
                                 if (series.PointValues.length > 0 && series.PointValues[0].Style && series.PointValues[0].Style.Border && series.PointValues[0].Style.Border.Default) {
                                     this._setBorderProp(series.PointValues[0].Style.Border, chartObj.series[seriesIndex]);
@@ -3998,7 +4373,8 @@
 
                                 if (series.DataPointsStyle && series.DataPointsStyle.length > 0) {
                                     chartObj.series[seriesIndex].marker = this._getSeriesMarker(series.DataPointsStyle[0], series.Type, seriesIndex);
-                                    if (series.PointValues && series.PointValues.length > 0 && series.PointValues[0].ChartDataLabel) {
+                                    if (series.PointValues && series.PointValues.length > 0 && series.PointValues[0].ChartDataLabel &&
+                                        series.PointValues[0].ChartDataLabel.Label && series.PointValues[0].ChartDataLabel.Visible) {
                                         chartObj.series[seriesIndex].marker.dataLabel = this._getMarkerDataLabel(series.PointValues[0].ChartDataLabel);
                                     }
                                 }
@@ -4008,7 +4384,8 @@
                                     points.push({
                                         x: (series.PointValues[pointIndex].X) ? series.PointValues[pointIndex].X : "",
                                         y: (series.PointValues[pointIndex].Y) ? series.PointValues[pointIndex].Y : 0,
-                                        text: (series.PointValues[pointIndex].ChartDataLabel.Label) ? series.PointValues[pointIndex].ChartDataLabel.Label : ''
+                                        text: (series.PointValues[pointIndex].ChartDataLabel.Label) ? series.PointValues[pointIndex].ChartDataLabel.Label : '',
+                                        tooltip: (series.PointValues[pointIndex].ToolTip) ? series.PointValues[pointIndex].ToolTip : ''
                                     });
 
                                     if (series.PointValues[pointIndex].ActionInfo) {
@@ -4016,7 +4393,7 @@
                                     }
                                 }
 
-                                chartObj.series.push({ points: points, type: 'polar', name: seriesName, visibility: series.Visibility ? 'visible' : 'hide' });
+                                chartObj.series.push({ trendlines: trendlines, points: points, type: 'polar', name: seriesName, visibility: series.Visibility ? 'visible' : 'hide' });
                                 chartObj.primaryYAxis = this._getChartAxis(chartYAxis[0], chartModel.IsLabelIndex, 'YAxis', chartArea.ChartSeries[0].Type, chartArea.Chart3D ? chartArea.Chart3D.Enabled : null);
 
                                 if (series.PointValues.length > 0 && series.PointValues[0].Style && series.PointValues[0].Style.Border && series.PointValues[0].Style.Border.Default) {
@@ -4025,7 +4402,8 @@
 
                                 if (series.DataPointsStyle && series.DataPointsStyle.length > 0) {
                                     chartObj.series[seriesIndex].marker = this._getSeriesMarker(series.DataPointsStyle[0], series.Type, seriesIndex);
-                                    if (series.PointValues && series.PointValues.length > 0 && series.PointValues[0].ChartDataLabel) {
+                                    if (series.PointValues && series.PointValues.length > 0 && series.PointValues[0].ChartDataLabel &&
+                                        series.PointValues[0].ChartDataLabel.Label && series.PointValues[0].ChartDataLabel.Visible) {
                                         chartObj.series[seriesIndex].marker.dataLabel = this._getMarkerDataLabel(series.PointValues[0].ChartDataLabel);
                                     }
                                 }
@@ -4035,7 +4413,8 @@
                                     points.push({
                                         x: (series.PointValues[pointIndex].X) ? series.PointValues[pointIndex].X : "",
                                         y: (series.PointValues[pointIndex].Y) ? series.PointValues[pointIndex].Y : 0,
-                                        text: (series.PointValues[pointIndex].ChartDataLabel.Label) ? series.PointValues[pointIndex].ChartDataLabel.Label : ''
+                                        text: (series.PointValues[pointIndex].ChartDataLabel.Label) ? series.PointValues[pointIndex].ChartDataLabel.Label : '',
+                                        tooltip: (series.PointValues[pointIndex].ToolTip) ? series.PointValues[pointIndex].ToolTip : ''
                                     });
 
                                     if (series.PointValues[pointIndex].ActionInfo) {
@@ -4043,7 +4422,7 @@
                                     }
                                 }
 
-                                chartObj.series.push({ points: points, type: 'radar', drawType: 'area', name: seriesName, visibility: series.Visibility ? 'visible' : 'hide' });
+                                chartObj.series.push({ trendlines: trendlines, points: points, type: 'radar', drawType: 'area', name: seriesName, visibility: series.Visibility ? 'visible' : 'hide' });
                                 chartObj.primaryYAxis = this._getChartAxis(chartYAxis[0], chartModel.IsLabelIndex, 'YAxis', chartArea.ChartSeries[0].Type, chartArea.Chart3D ? chartArea.Chart3D.Enabled : null);
 
                                 if (series.PointValues.length > 0 && series.PointValues[0].Style && series.PointValues[0].Style.Border && series.PointValues[0].Style.Border.Default) {
@@ -4052,7 +4431,8 @@
 
                                 if (series.DataPointsStyle && series.DataPointsStyle.length > 0) {
                                     chartObj.series[seriesIndex].marker = this._getSeriesMarker(series.DataPointsStyle[0], series.Type, seriesIndex);
-                                    if (series.PointValues && series.PointValues.length > 0 && series.PointValues[0].ChartDataLabel) {
+                                    if (series.PointValues && series.PointValues.length > 0 && series.PointValues[0].ChartDataLabel &&
+                                        series.PointValues[0].ChartDataLabel.Label && series.PointValues[0].ChartDataLabel.Visible) {
                                         chartObj.series[seriesIndex].marker.dataLabel = this._getMarkerDataLabel(series.PointValues[0].ChartDataLabel);
                                     }
                                 }
@@ -4076,23 +4456,48 @@
             }
         },
 
+        _boxplotLoaded: function (id, sender) {
+            var visibleSeries = sender.model._visibleSeries;
+
+            for (var s = 0; s < visibleSeries.length; s++) {
+                var points = sender.model._visibleSeries[s]._visiblePoints;
+
+                for (var p = 0; p < points.length; p++) {
+                    var chartId = "#" + id + "_svg" + '_Series' + s + '_Point' + p;
+                    var rectX = parseFloat($(chartId)[0].getAttribute("x"));
+                    var rectWidth = parseFloat($(chartId)[0].getAttribute("width"));
+                    var whiskerpath = points[p].boxPlotLocation[0];
+                    var direction = "M" + " " + (rectX) + " " + (whiskerpath.Y) + " L " + (rectX + rectWidth) + " " + (whiskerpath.Y) + " " + "Z";
+                    var whiskerEle = document.querySelectorAll(chartId + "_whisker")[2];
+                    whiskerEle.setAttribute('d', direction);
+                    whiskerEle.setAttribute('stroke-dasharray', '3,5');
+                }
+            }
+        },
+
         _updateSmartLabel: function (chartObj, seriesIndex, series, chartType) {
             if (!ej.isNullOrUndefined(series)) {
                 var chartSeries = chartObj.series[seriesIndex]
 
                 if (series.TooltipX && series.TooltipY) {
-                    var isLableExist = false;
+                    var isLabelExist = false;
+                    var hasToolTip = false;
                     if (chartSeries.points && chartSeries.points.length > 0) {
-                        isLableExist = true;
+                        isLabelExist = true;
                         for (var i = 0; i < chartSeries.points.length; i++) {
+                            hasToolTip = (chartSeries.points[i].tooltip ? true : false)
                             var label = chartSeries.points[i].text
                             if (ej.isNullOrUndefined(label) || label.length == 0) {
-                                isLableExist = false;
+                                isLabelExist = false;
                                 break;
                             }
                         }
                     }
-                    chartSeries.tooltip = { format: " " + series.TooltipX + " : #point.x#<br/>" + series.TooltipY + " : " + (isLableExist ? "#point.text#" : "#point.y#"), visible: true };
+                    if (hasToolTip) {
+                        chartSeries.tooltip = { format: "#point.tooltip#<br/>", visible: true };
+                    } else {
+                        chartSeries.tooltip = { format: " " + series.TooltipX + " : #point.x#<br/>" + series.TooltipY + " : " + (isLabelExist ? "#point.text#" : "#point.y#"), visible: true };
+                    }
                 }
                 else {
                     chartSeries.tooltip = { format: " x: #point.x#<br/>y: #point.y#", visible: true };
@@ -4114,6 +4519,65 @@
                     }
                 }
             }
+        },
+
+        _getTrendlineType: function (name, value) {
+            return name == "trendlinetype" && (value == "linear" || value == "exponential" || value == "logarithmic" || value == "power"
+            || value == "polynomial" || value == "movingaverage");
+        },
+
+        _getTrendline: function (customProperties, trendlines, hideTrendlineLegend) {
+            var trendline = {};
+            for (var propertyIndex = 0; propertyIndex < customProperties.length; propertyIndex++) {
+                var customProperty = customProperties[propertyIndex];
+                switch (customProperty.Name.toLowerCase()) {
+                    case 'trendlinetype':
+                        trendline["type"] = customProperty.Value;
+                        break;
+                    case 'trendlinecolor':
+                        trendline["fill"] = customProperty.Value;
+                        break;
+                    case 'enabletrendline':
+                        trendline["visibility"] = "visible";
+                        break;
+                    case 'trendlinelegendtext':
+                        trendline["name"] = customProperty.Value;
+                        break;
+                    case 'Trendlinewidth':
+                        trendline["width"] = customProperty.Value;
+                        break;
+                    case 'Trendlineopacity':
+                        trendline["opacity"] = customProperty.Value;
+                        break;
+                    case 'trendlinestrokedasharray':
+                        trendline["dashArray"] = customProperty.Value;
+                        break;
+                    case 'trendlineperiod':
+                        trendline["period"] = customProperty.Value;
+                        break;
+                    case 'trendlineintercept':
+                        trendline["intercept"] = customProperty.Value;
+                        break;
+                    case 'trendlineforwardcast':
+                        trendline["forwardForecast"] = customProperty.Value;
+                        break;
+                    case 'trendlinebackwardcast':
+                        trendline["backwardForecast"] = customProperty.Value;
+                        break;
+                    case 'trendlinepolynomialorder':
+                        trendline["polynomialOrder"] = customProperty.Value;
+                        break;
+                    case 'showtrendlinelegend':
+                        if (hideTrendlineLegend) {
+                            trendline["visibleOnLegend"] = "hidden";
+                        }
+                        break;
+                    case 'trendlineTtooltip':
+                        trendline["tooltip"] = customProperty.Value;
+                        break;
+                }
+            }
+            return trendline;
         },
 
         _isShapeChartType: function (chartType) {
@@ -4457,7 +4921,11 @@
                 font: {},
                 border: {},
                 background: '',
-                title: { font: {} }
+                title: {
+                    text: '',
+                    textAlignment: '',
+                    font: {}
+                }
             };
 
             legend.visible = chartLegend.Visibilty;
@@ -4494,6 +4962,34 @@
                     if (chartLegend.Style.Border.Default.Thickness != 0) {
                         legend.border.width = chartLegend.Style.Border.Default.Thickness;
                     }
+                }
+            }
+            if (chartLegend.LegendTile) {
+                if (chartLegend.LegendTile.Caption) {
+                    legend.title.text = chartLegend.LegendTile.Caption;
+                }
+                if (chartLegend.LegendTile.Style) {
+                    if (chartLegend.LegendTile.Style.Color) {
+                        legend.title.font.color = chartLegend.LegendTile.Style.Color;
+                    }
+                    if (chartLegend.LegendTile.Style.Font) {
+                        if (chartLegend.LegendTile.Style.Font.FontFamily) {
+                            legend.title.font.fontFamily = chartLegend.LegendTile.Style.Font.FontFamily;
+                        }
+                        if (chartLegend.LegendTile.Style.Font.FontStyle) {
+                            legend.title.font.fontStyle = chartLegend.LegendTile.Style.Font.FontStyle !== 'Default' ?
+                                chartLegend.LegendTile.Style.Font.FontStyle.toLowerCase() : '';
+                        }
+                        if (chartLegend.LegendTile.Style.Font.FontWeight) {
+                            legend.title.font.fontWeight = this._getFontWeight(chartLegend.LegendTile.Style.Font.FontWeight);
+                        }
+                        if (chartLegend.LegendTile.Style.Font.FontSize != 0) {
+                            legend.title.font.size = chartLegend.LegendTile.Style.Font.FontSize + 'px';
+                        }
+                    }
+                }
+                if (chartLegend.LegendTile.TileAlignment) {
+                    legend.title.textAlignment = this._getTextAlignment(chartLegend.LegendTile.TileAlignment);
                 }
             }
             return legend;
@@ -4608,14 +5104,16 @@
             }
             if (axisModelProp.Interval != 0) {
                 axisProp.setRange = true;
-                axisProp.valueType = "category";
+                if (axisSpecific == "XAxis"){
+                    axisProp.valueType = "category";
+                }
                 axisProp.range.interval = axisModelProp.Interval;
             }
 
             axisProp.font.color = axisModelProp.LabelColor ? axisModelProp.LabelColor : "gray";
             axisProp.labelFormat = axisModelProp.LabelFormat;
 
-            if (!(axisSpecific == "XAxis" && (seriesType == "spline" || seriesType == "line"))) {
+            if (!(axisSpecific == "XAxis" && (seriesType == "spline" || seriesType == "line")) && !threeDEnabled) {
                 axisProp.labelPlacement = 'onticks';
             }
 
@@ -4814,7 +5312,7 @@
         },
         //-------------------- Render the Custom ReportItem [end] -------------------------//
 
-        _renderRectangleControl: function (rectModel, isTablixCell, parentObj, parentId, printMode, printPageId) {
+        _renderRectangleControl: function (rectModel, isTablixCell, parentObj, parentId, printMode, printPageId, pageData) {
             var ctrlId = this._controlKeyGenerator(this._id + '_' + rectModel.Name, parentId, printMode, printPageId);
             var rectDiv = ej.buildTag("div", "", {}, { 'id': ctrlId, title: rectModel.ToolTip });
             var _rectDivCss = {};
@@ -4858,13 +5356,13 @@
                             this._renderCustomReportItemControl(innerItem, false, rectDiv, ctrlId + '_' + innerItem.Name, printMode, printPageId);
                         }
                         else if (innerItem.ItemType == "TablixModel") {
-                            this._renderTablixControl(innerItem, false, {}, rectDiv, ctrlId + '_' + innerItem.Name, printMode, printPageId);
+                            this._renderTablixControl(innerItem, false, {}, rectDiv, ctrlId + '_' + innerItem.Name, printMode, printPageId, pageData);
                         }
                         else if (innerItem.ItemType == "GaugeModel") {
                             this._renderGaugeControl(innerItem, false, false, {}, rectDiv, ctrlId + '_' + innerItem.Name, printMode, printPageId);
                         }
                         else if (innerItem.ItemType == "RectangleModel") {
-                            this._renderRectangleControl(innerItem, false, rectDiv, ctrlId + + '_' + innerItem.Name, printMode, printPageId);
+                            this._renderRectangleControl(innerItem, false, rectDiv, ctrlId + + '_' + innerItem.Name, printMode, printPageId, pageData);
                         }
                         else if (innerItem.ItemType == "ChartModel") {
                             this._renderChartControl(innerItem, false, false, {}, rectDiv, ctrlId + '_' + innerItem.Name, printMode, printPageId);
@@ -4873,7 +5371,7 @@
                             this._renderMapControl(innerItem, false, rectDiv, ctrlId + '_' + innerItem.Name, printMode, printPageId);
                         }
                         else if (innerItem.ItemType == "SubReportModel") {
-                            this._renderSubReportControl(innerItem, false, rectDiv, ctrlId + + '_' + innerItem.Name, printMode, printPageId);
+                            this._renderSubReportControl(innerItem, false, rectDiv, ctrlId + + '_' + innerItem.Name, printMode, printPageId, pageData);
                         }
                     }
                 }
@@ -4932,10 +5430,10 @@
                     titleDiv.css("border-style", title[i].Border.BorderStyle);
 
                     var span = ej.buildTag("span", "", {}, { 'id': ctrlId + '_' + title[i].Name + '_' + i });
-                    span.css("font-family", title[i].Style.Font.FontFamily);
+                    span.css("font-family", "'" + title[i].Style.Font.FontFamily + "'");
                     span.css("font-size", (title[i].Style.Font.FontSize / 1.33));
                     span.css("font-style", title[i].Style.Font.FontStyle);
-                    span.css("font-weight", title[i].Style.Font.FontWeight);
+                    span.css("font-weight", this._getConvertedFontWeight(title[i].Style.Font.FontWeight));
                     span.append(title[i].Text);
                     titleDiv.append(span);
                     mapDiv.append(titleDiv);
@@ -5860,7 +6358,7 @@
             return linDiv;
         },
 
-        _renderSubReportControl: function (subreportModel, isTablixCell, parentObj, parentId, printMode, printPageId) {
+        _renderSubReportControl: function (subreportModel, isTablixCell, parentObj, parentId, printMode, printPageId, pageData) {
             var ctrlId = this._controlKeyGenerator(this._id + '_' + subreportModel.Name, parentId, printMode, printPageId);
             var subReportDiv = ej.buildTag("div",
                 "",
@@ -5900,7 +6398,7 @@
             if (subreportModel.Style) {
                 if (subreportModel.Style.Font) {
                     if (subreportModel.Style.Font.FontFamily) {
-                        subReportDiv.css("font-family", subreportModel.Style.Font.FontFamily);
+                        subReportDiv.css("font-family", "'" + subreportModel.Style.Font.FontFamily) + "'";
                     }
 
                     if (subreportModel.Style.Font.FontSize) {
@@ -5912,7 +6410,7 @@
                     }
 
                     if (subreportModel.Style.Font.FontWeight) {
-                        subReportDiv.css("font-weight", subreportModel.Style.Font.FontWeight);
+                        subReportDiv.css("font-weight", this._getConvertedFontWeight(subreportModel.Style.Font.FontWeight));
                     }
                 }
 
@@ -5923,9 +6421,9 @@
                 }
             }
 
-            if (subreportModel.LineHeight) {
-                subReportDiv.css("line-height", subreportModel.LineHeight);
-            }
+            //if (subreportModel.LineHeight) {
+            //    subReportDiv.css("line-height", subreportModel.LineHeight);
+            //}
 
             if (subreportModel.TextAlign) {
                 subReportDiv.css("text-align", subreportModel.TextAlign);
@@ -5954,17 +6452,17 @@
                         } else if (innerItem.ItemType == "CustomReportItemModel") {
                             this._renderCustomReportItemControl(innerItem, false, subReportDiv, ctrlId + '_' + innerItem.Name, printMode, printPageId);
                         } else if (innerItem.ItemType == "TablixModel") {
-                            this._renderTablixControl(innerItem, false, {}, subReportDiv, ctrlId + '_' + innerItem.Name, printMode, printPageId);
+                            this._renderTablixControl(innerItem, false, {}, subReportDiv, ctrlId + '_' + innerItem.Name, printMode, printPageId, pageData);
                         } else if (innerItem.ItemType == "GaugeModel") {
                             this._renderGaugeControl(innerItem, false, false, {}, subReportDiv, ctrlId + '_' + innerItem.Name, printMode, printPageId);
                         } else if (innerItem.ItemType == "RectangleModel") {
-                            this._renderRectangleControl(innerItem, false, subReportDiv, ctrlId + +'_' + innerItem.Name, printMode, printPageId);
+                            this._renderRectangleControl(innerItem, false, subReportDiv, ctrlId + +'_' + innerItem.Name, printMode, printPageId, pageData);
                         } else if (innerItem.ItemType == "ChartModel") {
                             this._renderChartControl(innerItem, false, false, {}, subReportDiv, ctrlId + '_' + innerItem.Name, printMode, printPageId);
                         } else if (innerItem.ItemType == "MapModel") {
                             this._renderMapControl(innerItem, false, subReportDiv, ctrlId + '_' + innerItem.Name, printMode, printPageId);
                         } else if (innerItem.ItemType == "SubReportModel") {
-                            this._renderSubReportControl(innerItem, false, subReportDiv, ctrlId + +'_' + innerItem.Name, printMode, printPageId);
+                            this._renderSubReportControl(innerItem, false, subReportDiv, ctrlId + +'_' + innerItem.Name, printMode, printPageId, pageData);
                         }
                     }
                 }
@@ -5976,6 +6474,7 @@
         doAjaxPost: function (type, url, jsondata, onSuccess) {
             var proxy = this;
             var inVokemethod = onSuccess;
+            var localeObj = ej.ReportViewer.Locale[proxy.model.locale] ? ej.ReportViewer.Locale[proxy.model.locale] : ej.ReportViewer.Locale["en-US"];
             var eventArgs = {
                 reportViewerToken: proxy._reportViewerToken,
                 serviceAuthorizationToken: (proxy.model.serviceAuthorizationToken) ? proxy.model.serviceAuthorizationToken : "",
@@ -5987,19 +6486,19 @@
             proxy._onAjaxRequest(eventArgs);
             // Remove Code after Server team Changes
             proxy.model.reportCacheID = proxy.model.reportServerId;
-			var jsonObj = jQuery.parseJSON(jsondata);
+            var jsonObj = jQuery.parseJSON(jsondata);
 
-			if (eventArgs.reportViewerToken && eventArgs.reportViewerToken.length > 0) {
-				jsonObj["reportViewerToken"] = eventArgs.reportViewerToken;
-			}
-			if (proxy.model.reportCacheID && proxy.model.reportCacheID.length > 0) {
+            if (eventArgs.reportViewerToken && eventArgs.reportViewerToken.length > 0) {
+                jsonObj["reportViewerToken"] = eventArgs.reportViewerToken;
+            }
+            if (proxy.model.reportCacheID && proxy.model.reportCacheID.length > 0) {
                 jsonObj["reportCacheID"] = proxy.model.reportCacheID;
             }
-            if (eventArgs.data && eventArgs.data.length > 0) {
+            if (eventArgs.data) {
                 jsonObj["CustomData"] = eventArgs.data;
             }
 
-			jsondata = JSON.stringify(jsonObj);
+            jsondata = JSON.stringify(jsonObj);
 
             $.ajax({
                 type: type,
@@ -6017,9 +6516,12 @@
                         }
                     }
 
-                    if ( proxy._serviceType != "SelfHost") {
+                    if (proxy._serviceType != "SelfHost") {
                         if (eventArgs.serviceAuthorizationToken && eventArgs.serviceAuthorizationToken.length > 0) {
                             req.setRequestHeader('serviceAuthorizationToken', eventArgs.serviceAuthorizationToken);
+                            if (eventArgs.reportViewerToken && eventArgs.reportViewerToken.length > 0) {
+                                req.setRequestHeader('reportViewerToken', eventArgs.reportViewerToken);
+                            }
                         }
                         if (eventArgs.headers && eventArgs.headers.length > 0) {
                             for (var index = 0; index < eventArgs.headers.length; index++) {
@@ -6041,9 +6543,8 @@
                     if (typeof (data) == "string") {
                         if (data.indexOf("Sf_Exception") != -1) {
                             proxy._showException(true, {
-                                title: "ReportViewer",
                                 content: inVokemethod + ":" + data,
-                                description: 'An error occurred in ajax postback'
+                                description: localeObj['alertMessage']['RVERR0003']
                             });
                             return;
                         }
@@ -6060,9 +6561,8 @@
                         }
                         proxy._onAjaxFailure(msg);
                         proxy._showException(true, {
-                            title: "ReportViewer",
                             content: msg.responseText,
-                            description: 'An error occurred in ajax postback'
+                            description: localeObj['alertMessage']['RVERR0003']
                         });
                     }
                 }
@@ -6070,6 +6570,7 @@
         },
 
         _reportLoaded: function (reportresult) {
+            var localeObj = ej.ReportViewer.Locale[this.model.locale] ? ej.ReportViewer.Locale[this.model.locale] : ej.ReportViewer.Locale["en-US"];
             if (typeof (reportresult) == "object" && reportresult.isReportLoad) {
                 if (reportresult) {
                     this._reportParameters = reportresult.parameters;
@@ -6084,17 +6585,15 @@
                 else {
                     var isError = this._onReportError({ errmsg: "ReportViewer failed to load the Report" });
                     this._showException(!isError, {
-                        title: "ReportViewer",
-                        content: "ReportViewer failed to load the Report",
+                        content: localeObj['alertMessage']['RVERR0001'],
                         description: ""
                     });
                 }
             } else {
                 var isError = this._onReportError({ errmsg: "Report Loaded:" + reportresult, innerMessage: reportresult });
                 this._showException(!isError, {
-                    title: "ReportViewer",
-                    content: "Report Loaded:" + reportresult,
-                    description: 'ReportViewer failed to load the Report'
+                    content: localeObj['alertMessage']['reportLoad'] + reportresult,
+                    description: localeObj['alertMessage']['RVERR0001']
                 });
             }
         },
@@ -6131,7 +6630,8 @@
                 this._unwiredViewClickEvent();
             }
             else {
-                this._showAlertDialog("ReportViewer", jsondata, "ReportViewer failed to validate the Datasource credentials");
+                var localeObj = ej.ReportViewer.Locale[this.model.locale] ? ej.ReportViewer.Locale[this.model.locale] : ej.ReportViewer.Locale["en-US"];
+                this._showAlertDialog(jsondata, localeObj['alertMessage']['RVERR0008']);
             }
         },
 
@@ -6143,7 +6643,11 @@
             if (jsondata != "Sf_legacy") {
                 var isCustomBlock = this._renderParameterBlock(jsondata);
                 if (!isCustomBlock) {
-                    this._showViewerBlock(true);
+                    if (jsondata.parameters && jsondata.parameters.length == 0) {
+                        this._showViewerBlock(false);
+                    } else {
+                        this._showViewerBlock(true);
+                    }
                     this._showloadingIndicator(false);
                     if (this.model.enableParameterBlockScroller && jsondata.parameters && jsondata.parameters.length >= 5) {
                         var scrollHeight = this._getScrollerHeight(this._id + '_param_block_table', 5);
@@ -6154,7 +6658,7 @@
                     this._setContainerSize();
                     this._showloadingIndicator(true);
                     var reportParams = this._getParameterJson(jsondata, false);
-                    if (reportParams) {
+                    if ((this.model.autoRender && reportParams) || this._isDrillThroughReport) {
                         this.doAjaxPost("POST", this._actionUrl, JSON.stringify({ 'reportAction': this._reportAction.setParameters, 'parameters': reportParams }), "_setParameters");
                     } else {
                         this._showloadingIndicator(false);
@@ -6193,8 +6697,9 @@
                     this._showloadingIndicator(false);
                     this._hidePageView();
                     if (isClick == 'true') {
+                        var localeObj = ej.ReportViewer.Locale[this.model.locale] ? ej.ReportViewer.Locale[this.model.locale] : ej.ReportViewer.Locale["en-US"];
                         this._viewReportEnableDisable(false);
-                        this._showAlertDialog("ReportViewer", "Please select the parameter values.", '');
+                        this._showAlertDialog(localeObj['alertMessage']['RVERR0004'], '');
                     }
                 }
             }
@@ -6224,10 +6729,10 @@
                 }
                 if (jsData.errmsg && jsData.errmsg.length > 0) {
                     var isError = this._onReportError({ errmsg: jsData.errmsg });
+                    var localeObj = ej.ReportViewer.Locale[this.model.locale] ? ej.ReportViewer.Locale[this.model.locale] : ej.ReportViewer.Locale["en-US"];
                     this._showException(!isError, {
-                        title: "ReportViewer",
                         content: jsData.errmsg,
-                        description: 'ReportViewer failed to render the Report'
+                        description: localeObj['alertMessage']['RVERR0002']
                     });
                 } else {
                     this._showException(false);
@@ -6335,6 +6840,7 @@
             var pageWidth = reportModel.PaperWidth;
             var headerTop = reportModel.MarginTop;
             var contentLeft = reportModel.MarginLeft;
+            this._isprint = true;
             var links = $('head').find('link');
             var isIe9 = (this._browserInfo.name == 'msie' && (parseInt(this._browserInfo.version) <= 9.0));
             var printWind = this.model.printOption == "Default" ? window.open('', 'pint', "tabbar=no,scrollbars = yes,resizable = yes") : window.open('', '_blank');
@@ -6361,8 +6867,8 @@
                 for (var i = 0; i < reportModel.TotalPages; i++) {
                     var pagdata = reportModel.PageData[i];
                     if (!ej.isNullOrUndefined(pagdata)) {
-                        printWind.document.write('<div style="position:relative;height:' + pageHeight + 'px;width:' + pageWidth + 'px;' + (this._browserInfo.name == 'mozilla' ? 'page-break-inside:avoid' : '') + ';">');
                         var printContent = this._renderPrintContainer(pagdata, headerTop, contentLeft, i);
+                        printWind.document.write('<div style="position:relative;height:' + pagdata.Height + 'px;width:' + pageWidth + 'px;' + (this._browserInfo.name == 'mozilla' ? 'page-break-inside:avoid' : '') + ';">');
                         printWind.document.write(printContent);
                         printWind.document.write('</div>');
 
@@ -6384,6 +6890,8 @@
                         setTimeout(function () { printWind.close() }, 300);
                     }
                 }, delay);
+
+                this._isprint = false;
             }
         },
 
@@ -6459,7 +6967,7 @@
             $(oDiv).css({ 'overflow': 'auto', 'width': '1px', 'height': '1px' });
             //$(oDiv).hide();
 
-            var $printviewContainer = ej.buildTag("div", "", { 'position': 'relative', 'background-color': 'transparent' });
+            var $printviewContainer = ej.buildTag("div", "", { 'position': 'relative', 'background-color': 'transparent', 'font-size': '8pt'});
             $(oDiv).append($printviewContainer);
 
             var $printviewheaderContainer = ej.buildTag("div", "", { 'position': 'relative', 'background-color': 'transparent', 'width': pagedata.Width + 'px', 'height': pagedata.HeaderHeight + 'px' }, {});
@@ -6477,7 +6985,7 @@
             $printviewfooterborder.append($printviewfooterContainer);
             $printviewContainer.append($printviewfooterborder);
 
-            if (this._printMode) {
+            if (this._printMode || this._isprint) {
                 $printviewheaderContainer.css('overflow', 'hidden');
                 $printviewfooterContainer.css('overflow', 'hidden');
             }
@@ -6499,16 +7007,18 @@
             }
 
             if (pagedata.HeaderModel && pagedata.HeaderModel.length > 0) {
-                this._renderPageControls(pagedata.HeaderModel, $printviewheaderContainer, true, 'Print' + index);
+                this._renderPageControls(pagedata, pagedata.HeaderModel, $printviewheaderContainer, true, 'Print' + index);
             }
 
             if (pagedata.FooterModel && pagedata.FooterModel.length > 0) {
-                this._renderPageControls(pagedata.FooterModel, $printviewfooterContainer, true, 'Print' + index);
+                this._renderPageControls(pagedata, pagedata.FooterModel, $printviewfooterContainer, true, 'Print' + index);
             }
 
             if (pagedata.PageModel && pagedata.PageModel.length > 0) {
-                this._renderPageControls(pagedata.PageModel, $printviewbodyContainer, true, 'Print' + index);
+                this._renderPageControls(pagedata, pagedata.PageModel, $printviewbodyContainer, true, 'Print' + index);
             }
+
+            $printviewbodyContainer.css('height', pagedata.Height);
 
             var imageTag = $(oDiv).find('img');
             imageTag.each(function (index, obj) {
@@ -6548,64 +7058,54 @@
                     exportType = 'PPT_' + this.model.exportSettings.pptFormat;
                 } else if (exportformat.hasClass('e-csv')) {
                     exportType = 'CSV';
+                } else if (exportformat.hasClass('e-custom')) {
+                    var text = $(event.target.textContent);
+                    exportType = $(event.target).text();
                 }
                 this._exportReport(exportType);
             }
         },
 
         _exportReport: function (exportType) {
-            var _exportFormObj = null;
             if (exportType && exportType.length > 0) {
+                var requrl = this.model.reportServiceUrl + (this._serviceType == "NETCore" ? '/PostFormReportAction' : '/PostReportAction');
+                var params = {
+                    'controlID': this._reportViewerToken,
+                    'resourcetype': exportType,
+                    'serviceAuthorizationToken': this.model.serviceAuthorizationToken? this.model.serviceAuthorizationToken: "",
+                    'isPrint': false,
+                    'reportName': ""
+                };
 
-                if (this._serviceType == "NETCore") {
-                    var requrl = this.model.reportServiceUrl + '/PostFormReportAction';
-                } else {
-                    var requrl = this.model.reportServiceUrl + '/PostReportAction';
+                var form = $('<form>').attr({ 'action': requrl, 'method': 'POST', 'name': 'export', 'data-ajax': 'false' });
+                var addParam = function (paramName, paramValue) {
+                    $('<input type=\'hidden\' title=\'params\'>').attr({
+                        'id': this._id + '_' + paramName,
+                        'name': paramName,
+                        'value': paramValue,
+                    }).appendTo(form);
+                };
+
+                for (var item in params) {
+                    addParam(item, params[item]);
                 }
 
-                if ($('#' + this._id + '_exportForm').length > 0) {
-                    var _exportForm = $('#' + this._id + '_exportForm');
-                    _exportForm.attr("action", requrl);
-                    $('#' + this._id + "_exportKey").val(this._reportViewerToken);
-                    $('#' + this._id + "_authorizationToken").val(this.model.serviceAuthorizationToken);
-                    $('#' + this._id + "_exportRes").val(exportType);
-                    _exportFormObj = { exportAction: _exportForm };
-                    this._onReportExport(_exportFormObj);
-                    _exportForm.submit();
-                } else {
-                    var exportForm = document.createElement("form");
-                    $(exportForm).attr({ "id": this._id + "_exportForm", "method": "post", "action": requrl, "data-ajax": "false" });
-
-                    var exportKey = document.createElement("input");
-                    $(exportKey).attr({ "type": "hidden", "id": this._id + "_exportKey", "name": "controlID", "value": this._reportViewerToken });
-
-                    if (this.model.serviceAuthorizationToken.length > 0) {
-                        var exportAuth = document.createElement("input");
-                        $(exportAuth).attr({ "type": "hidden", "id": this._id + "_authorizationToken", "name": "serviceAuthorizationToken", "value": this.model.serviceAuthorizationToken });
-                        $(exportForm).append(exportAuth);
+                $('body').append(form);
+                $(form).hide();
+                var _exportFormObj = { exportAction: form, formValues: [], fileName: '' };
+                this._onReportExport(_exportFormObj);
+                if (_exportFormObj.formValues && _exportFormObj.formValues.length > 0) {
+                    for (var index = 0; index < _exportFormObj.formValues.length; index++) {
+                        addParam(_exportFormObj.formValues[index].key, _exportFormObj.formValues[index].value);
                     }
-
-                    var exportRes = document.createElement("input");
-                    $(exportRes).attr({ "type": "hidden", "id": this._id + "_exportRes", "name": "resourcetype", "value": exportType });
-
-                    var exportPrint = document.createElement("input");
-                    $(exportPrint).attr({ "type": "hidden", "id": this._id + "_exportPrint", "name": "isPrint", "value": false });
-
-                    var exportName = document.createElement("input");
-                    $(exportName).attr({ "type": "hidden", "id": this._id + "_exportfileName", "name": "reportName", "value": "" });
-
-                    $(exportForm).append(exportKey);
-                    $(exportForm).append(exportRes);
-                    $(exportForm).append(exportPrint);
-                    $(exportForm).append(exportName);
-                    $('body').append(exportForm);
-                    $(exportForm).hide();
-                    _exportFormObj = { exportAction: exportForm };
-                    this._onReportExport(_exportFormObj);
-                    $(exportForm).submit();
                 }
+                if (_exportFormObj.fileName && _exportFormObj.fileName.length > 0) {
+                    _exportFormObj.exportAction[0].reportName.value = _exportFormObj.fileName;
+                }
+
+                $(form).submit().remove();
             }
-            $('#' + this._id + '_toolbar_exportListTip').hide();
+            this.element.find('#' + this._id + '_toolbar_exportListTip').hide();
         },
 
         _showExportList: function () {
@@ -6644,6 +7144,13 @@
             } else {
                 $('#' + this._id + '_toolbar_li_csv').css('display', 'none');
             }
+            for (var index = 0; index < this.model.exportSettings.customExportItems.length; index++) {
+                if (this.model.exportSettings.exportOptions & ej.ReportViewer.ExportOptions.CustomExportItems) {
+                    $('#' + this._id + '_toolbar_li_' + 'customexport_'+ index).css('display', 'block');
+                } else {
+                    $('#' + this._id + '_toolbar_li_' + 'customexport_'+ index).css('display', 'none');
+                }
+            }
         },
 
         _showExportControls: function (enable) {
@@ -6662,6 +7169,7 @@
                 $('body').append(exportTooltip);
                 this._showExportList();
                 this._on($('#' + this._id + '_toolbar_exportListTip .e-reportviewer-popupli'), "click", this._exportMenuClick);
+                this._on($('#' + this._id + '_toolbar_exportListTip .e-reportviewer-popupli'), "mousedown", this._onPopupClick);
             }
 
             if (exportTooltip.css('display') == 'block') {
@@ -7149,7 +7657,8 @@
             if (!ej.isNullOrUndefined(_paperHeight) && !ej.isNullOrUndefined(_paperWidth) && !ej.isNullOrUndefined(_paperMarginTop)
                 && !ej.isNullOrUndefined(_paperMarginRight) && !ej.isNullOrUndefined(_paperMarginBottom) && !ej.isNullOrUndefined(_paperMarginLeft)) {
                 if ((_paperMarginTop + _paperMarginBottom) >= _paperHeight || (_paperMarginLeft + _paperMarginRight) >= _paperWidth) {
-                    this._showAlertDialog("ReportViewer", "The margins are overlapped or they are off the paper. Enter a different margin size.", '');
+                    var localeObj = ej.ReportViewer.Locale[this.model.locale] ? ej.ReportViewer.Locale[this.model.locale] : ej.ReportViewer.Locale["en-US"];
+                    this._showAlertDialog(localeObj['alertMessage']['RVERR0009'], '');
                 }
                 else if ($('#' + this._id + '_toolbar_li_preview').hasClass('e-active')) {
                     if (!ej.isNullOrUndefined(this._paperSetup.paperWidth) && !ej.isNullOrUndefined(this._paperSetup.paperHeight)) {
@@ -7377,6 +7886,7 @@
                 fittoPage = this._renderPageFitPopup();
                 $('body').append(fittoPage);
                 this._on($('#' + this._id + '_toolbar_fittoPagePopup li.e-reportviewer-popupli'), "click", this._pageFitMenuClick);
+                this._on($('#' + this._id + '_toolbar_fittoPagePopup li.e-reportviewer-popupli'), "mousedown", this._onPopupClick);
             }
 
             if (fittoPage.css('display') == 'block') {
@@ -7636,8 +8146,8 @@
             this._on($('#' + this._id + '_viewerContainer'), "scroll", this._scrollPage);
             this._on($('#' + this._id + '_pageviewOuterContainer'), "click", this._viewerClick);
             //this._on($('#' + this._id + '_viewerContainer'), "pinchin pinchout swipeleft swiperight", this._pinchAndSwipe);
-            this._on($(document), "click", this._onReporClick);
-
+            this._on($(document), "mousedown", this._onDocumentMouseDown);
+            this._on($(document), "mouseup", this._onDocumentMouseUp);
 
             if (!this._isDevice) {
                 this._on($('#' + this._id + '_toolbarContainer li'), "mouseover", this._showIconToolTip);
@@ -7656,7 +8166,8 @@
             this._off($('#' + this._id + '_viewerContainer'), "scroll", this._scrollPage);
             this._off($('#' + this._id + '_pageviewOuterContainer'), "click", this._viewerClick);
             //this._off($('#' + this._id + '_viewerContainer'), "pinchin pinchout swipeleft swiperight", this._pinchAndSwipe);
-            this._off($(document), "click", this._onReporClick);
+            this._off($(document), "mousedown", this._onDocumentMouseDown);
+            this._off($(document), "mouseup", this._onDocumentMouseUp);
             this._off($('#' + this._id + '_viewReportClick'), "click", this._viewReportParamsClick);
             this._off($(window), "resize", this._viewerResize);
 
@@ -7666,7 +8177,7 @@
             }
         },
 
-        _onReporClick: function (event) {
+        _hidePopUp: function (event) {
             if (!($(event.target).hasClass('e-reportviewer-export') || $($(event.target).children()).hasClass('e-reportviewer-export'))) {
                 $('#' + this._id + '_toolbar_exportListTip').css('display', 'none');
             } else {
@@ -7684,12 +8195,36 @@
             }
         },
 
+        _onPopupClick: function () {
+            this._isPopupClick = true;
+        },
+
+        _onDocumentMouseUp: function (event) {
+            if (this._isPopupClick) {
+                this._hidePopUp(event)
+            }
+
+            this._isPopupClick = false;
+        },
+
+        _onDocumentMouseDown: function (event) {
+            if (!this._isPopupClick) {
+                this._hidePopUp(event)
+            }
+        },
+
         _onToolbarItemClick: function (event) {
             $('#' + this._id + '_rptTooltip').css('display', 'none');
         },
 
         _toolbarClick: function (event) {
             var clickedItem = event.target;
+            canExecute: 'boolean';
+            var cssClass = $(event.target).attr('class');
+            var Index = $($(event.target).closest('li')[0]).index();
+            var groupIndex = $($(event.target).closest('li').closest('ul')[0]).index();
+            canExecute = this._onToolbarClick({ target: clickedItem, toolbarClickItem: { cssClass: cssClass, groupIndex: groupIndex, Index: Index } });
+
             if (this._isToolbarClick) {
                 if (this._isPageDialogOpened()) {
                     return;
@@ -7699,50 +8234,52 @@
                 if ($(clickedItem).hasClass('e-reportviewer-toolbarli')) {
                     clickedItem = $(clickedItem).find('span');
                 }
-                if ($(clickedItem).hasClass("e-reportviewer-print")) {
-                    this._print();
-                }
-                else if ($(clickedItem).hasClass("e-reportviewer-export")) {
-                    this._showExportTooltip();
-                }
-                else if ($(clickedItem).hasClass("e-reportviewer-pagesetup")) {
-                    this._showPrintPageSetup();
-                }
-                else if ($(clickedItem).hasClass("e-reportviewer-gotofirst")) {
-                    this._gotoFirstPage();
-                }
-                else if ($(clickedItem).hasClass("e-reportviewer-gotolast")) {
-                    this._gotoLastPage();
-                }
-                else if ($(clickedItem).hasClass("e-reportviewer-gotonext")) {
-                    this._gotoNextPage();
-                }
-                else if ($(clickedItem).hasClass("e-reportviewer-gotoprevious")) {
-                    this._gotoPreviousPage();
-                }
-                else if ($(clickedItem).hasClass("e-reportviewer-gotoparent")) {
-                    this._gotoParentReport();
-                }
-                else if ($(clickedItem).hasClass("e-reportviewer-documentmap") && !this._printMode) {
-                    this._documentMapClick();
-                }
-                else if ($(clickedItem).hasClass("e-reportviewer-zoomin")) {
-                    this._zoomIn();
-                }
-                else if ($(clickedItem).hasClass("e-reportviewer-zoomout")) {
-                    this._zoomOut();
-                }
-                else if ($(clickedItem).hasClass("e-reportviewer-pagefit")) {
-                    this._showFitToPagetip();
-                }
-                else if ($(clickedItem).hasClass("e-reportviewer-preview")) {
-                    this._printlayout();
-                }
-                else if ($(clickedItem).hasClass("e-reportviewer-refresh")) {
-                    this._refreshReport();
-                }
-                else if ($(clickedItem).hasClass("e-reportviewer-parameter")) {
-                    this._toggleParameterBlock();
+                if (!canExecute) {
+                    if ($(clickedItem).hasClass("e-reportviewer-print")) {
+                        this._print();
+                    }
+                    else if ($(clickedItem).hasClass("e-reportviewer-export")) {
+                        this._showExportTooltip();
+                    }
+                    else if ($(clickedItem).hasClass("e-reportviewer-pagesetup")) {
+                        this._showPrintPageSetup();
+                    }
+                    else if ($(clickedItem).hasClass("e-reportviewer-gotofirst")) {
+                        this._gotoFirstPage();
+                    }
+                    else if ($(clickedItem).hasClass("e-reportviewer-gotolast")) {
+                        this._gotoLastPage();
+                    }
+                    else if ($(clickedItem).hasClass("e-reportviewer-gotonext")) {
+                        this._gotoNextPage();
+                    }
+                    else if ($(clickedItem).hasClass("e-reportviewer-gotoprevious")) {
+                        this._gotoPreviousPage();
+                    }
+                    else if ($(clickedItem).hasClass("e-reportviewer-gotoparent")) {
+                        this._gotoParentReport();
+                    }
+                    else if ($(clickedItem).hasClass("e-reportviewer-documentmap") && !this._printMode) {
+                        this._documentMapClick();
+                    }
+                    else if ($(clickedItem).hasClass("e-reportviewer-zoomin")) {
+                        this._zoomIn();
+                    }
+                    else if ($(clickedItem).hasClass("e-reportviewer-zoomout")) {
+                        this._zoomOut();
+                    }
+                    else if ($(clickedItem).hasClass("e-reportviewer-pagefit")) {
+                        this._showFitToPagetip();
+                    }
+                    else if ($(clickedItem).hasClass("e-reportviewer-preview")) {
+                        this._printlayout();
+                    }
+                    else if ($(clickedItem).hasClass("e-reportviewer-refresh")) {
+                        this._refreshReport();
+                    }
+                    else if ($(clickedItem).hasClass("e-reportviewer-parameter")) {
+                        this._toggleParameterBlock();
+                    }
                 }
             }
         },
@@ -7854,8 +8391,9 @@
 
         _showTooltipContent: function (event) {
             var currentToolbarItem = event.target;
+            var parent = $(currentToolbarItem).parent();
             if (this.model.toolbarSettings.showTooltip && !this._isDevice) {
-                var TagPos;
+                var tagPos;
                 var toolTipText;
                 var isShowTooltip = true;
                 if ($(currentToolbarItem).hasClass('e-reportviewer-toolbarli')) {
@@ -7867,82 +8405,92 @@
                 }
 
                 if ($(currentToolbarItem).hasClass("e-reportviewer-print")) {
-                    TagPos = $(currentToolbarItem)[0].getBoundingClientRect();
+                    tagPos = $(currentToolbarItem)[0].getBoundingClientRect();
                     toolTipText = this._getTootipText('print');
                 }
                 else if ($(currentToolbarItem).hasClass("e-reportviewer-export")) {
-                    TagPos = $(currentToolbarItem)[0].getBoundingClientRect();
+                    tagPos = $(currentToolbarItem)[0].getBoundingClientRect();
                     toolTipText = this._getTootipText('export');
                 }
                 else if ($(currentToolbarItem).hasClass("e-reportviewer-preview")) {
-                    TagPos = $(currentToolbarItem)[0].getBoundingClientRect();
+                    tagPos = $(currentToolbarItem)[0].getBoundingClientRect();
                     toolTipText = this._getTootipText('preview');
                 }
                 else if ($(currentToolbarItem).hasClass("e-reportviewer-pagesetup")) {
-                    TagPos = $(currentToolbarItem)[0].getBoundingClientRect();
+                    tagPos = $(currentToolbarItem)[0].getBoundingClientRect();
                     toolTipText = this._getTootipText('pagesetup');
                 }
                 else if ($(currentToolbarItem).hasClass("e-reportviewer-gotofirst")) {
-                    TagPos = $(currentToolbarItem)[0].getBoundingClientRect();
+                    tagPos = $(currentToolbarItem)[0].getBoundingClientRect();
                     toolTipText = this._getTootipText('first');
                 }
                 else if ($(currentToolbarItem).hasClass("e-reportviewer-gotolast")) {
-                    TagPos = $(currentToolbarItem)[0].getBoundingClientRect();
+                    tagPos = $(currentToolbarItem)[0].getBoundingClientRect();
                     toolTipText = this._getTootipText('last');
                 }
                 else if ($(currentToolbarItem).hasClass("e-reportviewer-gotonext")) {
-                    TagPos = $(currentToolbarItem)[0].getBoundingClientRect();
+                    tagPos = $(currentToolbarItem)[0].getBoundingClientRect();
                     toolTipText = this._getTootipText('next');
                 }
                 else if ($(currentToolbarItem).hasClass("e-reportviewer-gotoprevious")) {
-                    TagPos = $(currentToolbarItem)[0].getBoundingClientRect();
+                    tagPos = $(currentToolbarItem)[0].getBoundingClientRect();
                     toolTipText = this._getTootipText('previous');
                 }
                 else if ($(currentToolbarItem).hasClass("e-reportviewer-gotoparent")) {
-                    TagPos = $(currentToolbarItem)[0].getBoundingClientRect();
+                    tagPos = $(currentToolbarItem)[0].getBoundingClientRect();
                     toolTipText = this._getTootipText('back');
                 }
                 else if ($(currentToolbarItem).hasClass("e-reportviewer-tbpage") || $(currentToolbarItem).hasClass("e-reportviewer-pagenumber") || $(currentToolbarItem).hasClass("e-reportviewer-labelpageno")) {
-                    TagPos = $('#' + this._id + '_toolbar_li_gotopage')[0].getBoundingClientRect();
+                    tagPos = $('#' + this._id + '_toolbar_li_gotopage')[0].getBoundingClientRect();
                     toolTipText = this._getTootipText('pageIndex');
                 }
                 else if ($(currentToolbarItem).hasClass("e-reportviewer-documentmap")) {
-                    TagPos = $(currentToolbarItem)[0].getBoundingClientRect();
+                    tagPos = $(currentToolbarItem)[0].getBoundingClientRect();
                     toolTipText = this._getTootipText('documentmap');
                 }
                 else if ($(currentToolbarItem).hasClass("e-reportviewer-zoomin")) {
-                    TagPos = $(currentToolbarItem)[0].getBoundingClientRect();
+                    tagPos = $(currentToolbarItem)[0].getBoundingClientRect();
                     toolTipText = this._getTootipText('zoomin');
                 }
                 else if ($(currentToolbarItem).hasClass("e-reportviewer-zoomout")) {
-                    TagPos = $(currentToolbarItem)[0].getBoundingClientRect();
+                    tagPos = $(currentToolbarItem)[0].getBoundingClientRect();
                     toolTipText = this._getTootipText('zoomout');
                 }
                 else if ($(currentToolbarItem).hasClass("e-reportviewer-refresh")) {
-                    TagPos = $(currentToolbarItem)[0].getBoundingClientRect();
+                    tagPos = $(currentToolbarItem)[0].getBoundingClientRect();
                     toolTipText = this._getTootipText('refresh');
                 }
                 else if ($(currentToolbarItem).hasClass("e-reportviewer-parameter")) {
-                    TagPos = $(currentToolbarItem)[0].getBoundingClientRect();
+                    tagPos = $(currentToolbarItem)[0].getBoundingClientRect();
                     toolTipText = this._getTootipText('parameter');
                 }
-                else if ($(currentToolbarItem).hasClass("e-reportviewer-ejdropdownlist") || $(currentToolbarItem).hasClass("e-dropdownlist") || $(currentToolbarItem).hasClass("e-select") || $(currentToolbarItem).hasClass("e-down-arrow")) {
-                    TagPos = $('#' + this._id + '_toolbar_li_zoom')[0].getBoundingClientRect();
+                else if (($(currentToolbarItem).hasClass("e-reportviewer-ejdropdownlist") || $(currentToolbarItem).parent().hasClass("e-reportviewer-ejdropdownlist")) && ($(currentToolbarItem).hasClass("e-dropdownlist") || $(currentToolbarItem).hasClass("e-select") || $(currentToolbarItem).hasClass("e-down-arrow"))) {
+                    tagPos = $('#' + this._id + '_toolbar_li_zoom')[0].getBoundingClientRect();
                     toolTipText = this._getTootipText('zoom');
                 }
                 else if ($(currentToolbarItem).hasClass("e-reportviewer-pagefit")) {
-                    TagPos = $(currentToolbarItem)[0].getBoundingClientRect();
+                    tagPos = $(currentToolbarItem)[0].getBoundingClientRect();
                     toolTipText = this._getTootipText('fittopage');
+                }
+                else if ($(currentToolbarItem).hasClass("e-customoption") || $(parent.hasClass("e-customoption"))) {
+                    tagPos = $(currentToolbarItem)[0].getBoundingClientRect();
+                    var localeObj = ej.ReportViewer.Locale[this.model.locale] ? ej.ReportViewer.Locale[this.model.locale] : ej.ReportViewer.Locale["en-US"];
+                    var value = $(event.target).attr('value');
+                    if (!ej.isNullOrUndefined(localeObj['toolbar'][value])) {
+                        toolTipText = { 'header': localeObj['toolbar'][value].headerText, 'content': localeObj['toolbar'][value].contentText };
+                    } else {
+                        toolTipText = { 'header': $(event.target).attr('header'), 'content': $(event.target).attr('content') };
+                    }
                 }
 
                 if (toolTipText && isShowTooltip) {
                     $('#' + this._id + '_rptTooltip_Header').html(toolTipText.header);
                     $('#' + this._id + '_rptTooltip_Content').html(toolTipText.content);
                     if (this._browserInfo.name == 'msie' && this._browserInfo.version == 8.0) {
-                        $('#' + this._id + '_rptTooltip').css({ 'top': (TagPos.top + (TagPos.bottom - TagPos.top)) + 5, 'left': (TagPos.left + ((TagPos.right - TagPos.left) / 2)), 'display': 'block', 'position': 'fixed' });
+                        $('#' + this._id + '_rptTooltip').css({ 'top': (tagPos.top + (tagPos.bottom - tagPos.top)) + 5, 'left': (tagPos.left + ((tagPos.right - tagPos.left) / 2)), 'display': 'block', 'position': 'fixed' });
                     }
                     else {
-                        $('#' + this._id + '_rptTooltip').css({ 'top': (TagPos.top + TagPos.height) + 5, 'left': (TagPos.left + (TagPos.width / 2)), 'display': 'block', 'position': 'fixed' });
+                        $('#' + this._id + '_rptTooltip').css({ 'top': (tagPos.top + tagPos.height) + 5, 'left': (tagPos.left + (tagPos.width / 2)), 'display': 'block', 'position': 'fixed' });
                     }
                 }
             }
@@ -8218,6 +8766,7 @@
                             }
                         } else if (drillActionInfo.ReportName) {
                             var _actionInfo = actionInfo.actionInfo;
+                            proxy._isDrillThroughReport = true;
                             proxy._childReportToken = proxy._getAuthenticationToken();
                             proxy._showloadingIndicator(true);
                             proxy.doAjaxPost("POST", proxy._actionUrl, JSON.stringify({ 'reportAction': proxy._reportAction.drillThrough, 'reportName': _actionInfo.ReportName, 'parameters': _actionInfo.Parameters, 'authKey': proxy._childReportToken }), "_drillThroughModel");
@@ -8369,44 +8918,116 @@
         //-------------------- SetCulture Layput[Start]----------------------//
         _setCultureInfo: function () {
             var culture = this.model.locale;
-            var spanTagWidth = $('#' + this._id + 'Pagewidthspan');
-            var spanTagHeight = $('#' + this._id + 'pageheightSpan');
+            var localeObj = ej.ReportViewer.Locale[culture] ? ej.ReportViewer.Locale[culture] : ej.ReportViewer.Locale["en-US"];
+            for (var index = 0; index < this.model.exportSettings.customExportItems.length; index++) {
+                var customValue = this.model.exportSettings.customExportItems[index].value;
+                if (!ej.isNullOrUndefined(localeObj['toolbar']['exportformat'][customValue])) {
+                    $('#' + this._id + '_toolbar_li_customexport_' + index).html(localeObj['toolbar']['exportformat'][customValue]);
+                } else {
+                    $('#' + this._id + '_toolbar_li_customexport_' + index).html(customValue);
+                }
+            }
+            var spanTagWidth = $('#' + this._id + '_toolbar_fittopagewidth');
+            var spanTagHeight = $('#' + this._id + '_toolbar_fittowholepage');
             var _pageWidth = $('#' + this._id + '_toolbar_li_fittopagewidth');
             var _pageHeight = $('#' + this._id + '_toolbar_li_fittowholepage');
-            $('#' + this._id + '_viewReportClick').val(ej.ReportViewer.Locale[culture] ? ej.ReportViewer.Locale[culture]["viewButton"] : ej.ReportViewer.Locale["en-US"]["viewButton"]);
-            $('#' + this._id + '_toolbar_li_pdf').html(ej.ReportViewer.Locale[culture] ? ej.ReportViewer.Locale[culture]['toolbar']['exportformat']["Pdf"] : ej.ReportViewer.Locale["en-US"]['toolbar']['exportformat']["Pdf"]);
-            $('#' + this._id + '_toolbar_li_xls').html(ej.ReportViewer.Locale[culture] ? ej.ReportViewer.Locale[culture]['toolbar']['exportformat']["Excel"] : ej.ReportViewer.Locale["en-US"]['toolbar']['exportformat']["Excel"]);
-            $('#' + this._id + '_toolbar_li_word').html(ej.ReportViewer.Locale[culture] ? ej.ReportViewer.Locale[culture]['toolbar']['exportformat']["Word"] : ej.ReportViewer.Locale["en-US"]['toolbar']['exportformat']["Word"]);
-            $('#' + this._id + '_toolbar_li_html').html(ej.ReportViewer.Locale[culture] ? ej.ReportViewer.Locale[culture]['toolbar']['exportformat']["Html"] : ej.ReportViewer.Locale["en-US"]['toolbar']['exportformat']["Html"]);
-            $('#' + this._id + '_toolbar_li_ppt').html(ej.ReportViewer.Locale[culture] ? ej.ReportViewer.Locale[culture]['toolbar']['exportformat']["PPT"] : ej.ReportViewer.Locale["en-US"]['toolbar']['exportformat']["PPT"]);
-            $('#' + this._id + '_toolbar_li_csv').html(ej.ReportViewer.Locale[culture] ? ej.ReportViewer.Locale[culture]['toolbar']['exportformat']["CSV"] : ej.ReportViewer.Locale["en-US"]['toolbar']['exportformat']["CSV"]);
+            $('#' + this._id + '_viewReportClick').val(localeObj["viewButton"]);
+            $('#' + this._id + '_toolbar_li_pdf').html(localeObj['toolbar']['exportformat']["Pdf"]);
+            $('#' + this._id + '_toolbar_li_xls').html(localeObj['toolbar']['exportformat']["Excel"]);
+            $('#' + this._id + '_toolbar_li_word').html(localeObj['toolbar']['exportformat']["Word"]);
+            $('#' + this._id + '_toolbar_li_html').html(localeObj['toolbar']['exportformat']["Html"]);
+            $('#' + this._id + '_toolbar_li_ppt').html(localeObj['toolbar']['exportformat']["PPT"]);
+            $('#' + this._id + '_toolbar_li_csv').html(localeObj['toolbar']['exportformat']["CSV"]);
 
             var pagesetupDialog = $('#' + this._id + '_printPageSetup').data("ejDialog");
             if (pagesetupDialog) {
-                pagesetupDialog.setTitle(ej.ReportViewer.Locale[culture] ? ej.ReportViewer.Locale[culture]['toolbar']['pagesetup']['headerText'] : ej.ReportViewer.Locale["en-US"]['toolbar']['pagesetup']['headerText']);
+                pagesetupDialog.setTitle(localeObj['toolbar']['pagesetup'] ?
+                    localeObj['toolbar']['pagesetup']['headerText'] : localeObj['toolbar']['pageSetup']);
+
+                $('#' + this._id + '_printPageSetup_closebutton').attr('title', localeObj['pagesetupDialog']['close']);
+                $('#' + this._id + '_Submit').val(localeObj['pagesetupDialog']['doneButton']);
+                $('#' + this._id + '_Cancel').val(localeObj['pagesetupDialog']['cancelButton']);
+
+                $('#' + this._id + "_heightLabel").html(localeObj['pagesetupDialog']['height'] + '&nbsp;');
+                $('#' + this._id + "_widthLabel").html(localeObj['pagesetupDialog']['width'] + '&nbsp;');
+                $('#' + this._id + "_topLabel").html(localeObj['pagesetupDialog']['top'] + '&nbsp;');
+                $('#' + this._id + "_bottomLabel").html(localeObj['pagesetupDialog']['bottom'] + '&nbsp;');
+                $('#' + this._id + "_rightLabel").html(localeObj['pagesetupDialog']['right'] + '&nbsp;');
+                $('#' + this._id + "_leftLabel").html(localeObj['pagesetupDialog']['left'] + '&nbsp;');
+
+                var unitLabel = localeObj['pagesetupDialog']['unit'] + '&nbsp;';
+                $('#' + this._id + "_heightUnitLabel").html(unitLabel)
+                $('#' + this._id + "_widthUnitLabel").html(unitLabel)
+                $('#' + this._id + "_topUnitLabel").html(unitLabel)
+                $('#' + this._id + "_rightUnitLabel").html(unitLabel)
+                $('#' + this._id + "_bottomUnitLabel").html(unitLabel)
+                $('#' + this._id + "_leftUnitLabel").html(unitLabel);
+
+                $('#' + this._id + "_portraitLabel").html('&nbsp;' + localeObj['pagesetupDialog']['portrait']);
+                $('#' + this._id + "_landscapeLabel").html('&nbsp;' + localeObj['pagesetupDialog']['landscape']);
+
+                $('#' + this._id + "_paperSizeLabel").html(localeObj['pagesetupDialog']['paperSize']);
+                $('#' + this._id + "_marginheader").html(localeObj['pagesetupDialog']['margins']);
+                $('#' + this._id + "_orientationLabel").html(localeObj['pagesetupDialog']['orientation']);
+
+                var pageSetupDrpDwn = $('#' + this._id + '_printPageSetup').find('.e-rptviewer-pagesetup');
+                for (var index = 0; index < pageSetupDrpDwn.length; index++) {
+                    var ejDropDown = pageSetupDrpDwn.eq(index).data('ejDropDownList');
+                    ejDropDown.setModel({ watermarkText: localeObj['waterMark']['selectOption'] });
+                }
             }
 
-            $('#' + this._id + '_Submit').val(ej.ReportViewer.Locale[culture] ? ej.ReportViewer.Locale[culture]['pagesetupDialog']['doneButton'] : ej.ReportViewer.Locale["en-US"]['pagesetupDialog']['doneButton']);
-            $('#' + this._id + '_Cancel').val(ej.ReportViewer.Locale[culture] ? ej.ReportViewer.Locale[culture]['pagesetupDialog']['cancelButton'] : ej.ReportViewer.Locale["en-US"]['pagesetupDialog']['cancelButton']);
-
-            $('#' + this._id + "_heightLabel").html(ej.ReportViewer.Locale[culture] ? (ej.ReportViewer.Locale[culture]['pagesetupDialog']['height'] + '&nbsp;') : (ej.ReportViewer.Locale["en-US"]['pagesetupDialog']['height'] + '&nbsp;'));
-            $('#' + this._id + "_widthLabel").html(ej.ReportViewer.Locale[culture] ? (ej.ReportViewer.Locale[culture]['pagesetupDialog']['width'] + '&nbsp;') : (ej.ReportViewer.Locale["en-US"]['pagesetupDialog']['width'] + '&nbsp;'));
-            $('#' + this._id + "_topLabel").html(ej.ReportViewer.Locale[culture] ? (ej.ReportViewer.Locale[culture]['pagesetupDialog']['top'] + '&nbsp;') : (ej.ReportViewer.Locale["en-US"]['pagesetupDialog']['top'] + '&nbsp;'));
-            $('#' + this._id + "_bottomLabel").html(ej.ReportViewer.Locale[culture] ? (ej.ReportViewer.Locale[culture]['pagesetupDialog']['bottom'] + '&nbsp;') : (ej.ReportViewer.Locale["en-US"]['pagesetupDialog']['bottom'] + '&nbsp;'));
-            $('#' + this._id + "_rightLabel").html(ej.ReportViewer.Locale[culture] ? (ej.ReportViewer.Locale[culture]['pagesetupDialog']['right'] + '&nbsp;') : (ej.ReportViewer.Locale["en-US"]['pagesetupDialog']['right'] + '&nbsp;'));
-            $('#' + this._id + "_leftLabel").html(ej.ReportViewer.Locale[culture] ? (ej.ReportViewer.Locale[culture]['pagesetupDialog']['left'] + '&nbsp;') : (ej.ReportViewer.Locale["en-US"]['pagesetupDialog']['left'] + '&nbsp;'));
-            $('#' + this._id + "_heightUnitLabel", '#' + this._id + "_widthUnitLabel", '#' + this._id + "_topUnitLabel", '#' + this._id + "_rightUnitLabel", '#' + this._id + "_bottomUnitLabel", '#' + this._id + "_leftUnitLabel").html(ej.ReportViewer.Locale[culture] ? (ej.ReportViewer.Locale[culture]['pagesetupDialog']['unit'] + '&nbsp;') : (ej.ReportViewer.Locale["en-US"]['pagesetupDialog']['unit'] + '&nbsp;'));
-
-            $('#' + this._id + "_portraitLabel").html(ej.ReportViewer.Locale[culture] ? ('&nbsp;' + ej.ReportViewer.Locale[culture]['pagesetupDialog']['portrait']) : ('&nbsp;' + ej.ReportViewer.Locale["en-US"]['pagesetupDialog']['portrait']));
-            $('#' + this._id + "_landscapeLabel").html(ej.ReportViewer.Locale[culture] ? ('&nbsp;' + ej.ReportViewer.Locale[culture]['pagesetupDialog']['landscape']) : ('&nbsp;' + ej.ReportViewer.Locale["en-US"]['pagesetupDialog']['landscape']));
-
-            $('#' + this._id + "_paperSizeLabel").html(ej.ReportViewer.Locale[culture] ? (ej.ReportViewer.Locale[culture]['pagesetupDialog']['paperSize']) : ('&nbsp;' + ej.ReportViewer.Locale["en-US"]['pagesetupDialog']['paperSize']));
-            $('#' + this._id + "_marginheader").html(ej.ReportViewer.Locale[culture] ? (ej.ReportViewer.Locale[culture]['pagesetupDialog']['margins']) : ('&nbsp;' + ej.ReportViewer.Locale["en-US"]['pagesetupDialog']['margins']));
-            $('#' + this._id + "_orientationLabel").html(ej.ReportViewer.Locale[culture] ? (ej.ReportViewer.Locale[culture]['pagesetupDialog']['orientation']) : ('&nbsp;' + ej.ReportViewer.Locale["en-US"]['pagesetupDialog']['orientation']));
+            _pageWidth.empty();
+            _pageHeight.empty();
             _pageWidth.html(spanTagWidth);
-            _pageWidth.append(ej.ReportViewer.Locale[culture] ? ej.ReportViewer.Locale[culture]['toolbar']['fittopage']["pageWidth"] : ej.ReportViewer.Locale["en-US"]['toolbar']['fittopage']["pageWidth"]);
+            _pageWidth.append(localeObj['toolbar']['fittopage']["pageWidth"]);
             _pageHeight.html(spanTagHeight);
-            _pageHeight.append(ej.ReportViewer.Locale[culture] ? ej.ReportViewer.Locale[culture]['toolbar']['fittopage']["pageHeight"] : ej.ReportViewer.Locale["en-US"]['toolbar']['fittopage']["pageHeight"]);
+            _pageHeight.append(localeObj['toolbar']['fittopage']["pageHeight"]);
+
+            if ($('#' + this._id + '_credential_block_table').length > 0) {
+                $('#' + this._id + '_username_label').text(localeObj['credential']['userName']);
+                $('#' + this._id + '_password_label').text(localeObj['credential']['password']);
+            }
+
+            if (this.element.length > 0) {
+                var multidropdown = this.element.find('.e-rptviewer-multivalue');
+                for (var index = 0; index < multidropdown.length; index++) {
+                    var ejDropDown = multidropdown.eq(index).data('ejDropDownList');
+                    ejDropDown.setModel({ watermarkText: localeObj['waterMark']['selectOption'] });
+                    var paramId = multidropdown.eq(index).attr('id');
+                    if ($("#" + paramId + "_check").length > 0) {
+                        $("#" + paramId + "_check").data('ejCheckBox').setModel({ text: localeObj['selectAll'] });
+                    } else if ($("#" + paramId + "_selectall").length > 0) {
+                        var spanSelectAll = $("#" + paramId + "_check0wrap");
+                        var selectAllTag = $("#" + paramId + "_selectall");
+                        selectAllTag.empty();
+                        selectAllTag.html(spanSelectAll);
+                        selectAllTag.append(localeObj['selectAll']);
+                    }
+                }
+                var comboDropDown = this.element.find('.e-rptviewer-comboBox');
+                for (var index = 0; index < comboDropDown.length; index++) {
+                    var ejDropDown = comboDropDown.eq(index).data('ejDropDownList');
+                    ejDropDown.setModel({ watermarkText: localeObj['waterMark']['selectValue'] });
+                }
+            }
+
+            if ($('#' + this._id + '_errormsg')) {
+                $('#' + this._id + '_prefix_errormsg').text(localeObj['errorMessage']['startMessage']);
+                $('#' + this._id + '_errormsg a').text(localeObj['errorMessage']['middleMessage']);
+                $('#' + this._id + '_suffix_errormsg').text(localeObj['errorMessage']['endMessage']);
+                $('#' + this._id + '_closebutton').attr('title', localeObj['errorMessage']['closeMessage']);
+            }
+
+            var alertDialog = $('#' + this._id + '_viewer_alert_dialog');
+            if (alertDialog.length > 0) {
+                var dialogObj = alertDialog.data('ejDialog');
+                if (dialogObj) {
+                    dialogObj.setModel({ title: localeObj['alertMessage']['title'] });
+                }
+                $('#' + this._id + '_viewer_alert_dialog_closebutton').attr('title', localeObj['alertMessage']['close']);
+                $('#' + this._id + '_alert_footer_ok').text(localeObj['alertMessage']['done']);
+            }
 
             var _dateTimePicker = $('#' + this._id + '_viewBlockContainer .e-reportviewer-viewerblockcellcontent').find('.e-reportviewer-DateTime');
             if (_dateTimePicker && _dateTimePicker.length > 0) {
@@ -8604,10 +9225,11 @@
         },
 
         _showNavigationIndicator: function (isShow) {
+            var reportContainer = $('#' + this._id + '_viewerContainer');
             if (isShow) {
-                $('#' + this._id + '_viewerContainer').data('ejWaitingPopup').show();
+                reportContainer.data('ejWaitingPopup').show();
             } else {
-                $('#' + this._id + '_viewerContainer').data('ejWaitingPopup').hide();
+                reportContainer.data('ejWaitingPopup').hide();
             }
             $('#' + this._id + '_viewerContainer_WaitingPopup').addClass('e-reportviewer-waitingpopup');
         },
@@ -8636,7 +9258,7 @@
                 }
                 return (guid() + guid() + "-" + guid() + "-" + guid() + "-" + guid() + "-" + guid() + guid() + guid()).toUpperCase();
             }
-            return _guid();
+            return _guid() + "@" + this._id;
         },
 
         _updateToolbarmodel: function () {
@@ -8722,7 +9344,7 @@
             this._initViewer();
             this.doAjaxPost("POST", this._actionUrl, JSON.stringify({
                 'reportAction': this._reportAction.reportLoad, 'controlId': this._id, 'reportPath': this.model.reportPath,
-                'reportServerUrl': this.model.reportServerUrl, 'processingMode': this.model.processingMode
+                'reportServerUrl': this.model.reportServerUrl, 'processingMode': this.model.processingMode, 'locale': this.model.locale
             }), "_reportLoaded");
         },
         //-------------------- Common ReportViewer events & utils[End]----------------------//
@@ -8825,6 +9447,10 @@
             return this._trigger("reportError", args);
         },
 
+        _onShowError: function (args) {
+            return this._trigger("showError", args);
+        },
+
         _onViewReportClick: function (args) {
             return this._trigger("viewReportClick", args);
         },
@@ -8841,6 +9467,10 @@
             this._trigger("reportExport", args);
         },
 
+        _onToolbarClick: function (args) {
+            return this._trigger("toolBarItemClick", args);
+        },
+
         _onReportPrint: function (args) {
             this._trigger("reportPrint", args);
             return args.isStyleLoad;
@@ -8848,6 +9478,12 @@
         /*---------------------client side Events[end]----------------------------------------------------------*/
     });
 
+    ej.ReportViewer.InputElement = {
+        Default: 'Default',
+        Button: 'Button',
+        Textbox: 'Textbox',
+        Dropdown: 'Dropdown'
+    };
     ej.ReportViewer.ExportOptions = {
         Excel: 1 << 0,
         Html: 1 << 1,
@@ -8855,7 +9491,8 @@
         Word: 1 << 3,
         PPT: 1 << 4,
         CSV: 1 << 5,
-        All: 1 << 0 | 1 << 1 | 1 << 2 | 1 << 3 | 1 << 4 | 1 << 5
+        CustomExportItems: 1 << 6,
+        All: 1 << 0 | 1 << 1 | 1 << 2 | 1 << 3 | 1 << 4 | 1 << 5 | 1 << 6
     };
     ej.ReportViewer.ExcelFormats = {
         Excel97to2003: "excel97to2003",
@@ -8952,8 +9589,8 @@
                 Pdf: 'PDF',
                 Excel: 'Excel',
                 Word: 'Word',
-                Html: 'Html',
-                PPT: 'PPT',
+                Html: 'HTML',
+                PPT: 'PowerPoint',
                 CSV: 'CSV'
             },
             first: {
@@ -9020,6 +9657,7 @@
             }
         },
         pagesetupDialog: {
+            close: 'Close',
             paperSize: 'Paper Size',
             height: 'Height',
             width: 'Width',
@@ -9032,9 +9670,44 @@
             orientation: 'Orientation',
             portrait: 'Portrait',
             landscape: 'Landscape',
-            doneButton: 'Ok',
+            doneButton: 'OK',
             cancelButton: 'Cancel'
         },
+        credential: {
+            userName: 'Username',
+            password: 'Password'
+        },
+        waterMark: {
+            selectOption: 'Select Option',
+            selectValue: 'Select a value'
+        },
+        errorMessage: {
+            startMessage: 'Report Viewer encountered some issues loading this report. Please',
+            middleMessage: ' Click here',
+            endMessage: 'to see the error details',
+            closeMessage: 'Close this message'
+        },
+        alertMessage: {
+            close: 'Close',
+            title: 'ReportViewer',
+            done: 'OK',
+            showDetails: 'Show details',
+            hideDetails: 'Hide Details',
+            reportLoad: 'Report Loaded:',
+            RVERR0001: 'ReportViewer failed to load the Report',
+            RVERR0002: 'ReportViewer failed to render the Report',
+            RVERR0003: 'An error occurred in ajax postback',
+            RVERR0004: 'Please select a value for the parameter',
+            RVERR0005: 'The {parametername} parameter is missing a value',
+            RVERR0006: 'Please give the float data type input',
+            RVERR0007: 'Please give the integer data type input',
+            RVERR0008: 'ReportViewer failed to validate the Datasource credentials',
+            RVERR0009: 'The margins are overlapped or they are off the paper. Enter a different margin size.',
+            RVERR0010: 'Please enter a value for the parameter',
+            RVERR0011: 'The parameter cannot be blank',
+            RVERR0012: 'The value provided for the report parameter {parameterprompt} is not valid for its type.',
+        },
+        selectAll: 'Select All',
         viewButton: 'View Report'
     };
 })(jQuery, Syncfusion);

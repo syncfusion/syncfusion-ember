@@ -73,22 +73,9 @@
                 form.submit();
             }
         },
-       
-        _dropElements: function (model) {
-            var actSheet = model.sheets, arr = ["_spreadSheetPager", "dataSource", "rangeSettings"], i, j, content;
-            model.undoCollection = [];
-            for (i in actSheet) {
-                content = actSheet[i];
-                for (j in content) {
-                    if (arr.indexOf(j) > -1)
-                        content[j] = null;
-                }
-            }
-            return model;
-        },
          
          _getRequriedProp: function (model) {
-            var xlObj = this.XLObj, modelClone = {}, i, j, len, arr = ["sheetCount", "activeSheetIndex", "nameManager"], content, actSheet, cloneSheet;
+            var xlObj = this.XLObj, modelClone = {}, i, j, len, arr = ["sheetCount", "activeSheetIndex", "nameManager"], content, actSheet, cloneSheet, sheetsLen;
             for (i = 0, len = arr.length; i < len; i++) {
                 modelClone[arr[i]] = model[arr[i]];
             }         
@@ -98,10 +85,10 @@
                 modelClone["ExcelLikeLockedCells"] = true;
             actSheet = model.sheets;
             modelClone["sheets"] = [];
-			if(xlObj._calcEngine.getCalculatingSuspended())
-				modelClone["IsManualCalculation"] = true;
-            arr = ["_activeCell", "_endCell", "_startCell", "colCount", "columnsWidthCollection", "rowsHeightCollection", "rowCount", "frozenColumns", "frozenRows", "usedRange", "dataAttribute", "filterSettings", "tableManager", "sheetInfo", "hideColsCollection", "hideRowsCollection", "showGridlines", "showHeadings", "isSheetProtected", "shapeMngr", "chart", "pivotMngr", "topLeftCell", "paneTopLeftCell"];
-            for (i in actSheet) {
+            if (xlObj._calcEngine.getCalculatingSuspended())
+                modelClone["IsManualCalculation"] = true;
+            arr = ["_activeCell", "_endCell", "_startCell", "colCount", "columnsWidthCollection", "rowsHeightCollection", "rowCount", "frozenColumns", "frozenRows", "usedRange", "dataAttribute", "filterSettings", "tableManager", "sheetInfo", "hideColsCollection", "hideRowsCollection", "showGridlines", "showHeadings", "isSheetProtected", "shapeMngr", "chart", "pivotMngr", "topLeftCell", "paneTopLeftCell", "formulaRange"];
+            for (i = 0, sheetsLen = actSheet.length;i< sheetsLen;i++) {
                 modelClone["sheets"][i] = {};
                 cloneSheet = modelClone["sheets"][i];
                 content = actSheet[i];

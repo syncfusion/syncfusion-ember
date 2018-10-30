@@ -503,13 +503,24 @@
                 }
             }
         },
+        _cloneFromChildTable: function (paletteItem, nameTable) {
+            var child;
+            for (var i = 0; paletteItem.children && i < paletteItem.children.length; i++) {
+                child = $.extend(true, {}, this.nameTable[paletteItem.children[i]])
+                if (child) {
+                    nameTable[paletteItem.children[i]] = child;
+                    if (child.children && child.children.length > 0) {
+                        this._cloneFromChildTable(child, nameTable);
+                    }
+                }
+            }
+            return nameTable;
+        },
         _renderItem: function (paletteItem, content) {
 
             var item = $.extend(true, {}, paletteItem);
             var itemSize = this._getRenderItemSize(item);
-            var nameTable = [];
-            for (var i = 0; paletteItem.children && i < paletteItem.children.length; i++)
-                nameTable[paletteItem.children[i]] = $.extend(true, {}, this.nameTable[paletteItem.children[i]])
+            var nameTable = this._cloneFromChildTable(paletteItem, {});
             this._updateRenderSize(item, itemSize, nameTable);
             var svg = this._renderItemContainer(item.name, content, null, itemSize, item);
             if (item.segments) {
@@ -696,11 +707,14 @@
                 var children = this._getChildren(node.children);
                 for (var i = 0; i < children.length; i++) {
                     child = nameTable[children[i]];
-                    if (child._type == "group")
+                    if (child.shape == "group")
                         this._updateChildBounds(child, nameTable);
                 }
                 ej.datavisualization.Diagram.Util._updateChildBounds(node, this);
             }
+        },
+        _getChild: function (child) {
+            return ej.datavisualization.Diagram.Util.getChild(child);
         },
         _getChildren: function (children) {
             if (children) {
@@ -923,6 +937,7 @@
                 else if (item._type === "group" || (item.children && item.children.length > 0)) {
                     item = ej.datavisualization.Diagram.Group($.extend(true, {}, nodeDefault, item));
                     item = ej.datavisualization.Diagram.Util._updateBpmnChild(item, this);
+                    this._getNewGroup(item);
                     this._initGroupNode(item, this);
                     ej.datavisualization.Diagram.Util._updateGroupBounds(item, this);
                 }
@@ -1568,6 +1583,19 @@
         },
         _getNewGroup: function (options) {
             if (options.type == "bpmn") options = ej.datavisualization.Diagram.Util._updateBpmnChild(ej.datavisualization.Diagram.Node(options), this);
+            if (options.children && options.children.length > 0) {
+                for (var i = 0; i < options.children.length; i++) {
+                    var child = options.children[i];
+                    if (child) {
+                        if (child.type === 'bpmn' || child.type === 'group') {
+                            options.children[i] = this.nameTable[child.name] = this._getNewGroup(child)
+                        }
+                        else {
+                            options.children[i] = this.nameTable[child.name] = this._getNewNode(child)
+                        }
+                    }
+                }
+            }
             return ej.datavisualization.Diagram.Group($.extend(true, {}, this.model.defaultSettings.group, options));
         },
         scale: function (node, sw, sh, pivot, nameTable, skipScalOnChild, updateMinMax, isHelper, diagram) {
@@ -1579,7 +1607,7 @@
                     for (var i = 0; i < nodes.length; i++) {
                         child = nameTable[typeof nodes[i] == "string" ? nodes[i] : nodes[i].name];
                         if (child) {
-                            this.scale(child, sw, sh, pivot, nameTable);
+                            this.scale(child, sw, sh, pivot, nameTable, undefined, undefined, undefined, diagram);
                             if (child.parent && (child.parent != node.name && node.type != "pseudoGroup"))
                                 ej.datavisualization.Diagram.Util._updateGroupBounds(nameTable[child.parent], diagram);
                         }

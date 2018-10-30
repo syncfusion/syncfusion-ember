@@ -6,7 +6,7 @@
                             e = this._relationalColumns, len = e.length, req;
             this.model.query._fromTable != "" && query.from(this.model.query._fromTable);
             req = dropField.length;
-            if (req) 
+            if (req && !ej.isNullOrUndefined(this._dataManager)) 
                 promises.push(this._dataManager.executeQuery(query));
             if (len != 0) {
                 var obj, qry;
@@ -1541,8 +1541,6 @@
             if (this.model.allowScrolling && this.model.scrollSettings.frozenColumns <= 0 && this.getScrollObject()
                 && this.getScrollObject().isHScroll())
                 this.getScrollObject().refresh();
-            if ($.isFunction($.validator))
-                this.initValidator();
         },
         _refreshEditForm: function (args) {
 			var editedTr; 
@@ -1747,6 +1745,8 @@
                         dateElement[pickerControl]("show");
                 }
             }
+			if ($.isFunction($.validator) && this.model.editSettings.editMode != "batch")
+                this.initValidator();
             if (focusEle != null) {
                 this._focusElements(focusEle);
             }
@@ -1854,7 +1854,7 @@
                     if (!this.model.enableResponsiveRow || !this.phoneMode) {
                         $input = ej.buildTag("input.e-ejinputtext e-gridsearchbar", "", {}, { type: "text", id: this._id + "_searchbar" });
                         $span = ej.buildTag('span.e-cancel e-icon e-hide', "", { 'right': '1%' });
-                        $div = ej.buildTag('div.e-filterdiv e-searchinputdiv', "", { 'display': 'inline-table', 'width': '83%' });
+                        $div = ej.buildTag('div.e-filterdiv e-searchinputdiv', "", { 'display': 'inline-table', 'width': '85.5%' });
                         $div.append($input).append($span);
                         $li.append($div);
                         if (!ej.isNullOrUndefined(this.model.searchSettings.key))
@@ -2442,7 +2442,8 @@
                     if (args.columnObject.type == "boolean" || args.columnObject.editType == "booleanedit") {
                         var cellData = {};
                         ej.createObject(args.columnObject.field, args.value, cellData);
-                        args.cell.empty().html($($.templates[this._id + "_JSONTemplate"].render(cellData))[0].cells[this._bulkEditCellDetails.columnIndex].innerHTML);						
+                        var columnIndex = (this.model.detailsTemplate != null || this.model.childGrid != null) ? this._bulkEditCellDetails.columnIndex + 1 : this._bulkEditCellDetails.columnIndex;
+                        args.cell.empty().html($($.templates[this._id + "_JSONTemplate"].render(cellData))[0].cells[columnIndex].innerHTML);
 					}
                     else if ((args.columnObject.editType == "datepicker" || args.columnObject.editType == "datetimepicker") && !ej.isNullOrUndefined(column.format))
 						args.cell.empty().html(formattedValue);
@@ -2703,6 +2704,7 @@
                         $(editedTd).addClass("e-updatedtd e-icon e-gupdatenotify");
                         $(editedTd).removeClass("e-validError e-editedbatchcell");
                         ej.createObject(fieldName, cellValue, data);
+						if (!$(tr).hasClass("e-insertedrow"))
                         $.inArray(data, this.batchChanges.changed) == -1 && this.batchChanges.changed.push(data);
                         this._enableSaveCancel();
                     }
@@ -3079,15 +3081,17 @@
                     this.editCell(this._bulkEditCellDetails.rowIndex - 1, this.model.columns[this._bulkEditCellDetails.columnIndex].field);
                     break;
                 case "down":
-                    if (this._bulkEditCellDetails.rowIndex == this.getRows().length - 1) {
+                    var editCellDetails;
+                    this._bulkEditCellDetails.columnIndex != this._copyBulkEditCellDetails.columnIndex ? editCellDetails = this._copyBulkEditCellDetails : editCellDetails = this._bulkEditCellDetails;
+                    if (editCellDetails.rowIndex == this.getRows().length - 1) {
                         this.endEdit();
                         return;
                     }
-                    editCellIndex = this._bulkEditCellDetails.columnIndex;
-                    !this._enableCheckSelect && this.selectRows(this._bulkEditCellDetails.rowIndex + 1);
-                    if (this._bulkEditCellDetails.columnIndex != -1) {
-                        this.editCell(this._bulkEditCellDetails.rowIndex + 1, this.model.columns[this._bulkEditCellDetails.columnIndex].field);
-                        this.selectCells([[this._bulkEditCellDetails.rowIndex, this._bulkEditCellDetails.columnIndex]]);
+                    editCellIndex = editCellDetails.columnIndex;
+                    !this._enableCheckSelect && this.selectRows(editCellDetails.rowIndex + 1);
+                    if (editCellDetails.columnIndex != -1) {
+                        this.editCell(editCellDetails.rowIndex + 1, this.model.columns[editCellDetails.columnIndex].field);
+                        this.selectCells([[editCellDetails.rowIndex, editCellDetails.columnIndex]]);
                     }
                     break;
 
@@ -3182,25 +3186,24 @@
             this._requestArgs = null;
             this._confirmDialog.ejDialog("close");
         },
-        _batchCellValidation: function (index, targetColIndex) {
+        _batchCellValidation: function (index) {
             var $row = this.getRowByIndex(index),i;
-            if (this.model.editSettings.editMode=="batch" && this.model.isEdit && $row.hasClass('e-insertedrow') ){              
+            if (this.model.editSettings.editMode == "batch" && this.model.isEdit && $row.hasClass('e-insertedrow')) {
                 for (i = 0; i < this._validatedColumns.length; i++) {
                     var colindex = this.getColumnIndexByField(this._validatedColumns[i])
-                        if (!this.editFormValidate())
-                            return true;                         
-                 this.editCell(index, this.model.columns[colindex].field);                          
+                    if (!this.editFormValidate())
+                        return true;
+                    this.editCell(index, this.model.columns[colindex].field);
                 }
-             }
+            }
          },
         _saveCellHandler: function (e) {
             var $target = $(e.target);
-            var targetColIndex = $($target).index();
             e.stopPropagation();
             var index=(this.model.editSettings.rowPosition == "top" || this._gridRows == null)?0:this._gridRows.length - 1;
             if ($target.closest(".e-popup").length == 0 && $target.closest(".e-rowcell").find("#" + this._id + "EditForm").length == 0) {
                 if ($(this.getRows()).hasClass("e-insertedrow"))
-                    this._batchCellValidation(index, targetColIndex);
+                    this._batchCellValidation(index);
                 this.saveCell();
             }
         },
@@ -3318,7 +3321,7 @@
         },
         
         setValidationToField: function (name, rules) {
-            var fName = name, ele;
+            var fName = name, ele, col = this.getColumnByField(name);
             if (!ej.isNullOrUndefined(name))
                 fName = fName.replace(/[^a-z0-9\s_]/gi, '');
             if (this.model.editSettings.editMode == "batch")
@@ -3337,7 +3340,7 @@
                 $.validator.addMethod(fName + "regex", function (value, element, options) {
                     var ptn = options instanceof RegExp ? options : new RegExp(options);
                     return ptn.test(value);
-                }, ej.getObject("messages.regex", rules) || this.getColumnByField(name).headerText + " should match the given pattern");
+                }, ej.getObject("messages.regex", rules) || col.headerText + " should match the given pattern");
             }
             !ele.attr("name") && ele.attr("name", name);
             ele.rules("add", rules);
@@ -3349,10 +3352,10 @@
                 else
                     var message = $.validator.messages.required;
                 if (message.indexOf("This field") == 0)
-                    message = message.replace("This field", this.getColumnByField(name).headerText);               
-                validator.settings.messages[name]["required"] = message;
-                if (ele.hasClass("e-datepicker"))
-                    ele.ejDatePicker({watermarkText: ""});
+                    message = message.replace("This field", col.headerText);               
+                validator.settings.messages[name]["required"] = message;				
+				if (ele.hasClass("e-datepicker") && (ej.isNullOrUndefined(col.editParams) || ej.isNullOrUndefined(col.editParams.watermarkText)))
+					ele.ejDatePicker({watermarkText: ""});
             }
         },
         _renderConfirmDialog: function () {
@@ -3387,7 +3390,7 @@
             var btnObj = $($target).ejButton("instance");
 			 if (this.model.editSettings.editMode == "inlineform" || this.model.editSettings.editMode == "inlinetemplate")
                 $editTrLen = $("#" + this._id).find(".e-editedrow").length;
-            this.model.allowSelection && !this.model.isEdit && this.selectRows(this.getIndexByRow($target.closest("tr")) - $editTrLen);
+            this.model.allowSelection && !this._enableCheckSelect && !this.model.isEdit && this.selectRows(this.getIndexByRow($target.closest("tr")) - $editTrLen);
             if ($target.hasClass("e-cancelbutton"))
                 this.model.isEdit = false;
             $.isFunction($.fn.ejDatePicker) && $("#" + this._id + "EditForm").find(".e-datepicker").ejDatePicker("hide");
@@ -3495,8 +3498,15 @@
                                 promise.done(function (e) {
                                     if (proxy.model.editSettings.editMode != 'batch' && (proxy.model.sortSettings.sortedColumns.length || proxy.model.summaryRows.length > 0 || proxy.model.groupSettings.groupedColumns.length || !ej.isNullOrUndefined(proxy._searchCount) || proxy.filterColumnCollection.length))
                                         proxy._processBindings(args);
-                                    else
+                                    else{
+										if(proxy.model.scrollSettings.frozenColumns){
+											proxy._rowEventTrigger($frow, data);
+											proxy._rowEventTrigger($mrow, data);
+										}
+										else
+											proxy._rowEventTrigger($newrow, data);
                                         proxy._trigger("actionComplete", args);
+									}
                                 });
                                 promise.fail(function (e) {
                                     proxy._trigger("actionFailure", args);
@@ -3505,8 +3515,15 @@
                             else {
                                 if (proxy.model.editSettings.editMode != 'batch' && (proxy.model.sortSettings.sortedColumns.length || proxy.model.summaryRows.length > 0 || proxy.model.groupSettings.groupedColumns.length || !ej.isNullOrUndefined(proxy._searchCount) || proxy.filterColumnCollection.length))
                                     proxy._processBindings(args);
-                                else
+                                else{
+									if(proxy.model.scrollSettings.frozenColumns){
+										proxy._rowEventTrigger($frow, data);
+										proxy._rowEventTrigger($mrow, data);
+									}
+									else
+										proxy._rowEventTrigger($newrow, data);
                                     proxy._trigger("actionComplete", args);
+								}
                             }
                         }
                         if (this._isMapSelection) {

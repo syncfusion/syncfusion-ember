@@ -1098,7 +1098,7 @@ ej.series3DTypes = {};
                     var pointText = (point.text) ? point.text : point.y ;
                     if (labelFormat) {
                     if (labelFormat.indexOf("{value}") > -1)
-                         pointText = labelFormat.replace("{value}", value);
+                         pointText = labelFormat.replace("{value}", point.y);
                     else if (labelFormat.indexOf('e') == 0 || labelFormat.indexOf('E') == 0) {
                     labelPrecision = labelFormat.match(/(\d+)/g);
                     labelPrecision = labelPrecision == null ? labelPrecisionDefault : labelPrecision > labelPrecisionHighest ? labelPrecisionHighest : labelPrecision;

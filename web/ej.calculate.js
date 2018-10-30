@@ -143,7 +143,7 @@
         this._preserveLeadingZeros = false;
         this._ignoreCellValue = false;
         this._errorStrings = null;
-        this._cell = "";
+        this.cell = "";
         this._iterationMaxCount = 0;
         this._supportRangeOperands = false;
         this._allowShortCircuitIFs = false;
@@ -268,8 +268,24 @@
         this.nativeFormats.push("[DBNUM2]");
         this.nativeFormats.push("[DBNUM3]");
         this.nativeFormats.push("[DBNUM4]");
-		
-		/**
+		this.computeFunctionLevel = 0;
+        this._table_Data = "[#Data]";
+        this._table_Row = "[#THIS ROW]";
+        this._table_Headers = "[#Headers]";
+        this._table_Totals = "[#Totals]";
+        this._table_All = "[#All]";
+        this._isArrayFormula = false;
+        this._getPositionHeight = 0;
+        this._getPositionWidth = 0;
+        this._calculateArraySizeheight = 0;
+        this._calculateArraySizewidth = 0;
+        this._calculateArraySizeminHeight = 0;
+        this._calculateArraySizeminWidth = 0;
+        this._length = 0;
+        this._arrayMarkers = "+-*/&";
+        this._validFunctionNameChars = "_";
+        this._findNamedRange = false;
+        /**
          * 
 		 * @private
          */	 
@@ -377,20 +393,26 @@
 
             if (text[0] == this.sheetToken.toString()) {
                 var i = text.indexOf(this.sheetToken, 1);
-                if (i > 1 && !isNaN(parseInt(text.substring(1, i - 1)))) {
+                var v = parseInt(text.substr(1, i - 1));
+                if (i > 1 && !isNaN(v)) {
                     //id reset to proper value
                     text = text.substring(i + 1);
+                    id = v;
                 }
             }
 
             var token = '!' + id.toString() + '!';
 
-            if (sheet.sheetNameToToken == null)
+            if (sheet == null || sheet.sheetNameToToken == null)
                 return b;
             var sheetNameKeys = sheet.sheetNameToToken.keys();
             for (var name = 0; name < sheetNameKeys.length; name++) {
                 if (sheet.sheetNameToToken.getItem(sheetNameKeys[name]).toString() == token) {
-                    var s = (sheetNameKeys[name] + '!' + text).toUpperCase();
+                    var s;
+                    if (!ej.isNullOrUndefined(this.parentObject) && this.parentObject.pluginName == "ejSpreadsheet")
+                        s = (this.parentObject.model.sheets[name+1].sheetInfo.text+ '!' + text).toUpperCase();
+                    else
+                        s = (sheetNameKeys[name] + '!' + text).toUpperCase();
                     if (this.getNamedRanges().containsKey(s)) {
                         scopedRange = (this.getNamedRanges().getItem(s)).toUpperCase();
                         b = scopedRange;
@@ -547,58 +569,896 @@
             try  {
                 if (this._isTextEmpty(formula)) {
                     return formula;
-                }
+		        }
 
-                this.computeFunctionLevel++;
+		        this.computeFunctionLevel++;
 
-                ////int q = formula.LastIndexOf('q');
-                var q = this._findLastqNotInBrackets(formula);
-                while (q > 0) {
-                    var last = formula.substring(q).indexOf(this._rightBracket);
-                    if (last == -1) {
-                        throw this.formulaErrorStrings[this._bad_formula];
-                    }
-                    this._isInteriorFunction = true;
-                    var s = this._substring(formula, q, last + 1);
-                    s = this.computedValue(s);
-                    //JS-55905 To replace minus operator to get the values in ejSpreadsheet.
-                    if (!ej.isNullOrUndefined(this.parentObject) && this.parentObject.pluginName == "ejSpreadsheet") {
-                        if(s[0] == "-")
-                        s = "nu" + s.substring(1);
-                        var d = this._parseDouble(s);
-                        if (!isNaN(d)) {
-                            if (d < 0) {
-                                s = "nu" + s.substring(1);
-                            }
-                            else {
-                                s = "n" + s;
-                            }
+		        ////int q = formula.LastIndexOf('q');
+		        var q = this._findLastqNotInBrackets(formula);
+		        while (q > 0) {
+		            var last = formula.substring(q).indexOf(this._rightBracket);
+		            if (last == -1) {
+		                throw this.formulaErrorStrings[this._bad_formula];
+		            }
+		            this._isInteriorFunction = true;
+		            var s = this._substring(formula, q, last + 1);
+		            s = this.computedValue(s);
+		            //JS-55905 To replace minus operator to get the values in ejSpreadsheet.
+		            if (!ej.isNullOrUndefined(this.parentObject) && this.parentObject.pluginName == "ejSpreadsheet") {
+		                if (s[0] == "-")
+		                    s = "nu" + s.substring(1);
+		                else if (s.length > 0 && (s[0] == this.tic[0] || s[0] == '#')) {
+		                    if (s.length > 1 && s[0] == this.bmarker && s[1] == this.bmarker)
+		                        s = this.tic + s + this.tic;
+		                } else if (s.startsWith(this.trueValueStr) || s.startsWith(this.falseValueStr)) {
+		                    ////Pass on the bool...
+		                } else {
+		                    var d = this._parseDouble(s);
+		                    if (!isNaN(d)) {
+		                        if (d < 0) {
+		                            s = "nu" + s.substring(1);
+		                        }
+		                        else {
+		                            s = "n" + s;
+		                        }
+		                    }
+		                    else {
+		                        if (!this._isRange(s) && s[0] == this.braceLeft && s[s.length - 1] == (this.braceRight)) {
+		                            s = s.Replace("{", "").Replace("}", "");
+		                            var strValue = string.Empty;
+		                            var ranges = this.splitArgsPreservingQuotedCommas(s);
+		                            for (var i = 0; i < ranges.length; i++) {
+		                                var num = 0;
+		                                if (num = !isNaN(this.parseDouble(ranges[i])))
+		                                    strValue += 'n' + r + this._parseArgumentSeparator;
+		                            }
+		                            s = strValue.substr(0, strValue.Length - 1);
+		                        }
+		                        else if (!this._isRange(s)) {
+		                            //JS-57098 - To split the formula properly when formula contains interior functions.
+		                            s = this.tic + s + this.tic;
+		                        }
+		                    }
+		                }
+		            }
+		            else {
+		                if (!(s == "") && s[0] == this.tic[0] && s[s.length - 1] == this.tic[0]) {
+		                    var newS = this._substring(s, 1, s.length - 2);
+		                    if (newS.indexOf(this.tic) != -1) {
+		                        this._multiTick = true;
+		                        newS = newS.split(this.tic).join("|");
+		                    }
+		                    s = this.tic + newS + this.tic;
+		                }
+		                if (!this._isInteriorFunction)
+		                    s = this._markupResultToIncludeInFormula(s);
+		            }
+		            //JS-57098 - To split the formula properly when formula contains interior functions. 
+		            formula = formula.substring(0, q) + s + formula.substring(q + last + 1);
+		            this._isInteriorFunction = false;
+		            q = this._findLastqNotInBrackets(formula);
+		        }
+		    } catch (ex) {
+		        return ex;
+		    } finally {
+		        this.computeFunctionLevel--;
+		    }
+
+		    return formula;
+		};
+        /**
+        * 
+        * @private
+       */
+        this._computeArrayInteriorFunction = function (arg, label, computeLevel) {
+            var result = this._string_empty;
+            if(label == "LEN")
+                result = this._computeArrayLen(arg, computeLevel);
+            else if(label == "ROW")
+                result = this._computeArrayRow(arg, computeLevel);
+            else if(label == "COLUMN")
+                result = this._computeArrayColumn(arg, computeLevel);
+
+            if (computeLevel > 0) {
+                result = "{" + result + "}";
+                return result;
+            }
+            else
+                return result;
+        };
+         /**
+         * 
+		 * @private
+        */
+        this._parseLibraryFormula = function (formula) {
+            //Removing the curly braces({,}) and equal sign(=) in the formula,
+            if (formula.length > 0)
+                formula = formula.substr(1, formula.length - 2);
+
+            var originalFormula = formula;
+
+            //Check for the named ranges and convert it to corresponding values,
+            formula = this._checkForNamedRange(formula);
+
+            if (formula[0] == "{" && formula[formula.length - 1]== "}"|| this._findNamedRange)
+                return this._parseDimensionalArray(formula);
+
+            //To maintain the strings passed in formula,
+            var formulaStrings = this._saveStrings(formula);
+            formula = this._saveStringsText;
+            formula = formula.split(" ").join(this._string_empty).split("{").join("\"[").split("}").join("]\"");
+
+            var rightParens = formula.indexOf(")");
+            if (rightParens == -1) {
+                formula = this._parseArrayFormula(formula, originalFormula);
+            }
+            else {
+                //Splitting the formula with right paranthesis into sub formulas and pass into parse method and add 
+                // the curly braces for the parsed sub formulas returned from parse method.
+                while (rightParens > -1) {
+                    var parenCount = 0;
+                    var leftParens = rightParens - 1;
+                    while (leftParens > -1 && (formula[leftParens] != "(" || parenCount != 0)) {
+                        if (formula[leftParens] == ')') {
+                            parenCount++;
                         }
+                        leftParens--;
                     }
-                    if (!(s == "") && s[0] == this.tic[0] && s[s.length - 1] == this.tic[0]) {
-                        var newS = this._substring(s, 1, s.length - 2);
-                        if (newS.indexOf(this.tic) != -1) {
-                            this._multiTick = true;
-                            newS = newS.split(this.tic).join("|");
-                        }
-                        s = this.tic + newS + this.tic;
+
+                    if (leftParens == -1) {
+                        //Error message,
+                        return this.getErrorStrings()[0].toString();
                     }
-                    if (!this._isInteriorFunction){
-                    s = this._markupResultToIncludeInFormula(s);
-                        formula = formula.substring(0, q) + s.split(this.tic).join("") + formula.substring(q + last + 1);
-                        }
+
+                    var i = leftParens - 1;
+                    while (i > -1 && (this._isLetterOrDigit(formula[i]) || this._validFunctionNameChars.indexOf(formula[i]) > -1 || formula[i] == this._parseDecimalSeparator)) {
+                        i--;
+                    }
+
+                    var len = leftParens - i - 1;
+                    if (len > 0 && this.getLibraryFunctions().getItem(formula.substr(i + 1, len).toUpperCase()) != null) {
+                        var s = formula.substr(leftParens, rightParens - leftParens + 1);
+                        s = this._parseArrayFormula(s, originalFormula);
+                        formula = formula.substr(0, i + 1) + formula.substr(i + 1, len) + s.split("(").join("{").split(")").join("}") + formula.substr(rightParens + 1);
+                    }
+                    else if (len == 0)
+                        formula = this._parseArrayFormula(formula, originalFormula).split("(").join("{").split(")").join("}");
                     else
-                        formula = formula.substring(0, q) + s + formula.substring(q + last + 1);
-                    this._isInteriorFunction = false;
-                    q = this._findLastqNotInBrackets(formula);
+                        formula = formula.split("(").join("{").split(")").join("}");
+
+                    rightParens = formula.indexOf(")");
                 }
-            } catch (ex) {
-                return ex;
-            } finally {
-                this.computeFunctionLevel--;
             }
 
+            //Below condition has been added to set the correct string which is replaced by SaveStrings Hashtable.
+            if (formulaStrings != null && formulaStrings.length > 0) {
+                formula = this._setStrings(formula, formulaStrings);
+            }
+
+            formula = formula.split("{").join("(").split("}").join(")");
+
+            if (this._isMultiCellArray(originalFormula))
+                formula = this._parseMultiCellArray(formula, originalFormula);
             return formula;
+        };
+         /**
+         * 
+		 * @private
+        */
+        this._parseArrayFormula = function (formula, originalFormula) {
+            var tempformula = formula;
+            var expression = this._string_empty;
+            var s = this._string_empty;
+
+            var splitFormula = null;
+
+            //If the formula does not have any specified operators, then return the formula.
+            if (this._indexOfAny(formula, this._arrayMarkers) < 0)
+                return formula;
+
+            //If the formula contains argument separator along with the specified operators, split the
+            //formula with SplitArgsPreservingQuotedCommas method.
+            if (tempformula.indexOf(this._parseArgumentSeparator.toString()) > -1) {
+                //Below condition has been modified to group the functions correctly and to add the paraenthesis correctly while returning the formula.
+                tempformula = tempformula.split("{").join("\"{").split("}").join("}\"");
+                splitFormula = this.splitArgsPreservingQuotedCommas(tempformula);
+                for (var i = 0; i < splitFormula.length; i++) {
+                    if (this._indexOfAny(splitFormula[i], this._arrayMarkers) > -1 && splitFormula[i].indexOf("\"") == -1) {
+                        tempformula = splitFormula[i];
+                        expression = tempformula;
+                    }
+                }
+                if (expression == this._string_empty) {
+                    //If passed argument is an array constant, it should be skipped,
+                    if (splitFormula.length != 1 && this._indexOfAny(splitFormula[0], this._arrayMarkers) < 0
+                                              || splitFormula[0].indexOf("\"{") > -1 && splitFormula[0].indexOf("}\"") > -1)
+                        return formula;
+                }
+            }
+            tempformula = tempformula.split("(").join(this._string_empty).split(")").join(this._string_empty);
+            tempformula = tempformula.split("\"").join(this._string_empty);
+
+            var splitargs = this._resizeCellRange(tempformula, originalFormula);
+
+            var lstRes = [];
+            var lastForm = this._string_empty;
+            var strArg = this._string_empty;
+
+            if (length == 0)
+                length = splitargs[0].length;
+
+            var numLoops = splitargs.length;
+            var n = 0;
+
+            //To combine the operators with arguments to form a expression like "A*B". Based on the argument's length,
+            //string is appended and added in the list. Also the indexes are incremented everytime and if the length is 1,
+            //then it will be a operator, hence the index is maintained as 0.
+            for (var i = 0; i < length; i++) {
+                n = i;
+                var line = "";
+                for (var j = 0; j < numLoops; j++) {
+                    if (splitargs[j].length == 1)
+                        i = 0;
+                    line += splitargs[j][i];
+                    i = n;
+                }
+                lstRes.push(line);
+            }
+
+            //Adding the arguments in the list with argument separator,
+            for (var k = 0; k < lstRes.length; k++)
+                strArg += lstRes[k] + this._parseArgumentSeparator;
+
+            //Adding the formula with paranthesis and if the formula is embedded one with separator, it will be already splitted in above method
+            //and stored separately in splitFormula list which will be added along with splitted arguments based on operators to return a full formula.
+            if (splitFormula != null && splitFormula.length > 1) {
+                for (var args = 0; args < splitFormula.length; args++) {
+                    if (splitFormula[args] == expression) {
+                        if (args == 0)
+                            lastForm += "(" + strArg.substr(0, strArg.length - 1);
+                        else
+                            lastForm += this._parseArgumentSeparator + strArg.substr(0, strArg.length - 1) + ")";
+                    }
+                    else {
+                        if (args == 0)
+                            lastForm += splitFormula[args];
+                        else
+                            lastForm += this._parseArgumentSeparator + splitFormula[args];
+                    }
+                }
+            }
+            else
+                lastForm += "(" + strArg.substr(0, strArg.length - 1) + ")";
+
+            return lastForm.split("\"").join(this._string_empty);
+        };
+        /**
+        * 
+        * @private
+       */
+        this._isMultiCellArray = function (formula) {
+
+            if (formula[0] == "(" && formula[formula.length - 1] == ")")
+                formula = formula.substr(1, formula.length - 2);
+            var isReference = false;
+            var subString = this._splitString(formula);
+            for (var i = 0; i < subString.length; i++) {
+                var arg = subString[i];
+                if ((arg.indexOf("(") > -1 && arg.indexOf(")") == -1) || (arg.indexOf("(") == -1 && arg.indexOf(")") > -1)) {
+                    isReference = false;
+                    break;
+                }
+                if (this._isRange(arg.split(this._string_fixedreference).join(this._string_empty)) || (arg[0] == "{" && arg[arg.length - 1] == "}"))
+                    isReference = true;
+            }
+            return isReference;
+        };
+         /**
+         * 
+		 * @private
+        */
+        this._parseMultiCellArray = function (formula, originalFormula) {
+            var tempFormula = originalFormula;
+            var subStrings = this._splitString(originalFormula);
+            originalFormula = this._markNamedRanges(originalFormula)
+
+            if(tempFormula != originalFormula)
+            return this._parseDimensionalArray(formula);
+
+            if (!ej.isNullOrUndefined(this.cell)) {
+                var height = this._getHeight(subStrings);
+                var width = this._getWidth(subStrings);
+                var index = this._getPosition(height, width);
+                height = this._getPositionHeight;
+                width = this._getPositionWidth;
+                if (this._getWidth(subStrings) > width && index != -1 && index >= width)
+                    index = index + (index / width) * (this._getWidth(subStrings) - width);
+
+                if (index >= 0) {
+                    if (formula[0] == "(" && formula[formula.length - 1] == ")")
+                        formula = formula.substr(1, formula.length - 2);
+                    var cells = this.splitArgsPreservingQuotedCommas(formula);
+                    if (cells.length > index)
+                        formula = cells[index];
+                }
+                else
+                    formula = this.getErrorStrings()[0].toString();
+            }
+            return formula;
+        };
+         /**
+         * 
+		 * @private
+        */
+        this._getWidth = function (subStrings) {
+            var width = 0;
+            var cols1 = this._string_empty;
+            var width1 = 0;
+            subStrings[0] = subStrings[0].split(this._string_fixedreference).join(this._string_empty);
+            if (this._isCellReference(subStrings[0])) {
+                cols1 = this.computeColumns(subStrings[0]);
+                width = parseInt(cols1)
+            }
+            else if (subStrings[0].indexOf(",") > -1 && subStrings[0].indexOf(";") == -1) {
+                var cells1 = this.splitArgsPreservingQuotedCommas(subStrings[0]);
+                width = cells1.length;
+            }
+            else if (subStrings[0].indexOf(";") > -1 && subStrings[0].indexOf(",") == -1) {
+                width = 1;
+            }
+            for (var k = 0; k < subStrings.length; k++) {
+                subStrings[k] = subStrings[k].split(this._string_fixedreference).join(this._string_empty);
+                if (width == 0)
+                    width = 1;
+                if (this._isCellReference(subStrings[k])) {
+                    cols1 = this.computeColumns(subStrings[k]);
+                    var value = parseInt(cols1);
+                    if (!isNaN(value))
+                        width1 = value;
+                }
+                else if (subStrings[k].indexOf(",") > -1 && subStrings[k].indexOf(";") == -1) {
+                    var cells1 = this.splitArgsPreservingQuotedCommas(subStrings[k]);
+                    width1 = cells1.length;
+                }
+                else if (subStrings[k].indexOf(";") > -1 && subStrings[k].indexOf(",") == -1) {
+                    width1 = 1;
+                }
+                if (width1 != 0 && (width == 1 || width1 < width && width1 != 1)) {
+                    width = width1;
+                }
+            }
+            return width;
+        };
+         /**
+         * 
+		 * @private
+        */
+        this._getHeight = function (subStrings) {
+            var height = 0;
+            var rows1 = this._string_empty;
+            var height1 = 0;
+            subStrings[0] = subStrings[0].split(this._string_fixedreference).join(this._string_empty);
+            if (this._isCellReference(subStrings[0])) {
+                rows1 = this.computeRows(subStrings[0]);
+                height = parseInt(rows1)
+            }
+            else if (subStrings[0].indexOf(",") > -1 && subStrings[0].indexOf(";") == -1) {
+                height = 1;
+            }
+            else if (subStrings[0].indexOf(";") > -1 && subStrings[0].indexOf(",") == -1) {
+                var cells1 = this._splitArguments(subStrings[0], ";")
+                height = cells1.length;
+            }
+
+            for (var k = 0; k < subStrings.length; k++) {
+                if (height == 0)
+                    height = 1;
+                subStrings[k] = subStrings[k].split(this._string_fixedreference).join(this._string_empty);
+                if (this._isCellReference(subStrings[k])) {
+                    rows1 = this.computeRows(subStrings[k])
+                    height1 = parseInt(rows1);
+                    if (isNaN(height1))
+                        height1 = 0;
+                }
+                else if (subStrings[k].indexOf(",") > -1 && subStrings[k].indexOf(";") == -1) {
+                    height1 = 1;
+                }
+                else if (subStrings[k].indexOf(";") > -1 && subStrings[k].indexOf(",") == -1) {
+                    var cells1 = this._splitArguments(subStrings[k], ";")
+                    height1 = cells1.length;
+                }
+                if (height1 != 0 && (height == 1 || (height < height && height != 1))) {
+                    height = height1;
+                }
+            }
+            return height;
+        };
+         /**
+         * 
+		 * @private
+        */
+        this._getPosition = function (height, width) {
+            var rowIndex = this.rowIndex(this.cell);
+            var colIndex = this.colIndex(this.cell);
+
+            this._getPositionHeight = height;
+            this._getPositionWidth = width;
+            if (!ej.isNullOrUndefined(this.parentObject) && this.parentObject.pluginName == "ejSpreadsheet") {
+                var pos = this.parentObject.XLEdit._getCellPosition(height, width)[rowIndex - 1][colIndex - 1];
+                return pos;
+            }
+            return 0;
+        };
+         /**
+         * 
+		 * @private
+        */
+        this._resizeCellRange = function (formula, originalFormula) {
+            var splitargs = [];
+            var substrings = this._splitString(formula);
+
+                var result = this._string_empty;
+                var height = this._getHeight(substrings);
+                var width = this._getWidth(substrings);
+                var minHeight = 0; 
+                var minWidth = 0;
+
+                //Calculating the length of the splitted formula's length,
+                length = height * width;
+
+                //To get array of cells from the range,
+                for (var k = 0; k < substrings.length; k++)
+                {
+                    if (this._indexOfAny(substrings[k], this._arrayMarkers) > -1 || !this._isCellReference(substrings[k]))
+                    {
+                        //If the passed string is a array constants in the form of {1,2,3} or {1;2;3}
+                        if (substrings[k][0] == "[" && substrings[k][substrings[k].length-1] == "]")
+                        {
+                            //Removing the square braces,
+                            substrings[k] = substrings[k].substr(1, substrings[k].length - 2);
+                            if (substrings[k].indexOf(",") > -1)
+                            {
+                                substrings[k] = this._calculateArraySize(substrings[k], height, width, minHeight, minWidth);
+                                splitargs.push(this.splitArgsPreservingQuotedCommas(substrings[k]));
+                            }
+                            else if (substrings[k].indexOf(";") > -1)
+                            {
+                                substrings[k] = this._calculateArraySize(substrings[k], height, width, minHeight, minWidth);
+                                splitargs.push(this._splitArguments(substrings[k],";"));
+                            }
+                            height = this._calculateArraySizeheight;
+                            width = this._calculateArraySizewidth;
+                            minHeight = this._calculateArraySizeminHeight;
+                            minWidth = this._calculateArraySizeminWidth;
+                        }
+                        else
+                        {
+                            //If the passed string is operator,
+                            splitargs.push([substrings[k]]);
+                            if (this._indexOfAny(substrings[k], this._arrayMarkers) < 0)
+                                minHeight = 1;
+                        }
+                    }
+                    else
+                    {
+                        substrings[k] = this._calculateArraySize(substrings[k], height, width, minHeight,minWidth);
+                        splitargs.push(this.getCellsFromArgs(substrings[k]));                      
+                           height = this._calculateArraySizeheight;
+                        width = this._calculateArraySizewidth;
+                        minHeight = this._calculateArraySizeminHeight;
+                        minWidth = this._calculateArraySizeminWidth;
+                    }
+
+
+                    //if the passed arg's length is less than the calculated length, then the range needs to 
+                    //be resized and values will be added according to certain condtions.
+                    if (splitargs[k].length < length && this._indexOfAny(substrings[k], this._arrayMarkers) < 0)
+                    {
+                        var resize = splitargs[k].slice();
+                        var b = splitargs[k].length;
+                        var l = 0;
+                        resize.length = length;
+                        //If the range's width is less than given width, fill the values accordingly.
+                        if (minWidth != 0 && minWidth < width)
+                        {
+                            l = 0;
+                            var c = 0;
+                            var d = 0;
+                            while (d < length)
+                            {
+                                while (c < width && d < length)
+                                {
+                                    if (l >= b)
+                                        l = 0;
+                                    resize[d] = splitargs[k][l];
+                                    c++;
+                                    d++;
+                                }
+                                l++;
+                                c = 0;
+                            }
+                        }
+                        //If the range's height is less than the given height, fill the left out values one by one.
+                        if (minHeight != 0 && minHeight < height)
+                        {
+                            l = 0;
+                            for (var c = b; c < length; c++)
+                            {
+                                if (l >= b)
+                                    l = 0;
+                                resize[c] = splitargs[k][l];
+                                l++;
+                            }
+                        }
+                        splitargs[k] = resize;
+                    }
+                }         
+            return splitargs;
+        };
+
+        this._parseDimensionalArray = function (formula) {
+            //Removing spaces,
+            formula = formula.split(" ").join(this._string_empty);
+
+            //maintaining original formula,
+            var originalFormula = formula;
+
+            //If the formula contains any operators, it should be parsed like below,
+            if (this._indexOfAny(formula, this._arrayMarkers) > -1)
+            {
+                formula = formula.split("{").join("\"[").split("}").join("]\"");
+                formula = this._parseArrayFormula(formula, originalFormula).split("(").join("{").split(")").join("}");
+            }
+
+            //To remove the curly braces in the formula.
+            if(formula[0] == "{" && formula[formula.length-1] == "}")
+                formula = formula.substr(1, formula.length - 2);
+
+            //If the passed formula's length is 1, it should be returned (For eg:{1})
+            if (formula.Length == 1)
+                return formula;
+
+            //If the passed formula is cell reference,(For eg:{A1:B1})
+            var index = formula.indexOf(":");
+            if (this._isCellReference(formula) && index > -1 )
+            {
+                var args = this.getCellsFromArgs(formula);
+                var text = this._string_empty;
+                var op = ",";
+                var top = this.rowIndex(formula.substr(0, index));
+                var bottom = this.rowIndex(formula.substr(index + 1));
+                var left = this.colIndex(formula.substr(0, index));
+                var right = this.colIndex(formula.substr(index + 1));
+                var height1 = (bottom - top) + 1;
+                var width1 = (right - left) + 1;
+
+
+                if (width1 == 1)      //If the width of the range is 1, then it is vertical array constant.
+                    op = ";";
+                else if (height1 == 1)//If the height of the range is 1, then it is horizontal array constant.
+                    op = ",";
+
+                for (var i=0;i<args.length; i++)
+                    text += args[i] + op;
+
+                formula = text.substr(0,text.length-1).split(" ").join(this._string_empty);
+                originalFormula = formula;
+
+                //If the height/ width is greater, then combination of comma's and semicolons'
+                if (height1 > 1 && width1 > 1)
+                    return this._parseRangeArray(formula, height1, width1);
+            }
+            //If the formula contains comma, then it is horizontal array,
+            if (originalFormula.indexOf(",") > -1 && originalFormula.indexOf(";") == -1)
+                return this._parseHorizontalArray(formula);
+                //If the formula contains semi colon, then it is vertical array,
+            else if (originalFormula.indexOf(";") > -1 && originalFormula.indexOf(",") == -1)
+                return this._parseVerticalArray(formula);
+                //If the formula contains operators, then it should be parsed separately,
+            else if (this._indexOfAny(originalFormula,this._arrayMarkers) > -1)
+            {
+                var splitarg = this._splitString(originalFormula);
+                return this._parseRangeArray(formula, this._getHeight(splitarg), this._getWidth(splitarg));
+            }
+            else
+            {
+                //If the formula is multi dimensional array, below parsing steps should be used,
+
+                var cells = this._splitArguments(formula,";");
+                var splitarg = [];
+                var pieces = [];
+                var height = cells.length;
+                var width = 0;
+
+                //Splitting the arguments based on comma,
+                for (var i = 0; i < cells.length; i++) {
+                    var cells1 = this.splitArgsPreservingQuotedCommas(cells[i]);
+                    splitarg.push(cells1);
+                    width = cells1.length;  //If the range of one width is greater than other in formula array,
+                }
+
+            //Based on height and width, the values should be stored in the list.
+            for (var r = 0; r < height; r++)
+            {
+                for (var c = 0; c < width; c++)
+                {
+                    pieces.push(splitarg[r][c]);
+                }
+            }
+
+            if (this.cell == this._string_empty)
+                return pieces[0];
+            var originalheight = height;
+            var originalwidth = width;
+
+            var pos = this._getPosition(height, width);
+            height = this._getPositionHeight;
+            width = this._getPositionWidth;
+            //If the calculated width is greater than selected range's width, then the 
+            //position is calculated in the below way,[For Eg: Selected Range(A4:B5)=> width = 2, but array formula
+            //range({1,2,3,4;7,4,5,6})=> width = 4, (i.e) the selected width is less than array formula range's width,
+            //index is calculated in the below way].
+            if (originalwidth > width && pos != -1 && pos >= width)
+                pos = pos + (pos / width) * (originalwidth - width);                       
+
+            if (pos > -1)
+                formula = pieces[pos];
+            else
+                formula = this.getErrorStrings()[0].toString();
+        }
+        return formula;
+        };
+        /**
+         * 
+		 * @private
+        */
+        this._parseRangeArray = function (formula, height, width) {
+            var cells1 = this.splitArgsPreservingQuotedCommas(formula);
+
+            if (this.cell == this._string_empty)
+                return cells1[0];
+
+            var originalheight = height;
+            var originalwidth = width;
+
+            var pos = this._getPosition(height, width);
+            height = this._getPositionHeight;
+            width = this._getPositionWidth;
+            //If the calculated width is greater than selected range's width, then the 
+            //position is calculated in the below way,[For Eg: Selected Range(A4:B5)=> width = 2, but array formula
+            //range({1,2,3,4}*{7,4,5,6})=> width = 4, (i.e) the selected width is less than array formula range's width,
+            //index is calculated in the below way].
+            if (originalwidth > width && pos != -1 && pos >= width)
+                pos = pos + (pos / width) * (originalwidth - width);
+
+            if (pos > -1)
+                formula = cells1[pos];
+            else
+                formula = this.getErrorStrings()[0].toString();
+            return formula;
+        };
+
+        this._parseVerticalArray = function (formula) {
+            var width = 16384;//Max Column count of Excel
+            var cells1 = this._splitArguments(formula,';');
+            var height = cells1.length;
+            if (this.cell == this._string_empty)
+                return cells1[0];
+            var index = this._getPosition(height, width);
+            height = this._getPositionHeight;
+            width = this._getPositionWidth;
+            //If the selected width is less than array formula range's width, then compute the
+            //index in the below way,[For Eg:{23;24;25;26}=> here width is 1, but array formula
+            //range(A1:D1)=> width = 4, in which the index is divided by array formula's width to produce
+            //correct result.(By default width will be 1 for vertical array, so below calculation will not be affected)].
+            index = index > -1 ? index / width : index;
+            if (index > -1)
+                formula = cells1[index];
+            else
+                formula = this.getErrorStrings()[0].toString();
+            return formula;
+        }
+        /**
+        * 
+        * @private
+       */
+        this._parseHorizontalArray = function (formula) {
+            var height = 1048576; // Max Row count of Excel
+            var cells1 = this.splitArgsPreservingQuotedCommas(formula);  
+            var width = cells1.length;
+            if (this.cell == this._string_empty)
+                return cells1[0];
+            var index = this._getPosition(height, width);
+            height = this._getPositionHeight;
+            width = this._getPositionWidth;
+            index = index> -1 ? index % width : index;
+            if (index > -1)
+                formula = cells1[index];
+            else
+                formula = this.getErrorStrings()[0].toString();
+            return formula;
+        }
+
+         /**
+         * 
+		 * @private
+        */
+        this._splitString = function (formula) {
+            formula = formula.split(" ").join(this._string_empty).toUpperCase();
+            formula = this._markNamedRanges(formula);
+            var subStrings = formula.split(/([-+*/&])/);
+            return subStrings;
+        };
+         /**
+         * 
+		 * @private
+        */
+        this._computeArrayLen = function(arg, computeLevel){
+            var strValue = this._string_empty;
+            var strArray = this._string_empty;
+            var len = this._string_empty;
+            if (arg.indexOf(":") > -1 && computeLevel > 0) {
+                var values = this.getCellsFromArgs(arg);
+                for(var i=0;i<values.length;i++){
+                    strValue = this.getValueFromArg(values[i]).split(this.tic).join(this._string_empty);
+                    if (strValue != this._string_empty) {
+                        len = strValue.length;
+                        strArray += len + this._parseArgumentSeparator;
+                    }
+                }
+                strArray = strArray.substring(0,strArray.length-1);
+            }
+            else if (computeLevel > 0) {
+                var args = this.splitArgsPreservingQuotedCommas(arg);
+                for (var j = 0; j < args.length; j++) {
+                    strValue = this.getValueFromArg(args[j]).split(this.tic).join(this._string_empty);
+                    if (strValue != this._string_empty) {
+                        len = strValue.length.toString();
+                        strArray += len + this._parseArgumentSeparator;
+                    }
+                }
+                strArray = strArray.substring(0,strArray.length-1);
+            }
+            else if (arg.indexOf(":") > -1) {
+                if (this.cell != this._string_empty) {
+                    //If the given argument is cell range and computation level is 1, then need to check the formula entered cell
+                    //and calculate the length of the appropriate cell.
+                    var cells = this.getCellsFromArgs(arg);
+                    var height = this.computeRows(arg);
+                    height = !isNaN(height) ? height : 0;
+                    var width = this.computeColumns(arg);
+                    width = !isNaN(width) ? width : 0;
+                    var pos = parseInt(this._getPosition(height, width));
+                    height = this._getPositionHeight;
+                    width = this._getPositionWidth;
+                    var index = !isNaN(pos)?pos:-1;
+                    if (index >= 0 && cells.length > index)
+                    {
+                        strValue = this.getValueFromArg(cells[index]).split("\"").join(this._string_empty);
+                        if (strValue != this._string_empty)
+                            strArray = strValue.length.toString();
+                    }
+                    else
+                        strArray = this.getErrorStrings()[0].toString();
+                }
+                else
+                    strArray = this._string_empty;
+            }
+            else{
+                //If the given argument is single cell,
+                var args = this.splitArgsPreservingQuotedCommas(arg);
+                strValue = this.getValueFromArg(args[0]).split("\"").join(this._string_empty);
+                if (strValue != this._string_empty)
+                    strArray =  strValue.length.toString();
+            }
+            return strArray;
+        };
+         /**
+         * 
+		 * @private
+        */
+        this._computeArrayRow = function (arg, computeLevel) {
+            var strArray = this._string_empty;
+            arg = arg.split("\"").join(this._string_empty);
+            var cells = this.getCellsFromArgs(arg);
+            var first = this.rowIndex(cells[0].toString());
+            var last = this.rowIndex(cells[cells.length - 1].toString());
+            if (computeLevel > 0) {
+                //Get the first and last row index from the range and loop it to output the value in the form of {first,.....,last}               
+                for (var s = first; s <= last; s++)
+                    strArray += s.toString() + this._parseArgumentSeparator;
+
+                strArray = strArray.substr(0,strArray.length - 1);
+            }
+            else {
+                if (this.cell != this._string_empty) {
+                    var rows = [];
+                    rows.length = (last - first) + 1;
+                    var r = 0;
+                    //Storing the row values from the argument to the list,
+                    for (var s = first; s <= last; s++) {
+                        rows[r] = s.toString();
+                        r++;
+                    }
+                    var height = this.computeRows(arg);
+                    height = !isNaN(height) ? height : 0;
+                    var width = this.computeColumns(arg);
+                    width = !isNaN(width) ? width : 0;
+
+                    if (width == 1)
+                        width = 16384;
+
+                    //Get the index of the particular cell, and obtain the result from the saved string list.
+                    var index = this._getPosition(height, width);
+                    height = this._getPositionHeight;
+                    width = this._getPositionWidth;
+                    index = index > -1 ? index / width : index;
+
+                    if (index > -1)
+                        strArray = rows[index].toString();
+                    else
+                        strArray = this.getErrorStrings()[0].toString();
+                }
+                else
+                    strArray = this._string_empty;
+            }
+            return strArray;
+        };
+         /**
+         * 
+		 * @private
+        */
+        this._computeArrayColumn = function(arg, computeLevel){
+            var strArray = this._string_empty;
+            arg = arg.split("\"").join(this._string_empty);
+            var cells = this.getCellsFromArgs(arg);
+            var first = this.colIndex(cells[0].toString());
+            var last = this.colIndex(cells[cells.length - 1].toString());
+
+            if (computeLevel > 0)
+            {
+                //Get the first and last column index from the range and loop it to output the value in the form of {first,.....,last}
+                for (var s = first; s <= last; s++)
+                    strArray += s.toString() + this._parseArgumentSeparator;
+                strArray = strArray.substr(strArray.length - 1);
+            }
+            else
+            {
+                if (this.cell != this._string_empty)
+                {
+                    var cols = [];
+                    cols.length = (last-first)+1;
+                    var r = 0;
+                    //Storing column values from the argument to the list,
+                    for (var s = first; s <= last; s++)
+                    {
+                        cols[r] = s.toString();
+                        r++;
+                    }
+                    var height = this.computeRows(arg);
+                    height = !isNaN(height)?height:0;
+                    var width = this.computeColumns(arg);
+                    width = !isNaN(width)?width:0;
+
+                    if(height == 1)
+                        height = 1048576;
+
+                    //Get the index of the particular cell, and obtain the result from the saved string list.
+                    var index = this._getPosition(height, width);
+                    height = this._getPositionHeight;
+                    width = this._getPositionWidth;
+                    index = index > -1 ? index % width : index;
+
+                    if (index > -1)
+                        strArray = cols[index].toString();
+                    else
+                        strArray = this.getErrorStrings()[0].toString();
+                }
+                else
+                    strArray = this._string_empty;
+
+            }
+            return strArray;
         };
         /**
          * 
@@ -690,7 +1550,7 @@
 		    var count = 0;
 		    var loc = location;
 		    var found = false;
-		    while (!found && location < formula.Length) {
+		    while (!found && location < formula.length) {
 		        if (formula[location] == '[') {
 		            count++;
 		        }
@@ -1091,7 +1951,8 @@
 		                var flag;
 		                var s = this.getValueFromArg(numberArrays[i].split(this.tic).join(""));
 		                var trueFalseString1 = Boolean(s);
-		                var d1 = this._parseDouble(numberArrays[i].split(this.tic).join(""));
+                        //JS-58517 : To compute the proper round value when the cell reference has formula.
+		                var d1 = ej.parseFloat(numberArrays[i].split(this.tic).join(""));
 		                if (isNaN(d1)) {
 		                    var argumentValue = this.getValueFromArg(numberArrays[i]);
 		                    if (this.getErrorStrings().indexOf(argumentValue) > -1) {
@@ -1222,6 +2083,7 @@
                 //JS - 55994 - To avoid formula cells calculating again.
                 o = this.parentObject.getValueRowCol(this.getSheetID(grd) + 1, row, col);
                 return ej.isNullOrUndefined(o) ? this._string_empty : o.toString();
+
             }
             var val = (o != null && !(o.Length === 0)) ? o : "";
 
@@ -1429,6 +2291,8 @@
         */
 		this._initLibraryFunctions = function () {
             this._libraryFunctions = new HashTable();
+		    //Excel 2016 formulas.
+            this._addFunction("Countifs", "ComputeCOUNTIFS");
 
             ////Hand-coded formulas.
             this._addFunction("SUM", "computeSum");
@@ -2981,7 +3845,8 @@
         */
 		this._isDate = function (dateString) {
 		    //JS-32710 - To parse the date object properly.
-		    if (typeof dateString == "object" || ej.parseDate(dateString) != null) {
+            //JS-58855 - To compute the proper date for addition.
+		    if (typeof dateString == "object" || ej.parseDate(dateString) != null || Date.parse(dateString) != null) {
 		        var date = new Date(Date.parse(dateString));
 		        if (date >= this._dateTime1900) {
 		            return date;
@@ -3262,6 +4127,31 @@
                         else
                             this._ignoreBracet = false;
                         var s = this._substring(formula, leftParens, rightParens - leftParens + 1);
+                        if (s.indexOf("({") > -1 && s.indexOf("})") > -1) {
+                            var stringVal = this._string_empty;
+                            var valueInsidePhrases = this._string_empty;
+                            for (var j = 0; j < s.length; j++) {
+                                var val = this._string_empty;
+                                if (s[j] == '{') {
+                                    val += s[j++];
+                                    while (s[j] != '}') {
+                                        valueInsidePhrases += s[j++];
+                                    }
+                                }
+                                val += valueInsidePhrases;
+                                val += s[j];
+                                
+                                if (this.getNamedRanges().length > 0 && valueInsidePhrases != this._string_empty) {
+                                    this._checkForNamedRange(valueInsidePhrases.toUpperCase());
+                                    if(this._findNamedRange)
+                                        val = val.split("{").join(this._string_empty);
+                                    this._findNamedRange = false;
+                                }
+                                valueInsidePhrases = this._string_empty;
+                                stringval += val;
+                            }
+                            s = stringval;
+                        }
                         s = this._markNamedRanges(s);
                         //JS-53112 To parse the NamedRange formulas properly
                         s = this._swapInnerParens(s);
@@ -3314,8 +4204,10 @@
                         if (rightParens < formula.length) {
                             s = s + formula.substring(rightParens + 1);
                         }
-
-                        s = this._markNamedRanges(s);
+                        if (!ej.isNullOrUndefined(this.parentObject) && this.parentObject.pluginName != "ejSpreadsheet") {
+                            //Below code has been commented need to avoid the conversion of NamedRange to cell range,if the parsed string contains  "((" .
+                            s = this._markNamedRanges(s);
+                        }
                         formula = s;
                     }
 
@@ -3353,7 +4245,7 @@
 		        var oneTimeOnly = true;
 		        while (id > -1) {
 		            var j = this._indexOfAny(s.substring(id + 1, s.length), rightSides);
-                                        if(j>= 0){
+                    if(j>= 0){
                     j = id + j + 1;
                     }
 		            else if (j == -1 && s[s.length - 1] == ')')
@@ -3404,14 +4296,15 @@
                 if ((this._substring(argList, i, end)).indexOf("[") > -1) {
                     s = this._getTableRange(this._substring(argList, i, end));
                 }
-                else {
-                    s = this.getNamedRanges().getItem(this._substring(argList, i, end));
+                else if (this.getNamedRanges().containsKey(this._substring(argList, i, end))) {
+                    s = this._checkForNamedRange(this._substring(argList, i, end));
                 }
                 if (s != undefined && !(typeof s === 'string'))
                     s = s.getItem(this._substring(argList, i, end));
-                if (s == null) {
+                if (ej.isNullOrUndefined(s)) {
                     scopedRange = this._checkIfScopedRange(this._substring(argList, i, end));
-                    if (!isNaN(scopedRange)) {
+                    if (scopedRange != "NaN") {
+                        this._findNamedRange = true;
                         s = scopedRange;
                     } else if (this._substring(argList, i, end).startsWith(this.sheetToken.toString())) {
                         var iii = this._substring(argList, i, end).indexOf(this.sheetToken, 1);
@@ -3419,14 +4312,19 @@
                             s = this.getNamedRanges().getItem(this._substring(argList.substring(i), iii + 1, end - iii - 1));
                         }
                     }
+                    if (!ej.isNullOrUndefined(s) && this._findNamedRange) {
+                        if (s.indexOf(this._string_fixedreference) > -1) {
+                            s = s.split(this._string_fixedreference).join(this._string_empty);
+                        }
+                    }
                 }
-                if (s != null) {
+                if (!ej.isNullOrUndefined(s)) {
                     s = s.toUpperCase();
                     s = this.setTokensForSheets(s);
                     s = this._markLibraryFormulas(s); ////recursive call
                 }
 
-                if (s != null) {
+                if (!ej.isNullOrUndefined(s) && s != this._string_empty) {
                     argList = argList.substring(0, i) + s + argList.substring(i + end);
                     i += s.length + 1;
                 } else {
@@ -3436,6 +4334,8 @@
                     }
                 }
                 end = i;// argList.Substring(i).IndexOfAny(markers);
+                if(i<argList.length - 1 && argList[i] == "{")
+                    i=i+1;
                 if (argList.indexOf("[") == -1 || argList.indexOf("[") > this._indexOfAny(argList.substring(i), markers))
                     end = this._indexOfAny(argList.substring(i), markers);
                 else
@@ -3452,19 +4352,23 @@
                     }
                     else {
                         ////check last part of arglist
-                        s = this.getNamedRanges().length > 0 ? this.getNamedRanges().getItem(argList.substring(i)) : s;
+                        s = this.getNamedRanges().length > 0 ? this._checkForNamedRange(argList.substring(i)) : s;
                     }
-                    if (s == null) {
+                    if (ej.isNullOrUndefined(s)) {
                         scopedRange = this._checkIfScopedRange(argList.substring(i));
-                        if (!isNaN(scopedRange))
+                        if (scopedRange != "NaN")
                             s = scopedRange;
                     }
-                    if (s != null) {
+                    if (!ej.isNullOrUndefined(s) && s != this._string_empty) {
                         s = s.toUpperCase();
                         s = this.setTokensForSheets(s);
                         s = this._markLibraryFormulas(s);
                         if (s != null) {
-                            argList = argList.substring(0, i) + s; //// +argList.Substring(i + end);
+                            var val = argList.substring(i);
+                            if (val[val.length - 1] == ")")
+                                argList = argList.substring(0, i) + s + ")";
+                            else
+                                argList = argList.substring(0, i) + s; //// +argList.Substring(i + end);
                             i += s.toString().length + 1;
                         }
                     }
@@ -3674,6 +4578,258 @@
 		    }
 		    return range.toUpperCase();;
 		};
+         /**
+       * 
+       * @private
+      */
+		this._calculateArraySize = function(subString, height, width, minHeight, minWidth){
+        var index = subString.indexOf(":");
+        var result = this._string_empty;
+        var height1 = 0;
+        var width1 = 0;
+            minWidth = 0;
+            minHeight = 0;
+            if (this._isCellReference(subString)) {
+                if (index > -1) {
+                    var top = this.rowIndex(subString.substr(0,index));
+                    var bottom = this.rowIndex(subString.substr(index+1));
+                    var left = this.colIndex(subString.substr(0,index));
+                    var right = this.colIndex(subString.substr(index+1));
+                    height1= (bottom - top) + 1;
+                    width1 = (right - left) + 1;
+                    if(height1>height)
+                    bottom = bottom - (height1-height);
+                    if(width1>width)
+                    right = right - (width1-width);
+                    if(height1<height)
+                    minHeight = height1;
+                    if(width1<width)
+                        minWidth = width1;
+
+                    result = RangeInfo.getAlphaLabel(left) + top.toString() + ":" + RangeInfo.getAlphaLabel(right) + bottom.toString();
+                    subString = result;
+                }
+                else {
+                    minHeight = 1;
+                    minWidth = 1;
+                }
+            }
+            else {
+                height1 = 1;
+                width1 = 1;
+                if (subString.indexOf(",") > -1 && subString.indexOf(";") == -1) {
+                    width1 = this.splitArgsPreservingQuotedCommas(subString).length;
+                }
+                else if(subString.indexOf(";") > -1 && subString.indexOf(",") == -1)
+                height1 = this._splitArguments(subString, ";").length;
+
+                if(height1<height)
+                minHeight = height1
+                if(width1<width)
+                minWidth = width1;
+            }
+            this._calculateArraySizeheight = height;
+            this._calculateArraySizewidth = width;
+            this._calculateArraySizeminHeight = minHeight;
+            this._calculateArraySizeminWidth = minWidth;
+            return subString;
+		}
+        /**
+       * 
+       * @private
+      */
+        this._checkForNamedRange = function (text) {
+            var scopedRange = this._string_empty;
+            if (text.indexOf("[") > -1) {
+                var namerangeValue = this._getTableRange(text);
+                if (!ej.isNullOrUndefined(namerangeValue)) {
+                    this._findNamedRange = true;
+                    text = namerangeValue;
+                }
+            }
+            var scopedRange = this._checkIfScopedRange(text);
+            if (scopedRange != "NaN") {
+                this._findNamedRange = true;
+                text = scopedRange;
+            }
+            else {
+                if (text.indexOf(this.sheetToken) > -1) {
+                    var sheet = CalcEngine.getSheetFamilyItem(this.grid);
+                    var value = text.split("'").join(this._string_empty);
+                    value = value.substr(0, value.indexOf(this.sheetToken));
+                    if (sheet.sheetNameToToken.containsKey(value.toUpperCase()))
+                    {
+                        var sheetIndex = parseInt(sheet.sheetNameToToken.getItem(value.toUpperCase()).split(this.sheetToken).join(this._string_empty));
+                        if (!ej.isNullOrUndefined(this.parentObject) && this.parentObject.pluginName == "ejSpreadsheet") {
+                            var name = text.replace(value, this.parentObject.model.sheets[(sheetIndex + 1)].sheetInfo.text.toUpperCase()).split("'").join(this._string_empty);
+                            if (this.getNamedRanges().length > 0 && this.getNamedRanges().contains(name.toUpperCase())) {
+                                text = name;
+                            }
+                        }
+                    }
+                }
+                if (this.getNamedRanges().length > 0 && this.getNamedRanges().contains(text.toUpperCase())) {
+                    if (!ej.isNullOrUndefined(this.parentObject) && this.parentObject.pluginName == "ejSpreadsheet") {
+                        text = this._parse(this.getNamedRanges().getItem(text.toUpperCase()));
+                    }
+                    else {
+                        text = this._parse(this.getNamedRanges().getItem(text.toUpperCase()));
+                        text = this.setTokensForSheets(text);
+                        if (text.indexOf(this._string_fixedreference) > -1) {
+                            text.split(this._string_fixedreference).join(this._string_empty);
+                        }
+                    }
+                    this._findNamedRange = true;
+                }
+            }
+            if (this._findNamedRange) {
+                if (text[0] != '!' && text[0] != "q" && text[0] != "bq") {
+                    text = this.setTokensForSheets(text);
+                    if(text.indexOf(this._string_fixedreference) > -1)
+                        text.split(this._string_fixedreference).join(this._string_empty);
+                }
+            }
+            return text;
+        };
+         /**
+        * 
+        * @private
+       */
+        this._getTableRange = function (text){
+            var cellRange;
+            var name = text.split(this._table_Data).join(this._string_empty);
+            var tableName = name;
+            if (name.indexOf(this._parseArgumentSeparator) > -1) {
+                tableName = name.substring(0, name.indexOf(this._parseArgumentSeparator));
+                name = name.split(this._parseArgumentSeparator).join(this._string_empty);
+            }
+            var range = this._string_empty;
+            if(text.toUpperCase().indexOf(this._table_Row) > -1)
+            {
+                name = name[name.length - 1] == ")"?name.replace(")",this._string_empty):name;
+                if (name.indexOf(":") > -1) {
+                    var sheetTokenofRange = this._string_empty;
+                    var subName = name.toUpperCase().split(this._table_Row);
+                    var args = this._splitArguments(subName[1], ":");
+                    for (var i = 0; i < args.length - 1; i++) {
+                        args[i] = subName[0] + args[i];
+                        if (!ej.isNullOrUndefined(this.parentObject) && this.parentObject.pluginName == "ejSpreadsheet") {
+                            this.SetNamedRangeDependency(args[i].toUpperCase(), this.cell);
+                            var tableRange = this.getNamedRanges()[args[i].toUpperCase()].split(this._table_Row).join(this._string_empty);
+                            if (!ej.isNullOrUndefined(tableRange)) {
+                                cellRange = this.getNamedRanges()[args[i].toUpperCase()].split(this._table_Row).join(this._string_empty);
+                            }
+                        }
+                        else {
+                            cellRange = (this.getNamedRanges()[args[i].toUpperCase().split(this._table_Row).join(this._string_empty).split("[[").join("[").split("]]").join("]")]);
+                        }
+
+                        if(ej.isNullOrUndefined(cellRange))
+                            return cellRange;
+                        cellRange = cellRange.toUpperCase();
+                        cellRange = this.setTokensForSheets(cellRange);
+                        cellRange = cellRange.split(this._string_fixedreference).join(this._string_empty);
+                        sheetTokenofRange = this._sheetToken(cellRange.split(this.tic).join(this._string_empty));
+                        if (i == args.length - 1)
+                            range += this._getCellFrom(cellRange);
+                        else
+                            range += this._getCellFrom(cellRange) + ":";
+                    }
+                    range = sheetTokenofRange + range;
+                }
+                else {
+                    if (!ej.isNullOrUndefined(this.parentObject) && this.parentObject.pluginName == "ejSpreadsheet") {
+                        this.SetNamedRangeDependency(name.toUpperCase(), this.cell);
+                        var tableRange = this.getNamedRanges()[name.toUpperCase()];
+                        if (!ej.isNullOrUndefined(tableRange)) {
+                            cellRange = this.getNamedRanges()[name.toUpperCase()].split(this._table_Row).join(this._string_empty);
+                        }
+                    }
+                    else {
+                        cellRange = (this.getNamedRanges()[name.toUpperCase().split(this._table_Row).join(this._string_empty).split("[[").join("[").split("]]").join("]")]);
+                    }
+
+                    if (ej.isNullOrUndefined(cellRange))
+                        return cellRange;
+                    cellRange = cellRange.toUpperCase();
+                    var row = this.rowIndex(this.cell);
+                    cellRange = cellRange.split(this._string_fixedreference).join(this._string_empty);
+                    sheetTokenofRange = this._sheetToken(cellRange.split(this.tic).join(this._string_empty));
+                    var topRow = this._getTopRowIndex(cellRange);
+                    range = this.getCellsFromArgs(cellRange)[row-topRow];
+                }
+            }
+            else
+            {
+                name = name[name.length - 1] == "[" ? name.split("[").join(this._string_empty) : name;
+                name = name[name.length - 1] == ")" ? name.split(")").join(this._string_empty) : name;
+                if (!ej.isNullOrUndefined(this.parentObject) && this.parentObject.pluginName == "ejSpreadsheet") {
+                    this.SetNamedRangeDependency(name.toUpperCase(), this.cell);
+                    var n = this.getNamedRanges().getItem(name.toUpperCase());
+                    range = !ej.isNullOrUndefined(n)?this.getNamedRanges().getItem(name.toUpperCase()).toString().toUpperCase() : null;
+                }
+                else {
+                    var n = this.getNamedRanges()[name.toUpperCase()];
+                    range = !ej.isNullOrUndefined(n)?n.toString():null;
+                }
+                if(range == null)
+                return null;
+            }
+            return range.toUpperCase(); 
+        };
+         /**
+        * 
+        * @private
+       */
+        this._getTopRowIndex = function (range) {
+            range = this._markColonsInQuotes(range);
+            var row1;
+            var i = range.indexOf(":");
+            if (i == -1) {
+            this.rowIndex(range);
+            }
+            var sheet = this._string_empty;
+            var j = range.indexOf(this.sheetToken);
+            if (j > -1) {
+                var j1= range.substring(0,j+1).indexOf(this.sheetToken);
+                if (j1 > -1) {
+                    sheet = range.substring(j, j1 - j + 1);
+                    range = range.split(sheet, this._string_empty);
+                    i = range.indexOf(":");
+                }
+            }
+            row1 = this.rowIndex(arg.substring(0, i));
+            return row1;
+        }
+         /**
+        * 
+        * @private
+       */
+        this._markColonsInQuotes = function (args) {
+            var inQuotes = false;
+            if(args.indexOf(":") == -1)
+                return args;
+            var sb = new StringBuilder();
+            for(var i = 0; i<args.length; i++)
+            {
+                if (args[i] == this.tic) {
+                    inQuotes = !inQuotes;
+                }
+                else if (args[i] == ":" && inQuotes) {
+                    if (!ej.isNullOrUndefined(this.parentObject) && this.parentObject.pluginName == "ejSpreadsheet") {
+                        sb.append(this._markerChar);
+                    }
+                    else
+                        args = args.split(":", this._markerChar);
+                }
+                else
+                    sb.append(args[i]);
+            }
+            if (!ej.isNullOrUndefined(this.parentObject) && this.parentObject.pluginName == "ejSpreadsheet") {
+                args = sb.toString();
+            }
+            return args;
+        };
         /**
          * 
 		 * @private
@@ -3695,20 +4851,8 @@
 
             ////Special check for single namedrange.
             if (this.getNamedRanges().length > 0) {
-                if (text.indexOf("[") > -1) {
-                    var namerangeVal = this._getTableRange(text);
-                    if (namerangeVal != null)
-                        text = namerangeVal;
-                }
-                if (this.getNamedRanges().getItem(text.toUpperCase()) != undefined) {
-                    text = this.getNamedRanges().getItem(text.toUpperCase()).toUpperCase();
-                } else {
-                    var scopedRange = "";
-                    scopedRange = this._checkIfScopedRange(text.toUpperCase());
-                    if (!isNaN(scopedRange)) {
-                        text = scopedRange.toUpperCase();
-                    }
-                }
+                text = this._checkForNamedRange(text);
+                this._findNamedRange = false;
             }
 
             var formulaStrings = this._saveStrings(text);
@@ -3725,8 +4869,13 @@
                 //replace sheet references with tokens.
                 var family = CalcEngine.getSheetFamilyItem(this.grid);
                 if (family.sheetNameToParentObject != null && family.sheetNameToParentObject.length > 0) {
-                    try  {
-                        text = this.setTokensForSheets(text);
+                    try {
+                        if (text[0] != this.sheetToken.toString())
+                            text = this.setTokensForSheets(text);
+                        var sheetToken = this._sheetToken(text.split(this.tic).join(this._string_empty));
+                        var scopedRange = this._checkIfScopedRange(text.split("'").join(this._string_empty).split(this.sheetToken).join(this._string_empty))
+                        if(ej.isNullOrUndefined(sheetToken) && sheetToken != this._string_empty && this.getNamedRanges().length > 0 && scopedRange != this._string_empty)
+                           text = scopedRange;
                     } catch (ex) {
                         if (this._rethrowExceptions) {
                             throw ex;
@@ -3742,19 +4891,92 @@
                 return this._getCellFrom(this._parseSimple(text));
             }
 
-            ////next 3 lines moved from above - //keep the tic defect#541
-            text = text.split(" ").join("");
+		    ////next 3 lines moved from above - //keep the tic defect#541
+            var valInsquareBracket = this._string_empty;
+            if (text.indexOf("[") > -1) {
+                for (var i = 0; i < text.length; i++) {
+                    if (text[i] == "[") {
+                        while (text[i] != "]") {
+                            valInsquareBracket = valInsquareBracket.concat(text[i]);
+                            i++;
+                        }
+                    }
+                    if (text[i] == " ") {
+                        continue;
+                    }
+                    valInsquareBracket = valInsquareBracket.concat(text[i]);
+                }
+                text = valInsquareBracket;
+            }
+            else if (text.indexOf(" ") > -1 && this.getNamedRanges().length > 0) {
+                var stringval = this._string_empty;
+                var scopedRange = this._string_empty;
+                var namedRangeSpace = false;
+                var textValue = this._string_empty;
+                var formulaInsideNamedRangeSpace = false;
+                var d = 0.0;
+
+                for (var j = 0; j < text.length; j++) {
+                    var val = this._string_empty;
+                    while (j != text.length && this._isLetterOrDigit(text[j]) || j != text.length && text[j] == ":") {
+                        textValue = textValue.concat(text[j++]);
+                    }
+                    scopedRange = this.getNamedRanges().getItem(textValue.toUpperCase());
+                    if (scopedRange != undefined) {
+                        val = val.concat(textValue);
+                        namedRangeSpace = true;
+                    } else if (this.getLibraryFunctions().getItem(textValue) != undefined) {
+                        val = val.concat(textValue);
+                    } else if (textValue != this._string_empty) {
+                        val = val.concat(textValue);
+                    }
+
+                    if (j != text.length && text[j] == ' ' && j != 0 && this._isLetterOrDigit(text[j - 1]) | text[j - 1] == ')') {
+                        textValue = this._string_empty;
+                        j++;
+                        while (j != text.length && this._isLetterOrDigit(text[j]) || j != text.length && text[j] == ':') {
+                            textValue = textValue.concat(text[j++]);
+                        }
+                        scopedRange = this.getNamedRanges().getItem(textValue.toUpperCase());
+                        if (namedRangeSpace && !formulaInsideNamedRangeSpace && scopedRange != undefined) {
+                            val = val.concat(" " + textValue);
+                        } else if (namedRangeSpace && textValue.indexOf(":") > -1) {
+                            val = val.concat(" " + textValue);
+                        } else if (scopedRange == undefined && this.getLibraryFunctions().getItem(textValue) != undefined && namedRangeSpace) {
+                            val = val.concat(" " + textValue);
+                            formulaInsideNamedRangeSpace = true;
+                        } else if (textValue != this._string_empty) {
+                            val = val.concat(textValue);
+                        }
+                    }
+                    if (j != text.length && text[j] == ')') {
+                        val = val.concat(text[j]);
+                        formulaInsideNamedRangeSpace = false;
+                    } else if (j != text.length && text[j] != ')' && text[j] != ' ') {
+                        val = val.concat(text[j]);
+                    } else if (j != text.length && text[j] == ' ' && namedRangeSpace && this._isLetterOrDigit(text[j - 1]) | text[j - 1] == ')') {
+                        val = val.concat(text[j]);
+                    } else if (j != text.length && textValue == this._string_empty && !namedRangeSpace && text[j] != ' ') {
+                        val = val.concat(this._string_empty);
+                    }
+
+                    stringval += val;
+                    textValue = this._string_empty;
+                }
+                text = stringval;
+            } else {
+                text = text.split(" ").join("");
+            }
             text = text.split("=>").join(">=");
             text = text.split("=<").join("<=");
 
             try  {
                 text = this._markLibraryFormulas(text);
             } catch (ex) {
-                if (this._rethrowExceptions) {
+                if (this._rethrowLibraryComputationExceptions) {
                     throw ex;
-                } else {
-                    return ex;
-                }
+                    return ex.message;
+                } 
             }
 
             ////Look for inner matching and parse pieces without parens with ParseSimple.
@@ -3772,7 +4994,7 @@
                     if (this._ignoreBracet) {
                         s = this._substring(text, k, i - k + 1);
                     } else
-                        s = this._substring(text,k + 1, i - k - 1);
+                        s = this._substring(text, k + 1, i - k - 1);
                     //JS-55905 To update the dependecies when formula contains the sheet references.
                     if (s.indexOf(':') > -1 && s.indexOf('q') == -1 && s.indexOf('=') == -1 && s.indexOf('[') == -1) {
                         if (s.indexOf(this._string_fixedreference) > -1) {
@@ -3812,13 +5034,14 @@
 		 * @private
         */
 		this._parseDouble = function (value) {
-            return !isNaN(parseInt(value)) ? Number(value.toString().replace(/[^0-9\.]-+/g,"")) * 1 : NaN;
+		    var val = ej.parseFloat(value.toString(), 0, ej.cultureObject.name);
+		    return !isNaN(val) ? val : NaN;
         };
         /**
          * 
 		 * @private
         */
-        var needToContinue = true;
+		var needToContinue = true;
 		this._parseSimple = function (formulaText) {
             var text = formulaText;
 
@@ -3947,444 +5170,451 @@
                 ////Leading plus.
                 text = text.substring(1);
             }
-            try {
-            if (this._indexOfAny(text, operators) > -1) {
-                while ((i = this._indexOfAny(text, operators)) > -1) {
-                    var left = "";
-                    var right = "";
+		    try {
+		        if (this._indexOfAny(text, operators) > -1) {
+		            while ((i = this._indexOfAny(text, operators)) > -1) {
+		                var left = "";
+		                var right = "";
 
-                    var leftIndex = 0;
-                    var rightIndex = 0;
-                    var isNotOperator = this._supportLogicalOperators && text[i] == this.char_NOTop;
-                    var j = 0;
+		                var leftIndex = 0;
+		                var rightIndex = 0;
+		                var isNotOperator = this._supportLogicalOperators && text[i] == this.char_NOTop;
+		                var j = 0;
 
-                    if (!isNotOperator) {
-                        if (i < 1 && text[i] != '-') {
-                            throw this.formulaErrorStrings[this._operators_cannot_start_an_expression];
-                        }
+		                if (!isNotOperator) {
+		                    if (i < 1 && text[i] != '-') {
+		                        throw this.formulaErrorStrings[this._operators_cannot_start_an_expression];
+		                    }
 
-                        j = i - 1;
+		                    j = i - 1;
 
-                        if (i == 0 && text[i] == '-') {
-                            ////Unary minus - block and continue.
-                            text = this.bMARKER + "nu" + text.substring(1) + this.bMARKER;
-                            continue;
-                        } else if (text[j] == this.tic[0]) {
-                            ////string
-                            var k = text.substring(0, j - 1).lastIndexOf(this.tic);
-                            if (k < 0) {
-                                throw this.formulaErrorStrings[this._cannot_parse];
-                            }
+		                    if (i == 0 && text[i] == '-') {
+		                        ////Unary minus - block and continue.
+		                        text = this.bMARKER + "nu" + text.substring(1) + this.bMARKER;
+		                        continue;
+		                    } else if (text[j] == this.tic[0]) {
+		                        ////string
+		                        var k = text.substring(0, j - 1).lastIndexOf(this.tic);
+		                        if (k < 0) {
+		                            throw this.formulaErrorStrings[this._cannot_parse];
+		                        }
 
-                            left = this._substring(text, k, j - k + 1); ////Keep the tics.
-                            leftIndex = k;
-                        } else if (text[j] == this.bMARKER) {
-                            var k = this._findLastNonQB(text.substring(0, j - 1));
-                            if (k < 0) {
-                                throw this.formulaErrorStrings[this._cannot_parse];
-                            }
-                            left = this._substring(text, k + 1, j - k - 1);
-                            leftIndex = k + 1;
-                        } else if (text[j] == this._rightBracket) {
-                            ////Library member.
-                            var bracketCount = 0;
-                            var k = j - 1;
-                            while (k > 0 && (text[k] != 'q' || bracketCount != 0)) {
-                                if (text[k] == 'q') {
-                                    bracketCount--;
-                                } else if (text[k] == this._rightBracket) {
-                                    bracketCount++;
-                                }
+		                        left = this._substring(text, k, j - k + 1); ////Keep the tics.
+		                        leftIndex = k;
+		                    } else if (text[j] == this.bMARKER) {
+		                        var k = this._findLastNonQB(text.substring(0, j - 1));
+		                        if (k < 0) {
+		                            throw this.formulaErrorStrings[this._cannot_parse];
+		                        }
+		                        left = this._substring(text, k + 1, j - k - 1);
+		                        leftIndex = k + 1;
+		                    } else if (text[j] == this._rightBracket) {
+		                        ////Library member.
+		                        var bracketCount = 0;
+		                        var k = j - 1;
+		                        while (k > 0 && (text[k] != 'q' || bracketCount != 0)) {
+		                            if (text[k] == 'q') {
+		                                bracketCount--;
+		                            } else if (text[k] == this._rightBracket) {
+		                                bracketCount++;
+		                            }
 
-                                k--;
-                            }
+		                            k--;
+		                        }
 
-                            if (k < 0) {
-                                throw this.formulaErrorStrings[this._cannot_parse];
-                            }
+		                        if (k < 0) {
+		                            throw this.formulaErrorStrings[this._cannot_parse];
+		                        }
 
-                            left = this._substring(text, k, j - k + 1);
-                            leftIndex = k;
-                        } else if (!this._isDigit(text[j]) && text[j] != '%') {
-                            while (j >= 0 && (this._isUpperChar(text[j]) || text[j] == '_' || text[j] == '.')) {
-                                j--;
-                            }
+		                        left = this._substring(text, k, j - k + 1);
+		                        leftIndex = k;
+		                    } else if (!this._isDigit(text[j]) && text[j] != '%') {
+		                        while (j >= 0 && (this._isUpperChar(text[j]) || text[j] == '_' || text[j] == '.')) {
+		                            j--;
+		                        }
 
-                            left = this._substring(text, j + 1, i - j - 1); ////'n' for number
-                            leftIndex = j + 1;
-                            var scopedRange = "";
+		                        left = this._substring(text, j + 1, i - j - 1); ////'n' for number
+		                        leftIndex = j + 1;
+		                        var scopedRange = "";
 
-                            if (this.getNamedRanges().length > 0 && this.getNamedRanges().containsKey(left) > -1) {
-                                //JS-47897 - To get the value from HashTable
-                                left = this._parse(this.getNamedRanges().getItem(left));
-                            } else if (!isNaN(scopedRange = this._checkIfScopedRange(left, scopedRange))) {
-                                left = this._parse(scopedRange);
-                            } else if (left == this.trueValueStr) {
-                                left = 'n' + this.trueValueStr;
-                            } else if (left == this.falseValueStr) {
-                                left = 'n' + this.falseValueStr;
-                            } else {
-                                if (this.getRethrowLibraryComputationExceptions())
-                                    throw this.formulaErrorStrings[this._invalid_char_in_front_of]  + " " + text[i];
-                                return this.getErrorStrings()[5].toString();
-                            }
-                        } else {
-                            var period = false;
-                            var percent = false;
+		                        if (this.getNamedRanges().length > 0) {
+		                            //JS-47897 - To get the value from HashTable
+		                            left = this._checkForNamedRange(left);
+		                        }
+		                        if (!this._findNamedRange) {
+		                            if (left == this.trueValueStr) {
+		                                left = 'n' + this.trueValueStr;
+		                            } else if (left == this.falseValueStr) {
+		                                left = 'n' + this.falseValueStr;
+		                            } else {
+		                                if (this.getRethrowLibraryComputationExceptions())
+		                                    throw this.formulaErrorStrings[this._invalid_char_in_front_of] + " " + text[i];
+		                                return this.getErrorStrings()[5].toString();
+		                            }
+		                        }
+		                        this._findNamedRange = false;
+		                    } else {
+		                        var period = false;
+		                        var percent = false;
 
-                            while (j > -1 && (this._isDigit(text[j]) || (!period && text[j] == this.getParseDecimalSeparator()) || (!percent && text[j] == '%') || text[j] == 'u')) {
-                                if (text[j] == this.getParseDecimalSeparator()) {
-                                    period = true;
-                                } else if (text[j] == '%') {
-                                    percent = true;
-                                }
-                                j = j - 1;
-                            }
+		                        while (j > -1 && (this._isDigit(text[j]) || (!period && text[j] == this.getParseDecimalSeparator()) || (!percent && text[j] == '%') || text[j] == 'u')) {
+		                            if (text[j] == this.getParseDecimalSeparator()) {
+		                                period = true;
+		                            } else if (text[j] == '%') {
+		                                percent = true;
+		                            }
+		                            j = j - 1;
+		                        }
 
-                            ////Add error check for 2%.
-                            if (j > -1 && period && text[j] == this.getParseDecimalSeparator()) {
-                                throw this.formulaErrorStrings[this._number_contains_2_decimal_points];
-                            }
+		                        ////Add error check for 2%.
+		                        if (j > -1 && period && text[j] == this.getParseDecimalSeparator()) {
+		                            throw this.formulaErrorStrings[this._number_contains_2_decimal_points];
+		                        }
 
-                            j = j + 1;
+		                        j = j + 1;
 
-                            if (j == 0 || (j > 0 && !this._isUpperChar(text[j - 1]))) {
-                                left = 'n' + this._substring(text, j, i - j); ////'n' for number
-                                leftIndex = j;
-                            } else {
-                                ////We have a cell reference.
-                                j = j - 1;
-                                while (j > -1 && this._isUpperChar(text[j])) {
-                                    j = j - 1;
-                                }
+		                        if (j == 0 || (j > 0 && !this._isUpperChar(text[j - 1]))) {
+		                            left = 'n' + this._substring(text, j, i - j); ////'n' for number
+		                            leftIndex = j;
+		                        } else {
+		                            ////We have a cell reference.
+		                            j = j - 1;
+		                            while (j > -1 && this._isUpperChar(text[j])) {
+		                                j = j - 1;
+		                            }
 
-                                ////include any unary minus as part of the left piece
-                                if (j > -1 && text[j] == 'u') {
-                                    j = j - 1;
-                                }
-                                if (j > -1 && text[j] == this.sheetToken) {
-                                    j = j - 1;
-                                    while (j > -1 && text[j] != this.sheetToken) {
-                                        j = j - 1;
-                                    }
+		                            ////include any unary minus as part of the left piece
+		                            if (j > -1 && text[j] == 'u') {
+		                                j = j - 1;
+		                            }
+		                            if (j > -1 && text[j] == this.sheetToken) {
+		                                j = j - 1;
+		                                while (j > -1 && text[j] != this.sheetToken) {
+		                                    j = j - 1;
+		                                }
 
-                                    if (j > -1 && text[j] == this.sheetToken) {
-                                        j = j - 1;
-                                    }
-                                }
+		                                if (j > -1 && text[j] == this.sheetToken) {
+		                                    j = j - 1;
+		                                }
+		                            }
 
-                                if (j > -1 && text[j] == ':') {
-                                    //// handle range operands
-                                    j = j - 1;
-                                    while (j > -1 && this._isDigit(text[j])) {
-                                        j = j - 1;
-                                    }
+		                            if (j > -1 && text[j] == ':') {
+		                                //// handle range operands
+		                                j = j - 1;
+		                                while (j > -1 && this._isDigit(text[j])) {
+		                                    j = j - 1;
+		                                }
 
-                                    while (j > -1 && this._isUpperChar(text[j])) {
-                                        j = j - 1;
-                                    }
+		                                while (j > -1 && this._isUpperChar(text[j])) {
+		                                    j = j - 1;
+		                                }
 
-                                    if (j > -1 && text[j] == this.sheetToken) {
-                                        j--;
-                                        while (j > -1 && text[j] != this.sheetToken) {
-                                            j--;
-                                        }
+		                                if (j > -1 && text[j] == this.sheetToken) {
+		                                    j--;
+		                                    while (j > -1 && text[j] != this.sheetToken) {
+		                                        j--;
+		                                    }
 
-                                        if (j > -1 && text[j] == this.sheetToken) {
-                                            j--;
-                                        }
-                                    }
+		                                    if (j > -1 && text[j] == this.sheetToken) {
+		                                        j--;
+		                                    }
+		                                }
 
-                                    j = j + 1;
-                                    left = this._substring(text, j, i - j);
-                                    left = this._getCellFrom(left);
-                                } else {
-                                    //// handle normal cell reference
-                                    j = j + 1;
-                                    left = this._substring(text, j, i - j);
-                                }
-                                this.updateDependencies(left);
-                                leftIndex = j;
-                            }
-                        }
-                    } else {
-                        leftIndex = i;
-                    }
-                    if (i == text.length - 1) {
-                        throw this.formulaErrorStrings[this._expression_cannot_end_with_an_operator];
-                    } else {
-                        j = i + 1;
+		                                j = j + 1;
+		                                left = this._substring(text, j, i - j);
+		                                left = this._getCellFrom(left);
+		                            } else {
+		                                //// handle normal cell reference
+		                                j = j + 1;
+		                                left = this._substring(text, j, i - j);
+		                            }
+		                            this.updateDependencies(left);
+		                            leftIndex = j;
+                                    //JS-53112 - Below condition is used to check if the left value is NamedRange or not.
+		                            if(this.getNamedRanges().length > 0)
+                                        left = this._checkForNamedRange(left);
+		                        }
+		                    }
+		                } else {
+		                    leftIndex = i;
+		                }
+		                if (i == text.length - 1) {
+		                    throw this.formulaErrorStrings[this._expression_cannot_end_with_an_operator];
+		                } else {
+		                    j = i + 1;
 
-                        var isU = text[j] == 'u';
-                        if (isU) {
-                            j++; ////ship for now, but add back later
-                        }
+		                    var isU = text[j] == 'u';
+		                    if (isU) {
+		                        j++; ////ship for now, but add back later
+		                    }
 
-                        if (text[j] == this.tic[0]) {
-                            ////string
-                            var k = text.substring(j + 1).indexOf(this.tic);
-                            if (k < 0) {
-                                throw this.formulaErrorStrings[this._cannot_parse];
-                            }
+		                    if (text[j] == this.tic[0]) {
+		                        ////string
+		                        var k = text.substring(j + 1).indexOf(this.tic);
+		                        if (k < 0) {
+		                            throw this.formulaErrorStrings[this._cannot_parse];
+		                        }
 
-                            right = this._substring(text, j, k + 2);
-                            rightIndex = k + j + 2;
-                        } else if (text[j] == this.bMARKER) {
-                            ////Block of already parsed code.
-                            var k = this._findNonQB(text.substring(j + 1));
-                            if (k < 0) {
-                                throw this.formulaErrorStrings[this._cannot_parse];
-                            }
+		                        right = this._substring(text, j, k + 2);
+		                        rightIndex = k + j + 2;
+		                    } else if (text[j] == this.bMARKER) {
+		                        ////Block of already parsed code.
+		                        var k = this._findNonQB(text.substring(j + 1));
+		                        if (k < 0) {
+		                            throw this.formulaErrorStrings[this._cannot_parse];
+		                        }
 
-                            right = this._substring(text, j + 1, k);
+		                        right = this._substring(text, j + 1, k);
 
-                            if (isU) {
-                                right = right + "nu1m"; ////multiply quantity by -1...
-                            }
+		                        if (isU) {
+		                            right = right + "nu1m"; ////multiply quantity by -1...
+		                        }
 
-                            rightIndex = k + j + 2;
-                        } else if (text[j] == 'q') {
-                            ////library
-                            var bracketCount = 0;
-                            var k = j + 1;
-                            while (k < text.length && (text[k] != this._rightBracket || bracketCount != 0)) {
-                                if (text[k] == this._rightBracket) {
-                                    bracketCount++;
-                                } else if (text[k] == 'q') {
-                                    bracketCount--;
-                                }
+		                        rightIndex = k + j + 2;
+		                    } else if (text[j] == 'q') {
+		                        ////library
+		                        var bracketCount = 0;
+		                        var k = j + 1;
+		                        while (k < text.length && (text[k] != this._rightBracket || bracketCount != 0)) {
+		                            if (text[k] == this._rightBracket) {
+		                                bracketCount++;
+		                            } else if (text[k] == 'q') {
+		                                bracketCount--;
+		                            }
 
-                                k++;
-                            }
+		                            k++;
+		                        }
 
-                            if (k == text.length) {
-                                throw this.formulaErrorStrings[this._cannot_parse];
-                            }
+		                        if (k == text.length) {
+		                            throw this.formulaErrorStrings[this._cannot_parse];
+		                        }
 
-                            right = this._substring(text, j, k - j + 1);
+		                        right = this._substring(text, j, k - j + 1);
 
-                            if (isU) {
-                                right = 'u' + right;
-                            }
+		                        if (isU) {
+		                            right = 'u' + right;
+		                        }
 
-                            rightIndex = k + 1;
-                        } else if (this._isDigit(text[j]) || text[j] == this.getParseDecimalSeparator()) {
-                            var period = text[j] == this.getParseDecimalSeparator();
-                            j = j + 1;
-                            while (j < text.length && (this._isDigit(text[j]) || (!period && text[j] == this.getParseDecimalSeparator()))) {
-                                if (text[j] == this.getParseDecimalSeparator()) {
-                                    period = true;
-                                }
+		                        rightIndex = k + 1;
+		                    } else if (this._isDigit(text[j]) || text[j] == this.getParseDecimalSeparator()) {
+		                        var period = text[j] == this.getParseDecimalSeparator();
+		                        j = j + 1;
+		                        while (j < text.length && (this._isDigit(text[j]) || (!period && text[j] == this.getParseDecimalSeparator()))) {
+		                            if (text[j] == this.getParseDecimalSeparator()) {
+		                                period = true;
+		                            }
 
-                                j = j + 1;
-                            }
+		                            j = j + 1;
+		                        }
 
-                            if (j < text.length && text[j] == '%') {
-                                j += 1;
-                            }
+		                        if (j < text.length && text[j] == '%') {
+		                            j += 1;
+		                        }
 
-                            if (period && j < text.length && text[j] == this.getParseDecimalSeparator()) {
-                                throw this.formulaErrorStrings[this._number_contains_2_decimal_points];
-                            }
-                            right = 'n' + this._substring(text, i + 1, j - i - 1);
-                            rightIndex = j;
-                        } else if (this._isUpperChar(text[j]) || text[j] == this.sheetToken || text[j] == 'u') {
-                            if (text[j] == this.sheetToken) {
-                                j++;
-                                while (j < text.length && text[j] != this.sheetToken) {
-                                    j++;
-                                }
-                            }
-                            j = j + 1;
-                            var j0 = 0;
-                            while (j < text.length && (this._isUpperChar(text[j]) || text[j] == '_' || text[j] == '.')) {
-                                j++;
-                                j0++;
-                            }
+		                        if (period && j < text.length && text[j] == this.getParseDecimalSeparator()) {
+		                            throw this.formulaErrorStrings[this._number_contains_2_decimal_points];
+		                        }
+		                        right = 'n' + this._substring(text, i + 1, j - i - 1);
+		                        rightIndex = j;
+		                    } else if (this._isUpperChar(text[j]) || text[j] == this.sheetToken || text[j] == 'u') {
+		                        if (text[j] == this.sheetToken) {
+		                            j++;
+		                            while (j < text.length && text[j] != this.sheetToken) {
+		                                j++;
+		                            }
+		                        }
+		                        j = j + 1;
+		                        var j0 = 0;
+		                        while (j < text.length && (this._isUpperChar(text[j]) || text[j] == '_' || text[j] == '.')) {
+		                            j++;
+		                            j0++;
+		                        }
 
-                            var noCellReference = (j == text.length) || !this._isDigit(text[j]);
-                            //JS-53112 - Below code has been modified to get the NamedRange when it contains digit.
-                            if (j0 > 1) {
-                                while (j < text.length && (this._isUpperChar(text[j]) || this._isDigit(text[j]))) {
-                                    j++;
-                                }
+		                        var noCellReference = (j == text.length) || !this._isDigit(text[j]);
+		                        //JS-53112 - Below code has been modified to get the NamedRange when it contains digit.
+		                        if (j0 > 1) {
+		                            while (j < text.length && (this._isUpperChar(text[j]) || this._isDigit(text[j]))) {
+		                                j++;
+		                            }
 
-                                noCellReference = true;
-                            }
+		                            noCellReference = true;
+		                        }
 
-                            while (j < text.length && this._isDigit(text[j])) {
-                                j = j + 1;
-                            }
+		                        while (j < text.length && this._isDigit(text[j])) {
+		                            j = j + 1;
+		                        }
 
-                            if (j < text.length && text[j] == ':') {
-                                //// handle range operands
-                                j = j + 1;
-                                if (j < text.length && text[j] == this.sheetToken) {
-                                    j++;
-                                    while (j < text.length && text[j] != this.sheetToken) {
-                                        j = j + 1;
-                                    }
+		                        if (j < text.length && text[j] == ':') {
+		                            //// handle range operands
+		                            j = j + 1;
+		                            if (j < text.length && text[j] == this.sheetToken) {
+		                                j++;
+		                                while (j < text.length && text[j] != this.sheetToken) {
+		                                    j = j + 1;
+		                                }
 
-                                    if (j < text.length && text[j] == this.sheetToken) {
-                                        j++;
-                                    }
-                                }
+		                                if (j < text.length && text[j] == this.sheetToken) {
+		                                    j++;
+		                                }
+		                            }
 
-                                while (j < text.length && this._isUpperChar(text[j])) {
-                                    j = j + 1;
-                                }
+		                            while (j < text.length && this._isUpperChar(text[j])) {
+		                                j = j + 1;
+		                            }
 
-                                while (j < text.length && this._isDigit(text[j])) {
-                                    j = j + 1;
-                                }
+		                            while (j < text.length && this._isDigit(text[j])) {
+		                                j = j + 1;
+		                            }
 
-                                j = j - 1;
+		                            j = j - 1;
 
-                                right = this._substring(text, i + 1, j - i);
-                                right = this._getCellFrom(right);
-                            } else {
-                                //// handle normal cell reference
-                                j = j - 1;
-                                right = this._substring(text, i + 1, j - i);
-                                isU = text[j] == 'u';
-                                if (isU) {
-                                    right = 'u' + right;
-                                }
-                            }
-                            if (!noCellReference) {
-                                this.updateDependencies(right);
-                            } else {
-                                var scopedRange = "";
-                                //JS-53112 - Below condition is used to check if the right value is NamedRange or not.
-                                if (this.getNamedRanges().length > 0 && this.getNamedRanges().containsKey(right)) {
-                                    //JS-47897 - To get the value from HashTable
-                                    right = this._parse(this.getNamedRanges().getItem(right));
-                                } else if (!isNaN(scopedRange = this._checkIfScopedRange(right, scopedRange))) {
-                                    right = this._parse(scopedRange);
-                                } else if (right == this.trueValueStr) {
-                                    right = 'n' + this.trueValueStr;
-                                } else if (right == this.falseValueStr) {
-                                    right = 'n' + this.falseValueStr;
-                                } else {
-                                    if(this.getRethrowLibraryComputationExceptions())
-                                        throw this.formulaErrorStrings[this._invalid_characters_following_an_operator];
-                                    return this.getErrorStrings()[5].toString();
-                                }
-                            }
+		                            right = this._substring(text, i + 1, j - i);
+		                            right = this._getCellFrom(right);
+		                        } else {
+		                            //// handle normal cell reference
+		                            j = j - 1;
+		                            right = this._substring(text, i + 1, j - i);
+		                            isU = text[j] == 'u';
+		                            if (isU) {
+		                                right = 'u' + right;
+		                            }
+		                        }
+		                        if (!noCellReference) {
+		                            this.updateDependencies(right);
+		                        } else {
+		                            var scopedRange = "";
+		                            //JS-53112 - Below condition is used to check if the right value is NamedRange or not.
+		                            if (this.getNamedRanges().length > 0) {
+		                                //JS-47897 - To get the value from HashTable
+		                                right = this._checkForNamedRange(right);
+		                            }
+		                            if (!this._findNamedRange) {
+		                                if (left == this.trueValueStr) {
+		                                    left = 'n' + this.trueValueStr;
+		                                } else if (left == this.falseValueStr) {
+		                                    left = 'n' + this.falseValueStr;
+		                                } else {
+		                                    if (this.getRethrowLibraryComputationExceptions())
+		                                        throw this.formulaErrorStrings[this._invalid_char_in_front_of] + " " + text[i];
+		                                    return this.getErrorStrings()[5].toString();
+		                                }
+		                            }
+		                            this._findNamedRange = false;
+		                        }
 
-                            rightIndex = j + 1;
-                        } else {
-                            if(this.getRethrowLibraryComputationExceptions())
-                                        throw this.formulaErrorStrings[this._invalid_characters_following_an_operator];
-                                    return this.getErrorStrings()[5].toString();
-                        }
-                    }
-                    var p = op.indexOf(text[i]);
-                    var s = this.bMARKER + this._zapBlocks(left) + this._zapBlocks(right) + markers[p] + this.bMARKER;
-                    if (leftIndex > 0) {
-                        s = text.substring(0, leftIndex) + s;
-                    }
+		                        rightIndex = j + 1;
+		                    } else {
+		                        if (this.getRethrowLibraryComputationExceptions())
+		                            throw this.formulaErrorStrings[this._invalid_characters_following_an_operator];
+		                        return this.getErrorStrings()[5].toString();
+		                    }
+		                }
+		                var p = op.indexOf(text[i]);
+		                var s = this.bMARKER + this._zapBlocks(left) + this._zapBlocks(right) + markers[p] + this.bMARKER;
+		                if (leftIndex > 0) {
+		                    s = text.substring(0, leftIndex) + s;
+		                }
 
-                    if (rightIndex < text.length) {
-                        s = s + text.substring(rightIndex);
-                    }
+		                if (rightIndex < text.length) {
+		                    s = s + text.substring(rightIndex);
+		                }
 
-                    s = s.split(this.bMARKER2).join(this.bMARKER.toString());
+		                s = s.split(this.bMARKER2).join(this.bMARKER.toString());
 
-                    //// s = s.replace(tic+tic, tic); removed forum post http://64.78.18.34/Support/Forums/message.aspx?MessageID=22483
-                    text = s;
-                }
-            } else {
-                ////Process left argument.
-                var j = text.length - 1;
-                if (text[j] == this.bMARKER) {
-                    var k = this._findLastNonQB(text.substring(0, j - 1));
-                    if (k < 0) {
-                        throw this.formulaErrorStrings[this._cannot_parse];
-                    }
-                } else if (text[j] == this._rightBracket) {
-                    ////library member
-                    var bracketCount = 0;
-                    var k = j - 1;
-                    while (k > 0 && (text[k] != 'q' || bracketCount != 0)) {
-                        if (text[k] == 'q') {
-                            bracketCount--;
-                        } else if (text[k] == this._rightBracket) {
-                            bracketCount++;
-                        }
+		                //// s = s.replace(tic+tic, tic); removed forum post http://64.78.18.34/Support/Forums/message.aspx?MessageID=22483
+		                text = s;
+		            }
+		        } else {
+		            ////Process left argument.
+		            var j = text.length - 1;
+		            if (text[j] == this.bMARKER) {
+		                var k = this._findLastNonQB(text.substring(0, j - 1));
+		                if (k < 0) {
+		                    throw this.formulaErrorStrings[this._cannot_parse];
+		                }
+		            } else if (text[j] == this._rightBracket) {
+		                ////library member
+		                var bracketCount = 0;
+		                var k = j - 1;
+		                while (k > 0 && (text[k] != 'q' || bracketCount != 0)) {
+		                    if (text[k] == 'q') {
+		                        bracketCount--;
+		                    } else if (text[k] == this._rightBracket) {
+		                        bracketCount++;
+		                    }
 
-                        k--;
-                    }
+		                    k--;
+		                }
 
-                    if (k < 0) {
-                        throw this.formulaErrorStrings[this._bad_library];
-                    }
-                } else if (!this._isDigit(text[j])) {
-                    // return "ERROR";
-                } else {
-                    var period = false;
-                    var percent = false;
+		                if (k < 0) {
+		                    throw this.formulaErrorStrings[this._bad_library];
+		                }
+		            } else if (!this._isDigit(text[j])) {
+		                // return "ERROR";
+		            } else {
+		                var period = false;
+		                var percent = false;
 
-                    while (j > -1 && (this._isDigit(text[j]) || (!period && text[j] == this.getParseDecimalSeparator()) || (!percent && text[j] == '%'))) {
-                        if (text[j] == this.getParseDecimalSeparator()) {
-                            period = true;
-                        } else if (text[j] == '%') {
-                            percent = true;
-                        }
+		                while (j > -1 && (this._isDigit(text[j]) || (!period && text[j] == this.getParseDecimalSeparator()) || (!percent && text[j] == '%'))) {
+		                    if (text[j] == this.getParseDecimalSeparator()) {
+		                        period = true;
+		                    } else if (text[j] == '%') {
+		                        percent = true;
+		                    }
 
-                        j = j - 1;
-                    }
+		                    j = j - 1;
+		                }
 
-                    if (j > -1 && period && text[j] == this.getParseDecimalSeparator()) {
-                        throw this.formulaErrorStrings[this._number_contains_2_decimal_points];
-                    }
-                }
-                if (text.length > 0 && (this._isUpperChar(text[0]) || text[0] == this.sheetToken)) {
-                    ////Check if cell reference.
-                    var ok = true;
-                    var checkLetter = true;
-                    var oneTokenFound = false;
-                    for (var k = 0; k < text.length; ++k) {
-                        if (text[k] == this.sheetToken) {
-                            if (k > 0 && !oneTokenFound) {
-                                throw this.formulaErrorStrings[this._missing_sheet];
-                                ////break;
-                            }
+		                if (j > -1 && period && text[j] == this.getParseDecimalSeparator()) {
+		                    throw this.formulaErrorStrings[this._number_contains_2_decimal_points];
+		                }
+		            }
+		            if (text.length > 0 && (this._isUpperChar(text[0]) || text[0] == this.sheetToken)) {
+		                ////Check if cell reference.
+		                var ok = true;
+		                var checkLetter = true;
+		                var oneTokenFound = false;
+		                for (var k = 0; k < text.length; ++k) {
+		                    if (text[k] == this.sheetToken) {
+		                        if (k > 0 && !oneTokenFound) {
+		                            throw this.formulaErrorStrings[this._missing_sheet];
+		                            ////break;
+		                        }
 
-                            oneTokenFound = true;
-                            k++;
-                            while (k < text.length && this._isDigit(text[k])) {
-                                k++;
-                            }
+		                        oneTokenFound = true;
+		                        k++;
+		                        while (k < text.length && this._isDigit(text[k])) {
+		                            k++;
+		                        }
 
-                            if (k == text.length || text[k] != this.sheetToken) {
-                                ok = false;
-                                break;
-                            }
-                        } else {
-                            ////if(!checkLetter && char.IsUpper(text, k))
-                            if (!checkLetter && this._isLetter(text[k])) {
-                                ok = false;
-                                break;
-                            }
+		                        if (k == text.length || text[k] != this.sheetToken) {
+		                            ok = false;
+		                            break;
+		                        }
+		                    } else {
+		                        ////if(!checkLetter && char.IsUpper(text, k))
+		                        if (!checkLetter && this._isLetter(text[k])) {
+		                            ok = false;
+		                            break;
+		                        }
 
-                            if (this._isLetterOrDigit(text[k]) || text[k] == this.sheetToken) {
-                                checkLetter = this._isUpperChar(text[k]);
-                            } else {
-                                ok = false;
-                                break;
-                            }
-                        }
-                    }
+		                        if (this._isLetterOrDigit(text[k]) || text[k] == this.sheetToken) {
+		                            checkLetter = this._isUpperChar(text[k]);
+		                        } else {
+		                            ok = false;
+		                            break;
+		                        }
+		                    }
+		                }
 
-                    if (ok) {
-                        this.updateDependencies(text); ////cb
-                        needToContinue = false;
-                    }
-                }
-            }
-            return text;
-            }
+		                if (ok) {
+		                    this.updateDependencies(text); ////cb
+		                    needToContinue = false;
+		                }
+		            }
+		        }
+		        return text;
+		    }
 		    catch (ex)
 		    {
                 return ex;
@@ -4432,8 +5662,9 @@
                     return d;
                 } else if (this.getUseDatesInCalculations() && isNaN(this._parseDouble(o))) {
                     var dt = this._isDate(s);
+                    //JS-58855 - To compute the proper date for addition.
                     if (!isNaN(dt))
-                        return this._getSerialDateTimeFromDate(dt);
+                        return Math.round(this._getSerialDateTimeFromDate(dt));
                     else
                         return 0;
                 }
@@ -4494,7 +5725,7 @@
             var firstCell = s;
             var firstIndex = i;
             if (i < formula.length && formula[i] == ':') {
-                s = "";
+                s = s + formula[i];
                 i = i + 1;
                 if (i < formula.length && formula[i] == this.sheetToken) {
                     s = s + formula[i];
@@ -4515,11 +5746,9 @@
                     s = s + formula[i];
                     i = i + 1;
                 }
-            } if (this._supportRangeOperands && firstCell != s) {
-                s = sheet + this._getCellFrom(firstCell + ':' + s);
+				s = sheet + this._getCellFrom(s);
             } else {
-                i = (firstCell != s) ? firstIndex : i;
-                s = sheet + firstCell;
+                s = sheet + s;
             }
             sheet = "";
             this._processUpperCaseFormula = formula;
@@ -4727,8 +5956,10 @@
             if (this.getDependentNamedRangeCells()!=null && this.getDependentNamedRangeCells().containsKey(key)) {
                 var ht = this.getDependentNamedRangeCells().keys();
                   if (ht != null && ht.length > 0) {
-                    for (var s = 0; s<ht.length; s++) {
-                        var cell1 = this.getDependentNamedRangeCells().getItem(ht[s]);
+                      for (var s = 0; s < ht.length; s++) {
+                          var item = this.getDependentNamedRangeCells().getItem(ht[s]);
+                          var keys = item.keys();
+                          var cell1 = keys[0];
                         var i = cell1.indexOf(this.sheetToken);
                         var row, col;
                         var grd = this.grid;
@@ -4766,7 +5997,7 @@
             }
 
             if (this.getDependentNamedRangeCells()!=null && this.getDependentNamedRangeCells().containsKey(key)) {
-                var ht = this.getDependentNamedRangeCells()[key];
+                var ht = this.getDependentNamedRangeCells().getItem(key);
                 if (!ht.containsKey(cell1)) {
                     ht.add(cell1, "0");
                 }
@@ -4774,7 +6005,7 @@
             else {
                 var ht1 = new HashTable();
                 ht1.add(cell1, "0");
-                this.getDependentNamedRangeCells().add(key, cell1.toString());
+                this.getDependentNamedRangeCells().add(key, ht1);
             }
         }
         /**		
@@ -5213,15 +6444,28 @@
                         }
 
                         _stack.push(s);
-                    } else {
+                    }
+                    //if the current index in the formula contains argument separator, then continue with while loop instead of throwing error message.
+                    else if (formula[i] == this._parseArgumentSeparator) {
+                        i++;
+                        continue;
+                    }
+                    else {
                         switch (formula[i]) {
                             case '#': {
                                 var errIndex = 0;
-                                if (formula.indexOf('!') == -1) {
-                                    errIndex = formula.indexOf('?') + 1;
-                                } else
-                                    errIndex = formula.indexOf('!') + 1;
-                                _stack.push(this._substring(formula, i, errIndex - i));
+                                if (this.getErrorStrings().indexOf(formula.substring(i) > -1)) {
+                                    if (formula.indexOf('!') == -1 || formula.substring(i).indexOf("!") == -1) {
+                                        errIndex = formula.indexOf("#N/A") > -1 ? (formula.indexOf("#N/A") + 4 + i) : formula.indexOf('?') + 1 + i;
+                                    } else
+                                        errIndex = formula.indexOf('!') + 1 + i;
+                                    _stack.push(this._substring(formula, i, errIndex - i));
+                                }
+                                else {
+                                    errIndex = i + 1;
+                                    _stack.push(this._substring(formula, i, errIndex - i));
+                                }
+                                
                                 i = errIndex;
                                 break;
                             }
@@ -5752,7 +6996,7 @@
                     if (numberFormat["."] != "." && temp.indexOf(numberFormat["."]) < 0)
                         value = temp.replace(".", numberFormat["."]);
                 }
-            return !ej.isNullOrUndefined(value) ? value.toString() : NaN;
+                return !ej.isNullOrUndefined(value) ? value.toString() : NaN;
         };
         /**		
         * Evaluates a parsed formula.
@@ -6073,7 +7317,7 @@
                     return this._toOADate(tempDate).toString();
                 }
                 return arg;
-            } else if (arg[0] == this.bMARKER || arg[0] == 'q') {
+            } else if (arg[0] == this.bMARKER || arg[0] == 'q' || arg[0] == '!' || arg.indexOf(':') > -1) {
                 ////parsed formula
                 arg = arg.split('{').join('(');
                 arg = arg.split('}').join(')');
@@ -6107,7 +7351,7 @@
                         d = !ej.isNullOrUndefined(arg) ? ej.parseFloat(arg.toString(), 0, ej.cultureObject.name) : NaN;
                     }
                     else
-                    d = this._parseDouble(arg);
+                       d = this._parseDouble(arg);
                     if (!isNaN(d)) {
                         return this._preserveLeadingZeros ? arg : d.toString();
                     } else if (arg.indexOf(this.trueValueStr) == 0 || arg.indexOf(this.falseValueStr) == 0) {
@@ -6169,7 +7413,8 @@
             arg = arg.split('}').join(')');
             arg = this._parse(arg);
 
-            d = this._parseDouble(arg.substring(0, arg.length - 1));
+            //JS-58517 : To compute the proper round value when the cell reference has formula.
+            d = ej.parseFloat(arg.substring(0, arg.length - 1));
             if (arg.indexOf("%") == (arg.length - 1) && !isNaN(d)) {
                 arg = (Number(d) / 100).toString();
             }
@@ -6411,6 +7656,15 @@
                 return this.formulaErrorStrings[this._improper_formula];
             }
             var trimStr = (this._isIE8) ? formula.replace(/^\s+|\s+$/g, '') : formula.trim();
+            if (!ej.isNullOrUndefined(this.parentObject) && this.parentObject.pluginName == "ejSpreadsheet") {
+                var rowIndex = this.rowIndex(this.cell);
+                var colIndex = this.colIndex(this.cell);
+                var value = this.parentObject.XLEdit.getPropertyValue(rowIndex - 1, colIndex - 1, "hasFormulaArray");
+                this._isArrayFormula = ej.isNullOrUndefined(value) ? false : value;
+                if (this._isArrayFormula) {
+                    trimStr = this._parseLibraryFormula("{" + trimStr + "}");
+                }
+            }
             return this._parse(trimStr);
         };
         this.getUpdatedValueCell = function (cellRef) {
@@ -6606,7 +7860,7 @@
                                     var save = this.cell;
                                     this.cell = s1;
                                     if (this.getAlwaysComputeDuringRefresh() || info.calcID != this._calcID || info.getFormulaValue() == "") {
-                                    var updatedInfo;
+                                        var updatedInfo;
                                         //JS - 55994 - To avoid the depent formula cell are calculate again to get the value.
                                         if (!this.getComputedValue().containsKey(s1)) {
                                         //JS-49184 - The dependent formula cells are not updated while changing the cell values at runtime.
@@ -6901,25 +8155,25 @@
 
                 this._addToFormulaDependentCells(s);
                 if (ej.isNullOrUndefined(this.parentObject) && this.parentObject.pluginName != "ejSpreadsheet") {
-                ////maybe remove this block ..... not needed if other dependencies working OK
-                if (this.getDependentFormulaCells().containsKey(s)) {
-                    var ht = this.getDependentFormulaCells().getItem(s);
-                    if (ht != null) {
-                        var keys = ht.keys();
-                        for (var o = 0; o < keys.length; o++) {
-                            var s1 = keys[o];
-                            var ht2 = this.getDependentCells().getItem(s1);
-                            if (ht2 == null) {
-                                ht2 = [];
-                                this.getDependentCells().add(s1, ht2);
-                            }
-                            if (ht2.indexOf(cell1) == -1) {
-                                ht2.push(cell1);
+                    ////maybe remove this block ..... not needed if other dependencies working OK
+                    if (this.getDependentFormulaCells().containsKey(s)) {
+                        var ht = this.getDependentFormulaCells().getItem(s);
+                        if (ht != null) {
+                            var keys = ht.keys();
+                            for (var o = 0; o < keys.length; o++) {
+                                var s1 = keys[o];
+                                var ht2 = this.getDependentCells().getItem(s1);
+                                if (ht2 == null) {
+                                    ht2 = [];
+                                    this.getDependentCells().add(s1, ht2);
+                                }
+                                if (ht2.indexOf(cell1) == -1) {
+                                    ht2.push(cell1);
+                                }
                             }
                         }
                     }
                 }
-            }
             }
         };
         this.updateDependenciesAndCell = function (cell1) {
@@ -7075,10 +8329,10 @@
                 var saveIVC = this.ignoreValueChanged;
                 this.ignoreValueChanged = true;
                 if (compute) {
-                if (this.parentObject.setValueRowCol == undefined)
-                    this.setValueRowCol(this.getSheetID(grd) + 1, formula.getFormulaValue(), e.getRowIndex(), e.getColIndex());
-                else
-                    this.parentObject.setValueRowCol(this.getSheetID(grd) + 1, formula.getFormulaValue(), e.getRowIndex(), e.getColIndex());
+                    if (this.parentObject.setValueRowCol == undefined)
+                        this.setValueRowCol(this.getSheetID(grd) + 1, formula.getFormulaValue(), e.getRowIndex(), e.getColIndex());
+                    else
+                        this.parentObject.setValueRowCol(this.getSheetID(grd) + 1, formula.getFormulaValue(), e.getRowIndex(), e.getColIndex());
                 }
                 this.ignoreValueChanged = saveIVC;
             } else if (!this._inRecalculateRange && this.getFormulaInfoTable().containsKey(s)) {
@@ -7655,11 +8909,19 @@
             if (this._excelLikeComputations) {
                 var date = this._fromOADate(days);
                 if (date.toString() != "Invalid Date") {
-                    return date.toLocaleDateString();
+                //JS-57669 - To return the proper date when compiling using IE and firefox.
+                var info = ej.browserInfo();
+                //JS-58545 , JS-59736 : To compute the proper year value with interior formulas in IE11.
+                if ((info.name != "msie" && info.name != "mozilla") && !ej.isNullOrUndefined(info.name) && this._isInteriorFunction)
+                    return date.toLocaleString();
+                else
+                    return date.getFullYear() + "/" + _calculateDate(date.getMonth() + 1) + "/" +_calculateDate( date.getDate());
                 }
             }
             return days.toString();
         };
+        //JS-57669 - To return the proper date when compiling using IE and firefox.
+        function _calculateDate(n) { return n < 10 ? "0" + n : n; }
         this.computeDatevalue = function (argList) {
             var args = this.splitArgsPreservingQuotedCommas(argList);
             var argCount = args.length;
@@ -8438,7 +9700,12 @@
             //JS-45620 To return the local date as string to add or subtract the date(EX:Date.Now()+1)
             var date = new Date(Date.now());
 			if (this.getExcelLikeComputations()) {
-                return date.toLocaleString();
+                //JS-58545 , JS-59736 : To compute the proper year value with interior formulas in IE11.
+                var info = ej.browserInfo();
+                if ((info.name != "msie" && info.name != "mozilla") && !ej.isNullOrUndefined(info.name) && this._isInteriorFunction)
+                    return date.toLocaleString();
+                else
+                    return date.getFullYear() + "/" + _calculateDate(date.getMonth() + 1) + "/" + _calculateDate(date.getDate());
             }
             return this._toOADate(date).toString();
         };
@@ -8571,7 +9838,12 @@
             var dt = new Date(Date.now());
 
             if (this.getExcelLikeComputations()) {
-                return dt.toLocaleDateString();
+                //JS-59736 : To return proper year with interior functions in IE11.
+                var info = ej.browserInfo();
+                if ((info.name != "msie" && info.name != "mozilla") && !ej.isNullOrUndefined(info.name) && this._isInteriorFunction)
+                    return dt.toLocaleString();
+                else
+                    return dt.getFullYear() + "/" + _calculateDate(dt.getMonth() + 1) + "/" + _calculateDate(dt.getDate());
             } else
                 return this._toOADate(dt).toString();
         };
@@ -8911,10 +10183,17 @@
             }
             var startDate = this.getValueFromArg(args[0]).split(this.tic).join("");
             startDate = (startDate.split(this.tic).join("") == "TRUE") ? "1" : (startDate.split(this.tic).join("") == "FALSE") ? "0" : startDate;
-            var startDateTime = new Date(Date.parse(startDate));
+            //JS-58545 , JS-59736 : To compute the proper year value with interior formulas.
             var dateValue = parseInt(startDate);
+            var startDateTime = new Date(Date.parse(dateValue));
+            //JS-57669 - To return the proper date when compiling using IE and firefox.
+            var info = ej.browserInfo();
+            if (isNaN(Date.parse(dateValue)) && (info.name == "msie" || info.name == "mozilla" || ej.isNullOrUndefined(info.name))) {
+                var dateArgs = args[0].split(this.tic);
+                startDateTime = new Date(dateArgs[1]);
+            }
             if (!isNaN(dateValue) && startDateTime.getFullYear() > 9999) {
-                startDateTime = this._fromOADate(dateValue);
+                startDateTime = this._fromOADate(startDate);
             }
             if (dateValue == 0) {
                 return "1900";
@@ -8924,7 +10203,7 @@
                     throw this.formulaErrorStrings[this.bad_formula];
                 return this.getErrorStrings()[4].toString();
             }
-            if (startDate.split(this.tic).join("") == "") {
+            if (startDate.toString().split(this.tic).join("") == "") {
                 if (this.getRethrowLibraryComputationExceptions())
                     throw this.formulaErrorStrings[this.bad_formula];
                 return this.getErrorStrings()[0].toString();
@@ -9064,27 +10343,57 @@
 
             var args = this.splitArgsPreservingQuotedCommas(range);
             var argCount = args.length;
-            if (argCount != 1 || range == "") {
+            if ((argCount != 1 || range == "") && !this._isArrayFormula) {
                 if (this.getRethrowLibraryComputationExceptions())
                     throw this.formulaErrorStrings[this._wrong_number_arguments];
                 return this.formulaErrorStrings[this._wrong_number_arguments];
             }            
+           
+            var s1 = args[0];
+            var strValue = "";
+            var len = 0;
+            if (this._isArrayFormula) {
+                var result = this._computeArrayInteriorFunction(range, "LEN", this.computeFunctionLevel);
+                if(result != this._string_empty)
+                    return result;
+                else if(s1.indexOf(":") > -1){
+                s1 = this.getCellsFromArgs(s1)[0];
+                }
+            }
             if (this.getEnableFormulaErrorValidation()) {
                 var checkString = this.formulaErrorStringCheck(range, FormulaArgumentType.Text);
                 if (this.getErrorStrings().indexOf(checkString) > -1) {
                     return checkString;
                 }
             }
-            var s1 = this._stripTics0(this.getValueFromArg(args[0]));
-
-            if(isNaN(parseInt(s1))){
-                var dt = new Date(Date.parse(s1));
-                if (dt != "Invalid Date") {
-                    s1 = this.DateFormatter(s1);
+            if (s1.indexOf(":") > -1 && s1.indexOf(":") > 2) {
+                var cellArgs = this.getCellsFromArgs(s1);
+                for (var i = 0; i < cellArgs.length; i++) {
+                    try {
+                        strValue = this.getValueFromArg(cellArgs[i].split(this.tic).join(this._string_empty));
+                    }
+                    catch (ex) {
+                        return ex;
+                    }
+                    if (strValue != this._string_empty) {
+                        var hasTics = strValue[0] == this.tic && strValue[strValue.length - 1] == this.tic;
+                        len += hasTics ? strValue.length - 2 : strValue.length;
+                    }
                 }
             }
-            var hasTics = s1[0] == this.tic && s1[s1.length - 1] == this.tic;
-            return (hasTics ? s1.length - 2 : s1.length).toString();
+            else {
+                s1 = this._stripTics0(this.getValueFromArg(args[0]));
+
+                if (isNaN(parseInt(s1))) {
+                    var dt = new Date(Date.parse(s1));
+                    if (dt != "Invalid Date") {
+                        s1 = this.DateFormatter(s1);
+                    }
+                }
+                var hasTics = s1[0] == this.tic && s1[s1.length - 1] == this.tic;
+                len = (hasTics ? s1.length - 2 : s1.length);
+            }
+            return len.toString();
         };
         this.computeMid = function (range) {
             var args = this.splitArgsPreservingQuotedCommas(range);
@@ -9568,7 +10877,6 @@
             }
             var s = this._stripTics0(this.getValueFromArg(args));
             var arr = [this.tic, ''];
-            s = s.split(this.tic).join("");
             var len = 0;
             while (s.length != len) {
                 len = s.length;
@@ -10780,7 +12088,16 @@
                     return checkString;
                 }
             }
-          
+            if (arg.indexOf(":") > -1 && this._isArrayFormula) {
+
+                var result = this._computeArrayInteriorFunction(arg, "COLUMN", this.copmuteFunctionLevel);
+                if (result == this._string_empty)
+                    arg = this.getCellsFromArgs(arg)[0];
+                else
+                    return result;
+                if (arg.indexOf(":") > -1)
+                    arg = this.getCellsFromArgs(arg)[0];
+            }
 
             colInd =  this.colIndex(arg).toString();
             if (colInd <= 0 || !isNaN(this._parseDouble(arg)))
@@ -14854,7 +16171,10 @@
         };
         this.computeMod = function (range) {
             var args = this.splitArgsPreservingQuotedCommas(range);
-            if (args.length != 2 || range == this._string_empty)
+            if(this._isArrayFormula && range.length > 2)
+                args[1] = args[args.length - 1];
+
+            if (args.length != 2 || range == this._string_empty && !this._isArrayFormula)
             {
                 if (this._rethrowLibraryComputationExceptions)
                     throw this.formulaErrorStrings[this._wrong_number_arguments];
@@ -14970,6 +16290,9 @@
             var isLastcriteria = false;
             var criteriaRange = [];
             var criterias = [];
+            //JS-55070 - To provide support for COUNTIFS formula
+            var tempList = [];
+            var criteriaRangeValue = [];
             for (i = 0; i < argsCount; i++) {
                 criteriaRange.push(args[i]);
                 i++;
@@ -14988,7 +16311,7 @@
                 return this.formulaErrorStrings[this._wrong_number_arguments];
             }
             if (criteriaRange.length != criterias.length) {
-                this.getErrorStrings()[0].toString();
+                this.getErrorStrings()[1].toString();
             }
             if (argsCount != 2 && argsCount != 3 && isCountIf) {
                 if (this._rethrowLibraryComputationExceptions) {
@@ -15053,100 +16376,94 @@
                 var count = s1.length;
                 var d;
                 var s;
+                //JS-55070 - To provide support for COUNTIFS formula
+                var tempString = 0;
+                var criteriaMatched = false;
+                var token = "=";
+                var index1 = criteria.indexOf("*");
+                var tempCriteria = criteria;
+                for (index = 0; index < count; ++index) {
+                    s = this.getValueFromArg(s1[index]);
+                    tempString = (s.replace(this.tic, "").toUpperCase()).localeCompare(criteria.toUpperCase());
                 switch (op) {
                     case this.token_equal:
                         {
-                            var index1 = criteria.indexOf("*");
-                            if (index1 != -1) {
+                                index1 = criteria.indexOf("*");
+                                if (index1 != -1)
                                 criteria = criteria.substring(0, index1);
-                                for (index = 0; index < count; ++index) {
-                                    s = this.getValueFromArg(s1[index]);
-                                    if (s != "" &&
-                                        (s.split(this.tic).join(this._string_empty).substring(0, index1) == criteria ||
-                                            (!isNaN(this._parseDouble(s)) && d == compare)) &&
-                                        isLastcriteria) {
-                                        cellCount++;
+                                 var ind = tempCriteria.indexOf("*");
+                                 if (ind != -1 && s != "")
+                                 s = s.replace(this.tic, "").substring(0, index1);
+                                 d = this._parseDouble(s);
+                                criteriaMatched = isNumber ? !isNaN(d) && d == compare : !(s == this._string_empty) && s.replace(this.tic, this._string_empty).toUpperCase() == criteria.toUpperCase();
+                                token = "=";
                                     }
-                                }
-                            } else {
-                                for (index = 0; index < count; ++index) {
-                                    s = this.getValueFromArg(s1[index]);
-                                    if (s.split(this.tic).join(this._string_empty) == criteria && isLastcriteria ||
-                                        (isNumber && !isNaN(this._parseDouble(s)) && d == compare) &&
-                                        isLastcriteria) {
-                                        cellCount++;
-                                    }
-                                }
-                            }
-                        }
                         break;
                     case this.token_noequal:
                         {
-                            for (index = 0; index < count; ++index) {
-                                s = this.getValueFromArg(s1[index]);
-                                if (s.split(this.tic).join(this._string_empty) != criteria && isLastcriteria ||
-                                    (isNumber && !isNaN(this._parseDouble(s)) && d != compare) &&
-                                    isLastcriteria) {
-                                    cellCount++;
+                                //JS-55070 - To provide support for COUNTIFS formula
+                                d = this._parseDouble(s);
+                                criteriaMatched = isNumber ? !isNaN(d) && d != compare : !(s == this._string_empty) && s.replace(this.tic, this._string_empty).toUpperCase() != criteria.toUpperCase();
+                                token = "!=";
                                 }
-                            }
-                        }
                         break;
                     case this.token_greatereq:
                         {
-                            for (index = 0; index < count; ++index) {
-                                s = this.getValueFromArg(s1[index]);
                                 d = this._parseDouble(s);
-                                if (isNumber && !isNaN(d) && isLastcriteria) {
-                                    if (d >= compare) {
-                                        cellCount++;
+                                //JS-55070 - To provide support for COUNTIFS formula
+                                criteriaMatched = isNumber ? !isNaN(d) && d >= compare : !(s == this._string_empty) && tempString >= 0;
+                                token = ">=";
                                     }
-                                }
-                            }
-                        }
                         break;
                     case this.token_greater:
                         {
-                            for (index = 0; index < count; ++index) {
-                                s = this.getValueFromArg(s1[index]);
                                 d = this._parseDouble(s);
-                                if (isNumber && !isNaN(d) && isLastcriteria) {
-                                    if (d > compare) {
-                                        cellCount++;
+                                //JS-55070 - To provide support for COUNTIFS formula
+                                criteriaMatched = isNumber ? !isNaN(d) && d > compare : !(s == this._string_empty) && tempString > 0;
+                                token = ">";
                                     }
-                                }
-                            }
-                        }
                         break;
                     case this.token_less:
                         {
-                            for (index = 0; index < count; ++index) {
-                                s = this.getValueFromArg(s1[index]);
                                 d = this._parseDouble(s);
-                                if (isNumber && !isNaN(d) && isLastcriteria) {
-                                    if (d < compare) {
-                                        cellCount++;
+                                //JS-55070 - To provide support for COUNTIFS formula
+                                criteriaMatched = isNumber ? !isNaN(d) && d < compare : !(s == this._string_empty) && tempString < 0;
+                                token = "<";
                                     }
-                                }
-                            }
-                        }
                         break;
                     case this.token_lesseq:
                         {
-                            for (index = 0; index < count; ++index) {
-                                s = this.getValueFromArg(s1[index]);
                                 d = this._parseDouble(s);
-                                if (isNumber && !isNaN(d) && isLastcriteria) {
-                                    if (d <= compare) {
+                                //JS-55070 - To provide support for COUNTIFS formula
+                                criteriaMatched = isNumber ? !isNaN(d) && d <= compare : !(s == this._string_empty) && tempString <= 0;
+                                token = "<=";
+                            }
+                            break;
+                    }
+                    //JS-55070 - To provide support for COUNTIFS formula
+                    if (criteriaMatched){
+                        if (isCountIf && isLastcriteria || isLastcriteria && criterias.length == 1)
                                         cellCount++;
+                        else {
+                            if (tempList.length > 0 && v != 0) {
+                                var tempCount = tempList.length;
+                                for (i = 0; i < tempCount; i++) {
+                                    if (!ej.isNullOrUndefined(tempList[i]) && this.rowIndex(tempList[i].toString()) == this.rowIndex(s1[index])) {
+                                        criteriaRangeValue.push(s1[index]);
+                                        if (isLastcriteria)
+                                            cellCount++;
                                     }
                                 }
                             }
+                            //JS-55070 - To provide support for COUNTIFS formula
+                            else
+                                criteriaRangeValue.push(s1[index]);
                         }
-                        break;
-                    default:
-                        break;
                 }
+            }
+                //JS-55070 - To provide support for COUNTIFS formula
+                tempList = criteriaRangeValue;
+                criteriaRangeValue = [];
             }
             return cellCount.toString();
         };
@@ -15188,7 +16505,8 @@
                 ? "0"
                 : digStr;
             if (numStr != "" && digStr != "") {
-                x = this._parseDouble(numStr);
+                //JS-58517 : To compute the proper round value when the cell reference has formula.
+                x = ej.parseFloat(numStr);
                 digits = this._parseDouble(digStr);
                 if (!isNaN(digits) && !isNaN(x) && digits > 0) {
                     round = x.toFixed(digits);
@@ -15395,15 +16713,15 @@
                     }
                 }
             }
-            if (this._cell == "") {
+            if (this.cell == "") {
                 return c[0][0].toString();
             }
-            var currentColIndex = this.colIndex(this._cell);
-            var currentRowIndex = this.rowIndex(this._cell);
+            var currentColIndex = this.colIndex(this.cell);
+            var currentRowIndex = this.rowIndex(this.cell);
 
             var startRow, startCol, endRow, endCol;
 
-            this._getFormulaArrayBounds(this._cell, rowsA, colsA);
+            this._getFormulaArrayBounds(this.cell, rowsA, colsA);
 
             startRow = this._getFormulaArrayBoundsfirstRowIndex;
             startCol = this._getFormulaArrayBoundsfirstColIndex;
@@ -18738,7 +20056,15 @@
                 var temp = cellValue[0];
                 var valCount = 0;
                 for (var x = 0; x < cellValue.length; x++) {
-                    if ((cellValue[x] > temp && lookUp > cellValue[x] && temp > lookUp) || lookUp > cellValue[x]) {
+                    var result = this._parseDouble(lookUp);
+                    if (!isNaN(result)) {
+                        var result1 = this._parseDouble(cellValue[x]);
+                        if (!isNaN(result1) && result >= result1) {
+                            temp = cellValue[x];
+                            valCount++;
+                        }
+                    }
+                    else if ((cellValue[x] > temp && lookUp > cellValue[x] && temp > lookUp) || lookUp > cellValue[x]) {
                         temp = (lookUp > cellValue[x]) ? cellValue[x] : cellValue[x+1];
                         valCount++;
                     } else if (valCount != 0)
@@ -18993,7 +20319,10 @@
             return encodeURIComponent(text);
         };
         
-
+        this.ComputeCOUNTIFS = function (argsList)
+        {
+            return this.computeCountIFFunctions(argsList, false);
+        };
         this.computeAnd = function (range) {
             var sum = true, s1, d;
             if (range == null || range == "") {
@@ -19076,19 +20405,17 @@
         };
         this.computeIf = function (args) {
             var s1 = this._string_empty;
-            var array1 = this.splitArgsPreservingQuotedCommas(args);
+            var s = this.splitArgsPreservingQuotedCommas(args);
             //JS-53644 To check the args as error string or not.
             if (this.getErrorStrings().indexOf(args) > 0)
                 return args;
 
             ////parsed formula
-            if (array1.length == 1 || array1.length > 3 || args == "") {
+            if (s.length == 1 || s.length > 3 || args == "") {
                 if (this.getRethrowLibraryComputationExceptions())
                     throw this.formulaErrorStrings[this._wrong_number_arguments];
                 return this.formulaErrorStrings[this._wrong_number_arguments];
             } else {
-                var s = this.getCellsFromArgs(args);
-
                 if (s.length <= 3) {
                     try {
                         s1 = this.getValueFromArg(s[0]);
@@ -20027,6 +21354,14 @@
                     throw this.getErrorStrings()[4].toString();
                 return this.getErrorStrings()[4].toString();
             }
+
+            if (arg.indexOf(':') > -1 && this._isArrayFormula) {
+                var result = this._computeArrayInteriorFunction(arg, "ROW", this.computeFunctionLevel);
+                if(result == this._string_empty)
+                    arg = this.getCellsFromArgs(arg)[0];
+                else
+                    return result;
+            }
             if (arg.indexOf(':') > -1) {
                 arg = this.getCellsFromArgs(arg)[0]; //considers first cell reference from the range of cells.
             }
@@ -20734,8 +22069,8 @@
             var sign = 0;
             var d;
             var s1;
-            var arguments = this.splitArgsPreservingQuotedCommas(args);
-            if (arguments.length > 1 || args == this._string_empty) {
+            var arg = this.splitArgsPreservingQuotedCommas(args);
+            if (arg.length > 1 || args == this._string_empty) {
                 if (this._rethrowLibraryComputationExceptions)
                     throw this.formulaErrorStrings[this._wrong_number_arguments];
                 return this.formulaErrorStrings[this._wrong_number_arguments];
@@ -21310,8 +22645,8 @@ var CalcQuickBase = (function () {
                     if (!this.getKeyToVectors().containsKey(key)) {
                         this.getKeyToVectors().add(key, "");
                     }
-
-                    s = s.substring(1, s.length - 2);
+                    //JS-56819 - To remove the brackets properly.
+                    s = s.substr(1, s.length - 2);
                     var i = this.getKeyToRowsMap().length + 1;
                     var ss = s.split(this.getEngine().getParseArgumentSeparator());
                     var range = "A" + i + ":A" + (i + ss.length - 1);

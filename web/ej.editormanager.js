@@ -444,6 +444,9 @@ var documentManager;
         editorManager.prototype._onApplyjustify = function (justify, parentDoc, _window) {
             this.range = this._getRangy(_window, parentDoc);
             var selNode = this._getexactSelectedNode(this.range, parentDoc);
+            if (selNode.length === 0) {
+                selNode = this._getSelectNode();
+            }
             var _exactparentEle = this._getSelectedParent(selNode);
             for (var a = 0; a < _exactparentEle.length; a++) {
                 var node = document.createElement("div");
@@ -1334,7 +1337,9 @@ var documentManager;
             return range;
         };
         RangeExtractor.prototype._collectSelectionBasedTextNode = function (tempRange) {
-            var leftData, rightData, centerData, leftNode, rightNode, centerNode, startNode = tempRange.startContainer, endNode = tempRange.endContainer;
+            var leftData, rightData, centerData, leftNode, rightNode, centerNode;
+            var startNode = tempRange.startContainer.childNodes[tempRange.startOffset] || tempRange.startContainer;
+            var endNode = tempRange.endContainer.childNodes[(tempRange.endOffset > 0) ? (tempRange.endOffset - 1) : tempRange.endOffset] || tempRange.endContainer;
             this._nodeCollection = [];
             if (tempRange.startContainer == tempRange.endContainer) {
                 if (this._validateTextNode(tempRange.endContainer)) {
@@ -1348,7 +1353,7 @@ var documentManager;
                     centerData && ($(tempRange.startContainer).replaceWith(centerNode = document.createTextNode(centerData))) && this._nodeCollection.push(centerNode);
                 }
                 else
-                    this._updateNodeCollection((tempRange.startContainer.nodeName.toLowerCase() == 'html') ? $(tempRange.startContainer).find('body')[0] : tempRange.startContainer, startNode, null);
+                    this._updateNodeCollection((tempRange.startContainer.nodeName.toLowerCase() == 'html') ? $(tempRange.startContainer).find('body')[0] : startNode, startNode, null);
             }
             else {
                 if (tempRange.startContainer.nodeType == 3 && tempRange.startOffset) {

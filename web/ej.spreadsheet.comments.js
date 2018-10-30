@@ -309,7 +309,7 @@
                                 if (commentPanel.css("display", "inline-table").focus())
                                     this._updateCurrentCell(j, k);
                                 this._updateCommentsBtns(insCmtEle);
-                                xlObj.setSheetFocus();
+                                xlObj._setSheetFocus();
                                 return true;
                             }
                             if (!this._isShowAllComments && !this._isCommentEdit && cell.hasClass("e-commentcell") && !xlObj.XLEdit.getPropertyValueByElem(cell, "comment").isVisible)
@@ -372,7 +372,7 @@
                                 commentPanel.css("display", "inline-table").focus();
                                 this._updateCurrentCell(j, k);
                                 this._updateCommentsBtns(insCmtEle);
-                                xlObj.setSheetFocus();
+                                xlObj._setSheetFocus();
                                 return true;
                             }
                         }
@@ -475,9 +475,10 @@
             xlObj.XLEdit._updateDataContainer({ rowIndex: rowIdx, colIndex: colIdx }, { dataObj: { comment: { value: cmntVal, isVisible: xlObj.isUndefined(xlObj.XLEdit.getPropertyValue(rowIdx, colIdx, "comment")) ? this._isShowAllComments : xlObj.XLEdit.getPropertyValue(rowIdx, colIdx, "comment").isVisible } } });
             if (isViewed && !this._isShowAllComments && !xlObj.XLEdit.getPropertyValue(rowIdx, colIdx, "comment").isVisible)
                 commentPanel.hide();
-            xlObj.setSheetFocus();
+            xlObj._setSheetFocus();
             this._isCommentEdit = false;
-            xlObj.XLCellNav._isNavigate = true;
+            if (xlObj.model.allowKeyboardNavigation)
+                xlObj.XLCellNav._isNavigate = true;
             if (xlObj.model.showRibbon)
                 xlObj.XLRibbon._enableRibbonIcons();
             xlObj.XLEdit._updateUsedRange(rowIdx, colIdx, sheetIdx);

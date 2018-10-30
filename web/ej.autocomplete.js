@@ -799,8 +799,10 @@
 
         _initialize: function () {
             this.value(this.value() === "" ? this.element[0].value : this.value());
-            this.element.attr("role", "combobox").attr("aria-label", "Autocomplete textbox").attr("aria-expanded", false).attr("tabindex", 0).attr("aria-autocomplete", "list");
-            if (/Edge\/12./i.test(navigator.userAgent)) this.element.addClass('edge-browser');
+            this.element.attr("role", "combobox").attr("aria-label", "Autocomplete textbox").attr("aria-expanded", false).attr("aria-autocomplete", "list");
+            if(ej.isNullOrUndefined(this.element.attr('tabindex')))
+				this.element.attr("tabindex", 0);
+			if (/Edge\/12./i.test(navigator.userAgent)) this.element.addClass('edge-browser');
             this.target = this.element[0];
             this.dropdownbutton = null;
             this._isIE8 = (ej.browserInfo().name == "msie") && (ej.browserInfo().version == "8.0") ? true : false;
@@ -982,7 +984,7 @@
             }
             this._checkNameAttr();
             if (this.model.multiSelectMode == "visualmode") this._renderBoxModel();
-            if (this._selectValueByKey() != null && this.value() == "") {
+            if (!ej.isNullOrUndefined(this._selectValueByKey())) {
                 var key = this._selectValueByKey().toString();
                 if (this.model.multiSelectMode != "none") {
                     key = key.substr(key.length - this.model.delimiterChar.length) == this.model.delimiterChar ? key : key + this.model.delimiterChar;
@@ -997,48 +999,80 @@
                     value = value.substr(value.length - this.model.delimiterChar.length) == this.model.delimiterChar ? value : value + this.model.delimiterChar;
                 }
                 this.value(this._setValue(value));
+				if(value){
                 var data = this.model.dataSource;
-                if (ej.DataManager && data instanceof ej.DataManager) this._loadInitData();
-                else this._setHiddenkeyByValue(data);
+                if (ej.DataManager && data instanceof ej.DataManager) this._loadInitData(value);
+                else this._setHiddenkeyByValue(data); 
+				}
                 if (this.model.showResetIcon && this.value() != "") this._showReset();
             }
         },
 
-        _loadInitData: function () {
-            var results = this.model.dataSource, proxy = this;
-            if (ej.DataManager && results instanceof ej.DataManager) {
-                if (!proxy._trigger("actionBegin", { requestFrom: "default" })) {
-                    var queryPromise = results.executeQuery(this._getQuery());
-                    queryPromise.done(function (e) {
-                        proxy._trigger("actionSuccess", { e: e, requestFrom: "default" });
-                        proxy._setHiddenkeyByValue(e.result);
-                    });
-                }
-            }
-        },
+        _loadInitData: function (source) {
+		        var results = this.model.dataSource, proxy = this;
+		        var mapper = this.model.fields;
+		        bindTo = (mapper && mapper["text"]) ? mapper["text"] : "text";
+		        if (this.model.multiSelectMode != "none")
+		            source = source.split(this.model.delimiterChar);
+		        if (ej.DataManager && results instanceof ej.DataManager) {
+		            if (!proxy._trigger("actionBegin", { requestFrom: "default" })) {
+		                var queryPromise, queryCollection = this._getQuery();
+		                if (typeof (source) == "object") {
+		                    for (var k = 0; k < source.length - 1; k++)
+		                        queryCollection.queries.push(ej.Predicate(bindTo, "equal", source[k].trim(), !this.model.caseSensitiveSearch));
+		                    queryPromise = results.executeQuery((queryCollection));
+		                }
+		                else
+		                    queryPromise = results.executeQuery(this._getQuery().where(bindTo, "equal", source, !this.model.caseSensitiveSearch));
+		                queryPromise.done(function (e) {
+		                    proxy._trigger("actionSuccess", { e: e, requestFrom: "default" });
+		                    if (!e.result || e.result.length > 0) proxy._setHiddenkeyByValue(e.result);
+		                });
+		            }
+		        }
+		    },
 
-        _setHiddenkeyByValue: function (data) {
-            var currValue = this.value(), results = data, totalValue = [];
-            if (!ej.isNullOrUndefined(results)) {
-                for (var i = 0; i <= results.length; i++) {
-                    var _text = this._getField(results[i], this.model.fields["text"]);
-                    if (typeof (_text) == "number") _text = _text.toString();
-                    if (!ej.isNullOrUndefined(this.model.fields["key"])) {
-                        var _key = this._getField(results[i], this.model.fields["key"]);
-                        if (_text == currValue) {
-                            this._hiddenInput.val(_key);
-                        }
-                    }
-                    else if (ej.isNullOrUndefined(this.model.fields["key"])) {
-                        if (_text == currValue) {
-                            this._hiddenInput.val(_text);
-                        }
-                    }
-                    totalValue.push(_text);
-                }
-                if (totalValue.indexOf(currValue) == -1) this._hiddenInput.val("");
-            }
-        },
+		    _setHiddenkeyByValue: function (data) {
+				if(ej.isNullOrUndefined(this.value())) this.value("");
+                var currValue = this.value(), results = data, totalValue = [], dval = [];
+		        currValue = (this.model.multiSelectMode == "none") ? currValue.replace(",", "") : currValue.split(this.model.delimiterChar);
+                if (!ej.isNullOrUndefined(results)) {
+		            for (var i = 0; i < results.length; i++) {
+		                var _text = this._getField(results[i], this.model.fields["text"]);
+		                if (typeof (_text) == "number") _text = _text.toString();
+		                if (!ej.isNullOrUndefined(this.model.fields["key"])) {
+		                    var _key = this._getField(results[i], this.model.fields["key"]);
+							if (typeof (currValue) == "string") {
+							    if (_text == currValue)
+							        this._hiddenInput.val(_key);
+							} else {
+							    for (j = 0; j < currValue.length - 1; j++) {
+							        if (_text == currValue[j]) {
+							            if (this._hiddenInput.val() == "")
+							                this._hiddenInput.val(_key);
+							            else
+							                this._hiddenInput.val(this._hiddenInput.val() + this.model.delimiterChar + _key + this.model.delimiterChar);
+							        }
+							    }
+							}
+		                }
+		                else if (ej.isNullOrUndefined(this.model.fields["key"])) {
+		                    if (typeof (currValue) == "object") {
+		                        for (var k = 0; k < currValue.length - 1; k++)
+		                            if (_text == currValue[k].trim())
+		                                dval.push(_text);
+		                        dval = this._removeDuplicateVal(dval);
+                                this._hiddenInput.val(dval);
+		                    }
+		                    else if (_text == currValue) {
+		                        this._hiddenInput.val(_text);
+		                    }
+		                }
+		                totalValue.push(_text);
+		            }
+		            if (typeof (currValue) != "object" && totalValue.indexOf(currValue) == -1) this._hiddenInput.val(currValue);
+		        }
+		    },
         
         _checkNameAttr: function () {			
            this.model.name = this.element.attr("name") != null ? this.element.attr("name") : (this.model.name != null ? this.model.name : this.element[0].id);
@@ -1557,8 +1591,10 @@
                 }
                 else this._hiddenInput.val(currValue);
             }
-			if (this._focusValue != this.model.value)                                     		
-                 this._changeEvtTrigger(currValue, e);
+			if (this._focusValue != this.model.value){  
+			   if(this._hiddenInput.val() == "")
+                   this._hiddenInput.val(currValue);			
+			this._changeEvtTrigger(currValue, e); }
 			else
 			     return false;
             if (this.model.showPopupButton) this.dropdownbutton.removeClass('e-active');
@@ -2055,6 +2091,7 @@
         _addQuery: function (_query, checkMapper) {
             var bindTo = "";
             var predicate, index;
+			this._predicates =[];
             if (checkMapper) {
                 var mapper = this.model.fields;
                 bindTo = (mapper && mapper.text) ? mapper["text"] : "text";
@@ -2081,7 +2118,11 @@
 				            index = _query.queries.slice(i)[0].e;
 				        }
 				    }
-				    if (ej.isNullOrUndefined(index))
+				    if(ej.isNullOrUndefined(index) && this.model.multiColumnSettings.searchColumnIndices.length !=0)
+                        this._predicates.length > 0 && (_query.where(ej.Predicate["or"](this._predicates)));
+				    else if (this.model.multiColumnSettings.searchColumnIndices.length !=0)
+					    _query.where((index).and(this._predicates));
+				    else if (ej.isNullOrUndefined(index))
 				        _query.where(predicate);
 				    else
 				        _query.where((index).and(predicate));
@@ -2108,6 +2149,8 @@
 			else _query = value;
 			if( (type == "number" && isNaN(_query)) ||(type == "boolean" && _query == undefined ) )
 				predicate = predicate;
+			else if (this.model.multiColumnSettings.searchColumnIndices.length !=0)
+			    this._predicates.push(new ej.Predicate(field, filterType, _query,casing));
 			else 
 				predicate = predicate != undefined ? predicate["or"]( field, filterType, _query,casing):ej.Predicate( field, filterType, _query,casing);
 			return predicate;
@@ -2155,8 +2198,8 @@
                     this.dropdownbutton.before(this.resetSpan);
                     this.container.addClass("e-popup e-reset");
                 }
-            }
-            this._on(this.resetSpan, "mousedown", this._refreshSearch);
+		        this._on(this.resetSpan, "mousedown", this._refreshSearch);
+            }          
         },
 		 
 		_refreshSearch:function(){

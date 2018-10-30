@@ -15,6 +15,7 @@
 
         validTags: ["div"],
         _initPrivateProperties: function () {
+            this._prevEnterElement = "";
             this._rootgroup = null;
             this._bubblegroup = null;           
             this._scale = 1;
@@ -86,6 +87,7 @@
                 enableZoomOnSelection: false,
                 enableMouseWheelZoom: true,
                 enableZoom: true,
+                animationDuration: 600
             },          
             centerPosition: null,           
             enableResize: true,
@@ -108,7 +110,11 @@
             baseMapIndex: 0,
             shapeSelected: "",
             markerSelected: "",
+			markerEnter:"",
+			markerLeave:"",
             legendItemRendering: "",
+			displayTextRendering:"",
+			legendItemClick: "",
             bubbleRendering: "",
             shapeRendering: "",
             zoomedIn: "",
@@ -147,7 +153,7 @@
 
 		_tags: [{
             tag: "layers",
-            attr: ["legendSettings.showLegend", "legendSettings.positionX", "legendSettings.positionY", "legendSettings.type", "legendSettings.labelOrientation",
+            attr: ["legendSettings.showLegend", "legendSettings.toggleVisibility", "legendSettings.positionX", "legendSettings.positionY", "legendSettings.type", "legendSettings.labelOrientation",
                    "legendSettings.title", "legendSettings.mode", "legendSettings.position", "legendSettings.dockOnMap", "legendSettings.dockPosition",
 				   "legendSettings.leftLabel", "legendSettings.rightLabel", "legendSettings.icon","legendSettings.iconHeight","legendSettings.iconWidth",
 				   "legendSettings.height","legendSettings.width","legendSettings.showLabels","labelSettings.showLabels", "labelSettings.labelPath",
@@ -189,7 +195,7 @@
 
 			        {
 	                    tag: "subLayers",
-	                    attr: ["legendSettings.showLegend", "legendSettings.positionX", "legendSettings.positionY", "legendSettings.type", "legendSettings.labelOrientation",
+	                    attr: ["legendSettings.showLegend","legendSettings.toggleVisibility", "legendSettings.positionX", "legendSettings.positionY", "legendSettings.type", "legendSettings.labelOrientation",
                    "legendSettings.title", "legendSettings.mode", "legendSettings.position", "legendSettings.dockOnMap", "legendSettings.dockPosition",
 				   "legendSettings.leftLabel", "legendSettings.rightLabel", "legendSettings.icon","legendSettings.iconHeight","legendSettings.iconWidth",
 				   "legendSettings.height","legendSettings.width","legendSettings.showLabels","labelSettings.showLabels", "labelSettings.labelPath",
@@ -453,11 +459,14 @@
         },
         
         _refrshLayers: function () {
-            this.model.layers[this.baseMapIndex()]._setMapItemsPosition(this);
-            for (var key = 0; key < this.model.layers[this.baseMapIndex()].subLayers.length; key++) {
-                this.model.layers[this.baseMapIndex()].subLayers[key]._setMapItemsPosition(this);
+            var layer = this.model.layers[this.baseMapIndex()], subLayer;
+            if (layer._bubbles.length > 0 || layer._mapItems.length > 0 || layer._mapMarkers.length > 0 || layer._labelCollection.length > 0)
+                layer._setMapItemsPosition(this);
+            for (var key = 0; key < layer.subLayers.length; key++) {
+                subLayer = layer.subLayers[key];
+                if (subLayer._bubbles.length > 0 || subLayer._mapItems.length > 0 || subLayer._mapMarkers.length > 0 || subLayer._labelCollection.length > 0)
+                    subLayer._setMapItemsPosition(this);
             }
-
         },
        
         _panTileMap: function (factorX, factorY, centerPosition) {
@@ -471,7 +480,7 @@
 
         },
        
-        _generateTiles: function (zoomLevel) {
+        _generateTiles: function (zoomLevel, imageUrl, subDomains, maxZoom) {
             var userLang = navigator.language || navigator.userLanguage;
             this.Tiles = [];
             var xcount, ycount;
@@ -491,7 +500,10 @@
                             tile.left = x;
                             tile.top = y;
                             if (baseLayer.layerType == ej.datavisualization.Map.LayerType.Bing) {
-                                tile.src = this._getBingMap(tile, baseLayer.key, baseLayer.bingMapType, userLang);
+                                (imageUrl && baseLayer.imageUrl != imageUrl) && (baseLayer.imageUrl = imageUrl);
+                                (subDomains && baseLayer.subDomains != subDomains) && (baseLayer.subDomains = subDomains);
+                                (maxZoom && baseLayer.maxZoom != maxZoom) && (baseLayer.maxZoom = maxZoom);
+                                tile.src = this._getBingMap(tile, baseLayer.key, baseLayer.bingMapType, userLang, baseLayer.imageUrl, baseLayer.subDomains, baseLayer.maxZoom);
                             } else {
                                 tile.src = this._urlTemplate.replace("level", this._zoomLevel()).replace('tileX', tile.X).replace('tileY', tile.Y);
                             }
@@ -520,9 +532,9 @@
             this._arrangeTiles();
         },
        
-        _getBingMap:function(tile,key,type,lang) {
+        _getBingMap:function( tile, key, type, lang, imageUrl, subDomains, maxZoom ) {
             var quadKey = "";
-            for (var i = this._zoomLevel() ; i > 0; i--)
+            for (var i = Math.min(this._zoomLevel(), maxZoom) ; i > 0; i--)
             {
                 var digit = 0;
                 var mask = 1 << (i - 1);
@@ -537,16 +549,8 @@
                 quadKey = quadKey+""+digit;
             }
             var layerType;
-            if (type == ej.datavisualization.Map.BingMapType.Aerial) {
-                layerType = "A,G";
-            }
-            else if (type == ej.datavisualization.Map.BingMapType.AerialWithLabel) {
-                layerType = "A,G,L";
-            } else {
-                layerType = "G,VE,BX,L,LA";
-            }
-            var imageUrl = "http://ak.dynamic.t2.tiles.virtualearth.net/comp/ch/" + quadKey + "?mkt=" + lang + "&ur=IN&it=" + layerType + "&shading=hill&og=45&n=z&Key=" + key;
-            return imageUrl;
+            imageUrl = imageUrl.replace('{quadkey}', quadKey).replace('{subdomain}', subDomains[Math.min(quadKey.substr(quadKey.length - 1, 1), subDomains.length)]);
+            return imageUrl += '&mkt=' + lang + '&ur=IN&Key=' + key;
         },
                
         _arrangeTiles: function (){        
@@ -556,34 +560,75 @@
             var first = this._mapContainer[0].children[0];            
             this._tileDiv.html(htmlString);            
         },
-
-        _generatePath: function () {
-           
-            var baseLayer = this.model.layers[this.baseMapIndex()];            
+        refreshLayer: function (layerIndex, sublayerIndex) {
+            var layer, id, pathCount, elements, pathCollection, isLayer, bubble;
+            isLayer = ej.util.isNullOrUndefined(sublayerIndex);
+            layer = isLayer ? this.model.layers[layerIndex] : this.model.layers[layerIndex].subLayers[sublayerIndex];
+            id = isLayer ? '_layerIndex' + layerIndex : '_sublayerIndex' + sublayerIndex;
+            pathCount = document.getElementById('rootGroup').childNodes.length;
+            elements = $("#" + this._id).find("path[id*='" + id + "']");
+            elements.remove();            
+            pathCollection = this._calculatePath(layerIndex, sublayerIndex, this.model.layers[layerIndex]);
+            var pathElements = jQuery(pathCollection);
+            if (layer.bubbleSettings.showBubble) {
+                bubble = $("#" + this._id).find("circle[id*='" + id + "']");
+                bubble.remove();
+            }
+            for (var i = 0; i < pathElements.length; i++) {
+                var path = document.createElementNS("http://www.w3.org/2000/svg", "path");
+                this._cloneAttributes(path, pathElements[i]);
+                $("#rootGroup").append(path);
+            }            
+            this._renderLayers(layer, pathCount - elements.length, this);
+			this._refrshLayers();
+        },
+        _cloneAttributes: function (element, sourceNode) {
+            var attr;
+            var attributes = Array.prototype.slice.call(sourceNode.attributes);
+            while (attr = attributes.pop()) {
+                element.setAttribute(attr.nodeName, attr.nodeValue);
+            }
+        },
+        _calculatePath: function (layerIndex, sublayerIndex, baseLayer) {
+            var subLayers = ej.util.isNullOrUndefined(sublayerIndex) ? baseLayer.subLayers : baseLayer.subLayers[sublayerIndex];
+            var layerIndex = ej.util.isNullOrUndefined(layerIndex) ? this.baseMapIndex() : layerIndex;
             var pathCollection = '';
-            this._polylineCount = 0;
-            this._pointscount = 0;
             this._isSVG = (window.SVGSVGElement) ? true : false;
 
-            
-            if (baseLayer.layerType.toLowerCase() == ej.datavisualization.Map.LayerType.Geometry) {
-                if (baseLayer != undefined && baseLayer.shapeData != null) {
-                    baseLayer._isBaseLayer = true;
-                    this._isTileMap = false;
-                    this._scale = this._zoomLevel();
-                    pathCollection = this._readShapeData(baseLayer);
+            if (ej.util.isNullOrUndefined(sublayerIndex)) {
+                if (baseLayer.layerType.toLowerCase() == ej.datavisualization.Map.LayerType.Geometry) {
+                    if (baseLayer != undefined && baseLayer.shapeData != null) {
+                        baseLayer._isBaseLayer = true;
+                        this._isTileMap = false;
+                        this._scale = this._zoomLevel();
+                        pathCollection = this._readShapeData(baseLayer, layerIndex, null);
+                    }
+                }
+                else {
+                    this._isTileMap = true;
+                    this._scale = Math.pow(2, this._zoomLevel() - this._zoomFactor());
                 }
             }
-            else {                
-                this._isTileMap = true;
-                this._scale = Math.pow(2, this._zoomLevel() - this._zoomFactor());
-            }
-            for (var key = 0; key < baseLayer.subLayers.length; key++) {
-                if (baseLayer.subLayers[key].layerType == ej.datavisualization.Map.LayerType.Geometry && baseLayer.subLayers[key].shapeData != null) {
-                    baseLayer.subLayers[key]._isBaseLayer = false;
-                    pathCollection += this._readShapeData(baseLayer.subLayers[key]);
+            if (!ej.util.isNullOrUndefined(subLayers.length)) {
+                for (var key = 0; key < subLayers.length; key++) {
+                    if (subLayers[key].layerType == ej.datavisualization.Map.LayerType.Geometry && subLayers[key].shapeData != null) {
+                        subLayers[key]._isBaseLayer = false;
+                        pathCollection += this._readShapeData(subLayers[key], layerIndex, key);
+                    }
                 }
             }
+            else {
+                if (subLayers.layerType == ej.datavisualization.Map.LayerType.Geometry && subLayers.shapeData != null) {
+                    subLayers._isBaseLayer = false;
+                    pathCollection += this._readShapeData(subLayers, layerIndex, sublayerIndex);
+                }
+            }
+
+            return pathCollection;
+        },
+        _generatePath: function (layerIndex, sublayerIndex) {
+            var baseLayer = ej.util.isNullOrUndefined(layerIndex) ? this.model.layers[this.baseMapIndex()] : this.model.layers[layerIndex];
+            var pathCollection = this._calculatePath(layerIndex, sublayerIndex, baseLayer);
             if (this._isSVG) {
                 var htmlstring = '<div style="position:relative;" id="tileDiv"/><svg xmlns="http://www.w3.org/2000/svg" style= "overflow:hidden;z-index:0;float:left;left:0,top:0"' +
                              'id="svgDocument"> <g id="rootGroup">' + pathCollection + '</g></svg>';
@@ -602,7 +647,7 @@
                 this._bubblegroup.style.position = "absolute";
                 this.element.append(this._bubblegroup);
             }
-            if (baseLayer.layerType == ej.datavisualization.Map.LayerType.OSM || baseLayer.layerType == ej.datavisualization.Map.LayerType.Bing) {
+            if (baseLayer.layerType == ej.datavisualization.Map.LayerType.OSM) {
                 this._urlTemplate = baseLayer.urlTemplate;
                 if (this.model.centerPosition != null) {
                     this._panTileMap(this._width, this._height, this.model.centerPosition);
@@ -615,6 +660,33 @@
 				{
 				  $(this._svgDocument).css("position","relative");
 				}
+            }
+            else if(baseLayer.layerType == ej.datavisualization.Map.LayerType.Bing){
+                var proxy = this;
+                $.ajax({
+                    url: 'http://dev.virtualearth.net/REST/V1/Imagery/Metadata/'+ baseLayer.bingMapType +'?output=json&include=ImageryProviders&key='+baseLayer.key,
+                    success: function(json){
+                        if(json && json.statusCode == 200){
+                            var resource = json.resourceSets[0].resources[0],
+                                imageUrl = resource.imageUrl,
+                                subDomains = resource.imageUrlSubdomains,
+                                maxZoom = resource.zoomMax;
+                            proxy._urlTemplate = baseLayer.urlTemplate;
+                
+                            if (proxy.model.centerPosition != null) {
+                                proxy._panTileMap(proxy._width, proxy._height, proxy.model.centerPosition);
+                            }
+                            else {
+                                proxy._panTileMap(proxy._width, proxy._height, [0, 0]);
+                            }
+                            proxy._generateTiles(proxy._zoomLevel(), imageUrl, subDomains, maxZoom);
+				            if(proxy._isSVG)
+				            {
+				                $(proxy._svgDocument).css("position","relative");
+				            }
+                        }
+                    }
+                }); 
             }
             if(this._isSVG)
 			{			
@@ -629,7 +701,7 @@
         },
 
         isMultipolygon: function(coords){
-            return coords&&coords[0]&&coords[0][0]&&coords[0][0][0]&&coords[0][0][0].length>0;
+            return coords.length > 0 && coords[0].length > 0 && coords[0][0].length > 0 && coords[0][0][0].length > 0;
         },
 
         calculateMultiPolygonBBox: function(coords, minMaxLatLng, isEntered){
@@ -744,7 +816,7 @@
             return [[minLongitude, minLatitude], [maxLongitude, maxLatitude]];        
         },
         		
-        _readShapeData: function (layer) {
+        _readShapeData: function (layer, layerIndex, sublayerIndex) {
             var map = this;
             if (layer.shapeData != null) {
                 if (typeof layer.shapeData == 'string') {
@@ -752,12 +824,12 @@
                     var query = ej.Query().from(layer);
                     dataManger.executeQuery(query).done(function (e) {
                         if (e.result != null) {
-                            return map._getPathCollection(e.result, layer);
+                            return map._getPathCollection(e.result, layer, layerIndex, sublayerIndex);
                         }
                     });
 
                 } else {
-                 return this._getPathCollection(layer.shapeData, layer);
+                 return this._getPathCollection(layer.shapeData, layer, layerIndex, sublayerIndex);
                 }
                 
             }
@@ -787,7 +859,7 @@
             return Math.min(wfactor, hfactor); 
         },
 
-        _getPathCollection:function(data,layer)
+        _getPathCollection:function(data,layer, layerIndex, sublayerIndex)
         {
             var shapePath = "";
             var type = "";
@@ -879,12 +951,12 @@
                     else {
                         data_clean.push({ x: p.x - ((10 / this._scale)/2), y: p.y-((10 / this._scale) / 2), lat: point.lat, lng: point.lng });
                     }
-
+                    var id = this._id + '_layerIndex' + layerIndex + (ej.util.isNullOrUndefined(sublayerIndex) ? '' : '_sublayerIndex' + sublayerIndex) + '_shapeIndex' + i;
                     if (this._isSVG) {
-                        pointHtml += '<circle cx="' + data_clean[0].x + '" cy="' + data_clean[0].y + '" r="' + layer.shapeSettings.radius / this._scale + '" stroke="' + layer.shapeSettings.stroke + '" stroke-width="' + layer.shapeSettings.strokeThickness + '" fill="' + layer.shapeSettings.fill + '" />';
+                        pointHtml += '<circle cx="' + data_clean[0].x + '" cy="' + data_clean[0].y + '" r="' + layer.shapeSettings.radius / this._scale + '" stroke="' + layer.shapeSettings.stroke + '" stroke-width="' + layer.shapeSettings.strokeThickness + '" id="' + id + '" fill="' + layer.shapeSettings.fill + '" />';
                     }
                     else {
-                        var pointHtmlString = '<v:oval display="block" fill="' + layer.shapeSettings.fill + '" style="position:absolute;top: ' + data_clean[0].y + 'px;left:' + data_clean[0].x + 'px;width:' + 10 / this._scale + 'px;height:' + 10 / this._scale + 'px;stroke-width:' + layer.shapeSettings.strokeThickness + 'px;"></v:oval>';
+                        var pointHtmlString = '<v:oval display="block" fill="' + layer.shapeSettings.fill + '" style="position:absolute;top: ' + data_clean[0].y + 'px;left:' + data_clean[0].x + 'px;width:' + 10 / this._scale + 'px;height:' + 10 / this._scale + 'px;stroke-width:' + layer.shapeSettings.strokeThickness + 'px;"' + '" id="' + id + '></v:oval>';
                         pointHtml += pointHtmlString;
                     }
                   }  else {
@@ -899,6 +971,7 @@
                 
                 for (var i = 0; i < polygonDatas.length; i++) {
                     var currentData = polygonDatas[i];
+					var shapeIndex = i;
                     var midCoordinate = 0;
                     var midCoordinateLength;
                     var coords;
@@ -933,38 +1006,7 @@
                         }
                         var data = [];
                         var data_clean = [];
-                        var multiPolygonData = [];
-                        
-                        if (this.isMultipolygon(coords)) {
-                            for (var m = 0; m < subData.length; m++) {                                
-                                if (subData[m].length > 2) {
-                                    if(!multiPolygonData[m])
-                                        multiPolygonData[m]=[];
-                                    for (var k = 0; k < subData[m].length; k++) {                                        
-                                        multiPolygonData[m].push({
-                                            lat: parseFloat(subData[m][k][1]),
-                                            lng: parseFloat(subData[m][k][0])
-                                        });
-                                    }
-                                }
-                                else if(subData.length>2) {
-                                    for(var k=0;k<subData.length;k++) {
-                                        data.push({
-                                            lat: parseFloat(subData[k][1]),
-                                            lng: parseFloat(subData[k][0])
-                                        });
-                                    }
-                                    break;
-                                }
-                                else{
-                                    data.push({
-                                            lat: parseFloat(subData[0]),
-                                            lng: parseFloat(subData[1])
-                                        });
-                                }
-                            }
-                        }
-                        else if (subData.length > 2) {
+                        if (subData.length > 2) {
                             for (var k = 0; k < subData.length; k++) {
                                 data.push({
                                     lat: parseFloat(subData[k][1]),
@@ -972,131 +1014,87 @@
                                 });
                             }
                         }
+                        else if (this.isMultipolygon(coords)) {
+                            for (var m = 0; m < subData.length; m++) {
+                                if (subData[m].length > 2) {
+                                    for (var k = 0; k < subData[m].length; k++) {
+                                        data.push({
+                                            lat: parseFloat(subData[m][k][1]),
+                                            lng: parseFloat(subData[m][k][0])
+                                        });
+                                    }
+                                }
+                            }
+                        }
                         else {
                             data.push({
                                 lat: parseFloat(subData[1]),
                                 lng: parseFloat(subData[0])
                             });
-                        } 
-                        if(multiPolygonData.length<1) {
-                            for(var l=0;l<data.length-1||(data.length==1&&l==0) ;l++) {
-                                var point=data[l];
-                                latitude=point.lat; // (φ)
-                                longitude=point.lng;   // (λ                           
-                                var boundingBox=this._mapBounds;
-                                if(this._isTileMap||(longitude>=boundingBox[0][0]&&longitude<=boundingBox[1][0]&&latitude>=boundingBox[0][1]&&latitude<=boundingBox[1][1])) {
-
-                                    var p=this._convertTileLatLongtoPointForShapes(latitude,longitude,boundingBox,factor);
-                                    if(flag&&this._groupSize==null) {
-                                        minX=maxX=p.x;
-                                        minY=maxY=p.y;
-                                        flag=false;
-                                    }
-                                    else {
-                                        minX=Math.min(minX,p.x);
-                                        maxX=Math.max(maxX,p.x);
-                                        minY=Math.min(minY,p.y);
-                                        maxY=Math.max(maxY,p.y);
-                                    }
-                                    if(this._isSVG) {
-                                        data_clean.push({ x: p.x,y: p.y,lat: point.lat,lng: point.lng });
-                                    }
-                                    else {
-                                        data_clean.push({ x: p.x,y: p.y,lat: point.lat,lng: point.lng });
-                                    }
-                                }
-
-                            }
-                            if(j==midCoordinate) {
-                                layer._newBounds.push(this._findMidPointofPoylgon(data_clean));
-                            }
-
-                            if(data_clean.length>0) {
-                                if(this._isSVG) {
-                                    path_code+="M"+(data_clean[0].x)+","+(data_clean[0].y);
-                                    for(var m=1;m<data_clean.length;m++) {
-                                        path_code+=","+(data_clean[m].x)+","+(data_clean[m].y);
-                                    }
-                                    path_code+="Z";
+                        }                       
+                        for (var l = 0; l < data.length - 1|| (data.length==1 && l==0); l++) {
+                            var point = data[l];
+                            latitude = point.lat; // (φ)
+                            longitude = point.lng;   // (λ                           
+                            var boundingBox = this._mapBounds;
+                            if (this._isTileMap||(longitude >= boundingBox[0][0] && longitude <= boundingBox[1][0] && latitude >= boundingBox[0][1] && latitude <= boundingBox[1][1])) {
+                               
+                                var p = this._convertTileLatLongtoPointForShapes(latitude, longitude, boundingBox, factor);
+                                if (flag && this._groupSize == null) {
+                                    minX = maxX = p.x;
+                                    minY = maxY = p.y;
+                                    flag = false;
                                 }
                                 else {
-                                    path_code+="m"+parseInt(data_clean[0].x)+","+parseInt(data_clean[0].y);
-                                    path_code+=" l"+parseInt(data_clean[0].x)+","+parseInt(data_clean[0].y);
-                                    for(var m=1;m<data_clean.length;m++) {
-                                        path_code+=","+parseInt(data_clean[m].x)+","+parseInt(data_clean[m].y);
-                                    }
-                                    path_code+=" e";
+                                    minX = Math.min(minX, p.x);
+                                    maxX = Math.max(maxX, p.x);
+                                    minY = Math.min(minY, p.y);
+                                    maxY = Math.max(maxY, p.y);
+                                }                                
+                                if (this._isSVG) {
+                                    data_clean.push({ x: p.x, y: p.y, lat: point.lat, lng: point.lng });
+                                }
+                                else {
+                                    data_clean.push({ x: p.x, y: p.y, lat: point.lat, lng: point.lng });
                                 }
                             }
+                            
                         }
-                        else{
-                            for(var mul=0;mul<multiPolygonData.length;mul++) {
-                                data = multiPolygonData[mul];
-                                data_clean = [];
-                                for(var l=0;l<data.length-1||(data.length==1&&l==0) ;l++) {
-                                    var point=data[l];
-                                    latitude=point.lat; // (φ)
-                                    longitude=point.lng;   // (λ                           
-                                    var boundingBox=this._mapBounds;
-                                    if(this._isTileMap||(longitude>=boundingBox[0][0]&&longitude<=boundingBox[1][0]&&latitude>=boundingBox[0][1]&&latitude<=boundingBox[1][1])) {
-
-                                        var p=this._convertTileLatLongtoPointForShapes(latitude,longitude,boundingBox,factor);
-                                        if(flag&&this._groupSize==null) {
-                                            minX=maxX=p.x;
-                                            minY=maxY=p.y;
-                                            flag=false;
-                                        }
-                                        else {
-                                            minX=Math.min(minX,p.x);
-                                            maxX=Math.max(maxX,p.x);
-                                            minY=Math.min(minY,p.y);
-                                            maxY=Math.max(maxY,p.y);
-                                        }
-                                        if(this._isSVG) {
-                                            data_clean.push({ x: p.x,y: p.y,lat: point.lat,lng: point.lng });
-                                        }
-                                        else {
-                                            data_clean.push({ x: p.x,y: p.y,lat: point.lat,lng: point.lng });
-                                        }
-                                    }
-
+                        if (j == midCoordinate) {
+                            layer._newBounds.push(this._findMidPointofPoylgon(data_clean));
+                        }
+                        
+                        if (data_clean.length > 0) {
+                            if (this._isSVG) {
+                                path_code += "M" + (data_clean[0].x) + "," + (data_clean[0].y);
+                                for (var m = 1; m < data_clean.length; m++) {
+                                    path_code += "," + (data_clean[m].x) + "," + (data_clean[m].y);
                                 }
-                                if(j==midCoordinate) {
-                                    layer._newBounds.push(this._findMidPointofPoylgon(data_clean));
+                                path_code += "Z";
+                            }
+                            else {
+                                path_code += "m" + parseInt(data_clean[0].x) + "," + parseInt(data_clean[0].y);
+                                path_code += " l" + parseInt(data_clean[0].x) + "," + parseInt(data_clean[0].y);
+                                for (var m = 1; m < data_clean.length; m++) {
+                                    path_code += "," + parseInt(data_clean[m].x) + "," + parseInt(data_clean[m].y);
                                 }
-
-                                if(data_clean.length>0) {
-                                    if(this._isSVG) {
-                                        path_code+="M"+(data_clean[0].x)+","+(data_clean[0].y);
-                                        for(var m=1;m<data_clean.length;m++) {
-                                            path_code+=","+(data_clean[m].x)+","+(data_clean[m].y);
-                                        }
-                                        path_code+="Z";
-                                    }
-                                    else {
-                                        path_code+="m"+parseInt(data_clean[0].x)+","+parseInt(data_clean[0].y);
-                                        path_code+=" l"+parseInt(data_clean[0].x)+","+parseInt(data_clean[0].y);
-                                        for(var m=1;m<data_clean.length;m++) {
-                                            path_code+=","+parseInt(data_clean[m].x)+","+parseInt(data_clean[m].y);
-                                        }
-                                        path_code+=" e";
-                                    }
-                                }
+                                path_code += " e";
                             }
                         }
 
                     }
                     if (path_code != "") {
+                        var id = this._id + '_layerIndex' + layerIndex + (ej.util.isNullOrUndefined(sublayerIndex) ? '' : '_sublayerIndex' + sublayerIndex) + '_shapeIndex' + i;
                         if (this._isSVG) {
                             shapePath += '<path class="e-mapShape" stroke=' + layer.shapeSettings.stroke +
                                         ' stroke-width=' + (layer.shapeSettings.strokeThickness / this._scale) +
-                                         ' fill= ' + layer.shapeSettings.fill + ' d="' + path_code + '"  stroke-linejoin= round stroke-linecap= square></path>';
+                                         ' fill= ' + layer.shapeSettings.fill + ' d="' + path_code + '"  stroke-linejoin= round stroke-linecap= square' + ' id="' + id + '"' + '></path>';
                         }
                         else {
                             shapePath += '<v:shape  style="width:' + this._width + 'px;height:' + this._height + 'px;"  coordsize="'
                                 + this._width + ' ' + this._height + '" coordorigin="0 0" strokecolor=' + layer.shapeSettings.stroke +
                                            ' stroke-width=' + (layer.shapeSettings.strokeThickness / this._scale) + 'px"' +
-                                            ' fillcolor= ' + layer.shapeSettings.fill + ' path="' + path_code + '"></v:shape>';
+                                            ' fillcolor= ' + layer.shapeSettings.fill + ' id=' + id + ' path="' + path_code + '"></v:shape>';
                         }
                     }
                     else {
@@ -1138,14 +1136,14 @@
                         if (k != coordinates.length - 1)
                             linedata += ",";
                     }
-
+                    var id = this._id + '_layerIndex' + layerIndex + (ej.util.isNullOrUndefined(sublayerIndex) ? '' : '_sublayerIndex' + sublayerIndex) + '_shapeIndex' + i;
                     if (this._isSVG) {
-                        shapePath += '<polyline stroke=' + layer.shapeSettings.stroke +
+                        shapePath += '<polyline stroke=' + layer.shapeSettings.stroke + ' id=' + id +
                                     ' stroke-width=' + (layer.shapeSettings.strokeThickness / this._scale) + ' fill="transparent" stroke-width="1" points="' + linedata + '" ></polyline>';
 
                     }
                     else {
-                        shapePath += '<v:polyline coordsize="'+ this._width + ',' + this._height + '" coordorigin="0 0" strokecolor=' + layer.shapeSettings.stroke +
+                        shapePath += '<v:polyline coordsize="' + this._width + ',' + ' id=' + id  +this._height + '" coordorigin="0 0" strokecolor=' + layer.shapeSettings.stroke +
                                                                ' strokeweight=' + (layer.shapeSettings.strokeThickness / this._scale) + 'px"' +
                                                                 ' fillcolor=' + layer.shapeSettings.fill + '  points="' + linedata + '"/>';
 
@@ -1236,8 +1234,9 @@
                     }
                 }
             }
-
-            this._generateTooltipForLayers(shapelayer);
+            layer._renderedShapes = shapelayer.dataSource;
+            if (shapelayer.showTooltip)
+                this._generateTooltipForLayers(shapelayer);
             if (shapelayer.shapeData != null) {
                 var shapesource = [];
                 if (shapelayer.dataSource != null) {
@@ -1250,15 +1249,6 @@
                         shapesource.push(shapeItemValue);
                     }
                 }
-                // touchevent changing
-                var browserInfo = ej.browserInfo(),
-                    temp = this.model,
-                    isPointer = browserInfo.isMSPointerEnabled,
-                    isIE11Pointer = browserInfo.pointerEnabled,
-                    touchEndEvent = isPointer ? (isIE11Pointer ? "pointerup" : "MSPointerUp") : "touchend mouseup",
-                    touchMoveEvent = isPointer ? (isIE11Pointer ? "pointermove" : "MSPointerMove") : "touchmove mousemove",
-                    touchStartEvent = isPointer ? (isIE11Pointer ? "pointerdown" : "MSPointerDown") : "touchstart mousedown",
-                    touchCancelEvent = isPointer ? (isIE11Pointer ? "pointerleave" : "MSPointerOut") : "touchend mouseleave";
                 for (var dataIndex = 0; dataIndex < shapelayer._polygonData.length; dataIndex++) {
                     var ValueObject = shapelayer._polygonData[dataIndex].properties;
                     var DBFValue = proxyControl._reflection(ValueObject, shapelayer.shapePropertyPath);
@@ -1297,6 +1287,9 @@
                  if (shapesource.indexOf(dbfCondition) != -1) {
                         var item = shapelayer.dataSource[shapesource.indexOf(dbfCondition)];
                         var ItemValue = DBFValue,bubbleShapeColor;
+						item.shape = shape;
+						item.shapeIndex = dataIndex;
+						item._showBubble = true;
                         if (item != null) {
                             if (shape != null) {                              
                                
@@ -1363,7 +1356,7 @@
                                             var circle = document.createElementNS(proxyControl._svgns, "circle");
                                         }
                                         else {
-                                            var bubbleID = "bubble_" + id;
+                                            var bubbleID = this._id + "bubble_" + id;
                                             var bubbleHtmlString = '<v:oval class="e-mapBubble" id=' + bubbleID + ' display="block" style="position:absolute;top: ' + 0 + 'px;left:' + 0 + 'px;width:100px;height:100px;stroke-width:' + 0 + 'px;"><v:fill opacity="0.9"/></v:oval>';
                                             this._bubblegroup.innerHTML = this._bubblegroup.innerHTML + bubbleHtmlString;
                                             var circle = document.getElementById("bubble_" + id);
@@ -1403,7 +1396,7 @@
                                         var radius = proxyControl._getRatioOfBubble(shapelayer.bubbleSettings.minValue, shapelayer.bubbleSettings.maxValue, bubbleValue, minValue, maxValue);
                                         if (mapObject._isSVG) {
                                             $(circle).attr({
-                                                "cx": bounds.x, "cy": bounds.y,
+                                                "cx": bounds.x, "cy": bounds.y, "id" : shape.id+ "_bubble_" + dataIndex,
                                                 "fill-opacity": shapelayer.bubbleSettings.bubbleOpacity, "r": radius, "class": "e-mapBubble",
                                             });
                                             if (proxyControl.enableAnimation()&& !this._isTileMap) {
@@ -1449,9 +1442,21 @@
                             if (bounds == null) {
                                //bounds = (shape);
                             }
-                            labelElement = $("<div class='e-labelStyle'></div>");                            
+                            labelElement = $("<div class='e-labelStyle' id="+ "'" + this._id +'labelStyle_'+ dataIndex + "'" + "></div>");                            
                             $(labelElement).css({ "pointer-events": "none", "position": "absolute" });
                             labelElement[0].innerHTML = labelValue;
+							commonEventArgs = {
+								data:{
+									text:labelValue,
+									labelSettings:layer.labelSettings,
+									id:this._id +'labelStyle_'+ dataIndex, 
+									index: dataIndex,
+								},
+								model: this.model, 
+							};							
+							this._trigger("displayTextRendering", commonEventArgs); 
+							if(labelValue != commonEventArgs.data.text && !commonEventArgs.cancel)
+								labelValue = commonEventArgs.data.text;							
                             this._templateDiv.append(labelElement);
                             if (layer.legendSettings.showLegend && layer.legendSettings.dockOnMap && layer.legendSettings.dockPosition == "top") {
                                 $(this._templateDiv).css({ "margin-top": layer.legendSettings.height });
@@ -1461,6 +1466,8 @@
                                 $(this._templateDiv).css({ "margin-left": layer.legendSettings.width });
                             }
                             $(labelElement).css({ "left": bounds.x, "top": bounds.y});
+                            proxyControl._off($(labelElement), ej.eventType.mouseDown, proxyControl._polyMouseDown);
+                            proxyControl._on($(labelElement), ej.eventType.mouseDown, { Param1: null, Param2: layer, Param3: shape }, proxyControl._polyMouseDown);
                             proxyControl._off($(labelElement), ej.eventType.mouseUp, proxyControl._polyClickFunction);
                             proxyControl._on($(labelElement), ej.eventType.mouseUp, { Param1: null, Param2: layer, Param3: shape }, proxyControl._polyClickFunction);
 							proxyControl._off($(labelElement), ej.eventType.mouseLeave, proxyControl._polyLeaveFunction);
@@ -1501,18 +1508,6 @@
 					}
                     // bindtouches
 					layer._mapShapes.push(obj);
-					this._off($(shape), "mouseenter touchmove", proxyControl._polyEnterFunction);
-					this._on($(shape), "mouseenter touchmove", { Param1: shapelayer, Param2: obj, map: proxyControl }, proxyControl._polyEnterFunction);
-					this._off($(shape), touchStartEvent, proxyControl._polyMouseDown);
-					this._on($(shape), touchStartEvent, { Param1: obj, Param2: shapelayer }, proxyControl._polyMouseDown);
-					this._off($(shape), touchEndEvent, proxyControl._polyClickFunction);
-					this._on($(shape), touchEndEvent, { Param1: obj, Param2: shapelayer, Param3: shape }, proxyControl._polyClickFunction);
-					this._off($(shape), touchMoveEvent, proxyControl._polyMoveFunction);
-					this._on($(shape), touchMoveEvent, { Param1: shapelayer, Param2: obj, Param3: shape }, proxyControl._polyMoveFunction);
-					this._off($(shape), touchCancelEvent, proxyControl._polyLeaveFunction);
-					this._on($(shape), touchCancelEvent, { Param1: shapelayer, Param2: obj, map: this }, proxyControl._polyLeaveFunction);
-					this._off($(shape), touchEndEvent, proxyControl._polyUpFunction);
-					this._on($(shape), touchEndEvent, { Param1: obj, Param2: shapelayer, Param3: shape }, proxyControl._polyUpFunction);
 					if (dataIndex == 0) {
 					    if (this._legendDiv == null) {
 					        this._legendDiv = $("<div class='e-LegendDiv'/>");
@@ -1801,6 +1796,9 @@
                 }
                 
                 map._trigger("zoomedIn", { originalEvent: event, zoomLevel: map._zoomLevel() });
+                if (map.enableAnimation() && !this._isTileMap) {
+                    map._animate(map.model.zoomSettings.animationDuration);
+                }
                 map._applyTransform(map._scale, map._translatePoint);
                 map._refrshLayers();
                 map._resizeShape();               
@@ -1909,25 +1907,100 @@
                 (this.model.layers[index].subLayers[key])._shapeSelection();
             }
         },
-
-       refreshMarkers: function () {
-          var markerElements = document.getElementsByClassName("e-mapMarker");
-        
-         for(var index = markerElements.length-1; index >= 0; index--)
-         {
-          markerElements[index].parentNode.removeChild(markerElements[index]);
-         }
-         
-            var index = this.baseMapIndex();
-            this.model.layers[index]._generateMarkerForLayers(this);
-            for (var key = 0; key < this.model.layers[index].subLayers.length; key++) {
-                (this.model.layers[index].subLayers[key])._generateMarkerForLayers(this);
+        addMarkers: function (layerIndex, subLayerIndex, markers) {
+            markers = !markers.length ? [markers] : markers;
+            var layer, length, item, marker, xpos, ypos, position;
+            layer = ej.util.isNullOrUndefined(subLayerIndex) ? this.model.layers[layerIndex] : this.model.layers[layerIndex].subLayers[subLayerIndex];
+            length = layer._mapMarkers.length;
+            layer.markers = layer.markers.concat(markers);
+            this._generateMarkers(markers, layer, this);
+            var factor = this._getFactor();
+            for (var key = layer._mapMarkers.length - 1; key > length - 1; key--) {
+                item = layer._mapMarkers[key];
+                marker = layer.markers[key];
+                if (this._isTileMap) {
+                    position = this._convertTileLatLongtoPoint(marker.latitude != null ? marker.latitude : marker.Latitude, marker.longitude != null ? marker.longitude : marker.Longitude);
+                }
+                else {
+                    position = this._convertLatLongtoPointforMarker(marker.latitude != null ? marker.latitude : marker.Latitude, marker.longitude != null ? marker.longitude : marker.Longitude, factor);
+                }
+                xpos = position.x;
+                ypos = position.y;
+                $(item).css({ "left": xpos, "top": ypos });
             }
-            this._refrshLayers();
+        },
+
+        _generateMarkers: function (marker, layer, map) {
+            var markerItem, markerObeject, htmlString;
+            for (var key = 0; key < marker.length; key++) {
+                markerObeject = marker[key];
+                if (layer.markerTemplate != null) {
+                    markerItem = $("<div class='e-mapMarker' style='display:block;position:absolute;pointer-events: stroke;'></div>");
+                    map._templateDiv.append(markerItem);
+                    $(markerItem).css({ height: layer._height, width: layer._width, "margin-top": layer._margintop, "margin-left": layer._marginleft });
+                    htmlString = $("#" + layer.markerTemplate).render(markerObeject);
+                    if (map.model.markerSelected == null) {
+
+                        $(markerItem).css({ "pointer-events": "none" });
+                    }
+                    $(markerItem).html(htmlString);
+                }
+                else {
+                    markerItem = $(' <div class="e-mapMarker" style="display:block;position:absolute;pointer-events: stroke;"><label>' + markerObeject.label + '</label></div>');// document.createElementNS(layer._svgns, "text");
+                    if (layer._isSVG) {
+                        map._templateDiv.append(markerItem);
+                    }
+                    else {
+                        markerItem.appendTo(map._templateDiv);
+                    }
+                    if (map.model.markerSelected == null) {
+
+                        $(markerItem).css({ "pointer-events": "none" });
+                    }
+
+                }
+                map._on($(markerItem), ej.eventType.mouseDown, { marker: $(markerItem), data: markerObeject }, map._markerPressed);
+                map._on($(markerItem), 'dblclick', { marker: $(markerItem), data: markerObeject }, map._markerPressed);
+                map._on($(markerItem), 'contextmenu', { marker: $(markerItem), data: markerObeject }, map._markerPressed);
+				map._on($(markerItem), ej.eventType.mouseMove, { markerElement: $(markerItem), markerData: markerObeject }, map._markerEntered);
+				map._on($(markerItem), ej.eventType.mouseLeave, { markerElement: $(markerItem), markerData: markerObeject }, map._markerLeaved);
+				
+                layer._mapMarkers.push(markerItem);
+                var baseLayer = layer;
+                if (baseLayer.legendSettings.dockPosition == ej.datavisualization.Map.DockPosition.Left) {
+                    layer._height = layer._height;
+                    layer._width = layer._width - parseFloat(this._legendDivWidth);
+                    layer._marginleft = parseFloat(this._legendDivWidth);
+                }
+            }
+        },
+        refreshMarkers: function () {
+            var markerElements = document.getElementsByClassName("e-mapMarker"), isRefresh = false;
+            var parent;
+            for (var index = markerElements.length - 1; index >= 0; index--) {
+                if (!parent) {
+                    parent = markerElements[index].parentNode;
+                }
+                parent.removeChild(markerElements[index]);
+            }
+
+            var layer = this.model.layers[this.baseMapIndex()];
+            if (layer.markers.length > 0) {
+                layer._generateMarkerForLayers(this);
+                isRefresh = true;
+            }
+            for (var key = 0; key < layer.subLayers.length; key++) {
+                if (layer.subLayers[key].markers) {
+                    (layer.subLayers[key])._generateMarkerForLayers(this);
+                    isRefresh = true;
+                }
+            }
+            isRefresh = layer._labelCollection.length > 0 ? true : isRefresh;
+            if (isRefresh)
+                this._refrshLayers();
         },
 
         _generateTooltipForLayers: function (layer) {
-             if (layer.showTooltip) {
 			   if (document.documentMode == 8){
 					var tooltip = document.querySelectorAll("e-shapeToolTip");
 				}
@@ -1950,7 +2023,6 @@
                         this._mapContainer.append($('<div  id="defaultTooltip" style="display:none;"><div style="margin-left:10px;margin-top:-25px;"><div class="e-defaultToolTip" style="display:table"><p style="margin-top:-4px"><label  style="color:rgb(27, 20, 20);font-size:14px;font-weight:normal;font-family:Segoe UI">{{:#data["' + path + '"]}}</label></p></div></div></div>'));
                     }
                 }
-            }                
         },
        
         _orderByNameAscending: function (a, b) {
@@ -2159,8 +2231,7 @@
             return { x: pixelX, y: pixelY };
         },
       
-        _convertLatLongtoPointforMarker: function (lat, lng) {
-            var factor = this._getFactor();
+        _convertLatLongtoPointforMarker: function (lat, lng, factor) {
             var point = this._convertTileLatLongtoPointForShapes(lat, lng, this._mapBounds,factor);
             return { x: (point.x + this._translatePoint.x) * this._scale, y: (point.y + this._translatePoint.y) * this._scale };
 
@@ -2396,7 +2467,14 @@
             var end = new Date();
             if(this.model.click != '')
                 this._trigger("click", {data:{event: e}});
-            
+			
+			if(this.model.layers[this.baseMapIndex()].legendSettings.toggleVisibility){
+				this.model.layers[this.baseMapIndex()]._legendToggleVisibility(this.model.layers[this.baseMapIndex()],e,this);
+				for (var key = 0; key < this.model.layers[this.baseMapIndex()].subLayers.length; key++) {
+					this.model.layers[this.baseMapIndex()].subLayers[key]._legendToggleVisibility(this.model.layers[this.baseMapIndex()].subLayers[key],e,this);
+				}
+			}
+						
             if(this._doubleTapTimer != null && end - this._doubleTapTimer < 500)
                 this._mapDoubleClick(e);
             this._doubleTapTimer = end;
@@ -2436,7 +2514,7 @@
 					     map._trigger("zoomedIn", { originalEvent: null, zoomLevel: map._zoomLevel() });
                     }
                     if (map.enableAnimation() && !this._isTileMap) {
-                        map._animate(600);
+                        map._animate(map.model.zoomSettings.animationDuration);
                     }
                     else {
                         map._applyTransform(map._scale, map._translatePoint);
@@ -2646,6 +2724,14 @@
         _markerPressed: function (event) {
             this._trigger("markerSelected", { originalEvent: event.data });
         },
+		
+		_markerEntered: function (event) {
+            this._trigger("markerEnter", { data: event.data, originalEvent: event });
+        },
+		
+		_markerLeaved: function (event) {
+            this._trigger("markerLeave", { data: event.data, originalEvent: event });
+        },
 			
         _polyMouseDown:function(event)
         {
@@ -2662,7 +2748,7 @@
             this.model.cachedXY = position;
             if (!this.isTouch(event)) {
 
-            if (event.data.Param1.hasOwnProperty("data") && layer.showTooltip) {
+                if (!ej.util.isNullOrUndefined(event.data.Param1) && event.data.Param1.hasOwnProperty("data") && layer.showTooltip) {
                 var element = layer._tooltipElement;
                 var template = layer.tooltipTemplate;
                 var parentSize = $(this._mapContainer).offset();
@@ -2714,7 +2800,111 @@
             Y = event.pageY || event.originalEvent.pageY || event.originalEvent.changedTouches[0].pageY;
             return { X: X, Y: Y };
         },
-
+        findData: function (data, value, path) {
+            for (var i = 0; i < data.length; i++) {
+                if (data[i][path] === value) {
+                    return data[i];
+                }
+            }
+        },
+        _getEventArgs: function (event, id) {
+            var layerIndex, shapeIndex, sublayerIndex, layer, shape, shapeData, data, id;
+            id = id ? id : event.target.id;
+            layerIndex = parseInt(id.split('_layerIndex')[1].split('_')[0], 10);
+            shapeIndex = parseInt(id.split('_shapeIndex')[1].split('_')[0], 10);
+            if (id.indexOf('_sublayerIndex') > -1) {
+                sublayerIndex = parseInt(id.split('_sublayerIndex')[1].split('_')[0], 10);
+            }
+            layer = ej.util.isNullOrUndefined(sublayerIndex) ? this.model.layers[layerIndex] : this.model.layers[layerIndex].subLayers[sublayerIndex];
+            if (layer.dataSource)
+                data = this.findData(layer.dataSource, layer._polygonData[shapeIndex].properties[layer.shapePropertyPath], layer.shapeDataPath);
+            shape = document.getElementById(id);
+            shapeData = layer._polygonData[shapeIndex];
+            return { shapeData: shapeData, shape: shape, shapeIndex: shapeIndex, layerIndex: layerIndex, subLayerIndex: sublayerIndex, layer: layer, data: data };
+        },
+        _mapMouseClick: function (event) {            
+            if (event.target.id.indexOf("layerIndex") > -1) {
+                var eventArgs = this._getEventArgs(event);                
+                this._polyClickFunction(this._mouseClickEventArgs(eventArgs, event));
+            }
+        },
+        _mapMouseDown: function (event) {
+            if (event.target.id.indexOf("layerIndex") > -1) {
+                var eventArgs = this._getEventArgs(event);
+                event.data = {
+                    Param1: { shape: eventArgs.shape, shapeData: eventArgs.shapeData, shapeIndex: eventArgs.shapeIndex },
+                    Param2: eventArgs.layer
+                };
+                if (eventArgs.data) {
+                    event.data.Param1.data = eventArgs.data;
+                }
+                this._polyMouseDown(event);
+            }
+        },
+        _mapMouseMove: function (event) {
+            if (event.target.id.indexOf("layerIndex") > -1) {
+                var eventArgs = this._getEventArgs(event);
+                event.data = {
+                    Param1: eventArgs.layer,
+                    Param2: { shapeIndex: eventArgs.shapeIndex, shape: eventArgs.shape, shapeData: eventArgs.shapeData },
+                    Param3: eventArgs.shape
+                };
+                if (eventArgs.data) {
+                    event.data.Param2.data = eventArgs.data;
+                }
+                this._polyMoveFunction(event);
+            }
+        },
+        _mapMouseUp: function (event) {
+            if (event.target.id.indexOf("layerIndex") > -1) {
+                var eventArgs = this._getEventArgs(event);                
+                this._polyUpFunction(this._mouseClickEventArgs(eventArgs, event));
+            }
+        },
+        _mouseClickEventArgs: function (eventArgs, event) {
+            event.data = {
+                Param1: { shapeIndex: eventArgs.shapeIndex, shape: eventArgs.shape, shapeData: eventArgs.shapeData },
+                Param2: eventArgs.layer,
+                Param3: eventArgs.shape
+            };
+            if (eventArgs.data) {
+                event.data.Param1.data = eventArgs.data;
+            }
+            return event;
+        },
+        _mouseMoveEventArgs: function (eventArgs, event) {
+            event.data = {
+                Param1: eventArgs.layer,
+                Param2: { shape: eventArgs.shape, shapeData: eventArgs.shapeData, shapeIndex: eventArgs.shapeIndex },
+                map: this
+            };
+            if (eventArgs.data) {
+                event.data.Param2.data = eventArgs.data;
+            }
+            return event;
+        },
+        _mapMouseEnter: function (event) {
+            var eventArgs, eventId;
+            if (event.target.id.indexOf("layerIndex") > -1) {                
+                if (this._prevEnterElement != event.target.id) {                    
+                    if (this._prevEnterElement != "") {
+                        eventArgs = this._getEventArgs(event, this._prevEnterElement);
+                        
+                        this._polyLeaveFunction(this._mouseMoveEventArgs(eventArgs, event));
+                    }
+                    eventArgs = this._getEventArgs(event);
+                    this._polyEnterFunction(this._mouseMoveEventArgs(eventArgs, event));
+                    this._prevEnterElement = event.target.id;
+                }
+            } else {
+                if (this._prevEnterElement != "") {
+                    eventArgs = this._getEventArgs(event, this._prevEnterElement);
+                    this._polyLeaveFunction(this._mouseMoveEventArgs(eventArgs, event));
+                    this._prevEnterElement = "";
+                    event.target.id = eventId;
+                }
+            }
+        },
        _polyClickFunction: function (event) {
 
            var ctrlkey = event.ctrlKey,
@@ -2917,7 +3107,7 @@
 	       this._translatePoint.x = -bounds.x + leftPos;
 	       this._translatePoint.y = -bounds.y + topPos;
 	       if (this.enableAnimation() && !this._isTileMap) {
-	           this._animate(1200);
+	           this._animate(2 * this.model.zoomSettings.animationDuration);
 	       }
 	       else {
 	           this._applyTransform(this._scale, this._translatePoint);
@@ -3022,6 +3212,12 @@
         },
 
         _wireEvents: function () {
+            var browserInfo = ej.browserInfo(),
+                    isPointer = browserInfo.isMSPointerEnabled,
+                    isIE11Pointer = browserInfo.pointerEnabled,
+                    touchEndEvent = isPointer ? (isIE11Pointer ? "pointerup" : "MSPointerUp") : "touchend mouseup",
+                    touchStartEvent = isPointer ? (isIE11Pointer ? "pointerdown" : "MSPointerDown") : "touchstart mousedown",
+                    touchMoveEvent = isPointer ? (isIE11Pointer ? "pointermove" : "MSPointerMove") : "touchmove mousemove";
             var matched = jQuery.uaMatch(navigator.userAgent);
             var browser = matched.browser.toLowerCase();
             $(this._mapContainer).off();
@@ -3061,6 +3257,11 @@
                 map._zooming(-40 * event.detail, event);
             }
             this._on($(this._mapContainer), "touchstart", this._mapDown);
+            this._on($(this._mapContainer), touchEndEvent, this._mapMouseClick);
+            this._on($(this._mapContainer), touchStartEvent, this._mapMouseDown);
+            this._on($(this._mapContainer), touchMoveEvent, this._mapMouseMove);
+            this._on($(this._mapContainer), touchEndEvent, this._mapMouseUp);
+            this._on($(this._mapContainer), ej.eventType.mouseMove, this._mapMouseEnter);
             $(this._mapContainer).get(0).addEventListener(ej.isTouchDevice() ? "touchend" : "mouseup", this._mapClick.bind(this), true);
             this._on($(this._mapContainer), "dblclick", this._doubleClick);
             if (this.model.enableResize || this.model.isResponsive) {
@@ -3114,6 +3315,12 @@
         },
         
         _unWireEvents: function () {
+            var browserInfo = ej.browserInfo(),
+                   isPointer = browserInfo.isMSPointerEnabled,
+                   isIE11Pointer = browserInfo.pointerEnabled,
+                   touchEndEvent = isPointer ? (isIE11Pointer ? "pointerup" : "MSPointerUp") : "touchend mouseup",
+                   touchStartEvent = isPointer ? (isIE11Pointer ? "pointerdown" : "MSPointerDown") : "touchstart mousedown",
+                   touchMoveEvent = isPointer ? (isIE11Pointer ? "pointermove" : "MSPointerMove") : "touchmove mousemove";
             var matched = jQuery.uaMatch(navigator.userAgent);
             var browser = matched.browser.toLowerCase();
             this._off($(this._mapContainer), "touchstart", this._mapDown);
@@ -3144,7 +3351,11 @@
             }
             $(this._mapContainer).get(0).removeEventListener(ej.isTouchDevice() ? "touchend" : "mouseup", this._mapClick, true);
             this._off($(this._mapContainer), "dblclick", this._doubleClick);
-
+            this._off($(this._mapContainer), touchEndEvent, this._mapMouseClick);
+            this._off($(this._mapContainer), touchStartEvent, this._mapMouseDown);
+            this._off($(this._mapContainer), touchMoveEvent, this._mapMouseMove);
+            this._off($(this._mapContainer), touchEndEvent, this._mapMouseUp);
+            this._off($(this._mapContainer), ej.eventType.mouseMove, this._mapMouseEnter);
         },
 
         navigateTo: function (latitude, longitude, level,isAnimate) {
@@ -3172,7 +3383,7 @@
             this._translatePoint.x = -translatePoint.x+ leftPosition;
             this._translatePoint.y = -translatePoint.y+ topPosition;
             if (isAnimate && !this._isTileMap ){
-                this._animate(1200);
+                this._animate(2 * this.model.zoomSettings.animationDuration);
             }
             else {
                 this._applyTransform(this._scale, this._translatePoint);
@@ -3322,7 +3533,7 @@
                     this._translatePoint.x = curX;
                     this._translatePoint.y = curY;
                     if (map.enableAnimation() && !this._isTileMap) {                       
-                        map._animate(600);
+                        map._animate(map.model.zoomSettings.animationDuration);
                     }
                     else {
                         map._applyTransform(map._scale, map._translatePoint);
@@ -3339,13 +3550,14 @@
 		    if (level <= this._maxZoom() && level >= this._minZoom()) {
                 if (this._isTileMap) {
                     this._tileZoom(map._zoomLevel(), level, { x: this._width / 2, y: this._height / 2 });
-                    var prevLevel = map._zoomLevel();
+                    prevLevel = map._zoomLevel();
                     map.model.zoomSettings.level = level;
                     map._zoomLevel(level);
                     this._generateTiles(this._zoomLevel());
-                    map._translatePoint.x = (map._tileTranslatePoint.x - (0.5 * Math.pow(2, prevLevel))) / (Math.pow(2, prevLevel));
-                    map._translatePoint.y = (map._tileTranslatePoint.y - (0.5 * Math.pow(2, prevLevel))) / (Math.pow(2, prevLevel));
-                    map._scale = (Math.pow(2, prevLevel));					
+					prevLevel = prevLevel < level ? prevLevel : level - 1;
+					map._translatePoint.x = (map._tileTranslatePoint.x - (0.5 * Math.pow(2, prevLevel))) / (Math.pow(2, prevLevel));
+					map._translatePoint.y = (map._tileTranslatePoint.y - (0.5 * Math.pow(2, prevLevel))) / (Math.pow(2, prevLevel));
+					map._scale = (Math.pow(2, prevLevel));
                 }
                 else {                    
                     var fac = (map._baseScale + ((level - 1) * map._zoomFactor()));
@@ -3358,10 +3570,10 @@
                     map._zoomLevel(level);
 
                     if (map.enableAnimation() && isAnimate || isAnimate == undefined) {
-                        map._animate(600);
-                    }                  
+                        map._animate(map.model.zoomSettings.animationDuration);
+                    }
                 }
-				if(!map.enableAnimation() || !isAnimate)
+				if(!map.enableAnimation() || !isAnimate || map._isTileMap)
 				{
 				     map._applyTransform(map._scale, map._translatePoint);
                      map._refrshLayers();
@@ -3391,7 +3603,10 @@
 
        refresh: function (isResize) {
            var scale;
+		   this._prevEnterElement = "";
 		   this._trigger("onLoad");
+		   if(this._id != "")
+			   $('#' + this._id).find('.e-legendDiv').parent().children().empty();		  
            $(this._svgDocument).children().remove();
            $(this._svgDocument).empty();
            $(this._mapContainer).empty();
@@ -3773,7 +3988,7 @@
             return Position;
         },
 
-        _renderMapElements: function () {           
+        _renderMapElements: function (Isrefresh) {           
             this._templateDiv = $("<div class='e-TemplateDiv'/>");
             this._templateDiv.appendTo(this._mapContainer);
             this._templateDiv.css({
@@ -3781,7 +3996,7 @@
                 'z-index': '1', 'height': this._height, 'width': this._width
             });			
 
-            this.refreshLayers();       
+            this.refreshLayers(Isrefresh);       
             this.refreshNavigationControl(this.model.navigationControl);
         },
 		
@@ -3893,7 +4108,9 @@
                 baseLayer._initializeLocalValues();
                 var contribution = $("<div class='e-map-contribution'>");
                 contribution[0].innerHTML = baseLayer.contribution;
-                this._mapContainer.append(contribution);
+				if(contribution[0].innerHTML != "undefined") {
+                   this._mapContainer.append(contribution);
+				}
             }
             for (var key = 0; key < this.model.layers[this.baseMapIndex()].subLayers.length; key++) {
                 var sublayer = this.model.layers[this.baseMapIndex()].subLayers[key];
@@ -3911,7 +4128,8 @@
                     sublayer._initializeLocalValues();
                 }
             }
-            this.refreshMarkers();
+            if (baseLayer.markers.length > 0 || baseLayer.subLayers.length > 0 || baseLayer._labelCollection.length > 0)
+                this.refreshMarkers();
             if (this._isSVG && this.enableAnimation() && !this._isTileMap) {
                 this._refreshWithAnimation();
             }
@@ -3921,13 +4139,14 @@
 
 		},
 
-        refreshLayers: function () {          
-		   var baseLayer = this.model.layers[this.baseMapIndex()];
-		   this._processOData(baseLayer,this);          
-		   this.shapeSelectionOnResize();
+        refreshLayers: function (Isrefresh) {
+            var baseLayer = this.model.layers[this.baseMapIndex()];
+            this._processOData(baseLayer, this);
+            if (Isrefresh)
+                this.shapeSelectionOnResize();
         },
 		
-		_processOData:function(layer,map){		    
+		_processOData: function (layer, map, Isrefresh) {
 		    if(layer.dataSource!=null){
                       if (layer.dataSource instanceof ej.DataManager) {
 				          var queryPromise = layer.dataSource.executeQuery(layer.query);
@@ -4006,7 +4225,8 @@
 			dockPosition: "top",					
             labelOrientation: "vertical",
 			alignment: "bottom",
-            columnCount:0
+            columnCount:0,
+			toggleVisibility:false,
         };
 
         this.labelSettings = {			
@@ -4014,7 +4234,15 @@
 			labelPath: "",			
 			enableSmartLabel: false,			
 			smartLabelSize:"fixed",			
-			labelLength:2
+			labelLength:2,
+			font: {
+				fontFamily: 'Segoe UI',
+				fontStyle: 'Normal',
+				fontWeight: 'Regular',
+				color: null,
+				size: '14px',
+				opacity: 1
+			},
 		};        
         this.markerTemplate = null;       
 		this.showMapItems = false;      
@@ -4139,51 +4367,7 @@
             this._mapMarkers = [];
             var rootTop = map._rootgroup.getBoundingClientRect().top;
             var rootLeft = map._rootgroup.getBoundingClientRect().left;
-            for (var key = 0; key < this.markers.length; key++) {
-                var markerObeject = this.markers[key];               
-                if (this.markerTemplate != null) {
-                    var markerTemplateDiv = $('.markerTemplateDiv');
-                    markerTemplateDiv = $("<div class='e-mapMarker' style='display:block;position:absolute;pointer-events: stroke;'></div>");                   
-                    map._templateDiv.append(markerTemplateDiv);
-                    $(markerTemplateDiv).css({ height: this._height, width: this._width, "margin-top": this._margintop, "margin-left": this._marginleft });
-                    var htmlString = $("#" + this.markerTemplate).render(markerObeject);
-					if(map.model.markerSelected==null)
-					{
-						
-						$(markerTemplateDiv).css({  "pointer-events": "none"});
-					}
-                    $(markerTemplateDiv).html(htmlString);
-                    map._on($(markerTemplateDiv), ej.eventType.mouseDown, { marker: $(markerTemplateDiv), data: markerObeject }, map._markerPressed);
-                    map._on($(markerTemplateDiv), 'dblclick', { marker: $(markerTemplateDiv), data: markerObeject }, map._markerPressed);
-                    map._on($(markerTemplateDiv), 'contextmenu', { marker: $(markerTemplateDiv), data: markerObeject }, map._markerPressed);
-                    this._mapMarkers.push(markerTemplateDiv);
-                }
-                else {                    
-                    var markerItem = $(' <div class="e-mapMarker" style="display:block;position:absolute;pointer-events: stroke;"><label>' + markerObeject.label + '</label></div>');// document.createElementNS(this._svgns, "text");
-                    if (this._isSVG) {
-                        map._templateDiv.append(markerItem);
-                    }
-                    else {
-                        markerItem.appendTo(map._templateDiv);
-                    }
-					if(map.model.markerSelected==null)
-					{
-						
-						$(markerItem).css({  "pointer-events": "none"});
-					}
-                    map._on($(markerItem), ej.eventType.mouseDown, { marker: $(markerItem), data: markerObeject }, map._markerPressed);
-                    map._on($(markerItem), 'dblclick', { marker: $(markerItem), data: markerObeject }, map._markerPressed);
-                    map._on($(markerItem), 'contextmenu', { marker: $(markerItem), data: markerObeject }, map._markerPressed);
-                    this._mapMarkers.push(markerItem);
-
-                }
-                  var baseLayer = this;
-                if (baseLayer.legendSettings.dockPosition == ej.datavisualization.Map.DockPosition.Left) {
-                    this._height = this._height;
-                    this._width = this._width - parseFloat(width);
-                    this._marginleft = parseFloat(width);
-             }            
-            }            
+            map._generateMarkers(this.markers, this, map);           
         },
 
         _contains : function(array,actualobj) {
@@ -4235,7 +4419,7 @@
 		                 colorMappings = colorMappings.equalColorMapping;
 		             }
 		         }
-		         else if (this.shapeSettings.colorPath != null) {
+		         else if (this.shapeSettings.colorPath != null || this.bubbleSettings.colorPath != null ) {
 		             colorMappings = this.dataSource;
 		             colormap = true;
 		         }
@@ -4497,13 +4681,20 @@
     
         },
                
-        _createLabel:function(content, xpos, ypos,className) {
-            var label = $("<div class="+className+"></div>"); // document.createElementNS(this._svgns, "text");
+        _createLabel:function(content, xpos, ypos,className,index, map, colorMapping) {
+			var label;
+			
+			if(this.legendSettings.mode == "interactive")
+			    label = $("<div class="+className+"></div>");
+			else
+				label = $("<div class=' " + className + " ' " +  "id='" + map._id +"LegendText_"+index+"'" + ">" + "</div>"); // document.createElementNS(this._svgns, "text");
+			
 			label[0].innerHTML = content;
 			label.css({
 			    "margin-left": xpos + "px",
 			    "margin-top": ypos + "px",
-                "position": "absolute"
+                "position": "absolute",
+				"cursor": (!ej.util.isNullOrUndefined(colorMapping) && colorMapping.legendSettings.toggleVisibility) ? "pointer" : "default",
 			});
             return label;
         },
@@ -4522,29 +4713,30 @@
             });
             return interactiveElement;
         },
-        _getEllipseLegend: function (xPos, yPos, colormapping) {
-
-            var rect = $("<div class='e-mapLegend'/>");
+        _getEllipseLegend: function (xPos, yPos, colormapping, index, map) {
+            var rect = $("<div class='e-mapLegend' id='"+ map._id +"Legend_"+index+ "'" + "/>");
             rect.css({
                 "height": colormapping.legendSettings.iconHeight + "px",
                 "width": colormapping.legendSettings.iconWidth + "px",
                 "border-radius": colormapping.legendSettings.iconHeight / 2 + "px",
                 "left": xPos + "px",
                 "top": yPos + "px",
-                "position": "absolute"
+                "position": "absolute",
+				"cursor": colormapping.legendSettings.toggleVisibility ? "pointer" : "default",
             });
             return rect;
 
         },
 
-        _getRectLegend: function (xPos, yPos, colormapping) {
-            var rect = $("<div />");
+        _getRectLegend: function (xPos, yPos, colormapping, index, map) {
+            var rect = $("<div id='"+ map._id +"Legend_"+index+ "'" + "/>");
             rect.css({
                 "height": colormapping.legendSettings.iconHeight + "px",
                 "width": colormapping.legendSettings.iconWidth + "px",
                 "left": xPos + "px",
                 "top": yPos + "px",
-                "position": "absolute"
+                "position": "absolute",
+				"cursor": colormapping.legendSettings.toggleVisibility ? "pointer" : "default",
             });
             return rect;
         },
@@ -4597,13 +4789,13 @@
 
                 if (columnCount != 0) {
                     if (i % columnCount != 0) {
-                        this._drawLegend(commonEventArgs, xPos, yPos, map, isRange);
+                        this._drawLegend(commonEventArgs, xPos, yPos, map, isRange, i);
                         xPos += (legendWidth + 5);
 
                     }
                     else {
                         xPos = 0;
-                        this._drawLegend(commonEventArgs, xPos, yPos, map, isRange);
+                        this._drawLegend(commonEventArgs, xPos, yPos, map, isRange, i);
                         xPos += (legendWidth + 5);
                         yPos += (commonEventArgs.legendSettings.iconHeight + rowSpacing);
                     }
@@ -4613,12 +4805,12 @@
 
                         if (map._legendSize.width < xPos + legendWidth) {
                             xPos = 0;
-                            this._drawLegend(commonEventArgs, xPos, yPos, map, isRange);
+                            this._drawLegend(commonEventArgs, xPos, yPos, map, isRange, i);
                             xPos += legendWidth;
                             yPos += (commonEventArgs.legendSettings.iconHeight + rowSpacing);
                         }
                         else {
-                            this._drawLegend(commonEventArgs, xPos, yPos, map, isRange);
+                            this._drawLegend(commonEventArgs, xPos, yPos, map, isRange, i);
                             xPos += legendWidth;
                         }
                     }
@@ -4628,12 +4820,12 @@
 
                             yPos = 0;
                             xPos += (columnWidth + (columnSpacing));
-                            this._drawLegend(commonEventArgs, xPos, yPos, map, isRange);
+                            this._drawLegend(commonEventArgs, xPos, yPos, map, isRange, i);
                             columnWidth = 0;
                             yPos += (commonEventArgs.legendSettings.iconHeight + rowSpacing);
                         }
                         else {
-                            this._drawLegend(commonEventArgs, xPos, yPos, map, isRange);
+                            this._drawLegend(commonEventArgs, xPos, yPos, map, isRange, i);
                             columnWidth = Math.max(columnWidth, legendWidth);
                             yPos += (commonEventArgs.legendSettings.iconHeight + rowSpacing);
                         }
@@ -4648,28 +4840,29 @@
 
             }
 		},
-		_drawLegendShape: function (colormapping,xPos,yPos,map,isRange) {
+		_drawLegendShape: function (colormapping,xPos,yPos,map,isRange, index) {
 		    var legendItem;
 		    if (colormapping.legendSettings.icon == ej.datavisualization.Map.LegendIcons.Circle) {
-		        legendItem = this._getEllipseLegend(xPos, yPos, colormapping);
+		        legendItem = this._getEllipseLegend(xPos, yPos, colormapping, index, map);
 		    }
 		    else {
-		        legendItem = this._getRectLegend(xPos, yPos, colormapping);
+		        legendItem = this._getRectLegend(xPos, yPos, colormapping, index, map);
 		    }
 		    xPos += (colormapping.legendSettings.iconWidth + 5);		    
-		    $(legendItem).css("background-color", !isRange ? colormapping.dataSource._color ? colormapping.dataSource._color : colormapping.fill : colormapping.mapping._color ? colormapping.mapping._color : colormapping.fill);		    
+		     $(legendItem).css("background-color", !isRange ? colormapping.dataSource._color != undefined ? colormapping.dataSource._color : colormapping.fill != undefined ? colormapping.fill : colormapping.dataSource.color : colormapping.mapping._color ? colormapping.mapping._color : colormapping.fill);		    
 		    legendItem.appendTo(map._legendDiv);
 		    return xPos;
 		},
-		_drawLegendText: function (colormapping, xPos, yPos, map, isRange) {
-		    var legendText = $("<div class='e-defaultLegendLabel'/>");
+		_drawLegendText: function (colormapping, xPos, yPos, map, isRange, index) {
+		    var legendText = $("<div class='e-defaultLegendLabel' id='"+ map._id +"LegendText_"+index+ "'" + "/>");
 		    legendText.css({
 		        "left": xPos + "px",
 		        "top": yPos + "px",
 		        "position": "absolute",
 		        "text-overflow": "ellipsis",
 		        "white-space": "nowrap",
-		        "overflow": "hidden"
+		        "overflow": "hidden",
+				"cursor": colormapping.legendSettings.toggleVisibility ? "pointer" : "default",
 		    });
 		    legendText[0].title = colormapping.legendLabel;
 		    legendText[0].innerHTML = colormapping.legendLabel;
@@ -4677,14 +4870,14 @@
 		    xPos += this._calcWidth(colormapping.legendLabel);
 		    return xPos;
 		},
-		_drawLegend: function (colormapping, xPos, yPos, map, isRange) {
+		_drawLegend: function (colormapping, xPos, yPos, map, isRange, index) {
 		    if (!map.model.enableRTL) {
-		        xPos = this._drawLegendShape(colormapping, xPos, yPos, map, isRange);
-		        this._drawLegendText(colormapping, xPos, yPos, map, isRange);
+		        xPos = this._drawLegendShape(colormapping, xPos, yPos, map, isRange, index);
+		        this._drawLegendText(colormapping, xPos, yPos, map, isRange, index);
 		    }
 		    else {
-		        xPos = this._drawLegendText(colormapping, xPos, yPos, map, isRange);
-		        this._drawLegendShape(colormapping, xPos, yPos, map, isRange);
+		        xPos = this._drawLegendText(colormapping, xPos, yPos, map, isRange, index);
+		        this._drawLegendShape(colormapping, xPos, yPos, map, isRange, index);
 		    }
         },
 
@@ -4886,7 +5079,7 @@
                                     labelxpos = xpos;
                                     var endlabel = this._createLabel((colorMapping.to), labelxpos, labelypos);
                                     if (colorMapping.legendLabel != undefined)
-                                        endlabel = this._createLabel((colorMapping.legendLabel), labelxpos - (colorMapping.legendLabel.length * 10) / 2, labelypos, 'e-legend-rangeendlabel');
+                                        endlabel = this._createLabel((colorMapping.legendLabel), labelxpos - (colorMapping.legendLabel.length * 10) / 2, labelypos, 'e-legend-rangeendlabel',colorMapping);
                                     if (map._isSVG) {
                                         if (colorMapping == mappings[0])
                                             startlabel.appendTo(legenddiv);
@@ -5017,19 +5210,19 @@
                         var legendsettings = $.extend(true, null, this.legendSettings);				        
                         var colorMapping = {
                             fill: mappings[key]._bubblecolor ? mappings[key]._bubblecolor : mappings[key].color ? mappings[key].color : mappings[key][this.bubbleSettings.colorPath],
-                            legendLabel: mappings[key].legendLabel ? mappings[key].legendLabel : !isRange ? mappings[key][this.legendSettings.textPath] : mappings[key].from,
+                            legendLabel: mappings[key].legendLabel != null ? mappings[key].legendLabel : !isRange ? mappings[key].value != null ? mappings[key].value : mappings[key][this.legendSettings.textPath] : mappings[key].from,
                             dataSource: mappings[key],
                             legendSettings: legendsettings
                         };
                         map._trigger("legendItemRendering", { model: map.model, data: colorMapping });
                         if (!colorMapping.hideLegend) {
-                            var rect = $("<div class='e-mapBubbleLegend'/>");
+                            var rect = $("<div class='e-mapBubbleLegend' id='"+ map._id +"Legend_"+key+ "'" + "/>");
                             if (!map.model.enableRTL) {
                                 this._drawBubbleLegendIcon(colorMapping, xpos, ypos, rect);
-                                var textcon = this._createLabel(colorMapping.legendLabel, xpos + colorMapping.legendSettings.iconWidth + 5, ypos, 'e-legendlabeltext');
+                                var textcon = this._createLabel(colorMapping.legendLabel, xpos + colorMapping.legendSettings.iconWidth + 5, ypos, 'e-legendlabeltext',key, map, colorMapping);
                             } else {
                                 xpos = 10;
-                                var textcon = this._createLabel(colorMapping.legendLabel, xpos, ypos, 'e-legendlabeltext');
+                                var textcon = this._createLabel(colorMapping.legendLabel, xpos, ypos, 'e-legendlabeltext',key, map, colorMapping);
                                 xpos += this._calcWidth(colorMapping.legendLabel);
                                 this._drawBubbleLegendIcon(colorMapping, xpos, ypos, rect);
                             }
@@ -5088,7 +5281,8 @@
 		            "background-color": colorMapping.fill,
 		            "left": xpos + "px",
 		            "top": ypos + "px",
-		            "position": "absolute"
+		            "position": "absolute",
+					"cursor": colorMapping.legendSettings.toggleVisibility ? "pointer" : "default"
 		        });
 		    }
 		    else {
@@ -5098,7 +5292,8 @@
 		            "background-color": colorMapping.fill,
 		            "left": xpos + "px",
 		            "top": ypos + "px",
-		            "position": "absolute"
+		            "position": "absolute",
+					"cursor": colorMapping.legendSettings.toggleVisibility ? "pointer" : "default"
 		        });
 		    }
 		},
@@ -5163,6 +5358,7 @@
                 this._animateBubble(bubble, delayInterval, map);
                 this._bubbleCollection.push(bubble);
             }
+            var factor = map._getFactor();
             for (var key = 0; key < this._mapMarkers.length; key++) {
                 var item = this._mapMarkers[key];
                 var marker;
@@ -5174,7 +5370,7 @@
                     position = map._convertTileLatLongtoPoint(marker.latitude != null ? marker.latitude : marker.Latitude, marker.longitude != null ? marker.longitude : marker.Longitude);
                 }
                 else {
-                    position = map._convertLatLongtoPointforMarker(marker.latitude != null ? marker.latitude : marker.Latitude, marker.longitude != null ? marker.longitude : marker.Longitude);
+                    position = map._convertLatLongtoPointforMarker(marker.latitude != null ? marker.latitude : marker.Latitude, marker.longitude != null ? marker.longitude : marker.Longitude, factor);
                 }
 
                 if (this._isSVG) {
@@ -5216,13 +5412,114 @@
                      $(item[0]).css({ "pointer-events": "none", "position": "absolute" });                   
                 }
                 item[0].innerHTML = this._labelData[key];
-                $(item).css({ "left": xpos, "top": ypos });
+				var fontStyle = this.labelSettings.font.fontStyle;
+				var fontFamily = this.labelSettings.font.fontFamily;
+				var fontSize = this.labelSettings.font.size;
+				var fontWeight = this.labelSettings.font.fontWeight;
+				var fontColor = this.labelSettings.font.color;
+				var fontOpacity = this.labelSettings.font.opacity;				
+                $(item).css({ "left": xpos, "top": ypos, "font-family": fontFamily, "font-style": fontStyle, "font-size": fontSize, "font-weight": fontWeight, "color" : fontColor, "opacity" : fontOpacity });
 
             }
             if (this.labelSettings!=null && this.labelSettings.showLabels) {
                 this._validateSmartLabel(map);
             }
         },
+				
+		_legendToggleVisibility: function(map, e, mapObj){
+			var legendData = map.legendSettings;
+			var legendArgs = { data : legendData, model: mapObj };
+			if(map.dataSource != null){
+				var bubbleCount = map._renderedShapes.length, mapShapeColorMappingIndex, mapBubbleColorMappingIndex, legendFillColor;
+				for(var k=0;k<bubbleCount;k++){
+					var targetId = e.target.id;
+					var mapIndex = map._renderedShapes[k].shapeIndex;					
+					var targetIdLength = targetId.length;
+					var targetPosition = targetId.indexOf('_'), 
+					ID = parseFloat(targetId.substring((targetPosition + 1), targetIdLength)), indexValue, shapesId, bindValue;
+					// To get and bind the datasource color value 
+					bindValue = map.legendSettings.type == "bubbles" ? map.bubbleSettings.colorPath : map.shapeSettings.colorPath;
+					var shapeColorPath = map._renderedShapes[k];
+					var DBFValue = mapObj._reflection(shapeColorPath, bindValue);
+					var dbfCondition;
+					if (DBFValue != null && (typeof DBFValue) == "string") {
+						dbfCondition = DBFValue.toLowerCase();
+					}
+					//To get the map index and legend fill color value for legend type as layers in color mapping 
+					if(map.shapeSettings.colorMappings != null && map.legendSettings.type == "layers"){
+						if(map._renderedShapes[k].mapRangeShapeIndex != null){
+							mapShapeColorMappingIndex = map._renderedShapes[k].mapRangeShapeIndex.index;
+							indexValue = mapShapeColorMappingIndex;
+							shapesId = '#'+ map._renderedShapes[k].shape.id;
+							//get the legend fill color after toggle visibility
+							legendFillColor = map.shapeSettings.colorMappings.rangeColorMapping != null ? map.shapeSettings.colorMappings.rangeColorMapping[mapShapeColorMappingIndex].color:
+										  map.shapeSettings.colorMappings.equalColorMapping[mapShapeColorMappingIndex].color;	
+						}
+					}
+					//To get the map index and legend fill color value for legend type as bubbles in color mapping 
+					else if(map.bubbleSettings.colorMappings != null && map.legendSettings.type == "bubbles"){
+						if(map._renderedShapes[k].mapRangeBubbleIndex != null){
+							mapBubbleColorMappingIndex = map._renderedShapes[k].mapRangeBubbleIndex.index;
+							indexValue = mapBubbleColorMappingIndex;
+							shapesId = '#'+ map._renderedShapes[k].shape.id + '_bubble_' + mapIndex;
+								//get the legend color after toggle visibility
+							legendFillColor = map.bubbleSettings.colorMappings.rangeColorMapping != null ? map.bubbleSettings.colorMappings.rangeColorMapping[mapBubbleColorMappingIndex].color:
+										  map.bubbleSettings.colorMappings.equalColorMapping[mapBubbleColorMappingIndex].color;
+						}
+						
+					}
+					//To get the map index value and legend color for the legend type as layer
+					else if(map.legendSettings.type == "layers"){
+						indexValue = k;
+						shapesId = '#'+ map._renderedShapes[k].shape.id;
+						//get the legend color after toggle visibility
+						legendFillColor =  map.shapeSettings.colorPath != null ? dbfCondition : map.shapeSettings.fill;	
+					}
+					//To get the map index value for the legend type as bubble
+					else if(map.legendSettings.type == "bubbles"){
+						indexValue = k;
+						shapesId = '#'+ map._renderedShapes[k].shape.id + '_bubble_' + mapIndex;
+						//get the legend color after toggle visibility
+						legendFillColor =  map.bubbleSettings.colorPath != null ? dbfCondition : map.bubbleSettings.fill;
+					}
+					// In range color mapping and equal color mapping the given range does not match with map shapes or bubble shapes get the legend color value
+					if((map.shapeSettings.colorMappings != null || map.bubbleSettings.colorMappings != null) && indexValue == null){
+						indexValue = ID;
+						mapIndex = null;
+						var color = $('#' + targetId).css("background-color");
+						if(map._renderedShapes[k]._showBubble)
+							this._legendFillColor = color;
+						else 
+							legendFillColor = this._legendFillColor; 
+					}
+					//target id matches with the map shapes/bubble shapes the legend has been hidden and the shapes has been hidden
+					var LegendSelector = (targetId == mapObj._id + "Legend_" + indexValue || targetId == mapObj._id + "LegendText_" + indexValue);
+					if(LegendSelector){
+						mapObj._trigger("legendItemClick", legendArgs);
+						if(!legendArgs.cancel && map.legendSettings.toggleVisibility)
+						{
+							//compare the target ID with bubble/layer type legend id and set the bubble/shapes visibility as hidden
+							if((ID == indexValue) && map._renderedShapes[k]._showBubble ){								
+								$(shapesId).css({ "visibility": "hidden" });
+								$('#'+ mapObj._id +'Legend_' + indexValue).css({ "background-color": "grey" });
+								$('#'+ mapObj._id +'LegendText_' + indexValue).css({ "color": "grey" });
+								$('#'+ mapObj._id +'labelStyle_' + mapIndex).css({ "visibility": "hidden" });
+								map._renderedShapes[k]._showBubble = false;
+							}
+							//compare the target ID with bubble/layer type legend id and set the bubble/shapes to visibile again
+							else if((ID == indexValue) && !map._renderedShapes[k]._showBubble){
+								$(shapesId).css({ "visibility": "visible" });
+								$('#'+ mapObj._id +'Legend_' + indexValue).css( {"background-color": legendFillColor} );
+								$('#'+ mapObj._id +'LegendText_' + indexValue).css( {"color": "black" });
+								$('#'+ mapObj._id +'labelStyle_' + mapIndex).css({ "visibility": "visible" });
+								map._renderedShapes[k]._showBubble = true;
+							}
+													
+						}
+					}
+				}
+			}
+		},
 
         _resizeShapes: function (map) {
             var thickness = this.shapeSettings.strokeThickness / map._scale;
@@ -5306,6 +5603,7 @@
             }
 			}
             if(this._mapMarkers!=undefined){
+                var factor = map._getFactor();
             for (var key = 0; key < this._mapMarkers.length; key++) {
                 var item = this._mapMarkers[key];
 
@@ -5318,7 +5616,7 @@
                     position = map._convertTileLatLongtoPoint(marker.latitude != null ? marker.latitude : marker.Latitude, marker.longitude != null ? marker.longitude : marker.Longitude);
                 }
                 else {
-                    position = map._convertLatLongtoPointforMarker(marker.latitude != null ? marker.latitude : marker.Latitude, marker.longitude != null ? marker.longitude : marker.Longitude);
+                    position = map._convertLatLongtoPointforMarker(marker.latitude != null ? marker.latitude : marker.Latitude, marker.longitude != null ? marker.longitude : marker.Longitude, factor);
                 }            
                 var xpos = position.x;               
                 var ypos = position.y;            
@@ -5341,7 +5639,13 @@
                     $(item[0]).css({ "pointer-events": "none", "position": "absolute" });
                 }
                 item[0].innerHTML = this._labelData[key];
-                $(item).css({ "left": xpos, "top": ypos});
+				var fontStyle = this.labelSettings.font.fontStyle;
+				var fontFamily = this.labelSettings.font.fontFamily;
+				var fontSize = this.labelSettings.font.size;
+				var fontWeight = this.labelSettings.font.fontWeight;
+				var fontColor = this.labelSettings.font.color;
+				var fontOpacity = this.labelSettings.font.opacity;	                
+				$(item).css({ "left": xpos, "top": ypos, "font-family": fontFamily, "font-style": fontStyle, "font-size": fontSize, "font-weight": fontWeight, "color" : fontColor, "opacity" : fontOpacity });
                
             }
 			}
@@ -5621,14 +5925,22 @@
             shape.highlightcolor = shape.highlightcolor;
         },
         _fillEqualColors: function (value, colorMapping, shape, mapObject, shapePropertyData, isBubble, item) {
-            var layer = this, eventArgs;
-            $.each(colorMapping.equalColorMapping, function (index, gValue) {
+            var layer = this, eventArgs ,rangeShapes ,mapRangeShapeIndex ;
+			 
+            $.each(colorMapping.equalColorMapping, function (index, gValue) {				
                 if (gValue.value == value) {
                     eventArgs = { fill: gValue.color, stroke: layer.shapeSettings.stroke, strokeThickness: layer.shapeSettings.strokeThickness, shapeData: item, shapeProperties: shapePropertyData };
-                    if (!isBubble)
+                    if (!isBubble){
                         mapObject._trigger("shapeRendering", { model: mapObject.model, data: eventArgs });
-                    else
+						rangeShapes = {index : index};
+                        item.mapRangeShapeIndex = rangeShapes;
+					}
+                    else{
                         mapObject._trigger("bubbleRendering", { model: mapObject.model, data: eventArgs });
+						rangeBubbles = {index : index};
+                        item.mapRangeBubbleIndex = rangeBubbles;
+					}
+				
                     if (eventArgs.fill != gValue.color)
                         gValue._color = eventArgs.fill;
                     if (mapObject._isSVG) {
@@ -5682,6 +5994,7 @@
         },
 
         _fillRangeColors: function (value, colormapping, shape, mapObject, isBubble, item, shapePropertyData) {
+			var rangeShapes , mapRangeShapeIndex, rangeBubbles, mapRangeBubbleIndex;
             var eventArgs;
             for (var index = 0; index < colormapping.length; index++) {
                 var mapping = colormapping[index];
@@ -5697,9 +6010,14 @@
                     eventArgs = { from: mapping.from, to: mapping.to, fill: mapping.color, value: value, bubbleOpacity: this.bubbleSettings.bubbleOpacity ,shapeData: item, shapeProperty: shapePropertyData };
                     if (!isBubble) {
                         mapObject._trigger("shapeRendering", { model: mapObject.model, data: eventArgs });
+                       rangeShapes = {index : index , color : mapping.color};
+						item.mapRangeShapeIndex = rangeShapes;
                     }
-                    else
+                    else{
                         mapObject._trigger("bubbleRendering", { model: mapObject.model, data: eventArgs });
+                        rangeBubbles = {index : index , color : mapping.color, isBubble: isBubble};
+						item.mapRangeBubbleIndex = rangeBubbles;
+                    }
                     if (mapObject._isSVG) {
                         shape.setAttribute('fill', eventArgs.fill);
                         shape.setAttribute('opacity', eventArgs.bubbleOpacity);
@@ -5978,6 +6296,22 @@
     ej.datavisualization.Map.LabelOrientation = {	
         Horizontal: "horizontal",	
         Vertical: "vertical"
+    };
+	
+	ej.datavisualization.Map.FontStyle = {
+
+        Normal: 'normal',
+
+        Italic: 'italic'
+    };
+
+    ej.datavisualization.Map.FontWeight = {
+
+        Regular: 'regular',
+
+        Bold: 'bold',
+
+        Lighter: 'lighter'
     };
     
 })(jQuery, Syncfusion);

@@ -68,7 +68,7 @@
             tag: "columns",
             attr: ["allowEditing", "allowFiltering","allowTextWrap", "filterType", "allowGrouping","allowResizing","allowSorting", "cssClass", "customAttributes", "dataSource", "defaultValue",
 			"disableHtmlEncode", "editTemplate", "editType", "foreignKeyField", "foreignKeyValue", "headerTemplateID", "headerText", "isFrozen",
-			"isIdentity", "isPrimaryKey","filterBarTemplate", "textAlign", "templateID", "textAlign", "headerTextAlign", "tooltip", "clipMode",
+			"isIdentity", "isPrimaryKey","filterBarTemplate","filterOperator", "textAlign", "templateID", "textAlign", "headerTextAlign", "tooltip", "clipMode",
             "validationRules.minlength", "validationRules.maxlength", "validationRules.range", "validationRules.number", "validationRules.required",
             "editParams.decimalPlaces", [{ tag: "commands", attr: ["type", "buttonOptions"] }]
             ],
@@ -683,6 +683,7 @@
             this._$curSElementTarget = null;
             this._gridFilterBar = null;
             this._$curFieldName = null;
+			this._$curFilterValue = null;
             this._$prevFieldName = null;
             this._editedData = {};
             this._isEditChangesApplied = false;
@@ -764,6 +765,7 @@
             this._currentVirtualIndex = 1;
             this._virtualRowCount = 0;
             this._virtualSelectedRecords = {};
+            this._virtualCheckSelectedRecords = {};
             this._selectionByGrid = false;
             this._enableCheckSelect = false;
             this.checkSelectedRowsIndexes = [];
@@ -780,6 +782,18 @@
             this._lastSelectedCellIndex = [];
             this._resizer = null;
             this._bulkEditCellDetails = {
+                cellValue: null,
+                rowIndex: -1,
+                columnIndex: -1,
+                fieldName: null,
+                _data: null,
+                cellEditType: "",
+                cancelSave: false,
+                defaultData: null,
+                insertedTrCollection: [],
+                rowData: null
+            };
+            this._copyBulkEditCellDetails = {
                 cellValue: null,
                 rowIndex: -1,
                 columnIndex: -1,
@@ -843,6 +857,7 @@
 			this._menuColTypes = [];
 			this._excelColTypes = [];
             this._previousTr = null;
+			this._isResized = false;
         },
         _init: function () {
             this._trigger("load");
@@ -880,8 +895,10 @@
             }
         },
         _initColumns: function (object) {
-            while (object.items != undefined)
-                object = object.items[0];
+            if(this.model.groupSettings.groupedColumns.length){		
+			    while (object.items != undefined && object.items[0] instanceof Object)					
+					object = object.items[0];
+            }		
             if (this.model.columns.length == 0 && object) {
                 for (var field in object) {
                     if (object.hasOwnProperty(field) && (typeof (object[field]) != "object" || object[field] instanceof Date || object[field] == null)) {
@@ -967,6 +984,16 @@
                 this.element.append(this._renderGridPager());
 				if(this.model.pageSettings.isResponsive)
 					$(this.element.find(".e-pager")).ejPager('instance')._reSizeHandler();
+				if(this.model.filterSettings.filterType == "filterbar" && this.model.filterSettings.filteredColumns.length) {
+					var filteredColumns = this.model.filterSettings.filteredColumns;
+					for (var i = 0; i < filteredColumns.length; i++) {
+						var index = $.inArray(this.getColumnByField(filteredColumns[i].field), this.filterColumnCollection);
+						if (filteredColumns[i].field !== "" && index == -1)
+							this.filterColumnCollection.push(this.getColumnByField(filteredColumns[i].field));
+					}
+					this.filterStatusMsg = "";
+					this._showFilterMsg();
+				}
 			}
             if (this.model.contextMenuSettings.enableContextMenu)
                 this.element.append(this._renderContext());
@@ -1090,8 +1117,11 @@
                 }
                else if(!ej.isNullOrUndefined(this.model.columns[index].showInColumnChooser)){
 					var field = ej.dataUtil.distinct(this._showInColumnchooserCol,"field");  
-					if(field.indexOf(this.model.columns[index].field) == -1)			
+					var fieldIndex = field.indexOf(this.model.columns[index].field);
+					if(fieldIndex == -1)			
 						this._showInColumnchooserCol.push(this.model.columns[index]);
+					else
+						this._showInColumnchooserCol[fieldIndex] = this.model.columns[index];
 				}
             }
             if (!refresh)
@@ -1259,7 +1289,7 @@
             }
         },
         _isDuplicate: function (arr) {
-            var temp, count = [], duplicate = [];
+            var temp, count = {}, duplicate = [];
             for (var i = 0; i < arr.length; i++) {
                 temp = arr[i];
                 if (count[temp] >= 1)
@@ -1425,6 +1455,7 @@
                 else
                     this.model.currentViewData = e.result;
             }
+			this.model.groupSettings.groupedColumns.length && this._setAggregates();
             this._setForeignKeyData(args);
             this._relationalColumns.length == 0 && this._initGridRender();
         },
@@ -1529,7 +1560,10 @@
 					}
                     else
                         sortedGrp.push({field: sortedColumns[i].field, direction: sortedColumns[i].direction })
-				}
+                }
+                if (this.model.scrollSettings.virtualScrollMode == "continuous" && !ej.isNullOrUndefined(args) && args.requestType == "sorting") {
+                    this._currentPage(1);
+                }
                 for (var j = 0; j < sortedGrp.length ; j++){
                     queryManagar.sortBy(sortedGrp[j].field, sortedGrp[j].direction);
                 }
@@ -1757,7 +1791,7 @@
                 this._gridRecordsCount = result.count;
                 this._remoteSummaryData = result.aggregates;
                 this._searchCount = this._searchString.length ? result.count : null;
-                this.model.groupSettings.groupedColumns.length && this._setAggregates();
+                this.model.groupSettings.groupedColumns.length && (!(this._dataSource() instanceof ej.DataManager) || !this.initialRender) && this._setAggregates();
             }
         },
         _formatGroupColumn: function (value,field) {
@@ -2516,8 +2550,9 @@
                 $columnHeader.append($headerCell);
                 $colGroup.append(col);
                 if (columns[columnCount]["visible"] === false) {
+					var isdup = columns.filter(function(e){return e.headerText==columns[columnCount].headerText}).length > 1;
                     $headerCell.addClass("e-hide") && $(col).css("display", "none")
-                    if ($.inArray(columns[columnCount].headerText, this._hiddenColumns) == -1 && $.inArray(columns[columnCount].field, this._hiddenColumnsField) == -1)
+                    if (($.inArray(columns[columnCount].headerText, this._hiddenColumns) == -1 || isdup) && $.inArray(columns[columnCount].field, this._hiddenColumnsField) == -1)
                         this._hiddenColumns.push(columns[columnCount].headerText) && columns[columnCount].field != ("" || undefined) ? this._hiddenColumnsField.push(columns[columnCount].field) : this._hiddenColumnsField.push(columns[columnCount].headerText);
                     if ($.inArray(columns[columnCount].field, this._visibleColumnsField) != -1)
                         this._visibleColumnsField.splice($.inArray(columns[columnCount].field, this._visibleColumnsField), 1) && this._visibleColumns.splice($.inArray(columns[columnCount].headerText, this._visibleColumns), 1)
@@ -2791,31 +2826,12 @@
             var split1 = temp.indexOf("{{if");
             var split2 = temp.indexOf(" {{else}}");
             var grpText = temp.slice(split1, split2).replace("{{if count == 1 }}", "");
-            var localeProp = { EmptyRecord: tempObj.EmptyRecord, GroupCaptionFormat: temp.slice(0, split1), GroupText: grpText,True:tempObj.True,False:tempObj.False };
-            if (!ej.isNullOrUndefined(this.model))
+			if(split1 >= 0)
+				temp = temp.slice(0,split1);
+            var localeProp = { EmptyRecord: tempObj.EmptyRecord, GroupCaptionFormat: temp, GroupText: grpText,True:tempObj.True,False:tempObj.False };
+              if (!ej.isNullOrUndefined(this.model))
                 this.model.locale = modelClone.locale.concat(JSON.stringify(localeProp));
-            modelClone.locale = modelClone.locale.concat(JSON.stringify(localeProp));
-            for (var i = 0; i < modelClone.columns.length; i++) {
-                if (modelClone.columns[i].editType != undefined) {
-                    switch (modelClone.columns[i].editType) {
-                        case "stringedit":
-                        case "edittemplate":
-                            modelClone.columns[i].editType = "string";
-                            break;
-                        case "numericedit":
-                            modelClone.columns[i].editType = "numeric";
-                            break;
-                        case "dropdownedit":
-                            modelClone.columns[i].editType = "dropdown";
-                            break;
-                        case "booleanedit":
-                            modelClone.columns[i].editType = "boolean";
-                            break;
-                        default:
-                            break;
-                    }
-                }
-            }
+            modelClone.locale = modelClone.locale.concat(JSON.stringify(localeProp));            
             for (var i = 0; i < modelClone.columns.length; i++) {
                 if (!ej.isNullOrUndefined(modelClone.columns[i].template)) {
                     if (modelClone.columns[i].template.indexOf("#") != -1) {
@@ -2823,7 +2839,7 @@
                         modelClone.columns[i].template = escape($.trim(string));
                     }
                     else
-                        modelClone.columns[i].template = escape(modelClone.columns[i].template);
+                       modelClone.columns[i].template = escape(modelClone.columns[i].template);
                 }
             }
             if (!ej.isNullOrUndefined(modelClone.detailsTemplate))
@@ -2983,11 +2999,11 @@
                                                     tbodyEle.replaceChild($newChild, $oldChild);
                                             }
 											if (this.model.editSettings.showAddNewRow)
-												this.model.editSettings.rowPosition == "top" ? tbodyEle.firstChild.remove(): tbodyEle.lastChild.remove();
+												this.model.editSettings.rowPosition == "top" ? $(tbodyEle.firstChild).remove(): $(tbodyEle.lastChild).remove();
                                         } else {
                                             var $newChildObj = $($newChild), $oldChildObj = $($oldChild);
                                             if (args.action == "add" && args.requestType == "save" && this.model.editSettings.showAddNewRow && this.model.allowPaging && this.model.pageSettings.pageSize <= this._currentJsonData.length)
-                                                this.model.editSettings.rowPosition == "bottom" ? tbodyEle.lastChild.previousSibling.remove() : tbodyEle.lastChild.remove();
+                                                this.model.editSettings.rowPosition == "bottom" ? $(tbodyEle.lastChild).previousSibling.remove() : $(tbodyEle.lastChild).remove();
                                             if (args.requestType == "cancel" || this._dataSource() instanceof ej.DataManager || this._currentPage() != 1 || (args.requestType == "save" && !ej.isNullOrUndefined(this._filteredRecordsCount) && this._filteredRecordsCount == this._previousFilterCount)) {
                                                 if (!ej.isNullOrUndefined($oldChild)) {
                                                     $oldChildObj.remove();
@@ -3023,7 +3039,7 @@
                                         $editedTr = this.element.find('.e-editedrow');
                                         if (args.requestType == "cancel" || (!$editedTr.length && !ej.isNullOrUndefined(this._filteredRecordsCount) && this._filteredRecordsCount == this._previousFilterCount)) {
                                             $newChild = temp.firstChild.firstChild.childNodes[rowIndex];
-                                            $oldChild = tbodyEle.childNodes[rowIndex];
+                                            $oldChild = this._excludeDetailRows(tbodyEle.childNodes)[rowIndex];
                                             var $newChildObj = $($newChild), $oldChildObj = $($oldChild);
                                             if ((this.model.detailsTemplate != null || this.model.childGrid != null) && $oldChildObj.next('.e-detailrow:visible').length) {
                                                 var $target = $newChildObj.find('.e-detailrowcollapse');
@@ -3274,7 +3290,7 @@
                 else
                     this._gridSort = scolumn.field;
             }
-            if (args.requestType != 'beginedit' && args.requestType != 'add' && ((!this.model.allowScrolling && !this.model.allowResizeToFit) || !this.initialRender || this.model.scrollSettings.frozenRows > 0 || this.model.scrollSettings.frozenColumns > 0))
+            if (args.requestType != 'beginedit' && args.requestType != 'add' && ((!this.model.allowScrolling  || !this.initialRender || this.model.scrollSettings.frozenRows > 0 || this.model.scrollSettings.frozenColumns > 0) && (!this.model.allowResizeToFit || !this.initialRender)))
                 this.setWidthToColumns();
             if (args.requestType == "save" || args.requestType == "cancel" ||  args.requestType == "delete") {
                 this._isAddNew = false;
@@ -3300,7 +3316,7 @@
                     }
                 }
             }
-            if (!this.initialRender && (ej.Grid.Actions.UnGrouping == args.requestType || this.model.groupSettings.groupedColumns.length > 0) && !$("#" + this._id + "EditForm").length)
+            if (!this.initialRender && (ej.Grid.Actions.UnGrouping == args.requestType || this.model.groupSettings.groupedColumns.length > 0) && !(args.requestType == "beginedit" || args.requestType == "add"))
                 this._recalculateIndentWidth();
             if (ej.Grid.Actions.Paging == args.requestType || ej.Grid.Actions.BatchSave == args.requestType)
                 this._refreshGridPager();
@@ -3457,7 +3473,7 @@
 		            this._mappingSelection();
 		        else if (args.requestType != "paging" && args.requestType != "save" && args.requestType != "cancel" && args.requestType != "virtualscroll")
 		            this.checkSelectedRowsIndexes = [];
-		        else if (indexes && indexes.length && !this.model.scrollSettings.enableVirtualization)
+		        else if (indexes && indexes.length && !this.model.scrollSettings.enableVirtualization && !this.model.scrollSettings.allowVirtualScrolling)
 		            this.selectRows(indexes);
 		        if (this.model.currentViewData != null && this.model.currentViewData.length == 0)
 		            this.getHeaderTable().find(".e-headercelldiv .e-checkselectall").hide();
@@ -3659,6 +3675,8 @@
             }
             var colsIndexLength = colsIndex.length;
              for (var i = 0; i < colsIndexLength; i++) { 
+				var cellDiv = this.getHeaderTable().find('.e-headercelldiv').eq(colsIndex[i].index);
+				var paddingWidth = parseInt(cellDiv.css("padding-left"), 10) + parseInt(cellDiv.css("padding-right"), 10);
                 extendWidth = extendWidth / colsIndexLength;
                 if(this.columnsWidthCollection[colsIndex[i]["index"]] > extendWidth) {      
                   if(this.columnsWidthCollection[colsIndex[i]["index"]] - extendWidth > colsIndex[i]["headerWidth"] && this.columnsWidthCollection[colsIndex[i]["index"]] - extendWidth > colsIndex[i]["contentWidth"] ) {        
@@ -3667,25 +3685,26 @@
                   }
                   else {
                       if(colsIndex[i]["headerWidth"] > colsIndex[i]["contentWidth"]) {
-                        $cols1.eq(colsIndex[i]["index"]).width(colsIndex[i]["headerWidth"]);
-                        $cols2.eq(colsIndex[i]["index"]).width(colsIndex[i]["headerWidth"]);
+                        $cols1.eq(colsIndex[i]["index"]).width(colsIndex[i]["headerWidth"] + paddingWidth);
+                        $cols2.eq(colsIndex[i]["index"]).width(colsIndex[i]["headerWidth"] + paddingWidth);
                     }
                     else {
-                        $cols1.eq(colsIndex[i]["index"]).width(colsIndex[i]["contentWidth"]);
-                        $cols2.eq(colsIndex[i]["index"]).width(colsIndex[i]["contentWidth"]);
+                        $cols1.eq(colsIndex[i]["index"]).width(colsIndex[i]["contentWidth"] + paddingWidth);
+                        $cols2.eq(colsIndex[i]["index"]).width(colsIndex[i]["contentWidth"] + paddingWidth);
                     }
                   }                  
                 }
                 else {
                      if(colsIndex[i]["headerWidth"] > colsIndex[i]["contentWidth"]) {
-                        $cols1.eq(colsIndex[i]["index"]).width(colsIndex[i]["headerWidth"]);
-                        $cols2.eq(colsIndex[i]["index"]).width(colsIndex[i]["headerWidth"]);
+                        $cols1.eq(colsIndex[i]["index"]).width(colsIndex[i]["headerWidth"] + paddingWidth);
+                        $cols2.eq(colsIndex[i]["index"]).width(colsIndex[i]["headerWidth"] + paddingWidth);
                     }
                     else {
-                        $cols1.eq(colsIndex[i]["index"]).width(colsIndex[i]["contentWidth"]);
-                        $cols2.eq(colsIndex[i]["index"]).width(colsIndex[i]["contentWidth"]);
+                        $cols1.eq(colsIndex[i]["index"]).width(colsIndex[i]["contentWidth"] + paddingWidth);
+                        $cols2.eq(colsIndex[i]["index"]).width(colsIndex[i]["contentWidth"] + paddingWidth);
                     }
                 }
+				if(this.columnsWidthCollection[colsIndex[i]["index"]] > extendWidth)
                 this.columnsWidthCollection[colsIndex[i]["index"]] = this.columnsWidthCollection[colsIndex[i]["index"]] - extendWidth;
             }
             var hiddenColLength = undefinedColsCollection.filter(function (e) { return !e.visible }).length;
@@ -3694,7 +3713,7 @@
             for (var i = 0; i < undefinedColsCollection.length; i++) {
                 if (!undefinedColsCollection[i].visible)
                     continue;
-                var colIndex = ej.isNullOrUndefined(undefinedColsCollection[i].field) ? this.getColumnIndexByField(undefinedColsCollection[i].field) : this.getColumnIndexByHeaderText(undefinedColsCollection[i].headerText);
+                var colIndex = !ej.isNullOrUndefined(undefinedColsCollection[i].field) && undefinedColsCollection[i].field != "" ? this.getColumnIndexByField(undefinedColsCollection[i].field) : this.getColumnIndexByHeaderText(undefinedColsCollection[i].headerText);
                 var cell = headercell.eq(colIndex)[0];
                 var colWidth;
                 if (!ej.isNullOrUndefined(this.model.commonWidth))
@@ -3765,14 +3784,14 @@
             if (this.model.scrollSettings.frozenColumns > 0) {
                 var totalWidth = 0, frozenWidth;
                 for (var i = 0; i < this.model.columns.length; i++) {
-                    totalWidth += this.model.columns[i].visible ? parseInt(this.columnsWidthCollection[i], 10) : 0;
+                    totalWidth += this.model.columns[i].visible ? parseFloat(this.columnsWidthCollection[i], 10) : 0;
                     if (this.model.scrollSettings.frozenColumns - 1 == i)
                         frozenWidth = Math.ceil(totalWidth);
                 }
                 this.element.width(this.model.scrollSettings.width || this.model.width);
                 var gridContentWidth = this.element.find(".e-gridcontent").children().first().width();
                 if (gridContentWidth > totalWidth)
-                    totalWidth = gridContentWidth + ((this.getContentTable().height() < this.model.scrollSettings.height && this.getScrollObject()._vScroll) ? this.model.scrollSettings.buttonSize : 0);
+					totalWidth = gridContentWidth + ((this.getContentTable().height() < this.model.scrollSettings.height && (!ej.isNullOrUndefined(this.getContent().data("ejScroller")) ? this.getScrollObject()._vScroll : false)) ? this.model.scrollSettings.buttonSize : 0);
                 else
                     totalWidth += ((this.getContentTable().height() > this.model.scrollSettings.height) ? this.model.scrollSettings.buttonSize : 0);
                 if (totalWidth < this.element.width()) {
@@ -3787,11 +3806,11 @@
                     this.getFooterContent().find(".e-frozenfooterdiv").outerWidth(frozenWidth)
                         .end().find(".e-movablefooterdiv").outerWidth(finalcolWidth);
             }
-            if (!this.initialRender && this.model.allowResizeToFit && this.model.allowScrolling && this.model.scrollSettings.enableVirtualization) {
-                var width = this.getHeaderTable().width() > this.getContentTable().width() ? this.getHeaderTable().width() : this.getContentTable().width();
+            if(!this.initialRender && this.model.allowResizeToFit && this.model.allowScrolling && this.model.scrollSettings.enableVirtualization ){			
+               var width = this.getHeaderTable().width() > this.getContentTable().width() ? this.getHeaderTable().width() : this.getContentTable().width();
                 if(!ej.isNullOrUndefined(this.getFooterTable()))
                     this.getFooterTable().width(width);
-            }
+			}
         },
         _initialEndRendering: function () {
             // use this method to add behaviour after grid render.
@@ -3817,7 +3836,7 @@
             }
             this.model.scrollSettings.allowVirtualScrolling && !this.model.scrollSettings.enableVirtualization && this._createPagerStatusBar();
             this._getRowHeights();
-            if (this.element.width() != 0 && this.model.allowScrolling) {
+            if (this.element.width() != 0 && this.element.is(":visible") && this.model.allowScrolling) {
                 this._renderScroller();
                 if (!(this.model.scrollSettings.frozenRows > 0 || this.model.scrollSettings.frozenColumns > 0)) {
                     this.setWidthToColumns();
@@ -3828,9 +3847,9 @@
                     this._scrollFooterColgroup(true);
                 }
             }
-            else if ((this.model.allowScrolling || (this.model.allowGrouping && this.model.groupSettings.groupedColumns.length)) && this.element.width() <= 0) {
+            else if ((this.model.allowScrolling || (this.model.allowGrouping && this.model.groupSettings.groupedColumns.length)) && (this.element.width() <= 0 || !this.element.is(":visible"))) {
                 var proxy = this, myVar = setInterval(function () {
-                    if (!ej.isNullOrUndefined(proxy.element) && proxy.element.width() > 0 && !ej.isNullOrUndefined(proxy.element.width())) {
+                    if (!ej.isNullOrUndefined(proxy.element) && proxy.element.width() > 0 && !ej.isNullOrUndefined(proxy.element.width()) && proxy.element.is(":visible")) {
                         if (proxy.model.allowScrolling) {
                             proxy._renderScroller();
                             if (!(proxy.model.scrollSettings.frozenRows > 0 || proxy.model.scrollSettings.frozenColumns > 0)) {
@@ -3871,7 +3890,7 @@
             {
                 this.getFooterContent().find("colgroup").append("<col style='width : " + this.model.scrollSettings.scrollerSize + "px'></col>");
                 if(!this.getFooterContent().find("tr.e-gridSummaryRows td.e-scrollindent").length)
-                    this.getFooterContent().find("tr.e-gridSummaryRows").append("<td class='e-scrollindent'></td>");
+                this.getFooterContent().find("tr.e-gridSummaryRows").append("<td class='e-scrollindent'></td>");
             }
         },
 
@@ -4241,7 +4260,7 @@
                 if (e["pointerType"] == "touch" && this._customPop != null && (this._customPop.find(".e-rowselect").is(":visible") || !this._customPop.find(".e-sortdirect").hasClass("e-spanclicked")) && this.model.allowMultiSorting) {
                     var $offset = $target.offset();
                     this._customPop.removeAttr("style");
-                    this._customPop.offset({ left: $offset.left, top: $offset.top - this.getHeaderTable().find(".e-columnheader").height() - $target.height() }).find(".e-sortdirect").show().end()
+                    this._customPop.offset({ left: $offset.left, top: $offset.top - this.getHeaderTable().find(".e-columnheader").height()}).find(".e-sortdirect").show().end()
                         .find(".e-rowselect").hide().end().show();
                 }
                 if (this.model.allowMultiSorting && (e.ctrlKey || this._enableSortMultiTouch))
@@ -4546,8 +4565,8 @@
 				            left: parentOffset.left + jQuery.css( offsetParent[ 0 ], "borderLeftWidth", true )
 			             };
                         var xPos = offset.left - parentOffset.left - jQuery.css( $target[0], "marginLeft", true ) + (this.model.enableRTL ? -6 : 18);					   
-					    var yPos = offset.top - parentOffset.top - jQuery.css( $target[0], "marginTop", true ) + 2;
-                        if ($target.closest(".e-headercell").css("position") == "relative")
+					    var yPos = offset.top - parentOffset.top - jQuery.css( $target[0], "marginTop", true ) + 2;                         
+						if ($target.closest(".e-headercell").css("position") == "relative")
                             xPos = $target.offset().left + 15, yPos = $target.offset().top + 20;
                         var filterDlgLargeCss = "e-filterdialoglarge";
                         dlgWidth = this._isExcelFilter && currentColumn.filterType != "menu" && !ej.isNullOrUndefined(this._excelFilter._dialogContainer) ? this._excelFilter._dialogContainer.width() : dlgWidth;
@@ -4571,7 +4590,7 @@
                     if (this._$colType == "number" && currentColumn["serverType"] != undefined)
                         $($id).find(".e-numerictextbox").ejNumericTextbox({ width: "100%",decimalPlaces: 0 });
                     else if(this._$colType == "number")
-                        $($id).find(".e-numerictextbox").ejNumericTextbox({ width: "100%", groupSeparator: "", decimalPlaces: (/{0:(?:[A-z])+([0-9])?}/.exec(currentColumn.format) || {})[1] | 0 });
+                        $($id).find(".e-numerictextbox").ejNumericTextbox({ width: "100%", groupSeparator: "" });
                     this._$prevColType = this._$colType;
                     this._$fDlgIsOpen = true;
                 }

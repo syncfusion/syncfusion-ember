@@ -57,6 +57,7 @@
 			enableAdvancedFilter: false,
 			showUniqueNameOnPivotButton: false,
 			enableMemberEditorPaging:false,
+            enableMemberEditorSorting: false,
 			enableXHRCredentials: false,
             enableCompleteDataExport : false,
 			editCellsInfo: {},  
@@ -147,6 +148,7 @@
             applyFieldCaption: null,
             beforeExport:null,
 			beforePivotEnginePopulate: null,
+            pivotEnginePopulated: null,
             saveReport: null,
             loadReport: null,
             cellEdit: null,
@@ -270,7 +272,9 @@
             this._waitingPopup = null;
             this._oriX = null;
             this._oriY = null;
+            this._sortType = "";
             this._startPosCell = null;
+            this._startCellPosition = null;
             this._maxViewLoading = null;
             this._list = new Array();
             this._formatEdit = false;
@@ -854,9 +858,9 @@
                 if (this._isDragging) {
                     this.element.append(ej.buildTag("span.e-dropIndicator e-dropIndicatorActive")[0].outerHTML);
                     if (evt.target.className.indexOf("e-pivotButton") >= 0)
-                        this.element.find(".e-dropIndicator").css("top", $(evt.target).position().top - 20).css("left", $(evt.target).position().left - 3);
+                        this.element.find(".e-dropIndicator").css("top", evt.target.getBoundingClientRect().top - 20).css("left", evt.target.getBoundingClientRect().left - 3);
                     else
-                        this.element.find(".e-dropIndicator").css("top", $(evt.target).parents(".e-pivotButton").position().top - 20).css("left", $(evt.target).parents(".e-pivotButton").position().left - 3);
+                        this.element.find(".e-dropIndicator").css("top", evt.target.parentElement.getBoundingClientRect().top - 20).css("left", evt.target.parentElement.getBoundingClientRect().left - 3);
                 }
             }, this));
 
@@ -1015,6 +1019,7 @@
             }
             this._on(this.element, "click", ".filter", ej.proxy(this._filterBtnClick, this));
             this._on(this.element, "click", ".e-sorting", ej.proxy(this._sortBtnClick, this));
+            this._on(this.element, "click", ".e-memberAscendingIcon, .e-memberDescendingIcon", ej.proxy(ej.Pivot._memberSortBtnClick, this));
             this._on(this.element, "click", ".e-removeBtn", ej.proxy(this.model.operationalMode == ej.Pivot.OperationalMode.ServerMode ? this._removePvtBtn : this._clientRemovePvtBtn, this));
             this._on(this.element, "click", ".e-ascOrder, .e-descOrder", ej.proxy(this._sortField, this));
             this._on(this.element, "mouseover", ".e-pvtBtn", function (evt) {
@@ -1744,11 +1749,11 @@
                 this._completeCellSelection(e);
                 $("#" + this._id).find(".value").removeClass("e-hoverCell");
                 this._startPosCell = null;
-                _startPosCell = null;
+                this._startCellPosition = null;
             }  
             if (e.which === 13 && this.model.enableCellEditing && !this.model.enableCellSelection && $("#" + this._id).find(".value.e-hoverCell").length) {
                 $("#" + this._id).find(".value.e-hoverCell").trigger("mouseover");
-                _startPosCell = $($("#" + this._id).find(".value.e-hoverCell")).attr("data-p");
+                this._startCellPosition = $($("#" + this._id).find(".value.e-hoverCell")).attr("data-p");
                 var selEle = { target: $("#" + this._id).find(".value.e-hoverCell > span")[0] };
                 this._completeCellEditing(selEle);
                 e.preventDefault();
@@ -1856,7 +1861,7 @@
             }
             if (e.shiftKey) {
                 if (ej.isNullOrUndefined(this._startPosCell)) {
-                    _startPosCell = e.target.getAttribute("data-p");
+                    this._startCellPosition = e.target.getAttribute("data-p");
                     this._startPosCell = e.target.getAttribute("data-p");
                 }
             }
@@ -1916,36 +1921,36 @@
                     this._curFocus.selection = $(cell);
                 }
                 this._curFocus.selection.attr("tabindex", "-1").focus().addClass("e-hoverCell");
-                if (Number(_startPosCell.split(",")[0]) <= Number(this._curFocus.selection.attr("data-p").split(",")[0]) && Number(_startPosCell.split(",")[1]) <= Number(this._curFocus.selection.attr("data-p").split(",")[1])) {
-                    for (i = Number(_startPosCell.split(",")[0]) ; i <= Number(this._curFocus.selection.attr("data-p").split(",")[0]) ; i++) {
-                        for (j = Number(_startPosCell.split(",")[1]) ; j <= Number(this._curFocus.selection.attr("data-p").split(",")[1]) ; j++) {
+                if (Number(this._startCellPosition.split(",")[0]) <= Number(this._curFocus.selection.attr("data-p").split(",")[0]) && Number(this._startCellPosition.split(",")[1]) <= Number(this._curFocus.selection.attr("data-p").split(",")[1])) {
+                    for (i = Number(this._startCellPosition.split(",")[0]) ; i <= Number(this._curFocus.selection.attr("data-p").split(",")[0]) ; i++) {
+                        for (j = Number(this._startCellPosition.split(",")[1]) ; j <= Number(this._curFocus.selection.attr("data-p").split(",")[1]) ; j++) {
                             if ($("#" + this._id).find("[data-p='" + i + "," + j + "']").hasClass("value")) {
                                 $("#" + this._id).find("[data-p='" + i + "," + j + "']").addClass("e-hoverCell");
                             }
                         }
                     }
                 }
-                else if (Number(_startPosCell.split(",")[0]) >= Number(this._curFocus.selection.attr("data-p").split(",")[0]) && Number(_startPosCell.split(",")[1]) >= Number(this._curFocus.selection.attr("data-p").split(",")[1])) {
-                    for (i = Number(_startPosCell.split(",")[0]) ; i >= Number(this._curFocus.selection.attr("data-p").split(",")[0]) ; i--) {
-                        for (j = Number(_startPosCell.split(",")[1]) ; j >= Number(this._curFocus.selection.attr("data-p").split(",")[1]) ; j--) {
+                else if (Number(this._startCellPosition.split(",")[0]) >= Number(this._curFocus.selection.attr("data-p").split(",")[0]) && Number(this._startCellPosition.split(",")[1]) >= Number(this._curFocus.selection.attr("data-p").split(",")[1])) {
+                    for (i = Number(this._startCellPosition.split(",")[0]) ; i >= Number(this._curFocus.selection.attr("data-p").split(",")[0]) ; i--) {
+                        for (j = Number(this._startCellPosition.split(",")[1]) ; j >= Number(this._curFocus.selection.attr("data-p").split(",")[1]) ; j--) {
                             if ($("#" + this._id).find("[data-p='" + i + "," + j + "']").hasClass("value")) {
                                 $("#" + this._id).find("[data-p='" + i + "," + j + "']").addClass("e-hoverCell");
                             }
                         }
                     }
                 }
-                else if (Number(_startPosCell.split(",")[0]) <= Number(this._curFocus.selection.attr("data-p").split(",")[0]) && Number(_startPosCell.split(",")[1]) >= Number(this._curFocus.selection.attr("data-p").split(",")[1])) {
-                    for (i = Number(_startPosCell.split(",")[0]) ; i <= Number(this._curFocus.selection.attr("data-p").split(",")[0]) ; i++) {
-                        for (j = Number(_startPosCell.split(",")[1]) ; j >= Number(this._curFocus.selection.attr("data-p").split(",")[1]) ; j--) {
+                else if (Number(this._startCellPosition.split(",")[0]) <= Number(this._curFocus.selection.attr("data-p").split(",")[0]) && Number(this._startCellPosition.split(",")[1]) >= Number(this._curFocus.selection.attr("data-p").split(",")[1])) {
+                    for (i = Number(this._startCellPosition.split(",")[0]) ; i <= Number(this._curFocus.selection.attr("data-p").split(",")[0]) ; i++) {
+                        for (j = Number(this._startCellPosition.split(",")[1]) ; j >= Number(this._curFocus.selection.attr("data-p").split(",")[1]) ; j--) {
                             if ($("#" + this._id).find("[data-p='" + i + "," + j + "']").hasClass("value")) {
                                 $("#" + this._id).find("[data-p='" + i + "," + j + "']").addClass("e-hoverCell");
                             }
                         }
                     }
                 }
-                else if (Number(_startPosCell.split(",")[0]) >= Number(this._curFocus.selection.attr("data-p").split(",")[0]) && Number(_startPosCell.split(",")[1]) <= Number(this._curFocus.selection.attr("data-p").split(",")[1])) {
-                    for (i = Number(_startPosCell.split(",")[0]) ; i >= Number(this._curFocus.selection.attr("data-p").split(",")[0]) ; i--) {
-                        for (j = Number(_startPosCell.split(",")[1]) ; j <= Number(this._curFocus.selection.attr("data-p").split(",")[1]) ; j++) {
+                else if (Number(this._startCellPosition.split(",")[0]) >= Number(this._curFocus.selection.attr("data-p").split(",")[0]) && Number(this._startCellPosition.split(",")[1]) <= Number(this._curFocus.selection.attr("data-p").split(",")[1])) {
+                    for (i = Number(this._startCellPosition.split(",")[0]) ; i >= Number(this._curFocus.selection.attr("data-p").split(",")[0]) ; i--) {
+                        for (j = Number(this._startCellPosition.split(",")[1]) ; j <= Number(this._curFocus.selection.attr("data-p").split(",")[1]) ; j++) {
                             if ($("#" + this._id).find("[data-p='" + i + "," + j + "']").hasClass("value")) {
                                 $("#" + this._id).find("[data-p='" + i + "," + j + "']").addClass("e-hoverCell");
                             }
@@ -2494,6 +2499,7 @@
             this._off(this.element, "contextmenu", ".values .e-pivotButton");
             this._off(this.element, "click", ".filter", ej.proxy(this._filterBtnClick, this));
             this._off(this.element, "click", ".e-sorting", ej.proxy(this._sortBtnClick, this));
+            this._off(this.element, "click", ".e-memberAscendingIcon, .e-memberDescendingIcon", ej.proxy(ej.Pivot._memberSortBtnClick, this));
             this._off(this.element, "click", ".e-removeBtn", ej.proxy(this.model.operationalMode == ej.Pivot.OperationalMode.ServerMode? this._removePvtBtn:this._clientRemovePvtBtn, this));
             this._off(this.element, "click", ".e-ascOrder, .e-descOrder");
             this._off(this.element, "click", ".clearAllFilters, .clearSorting");
@@ -2541,14 +2547,14 @@
         _getFieldName: function (cell) {
             if ($(cell).hasClass("colheader") || $(cell).attr("role") == "columnheader") {
                 var columnPos = parseInt($(cell).attr('data-p').split(',')[1]);
-                var items = (ej.isNullOrUndefined(this.model.dataSource.data) || this.model.operationalMode == ej.PivotGrid.OperationalMode.ServerMode) ? (($(this.element).parents(".e-pivotclient").length > 0 && this.model.analysisMode == ej.Pivot.AnalysisMode.Pivot && this.model.operationalMode == ej.PivotGrid.OperationalMode.ServerMode) ? JSON.parse(this._pivotClientObj.getOlapReport()).PivotColumns : JSON.parse(this.getOlapReport()).PivotColumns) : this.model.dataSource.columns;
+                var items = (ej.isNullOrUndefined(this.model.dataSource.data) || this.model.operationalMode == ej.PivotGrid.OperationalMode.ServerMode) ? ((($(this.element).parents(".e-pivotclient").length > 0 || $(this.element).parents(".e-fullScreenView").length > 0) && this.model.analysisMode == ej.Pivot.AnalysisMode.Pivot && this.model.operationalMode == ej.PivotGrid.OperationalMode.ServerMode) ? JSON.parse(this._pivotClientObj.getOlapReport()).PivotColumns : JSON.parse(this.getOlapReport()).PivotColumns) : this.model.dataSource.columns;
                 var textContent = cell.textContent.replace("expanded", "");
                 return columnPos < items.length ? this.model.operationalMode == ej.PivotGrid.OperationalMode.ClientMode ? items[columnPos].fieldName : items[columnPos].FieldName : textContent;
             }
             else if ($(cell).hasClass("rowheader") || $(cell).attr("role") == "rowheader") {
                 var rowPos = parseInt($(cell).attr('data-p').split(',')[0]);
                 //return ej.isNullOrUndefined(this.model.dataSource.rows[rowPos]) ? JSON.parse(this.getOlapReport()).PivotRows[rowPos].FieldName : this.model.dataSource.rows[rowPos].fieldName;
-                return (ej.isNullOrUndefined(this.model.dataSource.data) || this.model.operationalMode == ej.PivotGrid.OperationalMode.ServerMode) ? ((this.element.parents(".e-pivotclient").length > 0 && this.model.analysisMode == ej.Pivot.AnalysisMode.Pivot) ? JSON.parse(this._pivotClientObj.getOlapReport()).PivotRows[rowPos].FieldName : JSON.parse(this.getOlapReport()).PivotRows[rowPos].FieldName) : (!ej.isNullOrUndefined(this.model.dataSource.rows) ? this.model.dataSource.rows[rowPos].fieldName : "");
+                return (ej.isNullOrUndefined(this.model.dataSource.data) || this.model.operationalMode == ej.PivotGrid.OperationalMode.ServerMode) ? (((this.element.parents(".e-pivotclient").length > 0 || this.element.parents(".e-fullScreenView").length > 0) && this.model.analysisMode == ej.Pivot.AnalysisMode.Pivot) ? JSON.parse(this._pivotClientObj.getOlapReport()).PivotRows[rowPos].FieldName : JSON.parse(this.getOlapReport()).PivotRows[rowPos].FieldName) : (!ej.isNullOrUndefined(this.model.dataSource.rows) ? this.model.dataSource.rows[rowPos].fieldName : "");
             }
         },
         _colResizing: function (e) {
@@ -2662,7 +2668,7 @@
                                if (this.model.analysisMode == ej.Pivot.AnalysisMode.Pivot) {
                                    if ((this.element.find(".e-pivotGridTable").find("[role='columnheader']").find(".e-expand").length > 1 || this.element.find(".e-pivotGridTable").find("[role='columnheader']").find(".e-collapse").length > 1)) {
                                        if (isFrozenHeader)
-                                           pos = parseInt(this.element.find(".pivotGridFrozenTable tbody tr:last").find("[data-p^='" + cell.attr("data-p").split(",")[0] + "']").index());
+                                           pos = parseInt(this.element.find(".pivotGridFrozenTable thead tr:last").find("[data-p^='" + cell.attr("data-p").split(",")[0] + "']").index());
                                        else
                                            pos = parseInt(this.element.find(".e-pivotGridTable thead tr:last").find("[data-p^='" + cell.attr("data-p").split(",")[0] + "']").index()) + (this.layout().toLowerCase() == ej.PivotGrid.Layout.ExcelLikeLayout? 1: this._JSONRecords[0].ColSpan);
                                    }
@@ -2690,8 +2696,10 @@
                    }
                }
             }
-               if (this.model.enableGroupingBar)
-                   this._createFields(null, $("#" + this._id).find(".e-pivotGridTable").width(), $("#" + this._id).find(".e-pivotGridTable th").outerWidth());
+           if (this.model.enableGroupingBar) {
+               this._createFields(null, $("#" + this._id).find(".e-pivotGridTable").width(), $("#" + this._id).find(".e-pivotGridTable th").outerWidth());
+               this.element.find(".groupingBarPivot").css({ "overflow": "hidden" });
+           }
                if (this.model.frozenHeaderSettings.enableFrozenRowHeaders || this.model.frozenHeaderSettings.enableFrozenColumnHeaders || this.model.frozenHeaderSettings.enableFrozenHeaders) {
                    var scroll = this.element.find(".e-scroller").data("ejScroller");
                    if (!ej.isNullOrUndefined(scroll)) scroll.refresh();
@@ -3211,7 +3219,7 @@
                     }
                 }
 				if (this._dialogHead == "KPI")
-                   filterParams = uncheckedNodes;
+                    filterParams = uncheckedNodes;
                 if (this.model.beforeServiceInvoke != null && this.model.operationalMode == ej.PivotGrid.OperationalMode.ServerMode)
                     this._trigger("beforeServiceInvoke", { action: "filtering", element: this.element, customObject: this.model.customObject });
                 var serializedCustomObject = JSON.stringify(this.model.customObject), eventArgs = this.model.customObject != {} && filterParams != "" ? JSON.stringify({ "action": "filtering", "filterParams": filterParams, "sortedHeaders": this._ascdes, "currentReport": report, "valueSorting": JSON.stringify(this.model.valueSortSettings), "customObject": serializedCustomObject, "gridLayout": this.model.layout }) : this.model.customObject != {} ? JSON.stringify({ "action": "filtering", "currentReport": report, "customObject": serializedCustomObject, "gridLayout": this.model.layout }) : filterParams != "" ? JSON.stringify({ "action": "filtering", "filterParams": filterParams, "sortedHeaders": this._ascdes, "currentReport": report, "gridLayout": this.model.layout }) : JSON.stringify({ "action": "filtering" });
@@ -3498,13 +3506,13 @@
                 var filterTag = ej.Pivot.createAdvanceFilterTag({ action: "filterTag" }, this)
             }
             memberSearchEditor = ej.buildTag("div.e-memberSearchEditorDiv", ej.buildTag("input#searchEditorTreeView.searchEditorTreeView").attr("type", "text")[0].outerHTML + (this.model.enableMemberEditorPaging && $.parseJSON(treeViewData).length >= this.model.memberEditorPageSize ? ej.buildTag("span.e-icon e-searchEditorTree", {})[0].outerHTML : ""), { "padding": isAdvancedFilter ? "5px 5px 0px 9px" : "0px" })[0].outerHTML;
-            var dialogContent = ej.buildTag("div#EditorDiv.e-editorDiv", groupDropDown + ej.buildTag("div", filterElementTag + memberSearchEditor + ej.buildTag("div.e-memberEditorDiv", ej.buildTag("div#editorTreeView.e-editorTreeView")[0].outerHTML)[0].outerHTML)[0].outerHTML)[0].outerHTML + ((!ej.isNullOrUndefined(treeViewData) && this.model.enableMemberEditorPaging && ($.parseJSON(treeViewData).length >= this.model.memberEditorPageSize || this.model.memberEditorPageSize < this._memberPageSettings.endPage)) ? "" : "</br>"),
+            var dialogContent = ej.buildTag("div#EditorDiv.e-editorDiv", groupDropDown + ej.buildTag("div", filterElementTag + memberSearchEditor + ej.buildTag("div.e-memberEditorDiv", ej.buildTag("div#editorTreeView.e-editorTreeView", { "margin-top": this.model.enableAdvancedFilter ? "10px" : "2px" })[0].outerHTML)[0].outerHTML)[0].outerHTML)[0].outerHTML + ((!ej.isNullOrUndefined(treeViewData) && this.model.enableMemberEditorPaging && ($.parseJSON(treeViewData).length >= this.model.memberEditorPageSize || this.model.memberEditorPageSize < this._memberPageSettings.endPage)) ? "" : "</br>"),
             dialogFooter = ej.buildTag("div", ej.buildTag("button#OKBtn.e-dialogOKBtn", this._getLocalizedLabels("OK")).attr({ "title": this._getLocalizedLabels("OK"), tabindex: 0 })[0].outerHTML + ej.buildTag("button#CancelBtn.e-dialogCancelBtn", this._getLocalizedLabels("Cancel")).attr({ "title": this._getLocalizedLabels("Cancel"), tabindex: 0 })[0].outerHTML, { "float": "right", "margin": (isAdvancedFilter ? "-9px 5px 11px " : "-13px 0px 7px ") + "  0px" })[0].outerHTML,
             editorNavPanel = ej.buildTag("div.e-memberPager", ej.buildTag("div#" + this._id + "_NextpageDiv.e-nextPageDiv", ej.buildTag("div.e-icon e-media-backward_01 e-firstPage", {})[0].outerHTML + ej.buildTag("div.e-icon e-arrowhead-left e-prevPage", {})[0].outerHTML + ej.buildTag("input.e-memberCurrentPage#memberCurrentPage", {}, { "width": "20px", "height": "10px" })[0].outerHTML + ej.buildTag("span.e-memberPageCount#memberPageCount")[0].outerHTML + ej.buildTag("div.e-icon e-arrowhead-right e-nextPage", {})[0].outerHTML + ej.buildTag("div.e-icon e-media-forward_01 e-lastPage", {})[0].outerHTML)[0].outerHTML)[0].outerHTML,
             editorSearchNavPanel = ej.buildTag("div.e-memberSearchPager", ej.buildTag("div#" + this._id + "_NextSearchpageDiv.e-nextPageDiv", ej.buildTag("div.e-icon e-media-backward_01 e-firstPage", {})[0].outerHTML + ej.buildTag("div.e-icon e-arrowhead-left e-prevPage", {})[0].outerHTML + ej.buildTag("input.e-memberCurrentSearchPage#memberCurrentSearchPage", {}, { "width": "20px", "height": "10px" })[0].outerHTML + ej.buildTag("span.e-memberSearchPageCount#memberSearchPageCount")[0].outerHTML + ej.buildTag("div.e-icon e-arrowhead-right e-nextPage", {})[0].outerHTML + ej.buildTag("div.e-icon e-media-forward_01 e-lastPage", {})[0].outerHTML)[0].outerHTML, {}).css("display", "none")[0].outerHTML,
             editorDrillNavPanel = ej.buildTag("div.e-memberDrillPager", ej.buildTag("div#" + this._id + "_NextDrillpageDiv.e-nextPageDiv", ej.buildTag("div.e-icon e-media-backward_01 e-firstPage", {})[0].outerHTML + ej.buildTag("div.e-icon e-arrowhead-left e-prevPage", {})[0].outerHTML + ej.buildTag("input.e-memberCurrentDrillPage#memberCurrentDrillPage", {}, { "width": "20px", "height": "10px" })[0].outerHTML + ej.buildTag("span.e-memberDrillPageCount#memberDrillPageCount")[0].outerHTML + ej.buildTag("div.e-icon e-arrowhead-right e-nextPage", {})[0].outerHTML + ej.buildTag("div.e-icon e-media-forward_01 e-lastPage", {})[0].outerHTML)[0].outerHTML, {}).css("display", "none")[0].outerHTML;            
             editorLinkPanel = ej.buildTag("div.e-linkOuterPanel", ej.buildTag("span.e-infoImg e-icon", "", {}).css({ "float": "left", "margin-top": "4px", "font-size": "16px" })[0].outerHTML + ej.buildTag("a.e-linkPanel", this._getLocalizedLabels('NotAllItemsShowing')).css({ "display": "inline-block", "margin-left": "3px", "margin-top": "2px" })[0].outerHTML, {}).css({ "display": "none", "margin-top": "-16px", "margin-left": isAdvancedFilter ? "8px" : "0px" })[0].outerHTML;
-            ejDialog = ej.buildTag("div#clientDialog.e-clientDialog", dialogContent + ((!ej.isNullOrUndefined(treeViewData) && this.model.enableMemberEditorPaging) ? (($.parseJSON(treeViewData).length >= this.model.memberEditorPageSize || this.model.memberEditorPageSize < this._memberPageSettings.endPage) ? editorDrillNavPanel + editorSearchNavPanel + editorNavPanel : editorDrillNavPanel + editorSearchNavPanel) : editorLinkPanel) + dialogFooter, { "opacity": "1" }).attr("title", title)[0].outerHTML,
+            var ejDialog = ej.buildTag("div#clientDialog.e-clientDialog", dialogContent + ((!ej.isNullOrUndefined(treeViewData) && this.model.enableMemberEditorPaging) ? (($.parseJSON(treeViewData).length >= this.model.memberEditorPageSize || this.model.memberEditorPageSize < this._memberPageSettings.endPage) ? editorDrillNavPanel + editorSearchNavPanel + editorNavPanel : editorDrillNavPanel + editorSearchNavPanel) : editorLinkPanel) + dialogFooter, { "opacity": "1" }).attr("title", title)[0].outerHTML,
             treeViewData = JSON.parse(treeViewData);
             for (var i = 0; i < treeViewData.length; i++) {
                 if (treeViewData[i].name == null || !treeViewData[i].name.toString().replace(/^\s+|\s+$/gm, '')) { treeViewData[i].name = "(blank)"; treeViewData[i].id = "(blank)"; }
@@ -3563,7 +3571,7 @@
                     if (!ej.isNullOrUndefined(args.event))
                         if (args.event.type == "keydown" && args.event.originalEvent.key.toLowerCase() == "delete") return false;
                 },
-                height: $(".e-memberEditorDiv").height(),
+                height: this.model.enableMemberEditorSorting ? "200px" : (isAdvancedFilter ? "inherit" : "245px"),
                 fields: { id: "id", text: "name", parentId: "pid", expanded: "expanded", isChecked: "checkedStatus", hasChild: "hasChildren", dataSource: ej.Pivot._showEditorLinkPanel(treeViewData, this, this) },
             });
             if (isAdvancedFilter) {
@@ -3640,6 +3648,13 @@
                     this.element.find("#clientDialog_wrapper").css({ "left": pos.left+50, top: pos.top });
                 this.element.find(".e-clientDialog").css({"padding":"0px" , "min-width":"265px"}).parents().find(".e-titlebar").remove();
             }
+            if (this.model.enableMemberEditorSorting) {
+                this._sortType = "";
+                ej.Pivot._separateAllMember(this);
+                if (this.model.enableRTL)
+                    this.element.find(".memberSortDiv, .e-insideDiv").addClass("e-rtl");
+            }
+
             this._memberTreeObj.model.nodeCheck = ej.proxy(this._nodeCheckChanges, this);
             this._memberTreeObj.model.nodeUncheck = ej.proxy(this._nodeCheckChanges, this);
             if (this.model.analysisMode == ej.PivotGrid.AnalysisMode.Olap)
@@ -4178,7 +4193,9 @@
                 var gridObj = this;
                 var treeElement = this.element.find(".e-editorTreeView");
                 var searchElement = null;
-                if ((args.id.toLowerCase() == "(all)_0" || args.id.toLowerCase() == "all") && args.type == "nodeUncheck") {
+                var isUnChecked = ((!ej.isNullOrUndefined(args.model.id) && args.model.id.toLowerCase() == "allelement" && !args.isChecked) || ((!ej.isNullOrUndefined(args.id) && (args.id.toLowerCase() == "(all)_0" || args.id.toLowerCase() == "all")) && (!ej.isNullOrUndefined(args.type) && (args.type == "nodeUncheck"))));
+                var isChecked = ((!ej.isNullOrUndefined(args.model.id) && args.model.id.toLowerCase() == "allelement" && args.isChecked) || ((!ej.isNullOrUndefined(args.id) && (args.id.toLowerCase() == "(all)_0" || args.id.toLowerCase() == "all")) && (!ej.isNullOrUndefined(args.type) && (args.type == "nodeCheck"))));
+                if (isUnChecked) {
                     this._memberTreeObj.model.nodeCheck = "";
                     this._memberTreeObj.model.nodeUncheck = "";
                     if (this._isOptionSearch) {
@@ -4228,7 +4245,7 @@
                         });
                     }
                 }
-                else if ((args.id.toLowerCase() == "(all)_0" || args.id.toLowerCase() == "all") && args.type == "nodeCheck") {
+                else if (isChecked) {
                     this._memberTreeObj.model.nodeCheck = "";
                     this._memberTreeObj.model.nodeUncheck = "";
                     if (this._isOptionSearch) {
@@ -4273,7 +4290,7 @@
                 else if (args.id.toLowerCase() == "searchfilterselection") {
                     ej.Pivot._updateSearchFilterSelection(args, treeElement, gridObj);
                 }
-                else if ((args.id.toLowerCase() == "(all)_0" || args.id.toLowerCase() != "all") && (this.model.enableMemberEditorPaging || this._editorTreeData)) {
+                else if (((!ej.isNullOrUndefined(args.model.id) && args.model.id.toLowerCase() == "allelement") || (!ej.isNullOrUndefined(args.id) && (args.id.toLowerCase() == "(all)_0" || args.id.toLowerCase() != "all"))) && (this.model.enableMemberEditorPaging || this._editorTreeData)) {
                     if (args.type == "nodeUncheck") {
                         this._isMembersFiltered = true;
                         var temp = "";
@@ -4287,9 +4304,11 @@
                             this.element.find(".e-dialogOKBtn").attr('disabled', 'disabled');
                             this._isAllMemberChecked = false;
                             firstNode.removeClass("e-stop").removeClass("e-checkmark").addClass("e-chk-inact");
+                            this.element.find(".e-checkAllBox").find("span.e-chk-image").removeClass("e-checkmark").addClass("e-chk-inact");
                         }
                         else {
                             $(this._memberTreeObj.element.find("li:first")).find("span.e-chk-image").removeClass("e-stop").addClass("e-checkmark");
+                            this.element.find(".e-checkAllBox").find("span.e-chk-image").removeClass("e-stop").addClass("e-checkmark");
                             $(this._editorTreeData).each(function (index, item) {
                                 if (item.checkedStatus) {
                                     this._isAllMemberChecked = false;
@@ -4306,6 +4325,7 @@
                         this.element.find(".e-dialogOKBtn").removeAttr("disabled");
                         this._isAllMemberChecked = true;
                         $(this._memberTreeObj.element.find("li:first")).find("span.e-chk-image").removeClass("e-stop").addClass("e-checkmark");
+                        this.element.find(".e-checkAllBox").find("span.e-chk-image").removeClass("e-stop").addClass("e-checkmark");
                         $(this._editorTreeData).each(function (index, item) {
                             if (!item.checkedStatus) {
                                 this._isAllMemberChecked = false;
@@ -4315,7 +4335,7 @@
                         });
                     }
                 }
-                else if (args.id.toLowerCase() == "(all)_0" || args.id.toLowerCase() != "all") {
+                else if ((!ej.isNullOrUndefined(args.model.id) && args.model.id.toLowerCase() == "allelement") || (!ej.isNullOrUndefined(args.id) && (args.id.toLowerCase() == "(all)_0" || args.id.toLowerCase() != "all"))) {
                     var uncheckedNodes = this._memberTreeObj.element.find(":input:gt(0).nodecheckbox:not(:checked)"),
                     firstNode = $(this._memberTreeObj.element.find("li:first")).find("span.e-chk-image");
                     if (this._dialogHead == "KPI") {
@@ -4336,19 +4356,26 @@
                         if (uncheckedNodes.length == 0 || (uncheckedNodes.length == 1 && uncheckedNodes[0].id[uncheckedNodes[0].id.length - 1] == 0)) {
                             $(firstNode).parent().removeClass("e-chk-inact").removeClass("e-chk-ind").addClass("e-chk-act");
                             firstNode.removeClass("e-stop").addClass("e-checkmark");
+                            this.element.find(".e-checkAllBox").find("span.e-chk-image").removeClass("e-stop").addClass("e-checkmark");
                         }
-                        else if (args.type == "nodeCheck" && uncheckedNodes.length == 1 && uncheckedNodes[0].id[uncheckedNodes[0].id.length - 1] == 0)
+                        else if (args.type == "nodeCheck" && uncheckedNodes.length == 1 && uncheckedNodes[0].id[uncheckedNodes[0].id.length - 1] == 0) {
                             firstNode.removeClass("e-stop").addClass("e-checkmark");
-                        else if (uncheckedNodes.length > 0)
+                            this.element.find(".e-checkAllBox").find("span.e-chk-image").removeClass("e-stop").addClass("e-checkmark");
+                        }
+                        else if (uncheckedNodes.length > 0) {
                             firstNode.removeClass("e-checkmark").addClass("e-stop");
+                            this.element.find(".e-checkAllBox").find("span.e-chk-image").removeClass("e-checkmark").addClass("e-stop");
+                        }
                         this._dialogOKBtnObj.enable();
                         if (args.type == "nodeUncheck") {
                             if (uncheckedNodes.length + 1 == this._memberTreeObj.element.find("li").length) {
                                 firstNode.removeClass("e-checkmark").removeClass("e-stop");
+                                this.element.find(".e-checkAllBox").find("span.e-chk-image").removeClass("e-checkmark").removeClass("e-stop");
                                 this._dialogOKBtnObj.disable();
                             }
                             else if (this._isOptionSearch && ($(treeElement).find("li span.e-searchfilterselection").closest("li").find("span.e-checkmark").length > 0) && this._memberTreeObj.element.find(":input:gt(0).nodecheckbox:checked").length == 1) {
                                 firstNode.removeClass("e-checkmark").removeClass("e-stop");
+                                this.element.find(".e-checkAllBox").find("span.e-chk-image").removeClass("e-checkmark").removeClass("e-stop");
                                 this._dialogOKBtnObj.disable();
                             }
                         }
@@ -4711,7 +4738,7 @@
                     }
                     $("#" + this._id + "_gridTooltip").remove();
                     this.element.find("span#celval").remove();
-                    var tdPos = $(targetCell).position();
+                    var tdPos = !ej.isNullOrUndefined(this._pivotClientObj)? $(targetCell).position(): targetCell.getBoundingClientRect();
                     if (this.model.frozenHeaderSettings.enableFrozenColumnHeaders || this.model.frozenHeaderSettings.enableFrozenRowHeaders || this.model.frozenHeaderSettings.enableFrozenHeaders) {
                         var scrollElement = this.element.find(".e-scroller").data("ejScroller");
                         if ((this.model.frozenHeaderSettings.enableFrozenColumnHeaders && !this.model.frozenHeaderSettings.enableFrozenRowHeaders) || ((!this.model.frozenHeaderSettings.enableFrozenColumnHeaders && this.model.frozenHeaderSettings.enableFrozenRowHeaders))) {
@@ -4738,7 +4765,7 @@
                     else
                         containerEndPos = $("#" + this._id).parent().position().left + $("#" + this._id).parent().width();
                     var tooltipEndPos = tdPos.left + $("#" + this._id + "_gridTooltip").width();
-                    var leftPos = 0; topPos: 0;
+                    var leftPos = 0, topPos= 0;
                     if (!ej.isNullOrUndefined(this._pivotClientObj)) {
                         leftPos = ((tdPos.left > 0 ? tdPos.left : 0) + ((containerEndPos - tooltipEndPos) < 50 ? ((containerEndPos - tooltipEndPos) - 40) : 5) + this._pivotClientObj.element.find(".e-gridContainer").scrollLeft());
                         topPos = ((this._pivotClientObj.element.find(".e-gridContainer").height() - tdPos.top) < 150 ? (tdPos.top - $("#" + this._id + "_gridTooltip").outerHeight() - 2) : tdPos.top + 40) + this._pivotClientObj.element.find(".e-gridContainer").scrollTop();
@@ -4746,6 +4773,16 @@
                     else {
                         leftPos = (tdPos.left > 0 ? tdPos.left : 0) + ((containerEndPos - tooltipEndPos) < 0 ? ((containerEndPos - tooltipEndPos) - 20) : 5);
                         topPos = ($(this.element).height() - tdPos.top) < 100 ? (tdPos.top - $("#" + this._id + "_gridTooltip").outerHeight() - 2) : tdPos.top + 40;
+                        var tdContainer = $(e.target).hasClass("cellValue") ? e.target.parentElement : e.target;;
+                        var scale = tdContainer.getBoundingClientRect().width / tdContainer.offsetWidth;
+                        if (scale > 1) {
+                            topPos = ($(tdContainer).position().top / scale);
+                            topPos = (($(this.element).height()) - (topPos * scale)) < (100 * scale) ? ((topPos) - ($("#" + this._id + "_gridTooltip").outerHeight())) : topPos + 40;
+                            //leftPos = $(tdContainer).position().left / scale;
+                            //containerEndPos = ($("#" + this._id).parent().position().left / scale) + ($("#" + this._id).parent().width());
+                            //tooltipEndPos = leftPos + ($("#" + this._id + "_gridTooltip").outerWidth());
+                            //leftPos = ((leftPos > 0 ? leftPos : 0) + (((containerEndPos - tooltipEndPos)) < 0 ? (((containerEndPos - tooltipEndPos)) - 20) : 5));
+                        }
                     }
                     $("#" + this._id + "_gridTooltip").css({ left: leftPos, top: topPos });                   
                     if (this.model.enableToolTipAnimation)
@@ -4758,7 +4795,7 @@
             }
         },
 
-        _applyVScrolling: function () {           
+        _applyVScrolling: function () {
             var _mouseWheel, isPivotClient = (!ej.isNullOrUndefined(this._pivotClientObj) && this._pivotClientObj.model.enableVirtualScrolling),
             oGridDiv = !isPivotClient ? $(this.element).find('.virtualScrollGrid') : this._pivotClientObj.element.find(".e-pivotgrid"),
             ctrlObj = !isPivotClient ? this : this._pivotClientObj,
@@ -4766,9 +4803,9 @@
             var isClientWithResponsive = isPivotClient && this.model.isResponsive;
 
             if (pGridObj._seriesPageCount > 1) {
-                var getMinVerticalPos = function () { return isClientWithResponsive ? (Math.round(ctrlObj.element.find(".e-vScrollPanel").offset().top) + 1) : (Math.round(ctrlObj.element.find(".e-vScrollPanel").position().top) + 1); };
+                var getMinVerticalPos = function () { return isClientWithResponsive ? (Math.round(ctrlObj.element.find(".e-vScrollPanel").offset().top) + 1) : (Math.round(ctrlObj.element.find(".e-vScrollPanel").offset().top) + 1); };
                 var vScrollBar = $(ctrlObj.element).find(".e-vScrollPanel");
-                vScrollBar.height(!isPivotClient ? $(oGridDiv).height() : (this._pivotClientObj.model.isResponsive ? parseInt(this._pivotClientObj.element.find(".e-controlPanel").height()) : parseInt(this._pivotClientObj.element.find(".e-gridContainer").height())));
+                vScrollBar.height(!isPivotClient ? $(oGridDiv).height() : (this._pivotClientObj.model.isResponsive ? parseInt(this._pivotClientObj.element.find(".e-controlPanel").height()) :(this._pivotClientObj.controlPlacement() == "tile" ? parseInt(this._pivotClientObj.element.find(".e-gridContainer").parents("table:eq(0)").height()) : parseInt(this._pivotClientObj.element.find(".e-gridContainer").height()))));
                 vScrollBar.html(ej.buildTag("div.e-vScrollThumb")[0].outerHTML);
                 var vScrollHandle = vScrollBar.find(".e-vScrollThumb");
                 vScrollHandle.height(Math.max(Math.ceil((!isPivotClient ? $(oGridDiv).height() : (this._pivotClientObj.model.isResponsive ? parseInt(this._pivotClientObj.element.find(".e-controlPanel").height()) : parseInt(this._pivotClientObj.element.find(".e-gridContainer").height()))) / pGridObj._seriesPageCount), 15));
@@ -4847,7 +4884,7 @@
             }
 
             if (pGridObj._categPageCount > 1) {
-                var getMinHorizontalPos = function () { return isClientWithResponsive ? (Math.round(ctrlObj.element.find(".e-hScrollPanel").offset().left) + 1) : (Math.round(ctrlObj.element.find(".e-hScrollPanel").position().left) + 1); };
+                var getMinHorizontalPos = function () { return isClientWithResponsive ? (Math.round(ctrlObj.element.find(".e-hScrollPanel").offset().left) + 1) : (Math.round(ctrlObj.element.find(".e-hScrollPanel").offset().left) + 1); };
                 if (this.element.parents(".e-pivotclient").length > 0 && this._pivotClientObj.element.find(".childsplit").length > 0)
                     this._pivotClientObj.element.find(".childsplit").data("ejSplitter").refresh();
                 var hScrollBar = $(ctrlObj.element).find(".e-hScrollPanel");
@@ -5072,7 +5109,7 @@
                     if (!(ej.isNullOrUndefined(this.model.valueSortSettings)) && this.element.find(".valueSorting").length > 0 && !(ej.isNullOrUndefined(ej.PivotAnalysis._valueSorting))) {
                         sortEle = this.element.find(".valueSorting").parent();
                     }
-                    var pGridTb = (this.model.operationalMode == ej.PivotGrid.OperationalMode.ServerMode && (this.model.enableAdvancedFilter || ($(this.element).parents(".e-pivotclient").length > 0 && this._pivotClientObj.model.enableAdvancedFilter))) ? $(this.element).find(".e-pivotGridTable").detach() : this._table;
+                    var pGridTb = (this.model.operationalMode == ej.PivotGrid.OperationalMode.ServerMode && (this.model.enableAdvancedFilter || (($(this.element).parents(".e-pivotclient").length > 0 || $(this.element).parents(".e-fullScreenView").length > 0) && this._pivotClientObj.model.enableAdvancedFilter))) ? $(this.element).find(".e-pivotGridTable").detach() : this._table;
                     var field = this._getFieldName($(e.target).parent()[0]);
                     var drilledCellType = $($(e.target).parent()).hasClass("rowheader") || $($(e.target).parent()).attr("role") == "rowheader" ? "rowheader" : $($(e.target).parent()).hasClass("colheader") || $($(e.target).parent()).attr("role") == "columnheader" ? "columnheader" : "";
                     if (!this.model.enablePaging && !this.model.enableVirtualScrolling) {
@@ -5082,7 +5119,7 @@
                         }
                         else if ($(e.target).hasClass("e-expand"))
                             this.model.collapsedMembers[field] = $.grep(this.model.collapsedMembers[field], function (item) { return item != $($(e.target).parent()[0]).text().trim() });
-                        if (this.model.operationalMode == ej.PivotGrid.OperationalMode.ServerMode && (this.model.enableAdvancedFilter || ($(this.element).parents(".e-pivotclient").length > 0 && this._pivotClientObj.model.enableAdvancedFilter))) {
+                        if (this.model.operationalMode == ej.PivotGrid.OperationalMode.ServerMode && (this.model.enableAdvancedFilter || (($(this.element).parents(".e-pivotclient").length > 0 || $(this.element).parents(".e-fullScreenView").length > 0) && this._pivotClientObj.model.enableAdvancedFilter))) {
                             this._collapseMember(pGridTb, e.target);
                             if ($(this.element).parents(".e-pivotclient").length > 0 && this._pivotClientObj.model.enableToolBar && !this._pivotClientObj.model.displaySettings.enableFullScreen)
                                 this.element.find("#" + this._id + "Toolbar").append(pGridTb);
@@ -5894,15 +5931,15 @@
             $("#" + this._id + " td,th").removeClass("e-highlighted");
             this._on(this.element, "mouseup touchend", ".value", this._completeCellSelection);
             var targetCell;
-            _oriX = e.pageX, _oriY = e.pageY;
+            this._oriX = e.pageX, this._oriY = e.pageY;
             targetCell = e.target || window.event.srcElement;
             if ($(targetCell).hasClass("cellValue")) targetCell = targetCell.parentElement;
             $(".value").addClass("selection");
             $("#" + this._id).append(ej.buildTag("div.e-cellSelection#" + this._id + "_cellSelection", "", {}));
-            _startPosCell = $(targetCell)[0].attributes.getNamedItem("data-p").value;
+            this._startCellPosition = $(targetCell)[0].attributes.getNamedItem("data-p").value;
             if (this._excelLikeJSONRecords != null && this.layout().toLowerCase() == ej.PivotGrid.Layout.ExcelLikeLayout) {
                 var startIndex = this._excelLikeJSONRecords[(0 * this._rowCount + (parseInt($(targetCell)[0].attributes.getNamedItem("data-i").value.split(',')[1])))].Index;
-                _startPosCell = this.getJSONRecords()[((parseInt($(targetCell)[0].attributes.getNamedItem("data-p").value.split(',')[0])) * this._rowCount + parseInt(startIndex.split(',')[1]))].Index;
+                this._startCellPosition = this.getJSONRecords()[((parseInt($(targetCell)[0].attributes.getNamedItem("data-p").value.split(',')[0])) * this._rowCount + parseInt(startIndex.split(',')[1]))].Index;
             }
             this._on(this.element, "mousemove touchmove", ".value, .e-cellSelection", this._cellSelection);
         },
@@ -5935,9 +5972,9 @@
                         })
                     }
                 }
-                _startPosCell = _headerType == "columnheader" ? $("#" + this._id + " [data-p^='" + (0 + parseInt(_position)) + ",']" + ".value").eq(0).attr("data-p") : $("#" + this._id + " [data-p$='," + (0 + parseInt(_position)) + "']" + ".value").eq(0).attr("data-p");
+                this._startCellPosition = _headerType == "columnheader" ? $("#" + this._id + " [data-p^='" + (0 + parseInt(_position)) + ",']" + ".value").eq(0).attr("data-p") : $("#" + this._id + " [data-p$='," + (0 + parseInt(_position)) + "']" + ".value").eq(0).attr("data-p");
                 if (this._excelLikeJSONRecords != null && this.layout().toLowerCase() == ej.PivotGrid.Layout.ExcelLikeLayout && !(this.model.analysisMode == ej.Pivot.AnalysisMode.Olap && this.model.operationalMode == ej.PivotGrid.OperationalMode.ServerMode))
-                    _startPosCell = _headerType == "columnheader" ? $("#" + this._id + " [data-p^='" + (0 + parseInt(_position)) + ",']" + ".value:not(.summary)").eq(0).attr("data-p") : $("#" + this._id + " [data-p$='," + (0 + parseInt(_position)) + "']" + ".value:not(.summary)").eq(0).attr("data-p");
+                    this._startCellPosition = _headerType == "columnheader" ? $("#" + this._id + " [data-p^='" + (0 + parseInt(_position)) + ",']" + ".value:not(.summary)").eq(0).attr("data-p") : $("#" + this._id + " [data-p$='," + (0 + parseInt(_position)) + "']" + ".value:not(.summary)").eq(0).attr("data-p");
                 var el = _headerType == "columnheader" ? $("#" + this._id + " [data-p^='" + ((parseInt(_span) - 1) + parseInt(_position)) + ",']").eq($("#" + this._id + " [data-p^='" + ((parseInt(_span) - 1) + parseInt(_position)) + ",']").length - 1) : $("#" + this._id + " [data-p$='," + ((parseInt(_span) - 1) + parseInt(_position)) + "']").eq($("#" + this._id + " [data-p$='," + ((parseInt(_span) - 1) + parseInt(_position)) + "']").length - 1);
                 this._completeCellSelection(el);
             }
@@ -5946,10 +5983,10 @@
         _cellSelection: function (e) {
             $("#" + this._id + "_gridTooltip").hide();
             var isPivotClient = ($(e.target).parents(".e-pivotclient").length > 0);
-            var width = e.pageX - this.element.offset().left - (_oriX - this.element.offset().left);
-            var height = e.pageY - this.element.offset().top - (_oriY - this.element.offset().top);
-            var posX = _oriX - this.element.offset().left;
-            var posY = _oriY - this.element.offset().top + 3;
+            var width = e.pageX - this.element.offset().left - (this._oriX - this.element.offset().left);
+            var height = e.pageY - this.element.offset().top - (this._oriY - this.element.offset().top);
+            var posX = this._oriX - this.element.offset().left;
+            var posY = this._oriY - this.element.offset().top + 3;
             if (width < 0) {
                 width = Math.abs(width);
                 posX -= width - 5;
@@ -5958,17 +5995,17 @@
                 height = Math.abs(height);
                 posY -= height - 12;
             }
-            if (e.pageX < _oriX) {
-                $("#" + this._id + "_cellSelection").css({ left: (isPivotClient) ? posX : (e.pageX + 2), width: (isPivotClient) ? width : (_oriX - e.pageX) });
+            if (e.pageX < this._oriX) {
+                $("#" + this._id + "_cellSelection").css({ left: (isPivotClient) ? posX : (e.pageX + 2), width: (isPivotClient) ? width : (this._oriX - e.pageX) });
             }
             else {
-                $("#" + this._id + "_cellSelection").css({ left: (isPivotClient) ? posX : (_oriX - 6), width: (isPivotClient) ? width : (e.pageX - _oriX) });
+                $("#" + this._id + "_cellSelection").css({ left: (isPivotClient) ? posX : (this._oriX - 6), width: (isPivotClient) ? width : (e.pageX - this._oriX) });
             }
-            if (e.pageY < _oriY) {
-                $("#" + this._id + "_cellSelection").css({ top: (isPivotClient) ? posY : e.pageY, height: (isPivotClient) ? height : (_oriY - e.pageY - 7) });
+            if (e.pageY < this._oriY) {
+                $("#" + this._id + "_cellSelection").css({ top: (isPivotClient) ? posY : e.pageY, height: (isPivotClient) ? height : (this._oriY - e.pageY - 7) });
             }
             else {
-                $("#" + this._id + "_cellSelection").css({ top: (isPivotClient) ? posY : (_oriY + 7), height: (isPivotClient) ? height : (e.pageY - _oriY - 11) });
+                $("#" + this._id + "_cellSelection").css({ top: (isPivotClient) ? posY : (this._oriY + 7), height: (isPivotClient) ? height : (e.pageY - this._oriY - 11) });
             }
             $(".e-pivotGridTable").mouseleave(function (e) {
                 var pGridObj = $(e.target).parents(".e-pivotgrid").data("ejPivotGrid");
@@ -5995,9 +6032,9 @@
 
             }
             var count = 0;
-            for (var rowSelCnt = (parseInt(_startPosCell.split(",")[1]) < parseInt(endPosCell.split(",")[1]) ? parseInt(_startPosCell.split(",")[1]) : parseInt(endPosCell.split(",")[1])) ; rowSelCnt <= (parseInt(_startPosCell.split(",")[1]) > parseInt(endPosCell.split(",")[1]) ? parseInt(_startPosCell.split(",")[1]) : parseInt(endPosCell.split(",")[1])) ; rowSelCnt++) {
+            for (var rowSelCnt = (parseInt(this._startCellPosition.split(",")[1]) < parseInt(endPosCell.split(",")[1]) ? parseInt(this._startCellPosition.split(",")[1]) : parseInt(endPosCell.split(",")[1])) ; rowSelCnt <= (parseInt(this._startCellPosition.split(",")[1]) > parseInt(endPosCell.split(",")[1]) ? parseInt(this._startCellPosition.split(",")[1]) : parseInt(endPosCell.split(",")[1])) ; rowSelCnt++) {
                 if (this.model.analysisMode == ej.Pivot.AnalysisMode.Olap || $("#" + this._id).find("td[data-p*='," + rowSelCnt + "']").parent().is(":visible")) {
-                    for (var colSelCnt = (parseInt(_startPosCell.split(",")[0]) < parseInt(endPosCell.split(",")[0]) ? parseInt(_startPosCell.split(",")[0]) : parseInt(endPosCell.split(",")[0])) ; colSelCnt <= (parseInt(_startPosCell.split(",")[0]) > parseInt(endPosCell.split(",")[0]) ? parseInt(_startPosCell.split(",")[0]) : parseInt(endPosCell.split(",")[0])) ; colSelCnt++) {
+                    for (var colSelCnt = (parseInt(this._startCellPosition.split(",")[0]) < parseInt(endPosCell.split(",")[0]) ? parseInt(this._startCellPosition.split(",")[0]) : parseInt(endPosCell.split(",")[0])) ; colSelCnt <= (parseInt(this._startCellPosition.split(",")[0]) > parseInt(endPosCell.split(",")[0]) ? parseInt(this._startCellPosition.split(",")[0]) : parseInt(endPosCell.split(",")[0])) ; colSelCnt++) {
                         if (this.model.analysisMode == ej.Pivot.AnalysisMode.Olap || $("#" + this._id).find("[data-p*='" + colSelCnt + ",']").last("th").is(":Visible")) {
                             cellInfo[count] = this.getJSONRecords()[((colSelCnt) * this._rowCount) + rowSelCnt];
                             var rowInfo, rowValue = "";
@@ -6074,8 +6111,8 @@
                 }
             }
             else
-                measureCount = (this.model.operationalMode == ej.PivotGrid.OperationalMode.ServerMode) ? (JSON.parse(this.getOlapReport()).PivotCalculations.length) : (this.model.dataSource.values.length);
-            args = { JSONRecords: cellInfo, rowHeader: rowHeader, columnHeader: colHeader, measureCount: (measureRowCount > 0 ? ("Row:" + measureRowCount) : ("Column:" + measureColCount)) }
+                var measureCount = (this.model.operationalMode == ej.PivotGrid.OperationalMode.ServerMode) ? (JSON.parse(this.getOlapReport()).PivotCalculations.length) : (this.model.dataSource.values.length);
+            var args = { JSONRecords: cellInfo, rowHeader: rowHeader, columnHeader: colHeader, measureCount: (measureRowCount > 0 ? ("Row:" + measureRowCount) : ("Column:" + measureColCount)) }
             if (!ej.isNullOrUndefined(this._pivotClientObj))
                 this._pivotClientObj._trigger("cellSelection", args);
             else
@@ -6190,13 +6227,13 @@
         _createCalculatedField: function () {
             ej.Pivot.openPreventPanel(this);
             this.element.find(".calculatedFieldPopup", ".e-clientDialog", ".e-dialog").remove();
-            dialogTitle = this._getLocalizedLabels("CalculatedField");
+            var dialogTitle = this._getLocalizedLabels("CalculatedField");
             var nameLabel = ej.buildTag("label#" + this._id + "_lblCalFieldName", this._getLocalizedLabels("Name"))[0].outerHTML;
             var calculateFieldList = ej.buildTag("span.fieldDropDown", ej.buildTag("input#" + this._id + "_calculateFieldList", "", {}, { type: 'text' })[0].outerHTML + ej.buildTag("input#" + this._id + "_calculateFieldName.calculateFieldName", "", { "margin-left": this.model.enableRTL ? "86px" : "2px", "outline": "none" }, { type: 'text' })[0].outerHTML, {})[0].outerHTML;
-            var addBtn = ej.buildTag("button#" + this._id + "_btnAdd", this._getLocalizedLabels("Add"), {"margin-top":"-5px"}, { name: this._getLocalizedLabels("Add") })[0].outerHTML;
+            var addBtn = ej.buildTag("button#" + this._id + "_btnAdd", this._getLocalizedLabels("Add"), {}, { name: this._getLocalizedLabels("Add") })[0].outerHTML;
             var formulaLabel = ej.buildTag("label#" + this._id + "_lblCalFieldFormula", this._getLocalizedLabels("Formula"))[0].outerHTML;
             var formulaTextBox = ej.buildTag("input.calculatedFieldFormula#" + this._id + "_calculatedFieldFormula", "", { width: "192px", height: "27px" }, { type: 'text', disabled: "disabled" })[0].outerHTML;
-            var deleteBtn = ej.buildTag("button#" + this._id + "_btnDelete", this._getLocalizedLabels("Delete"), { "margin-top": "-24px" }, { name: this._getLocalizedLabels("Delete") })[0].outerHTML;
+            var deleteBtn = ej.buildTag("button#" + this._id + "_btnDelete", this._getLocalizedLabels("Delete"), { "margin-top": "-2px" }, { name: this._getLocalizedLabels("Delete") })[0].outerHTML;
             var fieldsLabel = ej.buildTag("label#" + this._id + "_pivotGridValueFields", this._getLocalizedLabels("Fields"))[0].outerHTML;
             var fieldCollection = ej.buildTag("ul#" + this._id + "_fieldCollection", "")[0].outerHTML;
             //  var calculatorFields = ej.buildTag("span.calculatorFields e-icon e-sigma", "", { "padding": "3px" }).attr("aria-label","calculated button")[0].outerHTML;
@@ -6206,7 +6243,7 @@
 
             var okBtn = ej.buildTag("button#" + this._id + "_btnOk", this._getLocalizedLabels("OK"), { "margin-left": "10px", }, { name: this._getLocalizedLabels("OK") })[0].outerHTML;
             var cancelBtn = ej.buildTag("button#" + this._id + "_btnCancel", this._getLocalizedLabels("Cancel"), { "margin-left": this.model.enableRTL ? "0px" : "10px", }, { name: this._getLocalizedLabels("Cancel") })[0].outerHTML;
-            dialogFooter = ej.buildTag("div", okBtn + cancelBtn, { "float": this.model.enableRTL ? "left" : "right", "margin-bottom": "15px", "margin-top": "4px" })[0].outerHTML;
+            var dialogFooter = ej.buildTag("div", okBtn + cancelBtn, { "float": this.model.enableRTL ? "left" : "right", "margin-bottom": "15px", "margin-top": "4px" })[0].outerHTML;
 
             var calculatorDiv = ej.buildTag("div.e-calcFormulaDiv", ej.buildTag("table", ej.buildTag("tbody",
                                ej.buildTag("tr", ej.buildTag("td", "+")[0].outerHTML + ej.buildTag("td", "-")[0].outerHTML + ej.buildTag("td", "*")[0].outerHTML + ej.buildTag("td", "/")[0].outerHTML)[0].outerHTML +
@@ -6215,8 +6252,8 @@
                                ej.buildTag("tr", ej.buildTag("td", "1")[0].outerHTML + ej.buildTag("td", "2")[0].outerHTML + ej.buildTag("td", "3")[0].outerHTML + ej.buildTag("td", "(")[0].outerHTML)[0].outerHTML +
                                ej.buildTag("tr", ej.buildTag("td", ".")[0].outerHTML + ej.buildTag("td", "0")[0].outerHTML + ej.buildTag("td", "C")[0].outerHTML + ej.buildTag("td", ")")[0].outerHTML)[0].outerHTML)[0].outerHTML)[0].outerHTML, { "display": "none" })[0].outerHTML;
 
-            var dialogContent = ej.buildTag("div#calculatedField.e-dlgCalculatedField", "<table class=\"outerTable\"><tr><td>" + nameLabel + "</td><td>" + calculateFieldList + "</td><td>" + addBtn + "</td></tr>" + "<tr><td>" + formulaLabel + "</td><td>" + formulaTextBox + calculatorFields + editFormula + "</td><td>" + deleteBtn + "</td></tr></table>" +"<p class=\"borderLine\"></p>"+ "<table class=\"e-fieldTable\"><tr><td>" + fieldsLabel + "</td></tr><tr><td>" + fieldCollection + "</td></tr><tr><td>" + insertButton + "</td></tr></table>")[0].outerHTML,
-            ejDialog = ej.buildTag("div#clientDialog.e-clientDialog", dialogContent + dialogFooter + calculatorDiv, { "opacity": "1" }).attr("title", dialogTitle)[0].outerHTML;
+            var dialogContent = ej.buildTag("div#calculatedField.e-dlgCalculatedField", "<table class=\"outerTable\"><tr><td>" + nameLabel + "</td><td>" + calculateFieldList + "</td><td>" + addBtn + "</td></tr>" + "<tr><td>" + formulaLabel + "</td><td>" + formulaTextBox + calculatorFields + editFormula + "</td><td>" + deleteBtn + "</td></tr></table>" +"<p class=\"borderLine\"></p>"+ "<table class=\"e-fieldTable\"><tr><td>" + fieldsLabel + "</td></tr><tr><td>" + fieldCollection + "</td></tr><tr><td>" + insertButton + "</td></tr></table>")[0].outerHTML;
+            var ejDialog = ej.buildTag("div#clientDialog.e-clientDialog", dialogContent + dialogFooter + calculatorDiv, { "opacity": "1" }).attr("title", dialogTitle)[0].outerHTML;
             $(ejDialog).appendTo("#" + this._id);
 
             this.element.find(".e-clientDialog").ejDialog({ width: "auto", target: "#" + this._id, enableRTL: this.model.enableRTL, enableResize: false, close: ej.proxy(ej.Pivot.closePreventPanel, this) });
@@ -6257,6 +6294,8 @@
                     $("#" + pGridObj._id + "_calculatedFieldFormula").val("");
             });
 
+            if (this.model.pivotEnginePopulated != null)
+                this._trigger("pivotEnginePopulated", { JSONRecords: jsonObj });
 
             $(document).click(function (event) {
                 if (($(event.target).hasClass("calculatorFields")) || $(event.target).hasClass("e-sigma") || ($(event.target).parents(".e-calcFormulaDiv").length > 0))
@@ -6425,6 +6464,7 @@
                     pGridObj._populatePivotGrid();
                 else
                 {
+                    var report;
                     if (!ej.isNullOrUndefined(pGridObj._waitingPopup))
                         pGridObj._waitingPopup.show();
                     try {
@@ -6436,7 +6476,7 @@
                     if (pGridObj.model.beforeServiceInvoke != null)
                         pGridObj._trigger("beforeServiceInvoke", { action: "calculatedField", element: pGridObj.element, customObject: pGridObj.model.customObject });
                     var serializedCustomObject = JSON.stringify(pGridObj.model.customObject);
-                    eventArgs = JSON.stringify({ "action": "calculatedField", "headerTag": JSON.stringify(pGridObj._calculatedField), "currentReport": report, "valueSorting": JSON.stringify(pGridObj.model.valueSortSettings), "customObject": serializedCustomObject });
+                    var eventArgs = JSON.stringify({ "action": "calculatedField", "headerTag": JSON.stringify(pGridObj._calculatedField), "currentReport": report, "valueSorting": JSON.stringify(pGridObj.model.valueSortSettings), "customObject": serializedCustomObject });
                     if (!pGridObj.model.enableDeferUpdate)
                         pGridObj.doAjaxPost("POST", pGridObj.model.url + "/" + pGridObj.model.serviceMethodSettings.calculatedField, eventArgs, pGridObj._schemaData == null ? pGridObj._renderControlSuccess : pGridObj._schemaCalculatedField);
                     else {
@@ -6599,7 +6639,7 @@
             var fSize = ej.buildTag("input#" + this._id + "_fSize.fSize", "", {}, { type: 'text', tabindex: 9, accesskey: 'l' })[0].outerHTML;
             var fontcolor = ej.buildTag("input#" + this._id + "_fontcolor.fontcolor", "", {}, { type: 'text', tabindex: 10, accesskey: 'b' })[0].outerHTML;
             var fValue = ej.buildTag("input#" + this._id + "_fValue.fValue", "", {}, { type: 'text', tabindex: 11, accesskey: 'v' })[0].outerHTML;            
-            var conditionDiv = ej.buildTag("div#" + this._id + "_conditionDlg.e-conditionDlg", "<table class='conditionformatTbl'><tr><td>" + conditionLbl + "</td><td>" + conditionDropDown + "</td><td>" + editcondition + "</td><td>" + (this.model.conditionalFormatSettings.length > 0 ? editconditionDropDown : editconditionText) + "</td><td>" + editBtn + "</td><td>" + removeBtn + "</td></tr><tr><td>" + value1Lbl + "</td><td>" + value1 + "</td><td>" + value2Lbl + "</td><td>" + value2 + "</td></tr><tr><td>" + backcolorLbl + "</td><td>" + backcolor + "</td><td>" + borderrangeLbl + "</td><td>" + borderrange + "</td></tr><tr><td>" + bordercolorLbl + "</td><td>" + bordercolor + "</td><td>" + borderstyleLbl + "</td><td>" + borderstyle + "</td></tr><tr><td>" + fStyleLbl + "</td><td>" + fStyle + "</td><td>" + fSizeLbl + "</td><td>" + fSize + "</td></tr><tr><td>" + fontcolorLbl + "</td><td>" + fontcolor + "</td><td>" + fValueLbl + "</td><td>" + fValue + "</td></tr></table>")[0].outerHTML;
+            var conditionDiv = ej.buildTag("div#" + this._id + "_conditionDlg.e-conditionDlg", "<table class='conditionformatTbl'><tr><td>" + conditionLbl + "</td><td>" + conditionDropDown + "</td><td>" + editcondition + "</td><td>" + (this.model.conditionalFormatSettings.length > 0 ? editconditionDropDown : editconditionText) + "</td><td>" + editBtn + "</td><td>" + removeBtn + "</td></tr><tr><td>" + value1Lbl + "</td><td>" + value1 + "</td><td>" + value2Lbl + "</td><td>" + value2 + "</td></tr><tr><td>" + fStyleLbl + "</td><td>" + fStyle + "</td><td>" + borderrangeLbl + "</td><td>" + borderrange + "</td></tr><tr><td>" + fontcolorLbl + "</td><td>" + fontcolor + "</td><td>" + borderstyleLbl + "</td><td>" + borderstyle + "</td></tr><tr><td>" + backcolorLbl + "</td><td>" + backcolor + "</td><td>" + fSizeLbl + "</td><td>" + fSize + "</td></tr><tr><td>" + bordercolorLbl + "</td><td>" + bordercolor + "</td><td>" + fValueLbl + "</td><td>" + fValue + "</td></tr></table>")[0].outerHTML;
             dialogContent = conditionDiv;
             var OKBtn = ej.buildTag("button#" + this._id + "_OKBtn.e-dialogOKBtn", "", {}, { name: this._getLocalizedLabels("OK") }).attr("title", this._getLocalizedLabels("OK"))[0].outerHTML;
             var CancelBtn = ej.buildTag("button#" + this._id + "_CancelBtn.e-dialogCancelBtn", "", {}, { name: this._getLocalizedLabels("Cancel") }).attr("title", this._getLocalizedLabels("Cancel"))[0].outerHTML;
@@ -6608,7 +6648,8 @@
 
             $("#" + this._id + "_clientDlg").append(dialogContent + dialogFooter);
 
-            $("#" + this._id + "_clientDlg").ejDialog({ width: "auto", target: "#" + this._id, enableResize: false, enableRTL: this.model.enableRTL, close: ej.proxy(ej.Pivot.closePreventPanel, this) });
+            var targetID = $(this.element).parents(".e-pivotclient").length >0 ? (this.element).parents(".e-pivotclient")[0].id :  this._id;
+            $("#" + this._id + "_clientDlg").ejDialog({ width: "auto", target: "#" + targetID, enableResize: false, enableRTL: this.model.enableRTL, close: ej.proxy(ej.Pivot.closePreventPanel, this) });
             $(".e-titlebar").prepend(ej.buildTag("div", dialogTitle, { "display": "inline" })[0].outerHTML)[0];
             $("#" + this._id + "_OKBtn" + "," + "#" + this._id + "_CancelBtn" + "," + "#" + this._id + "_removeBtn" + "," + "#" + this._id + "_editBtn").ejButton({ type: ej.ButtonType.Button });
             $("#" + this._id + "_OKBtn" + "," + "#" + this._id + "_CancelBtn").css({ margin: "0 0 0 10px", width: "67px" });
@@ -6638,7 +6679,7 @@
                              { option: "Not Equals", value: this._getLocalizedLabels("NotEquals") },
                              { option: "Between", value: this._getLocalizedLabels("Between") },
                              { option: "Not Between", value: this._getLocalizedLabels("NotBetween") },
-                            ],
+                ],
                 fields: { text: "value", value: "option" },
                 selectedIndices: [0],
                 enableRTL: this.model.enableRTL,
@@ -6655,74 +6696,14 @@
                 height: "30px",
                 create: function () { $(this.wrapper.find('.e-input')).focus(function () { $(this).blur(); }) }
             });
-            $("#" + this._id + "_fontcolor").ejDropDownList({
-                dataSource: [{ option: "AliceBlue", value: this._getLocalizedLabels("AliceBlue") },
-                             { option: "Black", value: this._getLocalizedLabels("Black") },
-                             { option: "Blue", value: this._getLocalizedLabels("Blue") },
-                             { option: "Brown", value: this._getLocalizedLabels("Brown") },
-                             { option: "Gold", value: this._getLocalizedLabels("Gold") },
-                             { option: "Green", value: this._getLocalizedLabels("Green") },
-                             { option: "Lime", value: this._getLocalizedLabels("Lime") },
-                             { option: "Maroon", value: this._getLocalizedLabels("Maroon") },
-                             { option: "Orange", value: this._getLocalizedLabels("Orange") },
-                             { option: "Pink", value: this._getLocalizedLabels("Pink") },
-                             { option: "Red", value: this._getLocalizedLabels("Red") },
-                             { option: "Violet", value: this._getLocalizedLabels("Violet") },
-                             { option: "White", value: this._getLocalizedLabels("White") },
-                             { option: "Yellow", value: this._getLocalizedLabels("Yellow") },
-                ],
-                fields: { text: "value", value: "option" },
-                selectedIndices: [1],
+            $("#" + this._id + "_fontcolor").ejColorPicker({
                 enableRTL: this.model.enableRTL,
-                width: "200px",
-                height: "30px",
-                create: function () { $(this.wrapper.find('.e-input')).focus(function () { $(this).blur(); }) }
             });
-            $("#" + this._id + "_backcolor").ejDropDownList({
-                dataSource: [{ option: "AliceBlue", value: this._getLocalizedLabels("AliceBlue") },
-                             { option: "Black", value: this._getLocalizedLabels("Black") },
-                             { option: "Blue", value: this._getLocalizedLabels("Blue") },
-                             { option: "Brown", value: this._getLocalizedLabels("Brown") },
-                             { option: "Gold", value: this._getLocalizedLabels("Gold") },
-                             { option: "Green", value: this._getLocalizedLabels("Green") },
-                             { option: "Lime", value: this._getLocalizedLabels("Lime") },
-                             { option: "Maroon", value: this._getLocalizedLabels("Maroon") },
-                             { option: "Orange", value: this._getLocalizedLabels("Orange") },
-                             { option: "Pink", value: this._getLocalizedLabels("Pink") },
-                             { option: "Red", value: this._getLocalizedLabels("Red") },
-                             { option: "Violet", value: this._getLocalizedLabels("Violet") },
-                             { option: "White", value: this._getLocalizedLabels("White") },
-                             { option: "Yellow", value: this._getLocalizedLabels("Yellow") },
-                           ],
-                fields: { text: "value", value: "option" },
-                selectedIndices: [0],
+            $("#" + this._id + "_backcolor").ejColorPicker({
                 enableRTL: this.model.enableRTL,
-                width: "200px",
-                height: "30px",
-                create: function () { $(this.wrapper.find('.e-input')).focus(function () { $(this).blur(); }) }
             });
-            $("#" + this._id + "_bordercolor").ejDropDownList({
-                dataSource: [{ option: "AliceBlue", value: this._getLocalizedLabels("AliceBlue") },
-                             { option: "Black", value: this._getLocalizedLabels("Black") },
-                             { option: "Blue", value: this._getLocalizedLabels("Blue") },
-                             { option: "Brown", value: this._getLocalizedLabels("Brown") },
-                             { option: "Gold", value: this._getLocalizedLabels("Gold") },
-                             { option: "Green", value: this._getLocalizedLabels("Green") },
-                             { option: "Lime", value: this._getLocalizedLabels("Lime") },
-                             { option: "Maroon", value: this._getLocalizedLabels("Maroon") },
-                             { option: "Orange", value: this._getLocalizedLabels("Orange") },
-                             { option: "Pink", value: this._getLocalizedLabels("Pink") },
-                             { option: "Red", value: this._getLocalizedLabels("Red") },
-                             { option: "Violet", value: this._getLocalizedLabels("Violet") },
-                             { option: "White", value: this._getLocalizedLabels("White") },
-                             { option: "Yellow", value: this._getLocalizedLabels("Yellow") },
-                            ],
-                fields: { text: "value", value: "option" },
-                selectedIndices: [0],
+            $("#" + this._id + "_bordercolor").ejColorPicker({
                 enableRTL: this.model.enableRTL,
-                width: "200px",
-                height: "30px",
-                create: function () { $(this.wrapper.find('.e-input')).focus(function () { $(this).blur(); }) }
             });
             $("#" + this._id + "_borderrange").ejDropDownList({
                 dataSource: ["1", "2", "3", "4", "5", "6", "7", "8", "9"],
@@ -6742,7 +6723,7 @@
                              { option: "Outset", value: this._getLocalizedLabels("Outset") },
                              { option: "Ridge", value: this._getLocalizedLabels("Ridge") },
                              { option: "None", value: this._getLocalizedLabels("None") },
-                            ],
+                ],
                 fields: { text: "value", value: "option" },
                 selectedIndices: [0],
                 enableRTL: this.model.enableRTL,
@@ -6767,7 +6748,7 @@
                              { option: "Times New Roman", value: this._getLocalizedLabels("TimesNewRoman") },
                              { option: "Verdana", value: this._getLocalizedLabels("Verdana") },
                              { option: "None", value: this._getLocalizedLabels("None") },
-                            ],
+                ],
                 fields: { text: "value", value: "option" },
                 selectedIndices: [0],
                 enableRTL: this.model.enableRTL,
@@ -6796,10 +6777,10 @@
                         value = JSON.parse(this._pivotClientObj.getOlapReport()).PivotCalculations;
                 }
                 else
-                value = JSON.parse(this.getOlapReport()).PivotCalculations;
-               fvalue = "FieldHeader";
+                    value = JSON.parse(this.getOlapReport()).PivotCalculations;
+                fvalue = "FieldHeader";
             }
-           else {
+            else {
                 fvalue = "fieldCaption";
                 if (this.model.analysisMode == ej.Pivot.AnalysisMode.Pivot) {
                     value = this.model.dataSource.values;
@@ -6811,14 +6792,14 @@
                 }
             }
             dataSource = value.length > 0 ? ["All"] : dataSource;
-             for (var j = 0; j < value.length; j++) {
-                 {
-                     if ($(this.element).parents(".e-pivotclient").length > 0 && this.model.operationalMode == ej.PivotGrid.OperationalMode.ServerMode && this.model.analysisMode == ej.Pivot.AnalysisMode.Olap)
-                         dataSource.push(value[j]);
-                     else
+            for (var j = 0; j < value.length; j++) {
+                {
+                    if ($(this.element).parents(".e-pivotclient").length > 0 && this.model.operationalMode == ej.PivotGrid.OperationalMode.ServerMode && this.model.analysisMode == ej.Pivot.AnalysisMode.Olap)
+                        dataSource.push(value[j]);
+                    else
                         dataSource.push(value[j][fvalue]);
-                    }
                 }
+            }
             
             dataSource = dataSource.length > 0 ? dataSource : ["No Measure"];
             $("#" + this._id + "_fValue").ejDropDownList({
@@ -6829,17 +6810,17 @@
                 height: "30px",
                 create: function () { $(this.wrapper.find('.e-input')).focus(function () { $(this).blur(); }) }
             });
-            this.element.find("#" + this._id + "_conType").ejDropDownList("option", "change", ej.proxy(this._activeConditionChange, this));
-            this.element.find("#" + this._id + "_editCon").ejDropDownList("option", "change", ej.proxy(this._editConditionChange, this));
+            $("#" + this._id + "_conType").ejDropDownList("option", "change", ej.proxy(this._activeConditionChange, this));
+            $("#" + this._id + "_editCon").ejDropDownList("option", "change", ej.proxy(this._editConditionChange, this));
 
             this.isNewFormat = true;
             this.ddlEditCondition = $("#" + this._id + "_editCon").data("ejDropDownList");
             this.ddlConditionType = $("#" + this._id + "_conType").data("ejDropDownList");
             this.ddlFont = $("#" + this._id + "_fStyle").data("ejDropDownList");
             this.ddlFontSize = $("#" + this._id + "_fSize").data("ejDropDownList");
-            this.ddlFontColor = $("#" + this._id + "_fontcolor").data("ejDropDownList");
-            this.ddlBackColor = $("#" + this._id + "_backcolor").data("ejDropDownList");
-            this.ddlBorderColor = $("#" + this._id + "_bordercolor").data("ejDropDownList");
+            this.ddlFontColor = $("#" + this._id + "_fontcolor").data("ejColorPicker");
+            this.ddlBackColor = $("#" + this._id + "_backcolor").data("ejColorPicker");
+            this.ddlBorderColor = $("#" + this._id + "_bordercolor").data("ejColorPicker");
             this.ddlBorderStyle = $("#" + this._id + "_borderstyle").data("ejDropDownList");
             this.ddlBorderWidth = $("#" + this._id + "_borderrange").data("ejDropDownList");
             this.ddlFieldValue = $("#" + this._id + "_fValue").data("ejDropDownList");
@@ -6869,20 +6850,21 @@
                     }
                 }
                 this.ddlEditCondition = $("#" + pGridObj._id + "_editCon").data("ejDropDownList");
+                var ctrlObj = $(this).parents(".e-pivotclient").length > 0 ? $(this).parents(".e-pivotclient").data("ejPivotClient") : pGridObj;
                 if ($("#" + pGridObj._id + '_editConText').val() == '') {
-                    ej.Pivot._createErrorDialog(pGridObj._getLocalizedLabels("EnterFormatName"), pGridObj._getLocalizedLabels("Warning"), pGridObj);
+                    ej.Pivot._createErrorDialog(pGridObj._getLocalizedLabels("EnterFormatName"), pGridObj._getLocalizedLabels("Warning"), ctrlObj);
                 }
                 else if ((pGridObj._formatEdit && $("#" + pGridObj._id + '_editConText').val() != undefined && $.inArray($("#" + pGridObj._id + '_editConText').val(), pGridObj._formatName) != -1) || (!ej.isNullOrUndefined($("#" + pGridObj._id + '_editConText').val()) && isEdit)) {
-                    ej.Pivot._createErrorDialog(pGridObj._getLocalizedLabels("DuplicateFormatName"), pGridObj._getLocalizedLabels("Warning"), pGridObj);
+                    ej.Pivot._createErrorDialog(pGridObj._getLocalizedLabels("DuplicateFormatName"), pGridObj._getLocalizedLabels("Warning"), ctrlObj);
                 }
                 else if ($("#" + pGridObj._id + '_conFrom').val() == '') {
-                    ej.Pivot._createErrorDialog(pGridObj._getLocalizedLabels("EnterOperand1"), pGridObj._getLocalizedLabels("Warning"), pGridObj);
+                    ej.Pivot._createErrorDialog(pGridObj._getLocalizedLabels("EnterOperand1"), pGridObj._getLocalizedLabels("Warning"), ctrlObj);
                 }
                 else if (!($("#" + pGridObj._id + "_conTo").attr("disabled")) && $("#" + pGridObj._id + '_conTo').val() == '') {
-                    ej.Pivot._createErrorDialog(pGridObj._getLocalizedLabels("EnterOperand2"), pGridObj._getLocalizedLabels("Warning"), pGridObj);
+                    ej.Pivot._createErrorDialog(pGridObj._getLocalizedLabels("EnterOperand2"), pGridObj._getLocalizedLabels("Warning"), ctrlObj);
                 }
                 else if ($("#" + pGridObj._id + "_fValue").attr("disabled") && $("#" + pGridObj._id + '_fValue').val() == 'No Measure') {
-                    ej.Pivot._createErrorDialog(pGridObj._getLocalizedLabels("NoMeasure"), pGridObj._getLocalizedLabels("Warning"), pGridObj);
+                    ej.Pivot._createErrorDialog(pGridObj._getLocalizedLabels("NoMeasure"), pGridObj._getLocalizedLabels("Warning"), ctrlObj);
                 }
                 else {
                     pGridObj._applyFormatting();
@@ -6922,16 +6904,22 @@
                 if (condition == true){
                     var Index = pGridObj.ddlEditCondition._selectedIndices[0];
                     pGridObj._removeCellFormatting(Index, condition);
-                    pGridObj.element.find(".e-dialog, .clientDialog").remove();
+
+                    if ($(this).parents(".e-pivotclient").length > 0) {
+                        $(this).parents(".e-pivotclient").find(".e-dialog, .clientDialog").remove();
+                    }
+                    else
+                        pGridObj.element.find(".e-dialog, .clientDialog").remove();
                 }
             });
             $("#" + this._id + "_CancelBtn").click(function () {
                 var pGridObj = null;
-                    if ($(this).parents(".e-pivotclient").length > 0) {
-                        pGridObj = $(this).parents(".e-pivotclient").find(".e-pivotgrid").data("ejPivotGrid");
-                    }
-                    else
-                        pGridObj = $(this).parents(".e-pivotgrid").data("ejPivotGrid");
+                if ($(this).parents(".e-pivotclient").length > 0) {
+                    pGridObj = $(this).parents(".e-pivotclient").find(".e-pivotgrid").data("ejPivotGrid");
+                    $(this).parents(".e-pivotclient").find(".e-dialog, .e-clientDialog").remove();
+                }
+                else
+                    pGridObj = $(this).parents(".e-pivotgrid").data("ejPivotGrid");
                 pGridObj.element.find(".e-dialog, .e-clientDialog").remove();
                 ej.Pivot.closePreventPanel(pGridObj);
             });
@@ -6979,9 +6967,10 @@
                 $("#" + this._id + '_conFrom').val(array[9]);
                 if (array[9] != "undefined" && array[10] != "undefined")
                     $("#" + this._id + '_conTo').val(array[10]);
-                this.ddlFontColor.selectItemByValue(array[2]);
-                this.ddlBackColor.selectItemByValue(array[3]);
-                this.ddlBorderColor.selectItemByValue(array[4]);
+
+                $("#" + this._id + "_fontcolor").ejColorPicker({ value: array[2] });
+                $("#" + this._id + "_backcolor").ejColorPicker({ value: array[3] });
+                $("#" + this._id + "_bordercolor").ejColorPicker({ value: array[4] });
                 this.ddlBorderStyle.selectItemByValue(array[8]);
                 this.ddlBorderWidth.selectItemByValue(array[5]);
                 this.ddlFont.selectItemByValue(array[6]);
@@ -7014,7 +7003,7 @@
                     index = 0;
                 }
                 for (var i = 0; i < this._JSONRecords.length; i++) {
-                    this._JSONRecords[i].CSS = this._JSONRecords[i].CSS.replace(" " + this._cFormat[j].split(",")[0], "");
+                    this._JSONRecords[i].CSS = this._JSONRecords[i].CSS.replace(" " + this._cFormat[j].split(",")[0].replace(/ /g, ""), "");
                 }
             }
             if (flag) {
@@ -7032,9 +7021,10 @@
             this.renderControlFromJSON();
         },
 
-        _applyStyle: function (axis, jsonValue, mValue, val, fv1, fv2, condition, i, format) {
+        _applyStyle: function(axis,jsonValue,mValue,val,fv1,fv2,condition,i,format){
             var css = jsonValue.CSS, isValue = false;
             var value = axis == "rows" ? jsonValue.Index.split(",")[1] : axis == "columns" ? jsonValue.Index.split(",")[0] : null;
+            format = format.replace(/ /g, "");
             if (jsonValue.Value == mValue || mValue == "All") {
                 $.inArray(Number(value), val) == -1 ? val.push(Number(value)) : val;
             }
@@ -7052,8 +7042,8 @@
                 var val = [];
                 var array = this._cFormat[j].split(",");
                 for (var i = 0; i < jsonObj.length; i++) {
-                    if (jsonObj[i].CSS.indexOf(array[0]) === -1) {
-                        this._applyStyle(axis, jsonObj[i], array[11], val, array[9], array[10], array[1], i, this._cFormat[j].split(",")[0]);
+                    if (jsonObj[i].CSS.indexOf(array[0].replace(/ /g, "")) === -1) {
+                        this._applyStyle(axis, jsonObj[i], array[11], val, array[9], array[10], array[1], i, this._cFormat[j].split(",")[0].replace(/ /g, ""));
                     }
                 }
             }
@@ -7068,10 +7058,17 @@
                 return style.sheet;
             })();
             var str = "color: " + fontcolor + "!important;background-color: " + bgcolor + " !important;border:" + borderstyle + " " + borderwidth + "px " + bordercolor + " !important;font:" + fontsize + "px " + fontstyle + " !important;"
-            sheet.insertRule("." + name +"{"+str+"}",0);
+            sheet.insertRule("." + name.replace(/ /g, "") + "{" + str + "}", 0);
         },
 
         _getAxis: function () {
+            if ($(this.element).parents(".e-pivotclient").length > 0) {
+                if (ej.isNullOrUndefined(pivotGridObj) && this.element.hasClass("e-pivotgrid")) {
+                    pivotGridObj = this;
+                }
+                if (this._pivotClientObj.model.operationalMode == ej.Pivot.OperationalMode.ClientMode)
+                    this.setOlapReport($(this.element).parents(".e-pivotclient").data("ejPivotClient").model.dataSource);
+            }
 			if(this.getOlapReport())
 			{
 				var field = null,axis = "";
@@ -7080,7 +7077,7 @@
 				        field = JSON.parse(this.getOlapReport()).PivotCalculations[0].FieldHeader;
 					for (var i = 0; i < this._JSONRecords.length; i++) {
 						if (this._JSONRecords[i].Value == field) {
-							axis = this._JSONRecords[i].CSS == "colheader" ? "columns" : this._JSONRecords[i].CSS == "rowheader" ? "rows" : "";
+						    axis = this._JSONRecords[i].CSS.indexOf("colheader") > -1 ? "columns" : this._JSONRecords[i].CSS.indexOf("rowheader") > -1  ? "rows" : "";
 							break;
 						}
 					}
@@ -7129,12 +7126,12 @@
         },
 
         _applyFormatting: function () {
-			this._isFormatApply = true;
-            var format, formatName, json, index, st, val = [], axis;
+            this._isFormatApply = true;
+            var format, formatName, json, index, st, val = [], axis, cdnTxt, fontcolor, bgcolor, bordercolor, borderrange, fStyle, fSize, borderstyle;
             var isValue = false;
             var fName = $("#" + this._id + '_editConText').val();
             if (!ej.isNullOrUndefined($("#" + this._id + '_conFrom').val())) {
-                this._formatValue1 = $("#" + this._id + '_conFrom').val(), this._formatValue2 = $("#" + this._id + '_conTo').val(), cdnTxt = this.ddlConditionType._selectedValue, fontcolor = this.ddlFontColor._selectedValue, bgcolor = this.ddlBackColor._selectedValue, bordercolor = this.ddlBorderColor._selectedValue,
+                this._formatValue1 = $("#" + this._id + '_conFrom').val(), this._formatValue2 = $("#" + this._id + '_conTo').val(), cdnTxt = this.ddlConditionType._selectedValue, fontcolor = this.ddlFontColor.model.value, bgcolor = this.ddlBackColor.model.value, bordercolor = this.ddlBorderColor.model.value,
                     borderrange = this.ddlBorderWidth._selectedValue, fStyle = this.ddlFont._selectedValue, fSize = this.ddlFontSize._selectedValue, borderstyle = this.ddlBorderStyle._selectedValue;
             }
             st = this.ddlFieldValue._selectedValue != undefined ? this.ddlFieldValue._selectedValue : "";
@@ -7157,12 +7154,12 @@
                             break;
                         }
                         
-                     }
+                    }
                     
                 }
-        }
-        else
-            axis = this._getAxis();
+            }
+            else
+                axis = this._getAxis();
             if (this._formatEdit) {
                 formatName = this._id + "_" + fName.trim().toLowerCase();
                 format = formatName + "," + this.ddlConditionType._selectedValue + "," + fontcolor + "," + bgcolor + "," + bordercolor + "," + borderrange + "," + fStyle + "," + fSize + "," + borderstyle + "," + this._formatValue1 + "," + this._formatValue2 + "," + st;
@@ -7211,6 +7208,8 @@
             }
             this._createDynamicRule(fontcolor, bgcolor, borderstyle, borderrange, bordercolor, fSize, fStyle, formatName);
             this.renderControlFromJSON();
+            if ($(this.element).parents(".e-pivotclient").length > 0)
+                $(this.element).parents(".e-pivotclient").find(".e-dialog, .e-clientDialog").remove();
             this.element.find(".e-dialog, .e-clientDialog").remove();
             this._formatEdit = false;
         },
@@ -7667,18 +7666,18 @@
                     this._waitingPopup.hide();
                 if (!ej.isNullOrUndefined(this._schemaData))
                     this._schemaData.element.find(".schemaNoClick").removeClass("freeze").removeAttr('style');
+                if (this.model.analysisMode == ej.Pivot.AnalysisMode.Pivot && this._calculatedField.length > 0 && this.model.operationalMode == ej.PivotGrid.OperationalMode.ServerMode && this._schemaData != null)
+                    this._schemaButtonCreate();
+                var eventArgs = { action: "initialize", customObject: this.model.customObject, element: this.element };
+                this._trigger("renderSuccess", eventArgs);
+                if (!ej.isNullOrUndefined(msg.Exception)) {
+                    ej.Pivot._createErrorDialog(msg, "Exception", this);
+                }
+                if (this.model.enableAdvancedFilter && this.model.operationalMode == ej.Pivot.OperationalMode.ServerMode && this.model.analysisMode == ej.Pivot.AnalysisMode.Pivot)
+                    this._removeCells(msg);
             }
             catch (err) {
             }
-            if (this.model.analysisMode == ej.Pivot.AnalysisMode.Pivot && this._calculatedField.length > 0 && this.model.operationalMode == ej.PivotGrid.OperationalMode.ServerMode && this._schemaData != null)
-                this._schemaButtonCreate();
-            var eventArgs = { action: "initialize", customObject: this.model.customObject, element: this.element };
-            this._trigger("renderSuccess", eventArgs);
-            if (!ej.isNullOrUndefined(msg.Exception)) {
-                ej.Pivot._createErrorDialog(msg, "Exception", this);
-            }
-            if (this.model.enableAdvancedFilter && this.model.operationalMode == ej.Pivot.OperationalMode.ServerMode && this.model.analysisMode == ej.Pivot.AnalysisMode.Pivot)
-                this._removeCells(msg);
         },
 
         _hideGrandTotal: function (tableGrid) {
@@ -7701,7 +7700,7 @@
                     }
                     else
                         calcGTTh = (this.model.operationalMode == ej.PivotGrid.OperationalMode.ServerMode ? tableGrid.find("th.gtot[role^='columnheader']") : tableGrid.find("th.cgtot[role^='columnheader']"));
-                    for (cLen = 0; cLen < calcGTTh.length; cLen++) {
+                    for (var cLen = 0; cLen < calcGTTh.length; cLen++) {
                         tableGrid.find("[data-p^=\"" + (parseInt($(calcGTTh[cLen]).attr("data-p").split(",")[0])) + ",\"]").hide();
                         tableGrid.find("[data-p^=\"" + (parseInt($(calcGTTh[cLen]).attr("data-p").split(",")[0])) + ",\"]").hide();
                     }
@@ -7709,7 +7708,7 @@
             }
             else {
                 if (this.model.layout == "normal") {
-                    var isCheckSum = true, count = 0, gTotCells;
+                    var isCheckSum = true, count = 0, gTotCells, rwLen;
                     if (this.model.operationalMode == ej.PivotGrid.OperationalMode.ServerMode || this.model.analysisMode == ej.Pivot.AnalysisMode.Olap) {
                         if (!this.model.enableColumnGrandTotal || !this.model.enableGrandTotal) {
                             rwLen = ($(tableGrid).find("thead tr").length || $(tableGrid).find(".pivotGridFrozenTable tr").length);
@@ -7722,7 +7721,7 @@
                                 }
                                 for (var p = 0; p < gTotCells.length; p++) {
                                     var cnt = count, cols = 0, colcel;
-                                    var selectedCell = gTotCells[p]; selectedCellPos = $(selectedCell).attr('data-p'), i = parseInt(selectedCellPos.split(',')[1]) - 1;
+                                    var selectedCell = gTotCells[p]; var selectedCellPos = $(selectedCell).attr('data-p'), i = parseInt(selectedCellPos.split(',')[1]) - 1;
                                     var colspn = $(selectedCell).attr("colspan");
                                     var rowLen = $(tableGrid).find("thead tr").length + $(tableGrid).find("tbody tr").length;
                                     for (var cl = 0; cl < parseInt(colspn) ; cl++) {
@@ -7783,7 +7782,7 @@
                             if (rwLen > 0) {
                                 for (var p = 0; p < gTotCells.length; p++) {
                                     var cnt = count;
-                                    var selectedCell = gTotCells[p]; selectedCellPos = $(selectedCell).attr('data-p'), i = parseInt(selectedCellPos.split(',')[0]) - 1;
+                                    var selectedCell = gTotCells[p]; var selectedCellPos = $(selectedCell).attr('data-p'), i = parseInt(selectedCellPos.split(',')[0]) - 1;
                                     var rwspn = $(selectedCell).attr("rowspan");
                                     var row = $(selectedCell).parent();
                                     for (var rl = 0; rl < selectedCell.rowSpan; rl++) {
@@ -8197,7 +8196,10 @@
                         return false;
                 }, this)
             });
-
+            if (ej.browserInfo().name.indexOf("moz") > -1) {
+                this.element.find(".columns .e-btn, .e-rows .e-btn").addClass("e-pvtBtnIndent");
+                this.element.find(".columns .e-sorting,.e-rows .e-sorting").addClass("e-pvtBtnSort");
+            }
             this.element.find(".e-drag, .values, .columns, .e-grpRow, .e-rows").ejDroppable({
             });
             if (this.element.find(".e-pivotGridTable").find("thead th:eq(1), tbody td.value:eq(0)").length > 0) {
@@ -8308,7 +8310,7 @@
                 this.element.find(".values .e-pvtBtn").width(btnWidth).css({ "text-overflow": "ellipsis" });
             }
             else {
-                if (this.element.find(".values .e-pivotButton").width() > this.element.find(".values").width() || (this.element.find(".e-pivotGridTable").find("thead th:eq(1), tbody td.value:eq(0)").length == 0 && this.element.find(".values .e-pivotButton").length > 0)) {
+                if (this.element.find(".values .e-pivotButton").width() > this.element.find(".values").width() || (!this.model.enableDeferUpdate && this.element.find(".e-pivotGridTable").find("thead th:eq(1), tbody td.value:eq(0)").length == 0 && this.element.find(".values .e-pivotButton").length > 0)) {
                     var btnWidth = this.element.find(".values").width() - ((this.element.find(".values .e-pivotButton").width() - this.element.find(".values .e-pivotButton .e-pvtBtn").width()) + 20);
                     this.element.find(".values .e-pvtBtn").width(btnWidth).css({ "text-overflow": "ellipsis" });
                 }
@@ -8743,7 +8745,7 @@
                     this.model.pivotControl._pagerObj.initPagerProperties(JSON.parse(msg.d[2].Value), JSON.parse(msg.d[1].Value));
             }
             if (this.model.enableGroupingBar) {
-                report = JSON.parse(this.getOlapReport());
+                var report = JSON.parse(this.getOlapReport());
                 this._pivotTableFields = JSON.parse(report.ItemsProperties);
                 this._createGroupingBar(report);
                 this.element.find(".e-grpRow .e-rows").text("");
@@ -8869,7 +8871,7 @@
                 }
                 delete this._fieldMembers[headerTag.split(':')[headerTag.split(':').length - 1]];
                 delete this._fieldSelectedMembers[headerTag.split(':')[headerTag.split(':').length - 1]];
-                filterTag = "", filterItems = "", selectedElement = "", headerTag = "", uniqueName = "", report = "";
+                var filterTag = "", filterItems = "", selectedElement = "", headerTag = "", uniqueName = "", report = "";
                 selectedElement = this.element.find(".e-pivotButton:contains(" + headerText + ")");
                 for (var i = 0; i < this._pivotTableFields.length; i++) {
                     if (this._pivotTableFields[i].name == headerText) {
@@ -9141,7 +9143,7 @@
         },
 		
         saveReport: function (name, storage, url) {
-            var mode;
+            var mode, report;
             if (storage.toLowerCase() == "local")
                 this._trigger("saveReport", ({ report: this.model.operationalMode == ej.PivotGrid.OperationalMode.ClientMode ? this.model.dataSource : this.getOlapReport() }));
             else {
@@ -9243,8 +9245,10 @@
                 },
                 complete: ej.proxy(function (onComplete) {
                     $.proxy(onComplete, this);
-                    var eventArgs = { "action": !ej.isNullOrUndefined(customArgs) && !ej.isNullOrUndefined(customArgs.action) ? customArgs.action : JSON.parse(data)["action"], "customObject": this.model.customObject, element: this.element };
-                    this._trigger("renderComplete", eventArgs);
+                    if (this.model != null) {
+                        var eventArgs = { "action": !ej.isNullOrUndefined(customArgs) && !ej.isNullOrUndefined(customArgs.action) ? customArgs.action : JSON.parse(data)["action"], "customObject": this.model.customObject, element: this.element };
+                        this._trigger("renderComplete", eventArgs);
+                    }
                 }, this),
                 error: ej.proxy(function (msg, textStatus, errorThrown) {
                     if (typeof this._waitingPopup != 'undefined' && this._waitingPopup != null)
@@ -10045,7 +10049,12 @@
             }
             this._unWireEvents();
             this._wireEvents();
-            if ((!this.model.enableVirtualScrolling) && $(tableOlapGrid).find("tr:last > td").length > 0 && ($(tableOlapGrid).find("tr:last").find("td").text() == "" && (!(this.model.operationalMode == ej.PivotGrid.OperationalMode.ClientMode && this.model.analysisMode == ej.Pivot.AnalysisMode.Pivot))) && (this._pagerObj == null))
+            var isClientPaging=false;
+            if ((this._pivotClientObj)) {
+                if (this._pivotClientObj.model.analysisMode == "olap" && this._pivotClientObj.model.operationalMode == "clientmode")
+                    isClientPaging = (this._pivotClientObj.model.enableVirtualScrolling || this._pivotClientObj.model.enablePaging);
+            }
+            if ((!this.model.enableVirtualScrolling && !isClientPaging) && $(tableOlapGrid).find("tr:last > td").length > 0 && ($(tableOlapGrid).find("tr:last").find("td").text() == "" && (!(this.model.operationalMode == ej.PivotGrid.OperationalMode.ClientMode && this.model.analysisMode == ej.Pivot.AnalysisMode.Pivot))) && (this._pagerObj == null))
                 $(tableOlapGrid).find("tr:last").hide();
             if (!this.model.enablePaging && !this.model.enableVirtualScrolling) {
                 this._hideGrandTotal(tableOlapGrid);
@@ -10186,7 +10195,7 @@
                 this._applyFrozenHeaderWidth(jsonObj);
                 this.element.find(".e-pivotGridTable").width("auto");
             }
-            if (this.model.enableVirtualScrolling) {
+            if (this.model.enableVirtualScrolling && ej.isNullOrUndefined(this._pivotClientObj)) {
                 this._createVirtualPivotGrid(tableOlapGrid);
                 if (this.model.enableGroupingBar)
                     this._createFields(null, $("#" + this._id).find(".e-pivotGridTable").width(), $("#" + this._id).find(".e-pivotGridTable th").outerWidth());
@@ -10310,6 +10319,11 @@
             if (this.model.enableGroupingBar && this.element.find(".e-pivotGridTable").width() > 0) {
                 if (!(this.element.find(".values .e-pvtBtn, .columns .e-pvtBtn").length == 0 && this.model.operationalMode == ej.Pivot.OperationalMode.ServerMode && this.model.analysisMode == ej.Pivot.AnalysisMode.Pivot) && (this.element.find("tbody .value").length > 0 && this.element.find("thead tr").length > 0))
                     this.element.find(".groupingBarPivot").width(this.element.find(".e-pivotGridTable").width());
+                if (this.model.enableColumnResizing) {
+                    this.element.find(".groupingBarPivot").css({ "overflow": "hidden" });
+                    if ((this.element.find(".e-pivotGridTable").width() + 1) == this.element.width())
+                        this.element.find(".groupingBarPivot").css({ "width": "100%" });
+                }
             }
             if (this.model.frozenHeaderSettings.enableFrozenHeaders || this.model.frozenHeaderSettings.enableFrozenColumnHeaders || this.model.frozenHeaderSettings.enableFrozenRowHeaders)
                 this._applyFrozenHeaderWidth(this._JSONRecords);
@@ -10494,6 +10508,7 @@
        },
 
         _renderFrozenGridTable: function (tableOlapGrid, colHeader, tableBody) {
+            var tRow1, frozenRowTable, frozenValTable, tbodyFrozenCol, tbodyFrozenRow, tbodyFrozenVal;
             var frozenColTable = $("<table class=\"pivotGridFrozenTable\" style='height:47px' ></table>"),
                 frozenRowTable = $("<table class=\"pivotGridRowTable\" ></table>");
                 frozenValTable = $("<table class=\"pivotGridValueTable\" ></table>");
@@ -10680,6 +10695,10 @@
                         this.element.find(" .groupingBarPivot").width("100%");
                         var colTableWidth = this.element.find(".pivotGridRowTable").width();
                         this.element.find(".e-grpRow ,.values").width(colTableWidth);
+                        if (this.element.find(".rowhead").width() < this.element.find(".colfreeze").width()) {
+                            this.element.find(".colfreeze").width(this.element.find(".rowhead").width());
+                            this.element.find(".columns").width("auto");
+                        }
                         this.element.find(".columns").css({ "height": "auto", width: "calc(100% -  " + this.element.find(".values").width() + ")" });
                     }
                 }
@@ -10925,8 +10944,8 @@
             this._setGroupingBarFrozenRowBtnWidth();
         },
         _cellRangeInfo: function (e) {
-            var pGridObj = $(e.target).parents(".e-pivotgrid").data("ejPivotGrid");
-            if ($(this.element).parents(".e-pivotclient").length > 0 && this._pivotClientObj.model.enableDrillThrough && this.model.operationalMode == ej.Pivot.OperationalMode.ServerMode)
+            var pGridObj = $(e.target).parents(".e-pivotgrid").data("ejPivotGrid"), isPivotClient = (($(this.element).parents(".e-pivotclient").length > 0) || $(this.element).parents(".e-maximumView").length > 0);
+            if (isPivotClient && this._pivotClientObj.model.enableDrillThrough && this.model.operationalMode == ej.Pivot.OperationalMode.ServerMode)
                 this._dataSet = this._pivotClientObj.dataSet;
             if ($(e.target).hasClass("cellValue")) e.target = e.target.parentElement;
             var colHaederLength = $("thead tr").length, selectedCellsDetails = [], selectedCells = [], j = 0, l = 0, pivotReport = {};
@@ -11034,22 +11053,22 @@
                 else
                     this._trigger("cellClick", eventArgs);
             }
-            if ((this.model.enableDrillThrough || ($(this.element).parents(".e-pivotclient").length > 0) && this._pivotClientObj.model.enableDrillThrough) && selectedCellsDetails.length > 0) {
-                var control = $(this.element).parents(".e-pivotclient").length > 0 && this._pivotClientObj.model.enableDrillThrough ? this._pivotClientObj : this;
-                 control._trigger("drillThrough", eventArgs);
-    }
+            if ((this.model.enableDrillThrough || isPivotClient && this._pivotClientObj.model.enableDrillThrough) && selectedCellsDetails.length > 0) {
+                var control = isPivotClient && this._pivotClientObj.model.enableDrillThrough ? this._pivotClientObj : this;
+                control._trigger("drillThrough", eventArgs);
+            }
 },
 
         _initCellEditing: function (e) {
             if (e.target.tagName != "INPUT" && !$(e.target).hasClass("summary") && !$(e.target).parent().hasClass("summary")) {
                 this._on(this.element, "mouseup", ".value", this._completeCellEditing);
                 var targetCell;
-                _oriX = e.pageX, _oriY = e.pageY;
+                this._oriX = e.pageX, this._oriY = e.pageY;
                 targetCell = e.target || window.event.srcElement;
                 if ($(targetCell).hasClass("cellValue")) targetCell = $(targetCell).parent()[0];
                 $(".value").addClass("selection");
                 $("#" + this._id).append(ej.buildTag("div.e-cellSelection#" + this._id + "_cellSelection", "", {}));
-                _startPosCell = $(targetCell)[0].attributes.getNamedItem("data-p").value;
+                this._startCellPosition = $(targetCell)[0].attributes.getNamedItem("data-p").value;
                 this._on(this.element, "mousemove", ".value, .e-cellSelection", this._cellSelection);
             }
             else
@@ -11076,22 +11095,22 @@
                     this._off(this.element, "mouseup", ".value");
                     return false;
                 }
-                for (var rowSelCnt = (parseInt(_startPosCell.split(",")[1]) < parseInt(endPosCell.split(",")[1]) ? parseInt(_startPosCell.split(",")[1]) : parseInt(endPosCell.split(",")[1])) ; rowSelCnt <= (parseInt(_startPosCell.split(",")[1]) > parseInt(endPosCell.split(",")[1]) ? parseInt(_startPosCell.split(",")[1]) : parseInt(endPosCell.split(",")[1])) ; rowSelCnt++) {
+                for (var rowSelCnt = (parseInt(this._startCellPosition.split(",")[1]) < parseInt(endPosCell.split(",")[1]) ? parseInt(this._startCellPosition.split(",")[1]) : parseInt(endPosCell.split(",")[1])) ; rowSelCnt <= (parseInt(this._startCellPosition.split(",")[1]) > parseInt(endPosCell.split(",")[1]) ? parseInt(this._startCellPosition.split(",")[1]) : parseInt(endPosCell.split(",")[1])) ; rowSelCnt++) {
                     if (this.model.analysisMode == ej.Pivot.AnalysisMode.Olap || $("#" + this._id).find("td[data-p*='," + rowSelCnt + "']").parent().is(":visible")) {
-                        for (var colSelCnt = (parseInt(_startPosCell.split(",")[0]) < parseInt(endPosCell.split(",")[0]) ? parseInt(_startPosCell.split(",")[0]) : parseInt(endPosCell.split(",")[0])) ; colSelCnt <= (parseInt(_startPosCell.split(",")[0]) > parseInt(endPosCell.split(",")[0]) ? parseInt(_startPosCell.split(",")[0]) : parseInt(endPosCell.split(",")[0])) ; colSelCnt++) {
+                        for (var colSelCnt = (parseInt(this._startCellPosition.split(",")[0]) < parseInt(endPosCell.split(",")[0]) ? parseInt(this._startCellPosition.split(",")[0]) : parseInt(endPosCell.split(",")[0])) ; colSelCnt <= (parseInt(this._startCellPosition.split(",")[0]) > parseInt(endPosCell.split(",")[0]) ? parseInt(this._startCellPosition.split(",")[0]) : parseInt(endPosCell.split(",")[0])) ; colSelCnt++) {
                             if (this.model.analysisMode == ej.Pivot.AnalysisMode.Olap || $("#" + this._id).find("[data-p*='" + colSelCnt + ",']").last("th").is(":Visible") || (!this.model.enableGrandTotal || !this.model.enableRowGrandTotal)) {
                                 cellInfo[count] = this.getJSONRecords()[((colSelCnt) * this._rowCount) + rowSelCnt];
-                                if (!$("[data-p=" + "'" + colSelCnt + ',' + rowSelCnt + "'" + "]").hasClass("summary")) {
-                                    if ($("[data-p=" + "'" + colSelCnt + ',' + rowSelCnt + "'" + "] span.cellValue").length > 0) {
-                                        var value = this.model.analysisMode == ej.Pivot.AnalysisMode.Olap ? ($("[data-p=" + "'" + colSelCnt + ',' + rowSelCnt + "'" + "] span.cellValue").text() != "" ? $("[data-p=" + "'" + colSelCnt + ',' + rowSelCnt + "'" + "] span.cellValue").text() : $(".curInput").val()) : $("[data-p=" + "'" + colSelCnt + ',' + rowSelCnt + "'" + "] span.cellValue").text();
-                                        $("[data-p=" + "'" + colSelCnt + ',' + rowSelCnt + "'" + "] span.cellValue").html("<input type='text' class='curInput' value='" + value + "' />");
+                                if (!this.element.find("[data-p=" + "'" + colSelCnt + ',' + rowSelCnt + "'" + "]").hasClass("summary")) {
+                                    if (this.element.find("[data-p=" + "'" + colSelCnt + ',' + rowSelCnt + "'" + "] span.cellValue").length > 0) {
+                                        var value = this.model.analysisMode == ej.Pivot.AnalysisMode.Olap ? (this.element.find("[data-p=" + "'" + colSelCnt + ',' + rowSelCnt + "'" + "] span.cellValue").text() != "" ? this.element.find("[data-p=" + "'" + colSelCnt + ',' + rowSelCnt + "'" + "] span.cellValue").text() : this.element.find(".curInput").val()) : this.element.find("[data-p=" + "'" + colSelCnt + ',' + rowSelCnt + "'" + "] span.cellValue").text();
+                                        this.element.find("[data-p=" + "'" + colSelCnt + ',' + rowSelCnt + "'" + "] span.cellValue").html("<input type='text' class='curInput' value='" + value + "' />");
                                     }
-                                    else if ($("[data-p=" + "'" + colSelCnt + ',' + rowSelCnt + "'" + "]").children().length > 0) {
-                                        $("[data-p=" + "'" + colSelCnt + ',' + rowSelCnt + "'" + "]").append("<input type='text' class='curInput' value='' />");
+                                    else if (this.element.find("[data-p=" + "'" + colSelCnt + ',' + rowSelCnt + "'" + "]").children().length > 0) {
+                                        this.element.find("[data-p=" + "'" + colSelCnt + ',' + rowSelCnt + "'" + "]").append("<input type='text' class='curInput' value='' />");
                                     }
                                     else {
-                                        var value = this.model.analysisMode == ej.Pivot.AnalysisMode.Olap ? ($("[data-p=" + "'" + colSelCnt + ',' + rowSelCnt + "'" + "]").text() != "" ? $("[data-p=" + "'" + colSelCnt + ',' + rowSelCnt + "'" + "]").text() : $(".curInput").val()) : $("[data-p=" + "'" + colSelCnt + ',' + rowSelCnt + "'" + "]").text();
-                                        $("[data-p=" + "'" + colSelCnt + ',' + rowSelCnt + "'" + "]").html("<input type='text' class='curInput' value='" + value + "' />");
+                                        var value = this.model.analysisMode == ej.Pivot.AnalysisMode.Olap ? (this.element.find("[data-p=" + "'" + colSelCnt + ',' + rowSelCnt + "'" + "]").text() != "" ? this.element.find("[data-p=" + "'" + colSelCnt + ',' + rowSelCnt + "'" + "]").text() : this.element.find(".curInput").val()) : this.element.find("[data-p=" + "'" + colSelCnt + ',' + rowSelCnt + "'" + "]").text();
+                                        this.element.find("[data-p=" + "'" + colSelCnt + ',' + rowSelCnt + "'" + "]").html("<input type='text' class='curInput' value='" + value + "' />");
                                     }
                                 }
                                 var rowInfo, rowValue = "";
@@ -11174,11 +11193,12 @@
                 }
                 this._originalValue = "";
                 this._cellInfo = cellInfo;
+                var colHeader, rowHeader;
                 for (var index = 0; index < this.element.find(".curInput").length; index++) {
                     var cell = this.element.find(".curInput")[index];
                     this._originalValue += this._originalValue == "" ? cell.value : "#" + cell.value;
                 }
-                args = { JSONRecords: cellInfo, rowHeader: this._rowHeader, columnHeader: this._colHeader, measureCount: (measureRowCount > 0 ? ("Row:" + measureRowCount) : ("Column:" + measureColCount)) }
+                var args = { JSONRecords: cellInfo, rowHeader: this._rowHeader, columnHeader: this._colHeader, measureCount: (measureRowCount > 0 ? ("Row:" + measureRowCount) : ("Column:" + measureColCount)) }
                 if (!ej.isNullOrUndefined(this._pivotClientObj))
                     this._pivotClientObj._trigger("cellSelection", args);
                 else
@@ -11190,17 +11210,18 @@
                 }
                 this._off(this.element, "mouseup", ".value");
             }
-            $(".curInput").keypress(function (event) {
+            this.element.find(".curInput").keypress(function (event) {
                 if (event.which == 13) {
                     var pGridObj = $(event.target).parents(".e-pivotgrid").data("ejPivotGrid");
-                    pGridObj._updateTableCell();
+                    if(!ej.isNullOrUndefined(pGridObj))
+                     pGridObj._updateTableCell();
                 }
             })
         },
 
         _updateTableCell: function () {
             var updateValue = "", tempVal = "";
-            var editValue = $(".curInput");
+            var editValue = this.element.find(".curInput");
             $.each(editValue, function (index, cell) {
                 updateValue += index == 0 ? cell.value : "#" + cell.value;
             })
@@ -11217,6 +11238,7 @@
                 }
                 else {
                     originalValueCmp.push(this._originalValue.split("#")[i]);
+                    if(!ej.isNullOrUndefined(this._cellInfo[i]))
                     this._cellInfo[i].Value = tempVal[i] = tempVal[i] == "" ? "0" : tempVal[i];
                 }
             }
@@ -11227,7 +11249,7 @@
             }
             if (updateValue.length == 0) {
                 for (var j = editValue.length - 1; j >= 0; j--) {
-                    $(editValue[j]).closest("td").text($(".curInput")[j].value)
+                    $(editValue[j]).closest("td").text(this.element.find(".curInput")[j].value)
                 }
                 return false;
             }
@@ -11249,7 +11271,7 @@
                     this.model.editCellsInfo = { JSONRecords: [], rowHeader: [], columnHeader: [] };
 
                 var rowHeaders = this.model.editCellsInfo.rowHeader, colHeaders = this.model.editCellsInfo.columnHeader, values = this.model.editCellsInfo.JSONRecords, updateValueArray = this._cellInfo;
-                for (uV = 0; uV < updateValueArray.length; uV++) {
+                for (var uV = 0; uV < updateValueArray.length; uV++) {
                     var existCount = 0;
                     for (var vC = 0; vC < values.length; vC++) {
                         if (rowHeaders[vC] == rowHeaderName[uV] && colHeaders[vC] == columnHeaderName[uV]) {
@@ -11367,7 +11389,7 @@
 
         LabelFilters: "Label Filters  ",
         BeginsWith: "Begins With",
-        DoesNotBeginsWith: "Does Not Begins With",
+        DoesNotBeginsWith: "Does Not Begin With",
         EndsWith: "Ends With",
         NotEndsWith: "Not Ends With",
         DoesNotEndsWith: "Does Not End With",
@@ -11419,7 +11441,7 @@
         Goal: "Goal",
         Status: "Status",
         Trend: "Trend",
-        Value: "value",
+        Value: "Value",
         ConditionalFormattingErrorMsg: "The given value is not matched",
         ConditionalFormattingConformMsg: "Are you sure you want to remove the selected format?",
         EnterOperand1: "Enter Operand1",
@@ -11439,20 +11461,6 @@
         Fontstyle: "Font Style",
         Bordercolor: "Border Color",
         NoMeasure: "Please add any measure",
-        AliceBlue: "AliceBlue",
-        Black: "Black",
-        Blue: "Blue",
-        Brown: "Brown",
-        Gold: "Gold",
-        Green: "Green",
-        Lime: "Lime",
-        Maroon: "Maroon",
-        Orange: "Orange",
-        Pink: "Pink",
-        Red: "Red",
-        Violet: "Violet",
-        White: "White",
-        Yellow: "Yellow",
         Solid: "Solid",
         Dashed: "Dashed",
         Dotted: "Dotted",
@@ -11492,7 +11500,7 @@
         EmptyField: "Please enter Calculated field name or formula",
         NotValid: "Given formula is not valid",
         NotPresent: "Value field used in any of the Calculated Field formula is not present in the PivotGrid",
-        Confirm: "Calculated field with the same name already exists. Due to want to Replace ?",
+        Confirm: "Calculated field with the same name already exists. Do you want to Replace ?",
         CalcValue: "Calculated field can be inserted only in value area field",
         NoRecordsToDisplay: "No records to display.",
          NumberFormatting: "Number Formatting",
@@ -11516,7 +11524,7 @@
         ToolTip: "Tool Tip",
         RTL: "RTL",
         CollapseByDefault: "Collapse By Default",
-        EnableDisablePaging: "Enalbe / Disable Paging",
+        EnableDisablePaging: "Enable / Disable Paging",
         PagingOptions: "Paging Options",
         CategoricalPageSize: "Categorical Page Size",
         SeriesPageSize: "Series Page Size",
@@ -11563,7 +11571,8 @@
         DuplicateFormatName: "Duplicate Format Name",
         EnterFormatName: "Enter Format Name",
         NotAllItemsShowing: "Not all child nodes are shown",
-        EditorLinkPanelAlert: "The members has more than 1000 items under one or more parent. Only the first 1000 items are displayed under each parent."
+        EditorLinkPanelAlert: "The members have more than 1000 items under one or more parent. Only the first 1000 items are displayed under each parent.",
+        Exception: "Exception"
        };
 
     ej.PivotGrid.ExportOptions = {

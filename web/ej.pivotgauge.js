@@ -468,12 +468,12 @@
                         var num = parseFloat("." + String(num).split('.')[1]);
                         num = num.toFixed(4);
                         var decimal = "1";
-                        for (z = 0; z < String(num).length - 2; z++) {
+                        for (var z = 0; z < String(num).length - 2; z++) {
                             decimal += "0";
                         }
                         num = num * decimal;
                         decimal = parseInt(decimal);
-                        for (z = 2; z < num + 1; z++) {
+                        for (var z = 2; z < num + 1; z++) {
                             if (num % z == 0 && decimal % z == 0) {
                                 num = num / z;
                                 decimal = decimal/z;
@@ -762,7 +762,7 @@
                 }
             }
             else {
-                for (key in this._gaugeObj) {
+                for (var key in this._gaugeObj) {
                     this._gaugeObj[key].refresh();
                 }
             }
@@ -1004,11 +1004,13 @@
                 elInfo.Value = "";
                 elInfo.DoubleValue = 0;
                 if (!(ej.browserInfo().name == "msie" && ej.browserInfo().version <= 8)) {
-                    for (var el in colEl) {
-                        if (colEl[parseInt(el)].CSS.indexOf("summary col") > -1 || colEl[parseInt(el)].CSS.indexOf("summary cgtot calc") > -1)
+                   var el = 0;
+                   for (i=0;i< colEl.length; i++){
+                        el = i;
+                        if (colEl[i].CSS.indexOf("summary col") > -1 || colEl[i].CSS.indexOf("summary cgtot calc") > -1)
                             getMesure = true;
-                        if (getMesure && colEl[parseInt(el)].Info.indexOf("[Measures]") > -1 || colEl[parseInt(el)].CSS.indexOf("summary cgtot calc") > -1)
-                            elInfo.Measure = colEl[parseInt(el)].Value;
+                        if (getMesure && colEl[i].Info.indexOf("[Measures]") > -1 || colEl[i].CSS.indexOf("summary cgtot calc") > -1)
+                            elInfo.Measure = colEl[i].Value;
                     }
                     if (getMesure && !(baseObj._dataModel == "Pivot")) {
                         elInfo.Value = colEl[parseInt(el)].ActualValue;
@@ -1078,7 +1080,8 @@
 
     ej.PivotGauge.Locale["en-US"] = {
         RevenueGoal: "Revenue Goal",
-        RevenueValue: "Revenue Value"
+        RevenueValue: "Revenue Value",
+        Exception: "Exception"
     };
 
     ej.PivotGauge.NumberFormat = {

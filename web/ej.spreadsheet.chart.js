@@ -10,11 +10,11 @@
     ej.spreadsheetFeatures.chart.prototype = {
         createChart: function (range, options) {
             var xlObj = this.XLObj;
-            if (!xlObj.model.allowCharts || xlObj.model.isReadOnly)
+            if (!xlObj.model.allowCharts || (xlObj.getSheet()._isLoaded && xlObj.model.isReadOnly))
                 return;
             options = options || {};
             var cnt, chartElem, chartOptions, details, cellIdx, cellInfo, chartModel, chartRange, type = "chart",
-                sheetIdx = xlObj._getSheetIndex(options.sheetIdx), sheet = xlObj.getSheet(sheetIdx), sId, formulaBar, formulaWt;
+                sheetIdx = xlObj._getSheetIndex(options.sheetIdx), sheet = xlObj.getSheet(sheetIdx), sId, formulaBar, formulaWt, isRowLesser = false;
             if (xlObj._isUndoRedo) {
                 sId = options.id.split("_");
                 cnt = sId[sId.length - 1].replace(/[a-z]/g, '');
@@ -40,7 +40,14 @@
             options.width = options.width ? options.width : xlObj.model.chartSettings.width;
             options.top = options.top ? options.top : cellInfo.top + 2;
             options.left = options.left ? options.left : cellInfo.left + 2;
-            options.isRowColSwitched = options.isRowColSwitched ? options.isRowColSwitched : false;
+            if (options.range) {
+                rDiff = options.range[2] - options.range[0];
+                cDiff = options.range[3] - options.range[1];
+                if (rDiff < cDiff) {
+                    isRowLesser = true;
+                }
+            }
+            options.isRowColSwitched = isRowLesser ? true : options.isRowColSwitched ? options.isRowColSwitched : false;
             cellIdx = xlObj._getIdxWithOffset(options.top, options.left, true);
             options.rowIndex = cellIdx.rowIdx;
             options.colIndex = cellIdx.colIdx;
@@ -87,9 +94,9 @@
             xlObj._on(chartElem, ej.eventType.mouseDown, xlObj._mouseDownHandler);
             xlObj._on(chartElem, ej.eventType.mouseMove, xlObj._mouseMove);
             chartElem.height(chartElem.height() - 5); // SVG parent div increases height of 5px.
-            xlObj.setSheetFocus();
+            xlObj._setSheetFocus();
             if (!xlObj._isSheetNavigate && (!sheet._isImported || sheet._isLoaded) && !xlObj._isUndoRedo && !xlObj._isPaste && !xlObj.XLClipboard._isShape) {
-                details = { sheetIndex: sheetIdx, reqType: "shape", shapeType: "chart", action: "create", options: options, range: options.range, id: options.id, position: { top: options.top, left: options.left }, operation: "create" };
+                details = { sheetIndex: sheetIdx, reqType: "shape", shapeType: "chart", action: "create", options: options, range: options.range, id: options.id, position: { top: options.top, left: options.left }, operation: "create", seriesRange: options.seriesRange, isChartSeries: options.isChartSeries };
                 xlObj._completeAction(details);
                 xlObj._trigActionComplete(details);
 
@@ -157,6 +164,9 @@
                     cProp.xAxis.range = (cProp.isChartSeries) ? null : chartRange.xRange;
                     cProp.yAxis.range = (cProp.isChartSeries) ? null : chartRange.yRange;
                     options.series = cOptions.series;
+                } else if (options.seriesRange) {
+                    cProp.seriesRange = options.seriesRange;
+                    cOptions = this._processSeriesValues(cProp);
                 }
                 $("#" + id).ejChart("option", options);
                 if ("left" in options || "top" in options) {
@@ -211,7 +221,7 @@
        },
 
         _processChartRange: function (range, dataSheetIdx, opt) {
-            var xlObj = this.XLObj, xRange, yRange, lRange, trVal, blVal, tlVal, minr = range[0], minc = range[1],
+            var xlObj = this.XLObj, xRange, yRange, lRange, trVal, blVal, tlVal, minr = range[0], minc = range[1], isStringSeries = false,
                 maxr = range[2], maxc = range[3], isSingleRow = minr === maxr, isSingleCol = minc === maxc;           
             trVal = xlObj.XLEdit.getPropertyValue(minr, maxc, "value2", dataSheetIdx);
             trVal = xlObj.XLEdit._parseValue(trVal).value;
@@ -219,13 +229,15 @@
             blVal = xlObj.XLEdit._parseValue(blVal).value;
             tlVal = xlObj.XLEdit.getPropertyValue(minr, minc, "value2", dataSheetIdx);
             tlVal = xlObj.XLEdit._parseValue(tlVal).value;
+			if(!xlObj.isNumber(blVal) || !tlVal)
+				isStringSeries = true;
             if (xlObj.isUndefined(tlVal) && !isSingleRow && !isSingleCol || (opt.type == "scatter" && range[3] - range[1] == 1)) {
                 xRange = [minr + 1, minc, maxr, minc];
                 yRange = [minr + 1, minc + 1, maxr, maxc];
                 lRange = [minr, minc + 1, minr, maxc];
             }
-            else if ((!ej.isNullOrUndefined(blVal) && !xlObj.isNumber(blVal) && !isSingleRow && !isSingleCol)) {
-                if (!ej.isNullOrUndefined(trVal)) {
+            else if ((!ej.isNullOrUndefined(blVal) && isStringSeries && !isSingleRow && !isSingleCol)) {
+                if (!ej.isNullOrUndefined(trVal) && (!xlObj.isNumber(trVal) || !tlVal)) {
                     xRange = [minr + 1, minc, maxr, minc];
                     yRange = [minr + 1, minc + 1, maxr, maxc];
                     lRange = [minr, minc + 1, minr, maxc];
@@ -313,7 +325,7 @@
                 chartProp[i] = { xValues: [], yValues: [], lValues: [] };
                 xrange = chartrange[i].xRange;
                 if (!ej.isNullOrUndefined(xrange)) {
-                    xValues = this._processRangeValues(xrange);
+                    xValues = this._processRangeValues(xrange, options.dataSheetIdx);
                     for (var p = 0; p < xValues.length; p++) {
 						if(xValues[p] instanceof Date)
 						   xValues[p] = xValues[p].toLocaleDateString(ej.cultureObject.name);
@@ -328,7 +340,7 @@
                 }
                 yrange = chartrange[i].yRange;
                 if (!ej.isNullOrUndefined(yrange)) {
-                    yValues = this._processRangeValues(yrange);
+                    yValues = this._processRangeValues(yrange, options.dataSheetIdx);
                     for (var s = 0; s < yValues.length; s++){
 						yVal = yValues[s];
 						if(xlObj.isNumber(yVal))
@@ -348,7 +360,7 @@
                 }
                 lrange = chartrange[i].lRange;
                 if (!ej.isNullOrUndefined(lrange)) {
-                    lValues = this._processRangeValues(lrange);
+                    lValues = this._processRangeValues(lrange, options.dataSheetIdx);
                     for (var r = 0; r < lValues.length; r++){
 						if(lValues[r] instanceof Date)
 						   lValues[r] = lValues[r].toLocaleDateString(ej.cultureObject.name);
@@ -378,20 +390,20 @@
             return { series: sArr };
         },
 
-        _processRangeValues: function (range) {
+        _processRangeValues: function (range, dataSheetIdx) {
             var xlObj = this.XLObj, values, ranges, value;
             if (range.indexOf(":") >= 0)
-                values = xlObj._toArrayData(xlObj.getRangeData({ range: range, property: ["value"], sheetIdx: range.dataSheetIdx }));
+                values = xlObj.getRangeData({ range: range, property: ["value"], sheetIdx: dataSheetIdx, valueOnly: true, skipFormula: true });
             else if (range.indexOf(",") >= 0) {
                 ranges = range.split(",");
                 values = [];
                 for (var x = 0; x < ranges.length; x++) {
-                    value = xlObj._toArrayData(xlObj.getRangeData({ range: ranges[x], property: ["value"], sheetIdx: range.dataSheetIdx }))[0];
+                    value = xlObj.getRangeData({ range: ranges[x], property: ["value"], sheetIdx: dataSheetIdx, valueOnly: true, skipFormula: true });
                     values.push(value);
                 }
             }
             else
-                values = xlObj._toArrayData(xlObj.getRangeData({ range: range, property: ["value"], sheetIdx: range.dataSheetIdx }));
+                values = xlObj.getRangeData({ range: range, property: ["value"], sheetIdx: dataSheetIdx, valueOnly: true, skipFormula: true });
             return values;
         },
      

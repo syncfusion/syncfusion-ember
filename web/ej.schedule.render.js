@@ -964,7 +964,7 @@
                     case "showQuickWindow":
                         this.model.showQuickWindow = options[prop];
                         if (ej.isNullOrUndefined(this._quickAppointWindow) && this.model.showQuickWindow) this._renderQuickWindow();
-                        if (!ej.isNullOrUndefined(this._quickAppointWindow)) {
+                        if (!ej.isNullOrUndefined(this._quickAppointWindow) && this._quickAppointWindow.data("ejDialog")) {
                             this._quickAppointWindow.ejDialog("close");
                             this._quickAppDetailsWindow.ejDialog("close");
                         }
@@ -1120,6 +1120,7 @@
             this._appId = this._parentId = 1;
             this._recurrenceEditor=null;
             this._groupAutoDrag = false;
+            this._recurEditWindow = null;
             this._groupEdit = false;
             this._leftStartTime = false;
             this._deleteRecurrence = "";
@@ -1164,7 +1165,7 @@
             String.prototype.trim = String.prototype.trim || function () { return this.replace(/^\s+|\s+$/g, ''); };
             String.prototype.capitalizeFirstString = String.prototype.capitalizeFirstString || function () { return this.charAt(0).toUpperCase() + this.slice(1); };
             Date.prototype.parseISO8601 = function (date) {
-                var safariDate = new Date(date), isTrue = ((ej.browserInfo().name == "webkit" && !ej.isTouchDevice()) || (ej.browserInfo().name == "msie" && ej.browserInfo().version == "9.0"));
+                var safariDate = new Date(date), isTrue = ((ej.browserInfo().name == "webkit") || (ej.browserInfo().name == "msie" && ej.browserInfo().version == "9.0"));
                 safariDate = new Date(safariDate.getTime() + (safariDate.getTimezoneOffset() * 60000));
                 return (typeof (date) === 'string') ? date.indexOf("Date") != -1 ? new Date(parseInt(date.match(/\d+/).toString())) : date.indexOf("T") != -1 ? (isTrue) ? new Date(safariDate) : new Date(date) : new Date(date.replace(/-/g, "/")) : new Date(date);
             };
@@ -1265,6 +1266,7 @@
             this._on(this.element, "mouseout", "td.e-alldaycells,td.e-workcells:not('.e-resourceheadercells'),td.e-monthcells:not('.e-othermonths'),td.e-agendacells", $.proxy(this._onCellMouseOver, this));
             this._on(this.element, "click", ".e-workcells,.e-alldaycells,.e-alldayappointment,.e-monthcells:not('.e-othermonths'),.e-agendacells", $.proxy(this._cellSelection, this));
             if (!this._mediaQuery && !ej.isTouchDevice()) {
+                this._on($(window), ej.eventType.mouseUp, $.proxy(this._mouseUp, this));
                 this._on(this.element, ej.eventType.mouseDown, "td.e-workcells,td.e-monthcells:not('.e-othermonths'),td.e-alldaycells", $.proxy(this._mouseButtonClick, this));
                 this._on(this.element, "keydown click", "td.e-workcells,td.e-monthcells:not('.e-othermonths'),td.e-alldaycells", $.proxy(this._shiftSelection, this));
             }
@@ -1294,6 +1296,10 @@
             this._scheduleDrawer.ejNavigationDrawer("open");
         },
 
+         _mouseUp: function (e) {
+             $(this.element.find('div.e-draggableworkarea tr')).off(ej.eventType.mouseMove);
+         },
+     
         _mouseButtonClick: function (e) {
             if (!(e.altKey) && !(e.shiftKey) && !(e.ctrlKey) && (e.which != 3)) {
                 if ((e.which == 1 || e.type == "touchstart") && !$(e.target).hasClass("e-resourceheadercells") && !$(e.target).hasClass("e-othermonths")) {
@@ -1302,7 +1308,6 @@
                     ($(oEl).hasClass("e-alldaycells")) && (oRowCell = this.element.find(".e-alldaycells").parent());
                     if ($(oEl).hasClass("e-selectedAppointment")) {
                         this.element.find('.e-selectedAppointment').removeClass("e-selectedAppointment");
-                        $(oRowCell[0].cells[0]).addClass("e-selectedCell").attr("tabIndex", 0).focus();
                     }
                     this._currentRowIndex = $(oEl).parent()[0].rowIndex;
                     this._currentColIndex = $(oEl)[0].cellIndex;
@@ -1339,6 +1344,15 @@
             }
         },
         _mouseSelection: function (e, proxy, oE1, currTarget) {
+			var viewBound = proxy.element.find('.e-draggableworkarea')[0].getBoundingClientRect();			
+			if (proxy.model.orientation == "vertical" &&  proxy._customOrientation == "vertical") {
+			if(viewBound.top + this.element.find(".e-workcells").height() > e.pageY) {
+				proxy.element.find("#" + this._id + "_scroller").ejScroller({ scrollTop:  proxy.element.find(".e-draggableworkarea").scrollTop() - proxy.element.find(".e-workcells").height()});
+			} 
+			else if(viewBound.bottom < e.pageY + this.element.find(".e-workcells").height()) {
+				proxy.element.find("#" + this._id + "_scroller").ejScroller({ scrollTop:  proxy.element.find(".e-draggableworkarea").scrollTop() + proxy.element.find(".e-workcells").height()});
+			}
+			} 
             var oRowCell = proxy.element.find('div.e-draggableworkarea tr');
             var sourceRowIndex = $(oE1).parent().index();
             var sourceColumnIndex = $(oE1).index();
@@ -1437,12 +1451,17 @@
                     if (sourceRowIndex == currentRowIndex && sourceColumnIndex >= parseInt(resmincolindex) && sourceColumnIndex <= parseInt(resmaxcolindex) - 1 && currentColumnIndex != "undefined") {
                         if (currentColumnIndex > sourceColumnIndex) {
                             for (var j = sourceColumnIndex ; j <= currentColumnIndex; j++)
-                                $(oRowCell[currentRowIndex].cells[j]).addClass("e-selectedCell").attr("tabIndex", 0).focus();
+                                $(oRowCell[currentRowIndex].cells[j]).addClass("e-selectedCell").attr("tabIndex", 0).focus();  
+							 var num = proxy.element.find(".e-selectedCell").length;
+							 var left = proxy.element.find(".e-selectedCell")[num - 1].offsetLeft + proxy.element.find(".e-workcells").width();
+			                 if (left >= (proxy.element.find(".e-draggableworkarea").scrollLeft() + viewBound.width - 1 )) proxy.element.find("#" + this._id + "_scroller").ejScroller({ scrollLeft:  proxy.element.find(".e-draggableworkarea").scrollLeft() + proxy.element.find(".e-workcells").width()});							
                         }
                         else if (currentColumnIndex <= sourceColumnIndex) {
                             for (var j = sourceColumnIndex ; j >= currentColumnIndex; j--)
                                 $(oRowCell[currentRowIndex].cells[j]).addClass("e-selectedCell").attr("tabIndex", 0).focus();
-                        }
+			                var left = proxy.element.find(".e-selectedCell")[0].offsetLeft;
+			                if (left <= proxy.element.find(".e-draggableworkarea").scrollLeft() ) proxy.element.find("#" + this._id + "_scroller").ejScroller({ scrollLeft:  proxy.element.find(".e-draggableworkarea").scrollLeft() - proxy.element.find(".e-workcells").width()});
+						}
                     }
                     else { return false; }
                 }
@@ -1514,7 +1533,7 @@
         _shiftSelection: function (e) {
             if (e.shiftKey == true && e.which == 1 && !$(e.target).hasClass("e-resourceheadercells")) {
                 var oE1 = this._focused, proxy = this, currTarget = e.target;
-                if (!ej.isNullOrUndefined(this._quickAppointWindow) && this.model.showQuickWindow) {
+                if (!ej.isNullOrUndefined(this._quickAppointWindow) && this.model.showQuickWindow && this._quickAppointWindow.data("ejDialog")) {
                     this._quickAppointWindow.ejDialog("close");
                     this._quickAppDetailsWindow.ejDialog("close");
                 }
@@ -1558,9 +1577,9 @@
 
         _onScheduleMouseDown: function (e) {
             var _targ = $(e.target);
-            var appointdiv = _targ.hasClass("e-appointment,e-alldayappointment,e-monthappointment") ? _targ : _targ.parents(".e-appointment,.e-alldayappointment,.e-monthappointment");
+            var appointdiv = _targ.hasClass("e-appointment") || _targ.hasClass("e-alldayappointment") || _targ.hasClass("e-monthappointment") ? _targ : _targ.parents(".e-appointment,.e-alldayappointment,.e-monthappointment");
             if (!_targ.hasClass("e-workcells") && !_targ.hasClass("e-inlinetext") && !_targ.hasClass("e-commonviewbutton") && !appointdiv.hasClass("e-appointment") && !appointdiv.hasClass("e-alldayappointment") && !appointdiv.hasClass("e-monthappointment") && !_targ.hasClass("e-alldaycells") && !_targ.hasClass("e-monthcells") && !(_targ).parents(".e-scheduledialog").hasClass("e-scheduledialog")) {
-                if (!ej.isNullOrUndefined(this._quickAppointWindow) && this.model.showQuickWindow) {
+                if (!ej.isNullOrUndefined(this._quickAppointWindow) && this.model.showQuickWindow && this._quickAppointWindow.data("ejDialog")) {
                     this._quickAppointWindow.ejDialog("close");
                     this._quickAppDetailsWindow.ejDialog("close");
                 }
@@ -1631,9 +1650,13 @@
             if (ej.isNullOrUndefined(appId)) return false;
             var tempApp = new ej.DataManager(this._processed).executeLocal(new ej.Query().where("Guid", ej.FilterOperators.equal, appId));
             if (!tempApp[0][this._appointmentSettings["recurrence"]]) {
-                if(this._groupEditing){
-                    var applist = new ej.DataManager(this._currentAppointmentData).executeLocal(new ej.Query().where("commonGuid", ej.FilterOperators.equal, tempApp[0].commonGuid))[0];
-				}
+                if (this._groupEditing) {
+                    if (!ej.isNullOrUndefined(tempApp[0].commonGuid)) {
+                        var applist = new ej.DataManager(this._currentAppointmentData).executeLocal(new ej.Query().where("commonGuid", ej.FilterOperators.equal, tempApp[0].commonGuid))[0];
+                    } else {
+                        var applist = new ej.DataManager(this._currentAppointmentData).executeLocal(new ej.Query().where(this._appointmentSettings.id, ej.FilterOperators.equal, tempApp[0][this._appointmentSettings.id]))[0];
+                    }
+                }
 				else{
 					var applist = new ej.DataManager(this._currentAppointmentData).executeLocal(new ej.Query().where("Guid", ej.FilterOperators.equal, appId))[0];
 				}
@@ -1778,6 +1801,9 @@
         },
 
         _scrollerPosition: function () {
+            if (this.model.enableRTL) {
+                return;
+            }
             if (this.currentView() != "agenda" && this.model.timeScale.enable && (this.element.find(".e-vscroll").length > 0 || this.element.find(".e-hscroll").length > 0)) {
                 var scrolObj = this.element.find("#" + this._id + "_scroller").ejScroller("instance");
                 if (this.model.orientation == "vertical" && this._customOrientation == "vertical") {
@@ -1829,7 +1855,7 @@
             this.element.find("e.workcells,e.alldaycells,.e-monthcells,.e-agendacells").removeClass("e-mousehover");
             this.element.find('.e-selectedAppointment').removeClass("e-selectedAppointment");
             var _target = !ej.isNullOrUndefined(e.target) ? $(e.target) : $(e);
-            if (_target.hasClass("e-blocktimeappointment") || _target.closest(".e-blocktimeappointment").length > 0) return false;
+			if (_target.hasClass("e-blocktimeappointment") || _target.closest(".e-blocktimeappointment").length > 0) return false;
             if (this.model.allowInline && (_target.hasClass("e-apptext") || _target.hasClass("e-agendaappointment") || !apptext)) {
                 this._inlineEdit(_target);
             }
@@ -1887,7 +1913,7 @@
                         if (!_target.hasClass("e-resourceheadercells") && !_target.hasClass("e-appsoverflow") && !_target.hasClass("e-monthheader") && !_target.hasClass("e-categorybar")) {
                             this._cellClick = false;
                             if (!ej.isNullOrUndefined(this._quickAppDetailsWindow)) this._quickAppDetailsWindow.find("" + "#" + this._id + "_quickAppDetailswindow").css("display", "block");
-                            if (!ej.isNullOrUndefined(this._quickAppointWindow) && this.model.showQuickWindow) this._quickAppointWindow.ejDialog("close");
+                            if (!ej.isNullOrUndefined(this._quickAppointWindow) && this.model.showQuickWindow && this._quickAppointWindow.data("ejDialog")) this._quickAppointWindow.ejDialog("close");
                             var appoint = _target.hasClass("e-appointment") || _target.hasClass("e-monthappointment") || _target.hasClass("e-alldayappointment") ? _target : _target.closest(".e-appointment,.e-alldayappointment,.e-monthappointment");
                             this._appUid = appoint.attr("data-guid");
                             if (_target.hasClass("e-schedulemouseclose")) return false;
@@ -1915,7 +1941,7 @@
                             var m = new Date(result).getUTCMinutes(); m = (m <= 9 ? '0' + m : m);
                             var dueIn = Math.ceil(diffTime / diffMinute - 1) < 0 && h < 24 ? this._getLocalizedLabels("EventBeginsin") + " " + h + " " + this._getLocalizedLabels("Hours") + " " + m + " " + this._getLocalizedLabels("Minutes") : Math.ceil(diffTime / diffMinute - 1) < 0 && h >= 24 ? this._getLocalizedLabels("EventBeginsin") + " " + Math.abs(Math.ceil(diffTime / diffDays)) + " " + this._getLocalizedLabels("Days") : this._getLocalizedLabels("Overdue");
                             var appObject = (templist.length > 1) ? this._recurrenceAppSort(templist) : templist;
-                            var data = { appointment: appObject[0] };
+                            var data = { appointment: appObject[0], events: e };
                             if (ej.isNullOrUndefined(e.events)) {
                                 if (this._trigger("appointmentClick", data)) {
                                     this.element.find(".e-selectedAppointment").css({ 'border': "none" });
@@ -1967,7 +1993,7 @@
                     this._mAppId = this._appUid;
                 if (_target.hasClass("e-editapp") || _target.hasClass("e-deleteapp")) return false;
                 var appoint = new ej.DataManager(this._processed).executeLocal(new ej.Query().where("Guid", ej.FilterOperators.equal, this._appUid));
-                if (this._trigger("appointmentClick", { appointment: appoint[0] })) {
+                if (this._trigger("appointmentClick", { appointment: appoint[0], events: e })) {
                     return false;
                 }
                 this._cellClick = false;
@@ -2006,7 +2032,7 @@
                         this._refreshDayAppointments(filterApps[ix]);
                     }
                     else 
-                        (this.model.timeScale.enable && this.currentView() !== "month" && !this._isCustomMonthView()) ? ((this.model.orientation == "vertical" && this._customOrientation == "vertical") && index >= 0 && (filterApps[ix][this._appointmentSettings["allDay"]] || Math.round((filterApps[ix][this._appointmentSettings["endTime"]].getTime() - filterApps[ix][this._appointmentSettings["startTime"]].getTime()) / 3600000) >= 24 || isAllDay)) ? this._setAllDayPos(filterApps[ix], index, resIndex) : this._renderApp(filterApps[ix], index, resIndex) : this._renderAppointmentMonth(filterApps[ix], index, resIndex);
+                        (this.model.timeScale.enable && this.currentView() !== "month" && !this._isCustomMonthView()) ? ((this.model.orientation == "vertical" && this._customOrientation == "vertical") && index >= 0 && (filterApps[ix][this._appointmentSettings["allDay"]] || Math.round((filterApps[ix][this._appointmentSettings["endTime"]].getTime() - filterApps[ix][this._appointmentSettings["startTime"]].getTime()) / 3600000) >= 24 || isAllDay)) ? this._setAllDayPos(filterApps[ix], index, resIndex) : this._renderApp(filterApps[ix], index, resIndex) : this._renderAppointmentMonth(filterApps[ix], index, resIndex, 0);
                     delete filterApps[ix]["Index"];
                 }
             }
@@ -2064,7 +2090,7 @@
                 var dayLength = this.element.find('.e-workcellstab tr:first-child').children().length / this._dateRender.length;
                 this._cellIndex = (this.currentView() !== "month" && !(this._isCustomMonthView()) && dayLength < this._cellIndex) ? this._cellIndex - (this._cellIndex % dayLength) : this._cellIndex ;
                 this._cellIndex = this.model.timeScale.enable ? this.currentView() !== "month" && !(this._isCustomMonthView()) ? Math.floor(this._cellIndex / ((this.model.endHour - this.model.startHour) * this.model.timeScale.minorSlotCount * (60 / this.model.timeScale.majorSlot))) : this._cellIndex : _target.index();
-                if  (type != "cellHover") this._workCellIndex = _target.hasClass("e-workcells") ? _target.parent().index() :_target.closest(".e-workcells").parent().index();
+				if  (type != "cellHover") this._workCellIndex = _target.hasClass("e-workcells") ? _target.parent().index() :_target.closest(".e-workcells").parent().index();;
             }
             var renderDate = ((this.model.orientation == "horizontal" || this._customOrientation == "horizontal") && this.currentView() == "month") ? this.monthDays : ((this.model.orientation == "vertical" && this._customOrientation == "vertical") || this.currentView() == "customview" && this._dateRender.length <= 7) ? (this._resWorkWeek) ? this._dateRender : this.dateRender : this._dateRender;
             renderDate = (this.model.orientation == "horizontal" || this._customOrientation == "horizontal") && this.currentView() == "customview" && this._dateRender.length <= 7 ? this._dateRender : renderDate;
@@ -2096,8 +2122,8 @@
         },
         _calcCurrentTime: function (curDate, _target, type) {
             var time, cellDuration = this.model.timeScale.majorSlot / this.model.timeScale.minorSlotCount;
-            if ((this.model.orientation == "vertical" && this._customOrientation == "vertical")) {
-                time = (this.model.startHour * 60) + _target.parent().index() * (cellDuration);
+			if ((this.model.orientation == "vertical" && this._customOrientation == "vertical")) {     
+				time = (this.model.startHour * 60) + _target.parent().index() * (cellDuration);
                 time = time * 60 * 1000 ;
             } else {
                 var dayLength = this.element.find('.e-workcellstab tr:first-child').children().length / this._dateRender.length;
@@ -2105,10 +2131,11 @@
                 var targetIndex = Math.abs(dayLength - _target.index());
                 targetIndex = targetIndex % dayLength;
                 var targetTime =(cellDuration * targetIndex) + (this.model.startHour * 60);
-                time = ((this.model.startHour * 60) + _target.index() * (cellDuration)) -
+				time = ((this.model.startHour * 60) + _target.index() * (this.model.timeScale.majorSlot / this.model.timeScale.minorSlotCount)) - (((this.model.endHour - this.model.startHour) * (this.model.timeScale.minorSlotCount)) * this._cellIndex) * (60 / this.model.timeScale.majorSlot) * (this.model.timeScale.majorSlot / this.model.timeScale.minorSlotCount);
+                time = (dayLength == 0) ? time : ((this.model.startHour * 60) + _target.index() * (cellDuration)) -
                 (((this.model.endHour - this.model.startHour) * (this.model.timeScale.minorSlotCount)) * this._cellIndex) *
                 (60 / this.model.timeScale.majorSlot) * (cellDuration);
-                time = (currentIndex != 0) ? targetTime * 60 * 1000 : time * 60 * 1000  ;
+                time = (currentIndex != 0 && dayLength != 0) ? targetTime * 60 * 1000 : time * 60 * 1000  ;
             } 
             this._timeScaleMin = cellDuration;
             this._timeScaleMin = this._timeScaleMin * 60 * 1000;
@@ -2203,7 +2230,7 @@
                 $(document).off(ej.eventType.mouseMove);
                 var targetClass = $(args.target).closest(".e-alldayappointment,.e-appointment,.e-monthappointment,.e-workcells,.e-monthcells,.e-alldaycells"), appFlag, appointment = null, event;
                 var tempargs = ($(targetClass).parents(".e-draggableworkarea tr").length > 0 && $(targetClass).parentsUntil(".e-draggableworkarea tr").is(".e-agendaappointment,.e-eventcolumn,.e-timecolumn")) || $(targetClass).is(".e-agendaappointment,.e-eventcolumn,.e-timecolumn");
-                if (!targetClass.hasClass("e-appointment") && !targetClass.hasClass("e-workcells") && !targetClass.hasClass("e-alldaycells") && !targetClass.hasClass("e-monthcells") && !ej.isNullOrUndefined(this.model.appointmentTemplateId)) {
+                if (!targetClass.hasClass("e-appointment") && !targetClass.hasClass("e-monthappointment") && !targetClass.hasClass("e-alldayappointment") &&  !targetClass.hasClass("e-workcells") && !targetClass.hasClass("e-alldaycells") && !targetClass.hasClass("e-monthcells") && !ej.isNullOrUndefined(this.model.appointmentTemplateId)) {
                     targetClass = $(args.target).offsetParent();
                 }
 				if ($(args.target).hasClass('e-appsoverflow')){
@@ -2861,7 +2888,7 @@
             var flag = true, data;
             data = { currentView: this.currentView(), currentDate: new Date(this.currentDate()), target: e };
             if (this._trigger("actionBegin", { data: data, requestType: "viewNavigate" })) return false;
-            if (!ej.isNullOrUndefined(this._quickAppointWindow) && this.model.showQuickWindow) {
+            if (!ej.isNullOrUndefined(this._quickAppointWindow) && this.model.showQuickWindow && this._quickAppointWindow.data("ejDialog")) {
                 this._quickAppointWindow.ejDialog("close");
                 this._quickAppDetailsWindow.ejDialog("close");
             }
@@ -3118,7 +3145,7 @@
             this.element.find(".e-appsoverflow").remove();
             this.element.find(".e-monthcells").removeClass("e-monthcurrenttime");
             if (this.model.showCurrentTimeIndicator) this.element.find(".e-highlightcurrenttimeline").remove();
-            if (!ej.isNullOrUndefined(this._quickAppointWindow) && this.model.showQuickWindow) {
+            if (!ej.isNullOrUndefined(this._quickAppointWindow) && this.model.showQuickWindow && this._quickAppointWindow.data("ejDialog")) {
                 this._quickAppointWindow.ejDialog("close");
                 this._quickAppDetailsWindow.ejDialog("close");
             }
@@ -3210,7 +3237,7 @@
                 if (window.orientation == this._screenOrientation) return false;
                 this._screenOrientation = window.orientation;
             }
-            if (!ej.isNullOrUndefined(this._quickAppointWindow) && this.model.showQuickWindow) {
+            if (!ej.isNullOrUndefined(this._quickAppointWindow) && this.model.showQuickWindow && this._quickAppointWindow.data("ejDialog")) {
                 this._quickAppointWindow.ejDialog("close");
                 this._quickAppDetailsWindow.ejDialog("close");
             }
@@ -3348,6 +3375,7 @@
                 this.element.find(".e-datecommondiv").addClass("e-datecursor");
                 this.element.find(".e-navigateprevious,.e-navigatenext").hide();
             }
+			this._trigger("actionComplete", { requestType: "scheduleResize" });
         },
 
         _reRenderHeaderBar: function () {
@@ -3427,6 +3455,7 @@
             var culture = ej.preferredCulture(this.model.locale);
             var timeMode = (!ej.isNullOrUndefined(this.model.timeMode) && (this.model.timeMode == "Hour12" || this.model.timeMode == "Hour24")) ? this.model.timeMode.replace('Hour','') : this.model.timeMode;
             this._timeMode = (timeMode == null) ? (culture.calendar.AM == null && culture.calendar.PM == null) ? "24" : "12" : (culture.calendar.AM == null && culture.calendar.PM == null) ? "24" : timeMode;
+            if ((culture.calendar.patterns.T.split(/\s+/).length == 1) && (culture.calendar.AM != null && culture.calendar.PM != null) ) this._timeMode = "24";
             if (timeMode == null) { this._pattern = culture.calendar.patterns; }
             else this._pattern.t = (this._timeMode == "12") ? "h:mm tt" : "HH:mm";
             this._firstdayofweek = (this.model.firstDayOfWeek != null) ? (typeof this.model.firstDayOfWeek == "string") ? this._dayNamesArray.indexOf(this.model.firstDayOfWeek.toString().toLowerCase()) : this.model.firstDayOfWeek : culture.calendar.firstDay;
@@ -5113,22 +5142,16 @@
         _getCurrentDateHeaderValue: function () {
             var dateValue, value = (this._resWorkWeek) ? this._renderDates : this._dateRender;
             if (this.currentView() === "day") {
-                if (this.model.dateFormat != "" && !ej.isNullOrUndefined(this.model.dateFormat))
-                    dateValue = ej.format(new Date(value[0]), this.model.dateFormat, this.model.locale);
-                else {
-                    var ddt = this._pattern.D.toString().replace(/\s*dddd,?/, "").trim();
-                    if (ddt.toLowerCase().startsWith("d"))
-                        dateValue = ej.format(new Date(value[0]), "dd MMM yyyy", this.model.locale);
-                    else if (ddt.toLowerCase().startsWith("m"))
-                        dateValue = ej.format(new Date(value[0]), "MMM dd, yyyy", this.model.locale);
-                    else
-                        dateValue = ej.format(new Date(value[0]), ddt, this.model.locale);
-                }
+                dateValue = this._formatDateHeaderValue(new Date(value[0]), new Date(value[value.length - 1]));
             }
             else if (this.currentView() === "week" || this.currentView() === "workweek" || this.currentView() == "agenda") {
                 var startDate = this.currentView() == "agenda" ? new Date(this.currentDate()) : new Date(value[0]),
                 endDate = this.currentView() == "agenda" ? new Date(new Date(this.currentDate()).setDate(startDate.getDate() + this._getAgendaDateCount())) : new Date(value[value.length - 1]);
-                dateValue = this._formatDateHeaderValue(startDate, endDate);
+                if (this.currentView() === "agenda" && this._getAgendaDateCount() == 0) {
+					dateValue = this._formatDateHeaderValue(startDate, null);
+					var j= 0;
+				}
+				else dateValue = this._formatDateHeaderValue(startDate, endDate);
             }
             else if (this.currentView() === "customview") {
                 if (value.length == 1) {
@@ -5184,6 +5207,20 @@
         },
 
         _formatDateHeaderValue: function (startDate, endDate) {
+		    if (this.currentView() === "day" || (this.currentView() === "agenda" && this._getAgendaDateCount() == 0)) {
+				if (this.model.dateFormat != "" && !ej.isNullOrUndefined(this.model.dateFormat))
+                    dateValue = ej.format(new Date(startDate), this.model.dateFormat, this.model.locale);
+                else {
+                    var ddt = this._pattern.D.toString().replace(/\s*dddd,?/, "").trim();
+                    if (ddt.toLowerCase().startsWith("d"))
+                        dateValue = ej.format(new Date(startDate), "dd MMM yyyy", this.model.locale);
+                    else if (ddt.toLowerCase().startsWith("m"))
+                        dateValue = ej.format(new Date(startDate), "MMM dd, yyyy", this.model.locale);
+                    else
+                        dateValue = ej.format(new Date(startDate), ddt, this.model.locale);
+                }
+			}
+			else {
             if (this.model.dateFormat != "" && !ej.isNullOrUndefined(this.model.dateFormat)) {
                 var dateValue = ej.format(startDate, this.model.dateFormat, this.model.locale) + " - " + ej.format(endDate, this.model.dateFormat, this.model.locale);
                 return dateValue;
@@ -5208,7 +5245,8 @@
                     dateValue = ej.format(new Date(startDate), "MMM dd, yyyy", this.model.locale) + " - " + ej.format(new Date(endDate), "MMM dd, yyyy", this.model.locale);
             } else
                 dateValue = ej.format(new Date(startDate), ddt, this.model.locale) + " - " + ej.format(new Date(endDate), ddt, this.model.locale);
-            return dateValue
+			}
+			return dateValue
         },
 
         _getHeaderAllDayCellsCount: function () {
@@ -5258,6 +5296,7 @@
         },
 
         _findResourceIndex: function (data, attr1, value, attr2, val) {
+            if(ej.isNullOrUndefined(value)) return;
             var val1 = value.toString().split(',');
             if (!(ej.isNullOrUndefined(val))) {
                 var val2 = val.toString().split(',');
@@ -5403,6 +5442,11 @@
             var currentMonth = currentDate._currentMonthDates();
             var monthStart = currentMonth.start._currentWeekDates(this._firstdayofweek).start;
             var monthEnd = currentMonth.end._currentWeekDates(this._firstdayofweek).end;
+            if (!this.model.showWeekend && !this.model.showNextPrevMonth) {
+                var month = this._excludePrevMonthDates(currentMonth);
+                monthStart = month.start;
+                monthEnd = month.end;
+            }
             var dates = []; this.monthDays = [];
             var showWeekDays = this._getWeekDays();
             var monthDate = new Date(monthStart.getFullYear(), monthStart.getMonth(), monthStart.getDate());
@@ -5423,6 +5467,54 @@
                 monthDate.setDate(monthDate.getDate() + 1);
             } while (monthDate.getTime() <= monthEnd.getTime())
             return (this.model.orientation == "vertical" && this._customOrientation == "vertical") ? dates : this.monthDays;
+        },
+
+        _excludePrevMonthDates: function (currentMonth) {
+            var monthStart = new Date(currentMonth.start);
+            var monthEnd = new Date(currentMonth.end);
+            var showWeekDays = this._getWeekDays();
+            var _dateFilter = function (dateCollection, showWeekDays) {
+                return dateCollection.filter(function (date) {
+                    return showWeekDays.indexOf(new Date(date).getDay()) != -1;
+                }).map(function (date) {
+                    return new Date(date).getMonth();
+                });
+            };
+            var weekDateObj = monthStart._currentWeekDates(this._firstdayofweek);
+            var weekDates = this._getWeekDates(weekDateObj.start, weekDateObj.end);
+            var isDateAvail = _dateFilter(weekDates, showWeekDays);
+            if (isDateAvail.indexOf(monthStart.getMonth()) == -1) {
+                var currentDate = new Date(weekDateObj.end);
+                do {
+                    currentDate = new Date(currentDate.setDate(currentDate.getDate() + 1));
+                } while (showWeekDays.indexOf(currentDate.getDay()) == -1)
+                monthStart = new Date(currentDate);
+            } else {
+                monthStart = new Date(weekDates[0]);
+            }
+            weekDateObj = monthEnd._currentWeekDates(this._firstdayofweek);
+            weekDates = this._getWeekDates(weekDateObj.start, weekDateObj.end);
+            isDateAvail = _dateFilter(weekDates, showWeekDays);
+            if (isDateAvail.indexOf(monthEnd.getMonth()) == -1) {
+                var currentDate = new Date(weekDateObj.start);
+                do {
+                    currentDate = new Date(currentDate.setDate(currentDate.getDate() - 1));
+                } while (showWeekDays.indexOf(currentDate.getDay()) == -1)
+                monthEnd = new Date(currentDate);
+            } else {
+                monthEnd = new Date(weekDates.slice(-1)[0]);
+            }
+            return { start: monthStart, end: monthEnd };
+        },
+
+        _getWeekDates: function (startDate, stopDate) {
+            var dateArray = new Array();
+            var currentDate = startDate;
+            while (currentDate <= stopDate) {
+                dateArray.push(new Date(currentDate).getTime());
+                currentDate = new Date(currentDate.setDate(currentDate.getDate() + 1));
+            }
+            return dateArray;
         },
 
         _getStartEndTime: function () {
@@ -5788,7 +5880,7 @@
                         j = (j / 60000) + (this.model.timeScale.majorSlot / this.model.timeScale.minorSlotCount);
                     }
                     i = (this.model.timeScale.majorSlot > 60) ? i + (this.model.timeScale.majorSlot / 60) : j >= 60 ? i + 1 : i;
-                    j = (j >= 60) ? 0 : j;
+                    j = ej.isNullOrUndefined(j) ? 0 : j % 60;
 
                     timeValue1.push(timeValue);
                 }
@@ -6126,7 +6218,7 @@
         _timeZoneAppointments: function (appoint, app) {
             if (this.model.appointmentSettings.applyTimeOffset) {
                 var tempStartTime, tempEndTime, startUtc, endUtc, difference, startTime, endTime;
-                if (!appoint[this._appointmentSettings["allDay"]]) {
+                if (!appoint[this._appointmentSettings["allDay"]] || !this._dataManager.dataSource.offline) {
                     if (ej.isNullOrUndefined(this._dayLight)) {
                         startUtc = appoint[this._appointmentSettings["startTimeZone"]];
                         endUtc = appoint[this._appointmentSettings["endTimeZone"]];
@@ -6140,31 +6232,46 @@
                     }
                     else difference = this._timeValue;
                     difference = (app == "") ? -difference : difference;  
-					if(this.dataSource() instanceof ej.DataManager && !ej.isNullOrUndefined(appoint[this._appointmentSettings["startTimeZone"]])){
+					if(!this._dataManager.dataSource.offline && !ej.isNullOrUndefined(appoint[this._appointmentSettings["startTimeZone"]])){
 					   var schTz=(this.model.timeZone == null) ? "UTC " + this._timezoneStringValue():this.model.timeZone;
 					   var sysUTC = (new Date()._isDST() && !this.model.isDST) ? (new Date().getTimezoneOffset()) + this._timeZoneOffset : (new Date().getTimezoneOffset());                  
 					   var schUTC = !this._dataProcess ? (appoint[this._appointmentSettings["startTimeZone"]]!=schTz) ? schTz : appoint[this._appointmentSettings["startTimeZone"]] : appoint[this._appointmentSettings["startTimeZone"]];
 					   schUTC = schUTC.indexOf("UTC") != -1 ? parseInt(schUTC.split(" ")[1].split(":")[0]) * 60 + parseInt(schUTC.split(" ")[1].split(":")[1]) : parseInt(schUTC.split(":")[0]) * 60 + parseInt(schUTC.split(":")[1]);     
 					   var diff=!this._dataProcess ? -(sysUTC-(-schUTC)) : sysUTC-(-schUTC);
+					   if (new Date()._isDST() && this.model.timeZone == null) {
+						if ((!this._dataProcess && this.model.isDST)) {
+							diff=diff-60;
+							}
+						}
 					}
                     tempStartTime = new Date(appoint[this._appointmentSettings["startTime"]]);
                     tempEndTime = new Date(appoint[this._appointmentSettings["endTime"]]);
                     if (appoint[this._appointmentSettings["allDay"]] && (Math.round((new Date(appoint[this._appointmentSettings["endTime"]]) - new Date(appoint[this._appointmentSettings["startTime"]])) / 3600000) < 24))
                         return appoint;
                     else {
-                        appoint[this._appointmentSettings["startTime"]] = (this.dataSource() instanceof ej.DataManager && !ej.isNullOrUndefined(appoint[this._appointmentSettings["startTimeZone"]]))?new Date(tempStartTime.setMinutes(tempStartTime.getMinutes() + difference+diff)):new Date(tempStartTime.setMinutes(tempStartTime.getMinutes() + difference));
-                        appoint[this._appointmentSettings["endTime"]] = (this.dataSource() instanceof ej.DataManager && !ej.isNullOrUndefined(appoint[this._appointmentSettings["startTimeZone"]]))?new Date(tempEndTime.setMinutes(tempEndTime.getMinutes() + difference+diff)):new Date(tempEndTime.setMinutes(tempEndTime.getMinutes() + difference));
+                        appoint[this._appointmentSettings["startTime"]] = (!this._dataManager.dataSource.offline && !ej.isNullOrUndefined(appoint[this._appointmentSettings["startTimeZone"]]))?new Date(tempStartTime.setMinutes(tempStartTime.getMinutes() + difference+diff)):new Date(tempStartTime.setMinutes(tempStartTime.getMinutes() + difference));
+                        appoint[this._appointmentSettings["endTime"]] = (!this._dataManager.dataSource.offline && !ej.isNullOrUndefined(appoint[this._appointmentSettings["startTimeZone"]]))?new Date(tempEndTime.setMinutes(tempEndTime.getMinutes() + difference+diff)):new Date(tempEndTime.setMinutes(tempEndTime.getMinutes() + difference));
+						this._universalTimeConversion(appoint, app);
                         return appoint;
                     }
                 }
                 else {
-                    appoint[this._appointmentSettings["startTime"]] = (this.dataSource() instanceof ej.DataManager && !ej.isNullOrUndefined(appoint[this._appointmentSettings["startTimeZone"]])) ? new Date(tempStartTime.setMinutes(tempStartTime.getMinutes() +diff)):new Date(appoint[this._appointmentSettings["startTime"]]);
-                    appoint[this._appointmentSettings["endTime"]] = (this.dataSource() instanceof ej.DataManager && !ej.isNullOrUndefined(appoint[this._appointmentSettings["startTimeZone"]])) ? new Date(tempEndTime.setMinutes(tempEndTime.getMinutes() + diff)):new Date(appoint[this._appointmentSettings["endTime"]]);
+                    appoint[this._appointmentSettings["startTime"]] = new Date(appoint[this._appointmentSettings["startTime"]]);
+                    appoint[this._appointmentSettings["endTime"]] = new Date(appoint[this._appointmentSettings["endTime"]]);
                 }
                 return appoint;
             }
             return appoint;
         },
+		
+		_universalTimeConversion: function (appoint, app) {		
+			if ((!this._dataManager.dataSource.offline && !ej.isNullOrUndefined(appoint[this._appointmentSettings["startTimeZone"]])) && app == "" && (ej.isNullOrUndefined(this._dataProcess)||!this._dataProcess)) {
+                var sysUTC = (new Date()._isDST() && !this.model.isDST && this.model.timeZone == null) ? (new Date().getTimezoneOffset()) + this._timeZoneOffset : (new Date().getTimezoneOffset());                
+                appoint[this._appointmentSettings["startTime"]] = new Date( appoint[this._appointmentSettings["startTime"]].getTime()+ sysUTC* 60000);
+                appoint[this._appointmentSettings["endTime"]] = new Date(appoint[this._appointmentSettings["endTime"]].getTime()+sysUTC* 60000);
+            }
+		},
+
         _processtimeZone: function (record, app) {
             if (this.model.appointmentSettings.applyTimeOffset) {
                 var tempstarttime = new Date(record[this.model.blockoutSettings["startTime"]]), tempendtime = new Date(record[this.model.blockoutSettings["endTime"]]);
@@ -6192,8 +6299,35 @@
                     appointments[app][this._appointmentSettings["startTime"]] = (new Date()).parseISO8601(appointments[app][this._appointmentSettings["startTime"]]);
                     appointments[app][this._appointmentSettings["endTime"]] = (new Date()).parseISO8601(appointments[app][this._appointmentSettings["endTime"]]);
                     if (this._bindAppointments == true && !this._angular && !this._setmodelvalue && this._applyTimeOffset && ej.isNullOrUndefined(this._enablePersist)) {
-                        var type=(this.dataSource() instanceof ej.DataManager && !ej.isNullOrUndefined(appointments[app][this._appointmentSettings["startTimeZone"]])) ? "" : "reverse"
+                        var type;
+						var cloneObj = $.extend(cloneObj, appointments[app]);
+					    var appDate=new Date(new Date(cloneObj.StartTime).setHours(0, 0, 0));
+					    var sysDate=new Date(new Date().setHours(0, 0, 0));
+						var appDst=new Date(appDate)._isDST();	
+                        var sysDst=new Date()._isDST();
+						if(!this._dataManager.dataSource.offline && !ej.isNullOrUndefined(appointments[app][this._appointmentSettings["startTimeZone"]])) { // code for local time conversion
+							type="";
+							var sysUTC = (new Date()._isDST() && !this.model.isDST && this.model.timeZone == null) ? (new Date().getTimezoneOffset()) + this._timeZoneOffset : (new Date().getTimezoneOffset());
+							var tempStartTime = appointments[app][this._appointmentSettings["startTime"]];
+							var tempEndTime = appointments[app][this._appointmentSettings["endTime"]];
+							appointments[app][this._appointmentSettings["startTime"]] = new Date(tempStartTime.setMinutes(tempStartTime.getMinutes() - sysUTC));
+							appointments[app][this._appointmentSettings["endTime"]] = new Date(tempEndTime.setMinutes(tempEndTime.getMinutes() - sysUTC));
+						}
+                        else
+							type="reverse";
                         var appoint = this._timeZoneAppointments(appointments[app], type);
+						if(this.model.isDST && this.model.timeZone == null){
+							tempStartTime = new Date(appoint[this._appointmentSettings["startTime"]]);
+							tempEndTime = new Date(appoint[this._appointmentSettings["endTime"]]);
+							if(sysDst & !appDst){					
+								appoint[this._appointmentSettings["startTime"]] = new Date(tempStartTime.setHours(tempStartTime.getHours() -1));
+								appoint[this._appointmentSettings["endTime"]] = new Date(tempEndTime.setHours(tempEndTime.getHours() -1));
+							}
+                            if(!sysDst & appDst){
+								appoint[this._appointmentSettings["startTime"]] = new Date(tempStartTime.setHours(tempStartTime.getHours() +1));
+								appoint[this._appointmentSettings["endTime"]] = new Date(tempEndTime.setHours(tempEndTime.getHours() +1));
+							}
+						}
                         this._appointmentProcessing(appoint);
                     }
                     else
@@ -6444,10 +6578,13 @@
                 }
                 appointment.Guid = ej.isNullOrUndefined(appointment.Guid) ? this._guidFormatGenerate() : appointment.Guid;
                 this._maxId = appointment.AppTaskId;
-                if (!this._groupEditing && !this._groupEdit) {
+                endTime = new Date(appointment[this._appointmentSettings["endTime"]]);
+                if (!this._groupEditing && !this._groupEdit && new Date(endTime.setMilliseconds(-1000)).getDate() != appointment[this._appointmentSettings["startTime"]].getDate()) {
                     if (ej.isNullOrUndefined(this._appointmentSettings["resourceFields"]) || ej.isNullOrUndefined(appointment[this._appointmentSettings.resourceFields.split(',')[this._appointmentSettings.resourceFields.split(',').length - 1].trim()]) || !appointment[this._appointmentSettings.resourceFields.split(',')[this._appointmentSettings.resourceFields.split(',').length - 1].trim()].toString().indexOf(",") !== -1)
                         this._multipleSplit(appointment, this._maxId, appointment[this._appointmentSettings["startTime"]], appointment[this._appointmentSettings["endTime"]]);
                 }
+                else if (!this._groupEditing && !this._groupEdit && new Date(endTime.setMilliseconds(-1000)).getDate() == appointment[this._appointmentSettings["startTime"]].getDate()) 
+                    this._processed.push(appointment);
                 else
                     this._groupAppointment(appointment);
             }
@@ -6465,6 +6602,7 @@
                     }
                 }
                 else {
+                    this._maxId = appointment.AppTaskId;
                     this._groupAppointment(appointment);
                 }
             }
@@ -6610,7 +6748,7 @@
                     day_start = new Date(day_start.getFullYear(), day_start.getMonth(), day_start.getDate() + 1);
                 }
                 var nextDay = new Date(appstarttime.getFullYear(), appstarttime.getMonth(), appstarttime.getDate() + differDate);
-                var day_end = (new Date(nextDay).getDate() == new Date(end).getDate() && this.currentView() !== "month") ? new Date(new Date(nextDay).setHours(endTime.getHours(), endTime.getMinutes(), endTime.getSeconds())) : new Date(new Date(nextDay).setHours(23, 59, 59));
+                var day_end = (new Date(nextDay).getDate() == new Date(end).getDate() && new Date(nextDay).getMonth() == new Date(end).getMonth() && new Date(nextDay).getFullYear() == new Date(end).getFullYear() && this.currentView() !== "month") ? new Date(new Date(nextDay).setHours(endTime.getHours(), endTime.getMinutes(), endTime.getSeconds())) : new Date(new Date(nextDay).setHours(23, 59, 59));
                 if ((day_end >= new Date(endTime)) && this.currentView() !== "day")
                     day_end = app[this._appointmentSettings["endTime"]];
                 if (!this.model.showNextPrevMonth && this.currentView() == "month" && new Date(appstarttime.getFullYear(), appstarttime.getMonth(), 1).getTime() != new Date(day_end.getFullYear(), day_end.getMonth(), 1).getTime())
@@ -7339,7 +7477,7 @@
             var userTemp = $.templates($(this.model.timeScale.minorSlotTemplateId).html());
             var timelist, startendTimes = [];
             for (var i = this.model.startHour; i < this.model.endHour;) {
-                var j = 0;
+                var j = ej.isNullOrUndefined(j) ? 0 : j % 60;
                 while (j < 60) {
                     j = j * 60 * 1000;
                     timelist = userTemp.render({ date: new Date(new Date(this._dateRender[0]).setHours(i, 0, 0, j)) });
@@ -7526,10 +7664,11 @@
                 if (this.model.orientation == "vertical" && this._customOrientation == "vertical") {
                     for (var i = 0, len = appointments.length; i < len; i++) {
                         var isBigApp = (((appointments[i][this._appointmentSettings["endTime"]] - appointments[i][this._appointmentSettings["startTime"]]) / 3600000) >= 24);
+                        var filterApp = (isBigApp && new Date(new Date(appointments[i][this._appointmentSettings["endTime"]]).setMilliseconds(-1000)).getDate() == appointments[i][this._appointmentSettings["startTime"]].getDate()) ? true : false;
                         var allDayCheck = appointments[i][this._appointmentSettings["allDay"]];
                         if (((((new Date(new Date(dateRender[day]).setHours(0, 0, 0, 0)).getTime() == (new Date(new Date(appointments[i][this._appointmentSettings["startTime"]]).setHours(0, 0, 0, 0)).getTime())) &&
                                   allDayCheck) || isBigApp) && (ej.scheduleFeatures.resources && !ej.isNullOrUndefined(this.model.group) ? (appointments[i][this._tempResource[this._tempResource.length - 1]["field"]] == resValue) : true))) {
-                            filterData.push(appointments[i]);
+                                if (!filterApp) filterData.push(appointments[i]);
                         }
                     }
                 }
@@ -7600,9 +7739,9 @@
                 !record.inline && this._renderedAllDay.push($.extend(true, {}, record));
                 var diffInDays;
                 if (this._resWorkWeek || this.currentView() == "workweek" || (this.currentView() == "week" && !this.model.showWeekend))
-                    diffInDays = $.inArray(new Date(end.getFullYear(), end.getMonth(), end.getDate()).getTime(), dateRender) - ($.inArray(new Date(start.getFullYear(), start.getMonth(), start.getDate()).getTime(), dateRender)) + 1;
+                    diffInDays = (end.getHours() == 0 && end.getMinutes() == 0) ? record[this._appointmentSettings["allDay"]] ? $.inArray(new Date(end.getFullYear(), end.getMonth(), end.getDate()).getTime(), dateRender) - ($.inArray(new Date(start.getFullYear(), start.getMonth(), start.getDate()).getTime(), dateRender)) + 1 : $.inArray(new Date(end.getFullYear(), end.getMonth(), end.getDate()).getTime(), dateRender) - ($.inArray(new Date(start.getFullYear(), start.getMonth(), start.getDate()).getTime(), dateRender)) : $.inArray(new Date(end.getFullYear(), end.getMonth(), end.getDate()).getTime(), dateRender) - ($.inArray(new Date(start.getFullYear(), start.getMonth(), start.getDate()).getTime(), dateRender)) + 1;
                 else if (this.currentView() == "week" || this.currentView() == "day" || (this.currentView() == "customview" && parseFloat((end - start) / 3600000) <= 24))
-                    diffInDays = (end.getHours() == 0 && end.getMinutes() == 0) ? Math.ceil(((new Date(end) - new Date(start)) / (1000 * 3600)) / 24) : Math.ceil(((new Date(end).setHours(23, 59, 59) - new Date(start).setHours(0, 0, 0)) / (1000 * 3600)) / 24);
+                    diffInDays = (end.getHours() == 0 && end.getMinutes() == 0) ? record[this._appointmentSettings["allDay"]] ?  Math.ceil(((new Date(end) - new Date(start)) / (1000 * 3600)) / 24) + 1 : Math.ceil(((new Date(end) - new Date(start)) / (1000 * 3600)) / 24) : Math.ceil(((new Date(end).setHours(23, 59, 59) - new Date(start).setHours(0, 0, 0)) / (1000 * 3600)) / 24);
                 else
                     diffInDays = $.inArray(new Date(end.getFullYear(), end.getMonth(), end.getDate()).getTime(), this._dateRender) - ($.inArray(new Date(start.getFullYear(), start.getMonth(), start.getDate()).getTime(), this._dateRender)) + 1;
                 if ((($.inArray(new Date(start.getFullYear(), start.getMonth(), start.getDate()).getTime(), dateRender) == -1) && this.currentView() == "workweek") || (this.currentView() == "week" && (!this.model.showWeekend))) {
@@ -7676,8 +7815,13 @@
 
                 startCheck = $.inArray(new Date(new Date(record[this._appointmentSettings["startTime"]]).setHours(0, 0, 0, 0)).getTime(), dateRender);
                 endCheck = $.inArray(new Date(new Date(record[this._appointmentSettings["endTime"]]).setHours(0, 0, 0, 0)).getTime(), dateRender);
-                splitapp = ((startCheck != endCheck) && (new Date(new Date(indication[this._appointmentSettings["startTime"]]).setHours(0, 0, 0, 0)).getTime() < new Date(new Date(indication[this._appointmentSettings["endTime"]]).setHours(0, 0, 0, 0)).getTime()) && (((indication[this._appointmentSettings["endTime"]] - indication[this._appointmentSettings["startTime"]]) / 3600000) < 24));
+                splitapp = ((startCheck != endCheck) && (new Date(new Date(indication[this._appointmentSettings["startTime"]]).setHours(0, 0, 0, 0)).getTime() < new Date(new Date(indication[this._appointmentSettings["endTime"]]).setHours(0, 0, 0, 0)).getTime()) && (((indication[this._appointmentSettings["endTime"]] - indication[this._appointmentSettings["startTime"]]) / 3600000) < 24) || ((record[this._appointmentSettings["endTime"]].getHours() == this.model.endHour && record[this._appointmentSettings["endTime"]].getMinutes()>0) || record[this._appointmentSettings["endTime"]].getHours() > this.model.endHour) || (record[this._appointmentSettings["startTime"]].getHours() < this.model.startHour));
                 if (!record[this._appointmentSettings["recurrence"]]) {
+                    if(splitapp && indication[this._appointmentSettings["endTime"]].getHours() >= this.model.endHour && this.currentView() != "month") {
+                        this.model.enableRTL ? leftIndication = true : rightIndication = true;  
+                    } else if(splitapp && indication[this._appointmentSettings["startTime"]].getHours() < this.model.startHour && this.currentView() != "month"){
+                        this.model.enableRTL ? rightIndication = true : leftIndication = true;
+                    }
                     if (((new Date(indication[this._appointmentSettings["startTime"]]) < record[this._appointmentSettings["startTime"]]) || startCheck == -1) && !splitapp)
                         this.model.enableRTL ? rightIndication = true : leftIndication = true;
                     if (((new Date(indication[this._appointmentSettings["endTime"]]) > record[this._appointmentSettings["endTime"]]) || endCheck == -1) && !splitapp)
@@ -7685,8 +7829,13 @@
                 }
                 else {
                     var recurIndication = new ej.DataManager(this._processed).executeLocal(new ej.Query().where("Guid", ej.FilterOperators.equal, record["Guid"]));
-                    if (recurIndication.length > 1) {
+                    if (recurIndication.length >= 1) {
                         var recur = this._sortAppById(recurIndication);
+                        if (splitapp && recur[recur.length - 1][this._appointmentSettings["endTime"]].getHours() >= this.model.endHour && this.currentView() != "month") {
+                            this.model.enableRTL ? leftIndication = true : rightIndication = true;
+                        } else if (splitapp && recur[0][this._appointmentSettings["startTime"]].getHours() < this.model.startHour && this.currentView() != "month") {
+                            this.model.enableRTL ? rightIndication = true : leftIndication = true;
+                        }
                         if (((recur[0][this._appointmentSettings["startTime"]] < record[this._appointmentSettings["startTime"]]) || startCheck == -1) && !splitapp)
                             this.model.enableRTL ? rightIndication = true : leftIndication = true;
                         if (((recur[recur.length - 1][this._appointmentSettings["endTime"]] > record[this._appointmentSettings["endTime"]]) || endCheck == -1) && !splitapp)
@@ -7828,8 +7977,26 @@
                         if ((new Date(new Date(renderDate[day]).setHours(0, 0, 0, 0)).getTime() == new Date(new Date(appointments[app][this._appointmentSettings["startTime"]]).setHours(0, 0, 0, 0)).getTime()) &&
                             (new Date(new Date(renderDate[day]).setHours(0, 0, 0, 0)).getTime() <= new Date(new Date(appointments[app][this._appointmentSettings["endTime"]]).setHours(0, 0, 0, 0)).getTime()) &&
                             (new Date(new Date(appointments[app][this._appointmentSettings["startTime"]]).setHours(0, 0, 0, 0)).getTime() <= new Date(new Date(appointments[app][this._appointmentSettings["endTime"]]).setHours(0, 0, 0, 0)).getTime())) {
-                            var res = (this._tempResource.length == 0) ? 0 : (this._tempResource.length > 0 && this._grouping.length == 1) ? this._findResourceIndex(this.res1, this._tempResource[this._tempResource.length - 1].resourceSettings["id"], appointments[app][this._appointmentSettings.resourceFields.toString().split(',')[this._tempResource.length - 1]], null, null) : this._findResourceIndex(this.res1, this._tempResource[this._tempResource.length - 1].resourceSettings["id"], appointments[app][this._appointmentSettings.resourceFields.toString().split(',')[this._tempResource.length - 1]], this._tempResource[this._tempResource.length - 1].resourceSettings["groupId"], appointments[app][this._appointmentSettings.resourceFields.toString().split(',')[this._tempResource.length - 2]]);
-                            this._renderAppointmentMonth(appointments[app], day, res);
+                            var res = (this._tempResource.length == 0) ? 0 : (this._tempResource.length > 0 && this._grouping.length == 1) ? this._findResourceIndex(this.res1, this._tempResource[this._tempResource.length - 1].resourceSettings["id"], appointments[app][this._appointmentSettings.resourceFields.toString().split(',')[this._tempResource.length - 1]], null, null) : this._findResourceIndex(this.res1, this._tempResource[this._tempResource.length - 1].resourceSettings["id"], appointments[app][this._appointmentSettings.resourceFields.toString().split(',')[this._tempResource.length - 1]], this._tempResource[this._tempResource.length - 1].resourceSettings["groupId"], appointments[app][this._appointmentSettings.resourceFields.toString().split(',')[this._tempResource.length - 2]]),
+                            overlapCount = (ej.scheduleFeatures.resources && !ej.isNullOrUndefined(this.model.group) && (this._tempResource.length != 0) && this._tempResource[0].resourceSettings.dataSource.length != 0) ? (this._grouping.length > 1) ? this._getIndex(day, appointments[app], renderDate, this._renderedApp, appointments[app][this._appointmentSettings.resourceFields.toString().split(',')[this._tempResource.length - 1].trim()], appointments[app][this._appointmentSettings.resourceFields.toString().split(',')[this._tempResource.length - 2].trim()]) : this._getIndex(day, appointments[app], renderDate, this._renderedApp, appointments[app][this._appointmentSettings.resourceFields.toString().split(',')[this._tempResource.length - 1].trim()], null) : this._getIndex(day, appointments[app], renderDate, this._renderedApp, null, null);
+                                if (this._tempResource.length != 0) {
+									var newResCollection = this._resCollection;
+									var newResCollection1 = this._horiGroupCollection();
+								}
+								if (this.model.orientation == "vertical" && this._customOrientation == "vertical")
+									var groupIndex = (!ej.isNullOrUndefined(this.model.group) && this._grouping.length > 1) ? this._findResourceIndex(newResCollection[0].dataSource, newResCollection[0].id, appointments[app][this._appointmentSettings.resourceFields.toString().split(',')[this._tempResource.length - 2].trim()], null, null) + 1 : 0;
+								else
+									var groupIndex = (!ej.isNullOrUndefined(this.model.group) && this._grouping.length > 1) ? this._findResourceIndex(newResCollection1, this._tempResource[this._tempResource.length - 2].resourceSettings["id"], appointments[app][this._appointmentSettings.resourceFields.toString().split(',')[this._tempResource.length - 2].trim()], null, null) + 1 : 0;
+								cellId = this._renderCellId(appointments[app],day,res);
+								celltd = (this.model.orientation == "vertical" && this._customOrientation == "vertical") ? this.element.find("td.e-monthcells").eq(cellId-1) : this.element.find(".e-workcellstab tr").eq((res - 1) + groupIndex - 1).find("td.e-workcells").eq(cellId-1);   
+                            if (this.model.showOverflowButton && celltd.find('.e-appsoverflow').length > 0) {
+                                celltd.find('.e-appsoverflow').attr('data-appcount', overlapCount + 1);
+                                this._renderedApp.push($.extend(true, {}, appointments[app]));
+                            	delete appointments[app]["Index"];
+                            }
+                            else {
+                                this._renderAppointmentMonth(appointments[app], day, res, overlapCount);
+                            }
                         }
                     }
                 }
@@ -7914,11 +8081,29 @@
             var maxValue = Math.max.apply(Math, dayIndex);
             return { minIndex: minValue, maxIndex: maxValue };
         },
-        _renderAppointmentMonth: function (record, day, res) {
+		
+		_renderCellId: function (record, day, res) {
+			var noOfDays = (this.model.showWeekend) ? 7 : this._minMaxIndex().maxIndex + 1,
+			startTime = new Date(record[this._appointmentSettings["startTime"]]),
+			rowPosition = Math.ceil((day + 1) / ((this.model.showWeekend) ? noOfDays : this.model.workWeek.length));
+			if (this.model.showWeekend) {
+                    if ((this._tempResource.length != 0) && !ej.isNullOrUndefined(this.model.group) && ej.scheduleFeatures.resources)
+                        var cellId = (this.model.orientation == "vertical" && this._customOrientation == "vertical") ? this.currentView() == "day" ? res + 1 : this.currentView() == "workweek" || this._isCustomMonthView() && this._oneWeek ? (res * (this._dateRender.length)) + (day + 1) : this.currentView() == "workweek" ? (res * (this._dateRender.length) + (new Date(startTime).getDay() + 1)) + ((rowPosition - 1) * (this.res1.length * this._dateRender.length)) : this._firstdayofweek == 0 ? (res * (noOfDays) + (new Date(startTime).getDay() + 1)) + ((rowPosition - 1) * (this.res1.length * noOfDays)) : ((this.model.orientation == "vertical" && this._customOrientation == "vertical") && this._firstdayofweek != 0) ? ((res * (noOfDays) + (new Date(startTime).getDay() + 1)) + ((rowPosition - 1) * (this.res1.length * noOfDays)) - this._firstdayofweek) : day + 1 : day + 1;
+                    else
+                        var cellId = ((this.model.orientation == "vertical" && this._customOrientation == "vertical") && this._isCustomMonthView() && !this._oneWeek) ? (res * (noOfDays) + (new Date(startTime).getDay() + 1)) + ((rowPosition - 1) * (this.res1.length * noOfDays)) : day + 1;
+            }
+            else {
+               var cellId = (this.model.orientation == "vertical" && this._customOrientation == "vertical") ? ((rowPosition - 1) * (this.res1.length * this.model.workWeek.length)) + (res * this.model.workWeek.length) + (day % this.model.workWeek.length) + 1 : day + 1;
+            }
+            if ((this.model.orientation == "vertical" && this._customOrientation == "vertical") && this._firstdayofweek != 0 && new Date(startTime).getDay() < this._firstdayofweek)
+                var cellId = (res * (noOfDays) + (new Date(startTime).getDay() + 1)) + ((rowPosition - 1) * (this.res1.length * noOfDays)) - this._firstdayofweek + noOfDays;
+            return cellId;       
+		},
+		
+        _renderAppointmentMonth: function (record, day, res, overlapCount) {
             var renderDate = ((this.model.orientation == "vertical" && this._customOrientation == "vertical") || !this.model.timeScale.enable) ? this._dateRender : this.monthDays,
                 renderCells = (this.model.orientation == "vertical" && this._customOrientation == "vertical") ? "td.e-monthcells" : "td.e-workcells",
                 appointments = this._renderedApp,
-                overlapCount = (ej.scheduleFeatures.resources && !ej.isNullOrUndefined(this.model.group) && (this._tempResource.length != 0) && this._tempResource[0].resourceSettings.dataSource.length != 0) ? (this._grouping.length > 1 ) ? this._getIndex(day, record, renderDate, appointments, record[this._appointmentSettings.resourceFields.toString().split(',')[this._tempResource.length - 1].trim()], record[this._appointmentSettings.resourceFields.toString().split(',')[this._tempResource.length - 2].trim()]) : this._getIndex(day, record, renderDate, appointments, record[this._appointmentSettings.resourceFields.toString().split(',')[this._tempResource.length - 1].trim()], null) : this._getIndex(day, record, renderDate, appointments, null,null),
                 startTime = new Date(record[this._appointmentSettings["startTime"]]),
                 endTime = new Date(record[this._appointmentSettings["endTime"]]),
                 appWidth, topPosition = 0,
@@ -7926,8 +8111,8 @@
                 end = new Date(endTime),
                 r_end = new Date(new Date(renderDate[renderDate.length - 1]).setHours(23, 59, 59));
             end = end > r_end ? r_end : end;
-            var dateLength =(start.getHours() == 0 && end.getHours() == 0) ? Math.ceil(((new Date(end) - new Date(start)) / (1000 * 3600)) / 24) : Math.ceil(((new Date(end).setHours(23, 59, 59) - new Date(start).setHours(0, 0, 0)) / (1000 * 3600)) / 24);
-            var count = 0, startdate = startTime;;
+            var dateLength =(start.getHours() == 0 && end.getHours() == 0) ? record[this._appointmentSettings["allDay"]] ? Math.ceil(((new Date(end) - new Date(start)) / (1000 * 3600)) / 24) + 1 : Math.ceil(((new Date(end) - new Date(start)) / (1000 * 3600)) / 24) : Math.ceil(((new Date(end).setHours(23, 59, 59) - new Date(start).setHours(0, 0, 0)) / (1000 * 3600)) / 24);
+            var count = 0, startdate = startTime;
             for (var i = 0; i < dateLength; i++) {
                 if (this._dateRender.indexOf(new Date(startdate.setHours(0, 0, 0)).getTime()) != -1)
                     count++;
@@ -7944,24 +8129,12 @@
             if (startTime.getTime() <= endTime.getTime()) {
                 if (this.model.orientation == "vertical" && this._customOrientation == "vertical") {
                     diffInDays = diffInDays >= maxDays ? maxDays : diffInDays;
-                    var rowPosition = Math.ceil((day + 1) / ((this.model.showWeekend) ? noOfDays : this.model.workWeek.length));
                     appWidth = (diffInDays * this.CellWidth) - ((this.CellWidth * 5) / 100);
                 }
                 else {
                     appWidth = (!this.model.timeScale.enable || this.currentView() == "month" || this._isCustomMonthView()) ? (this.model.cellWidth != "") ? ((diffInDays * this.CellWidth) + diffInDays) : (diffInDays * this.CellWidth) : (this.CellWidth * diffInDays) - parseInt((this.CellWidth * 10) / 100);
                 }
-                var resIndex = ((this._tempResource.length != 0) && this._tempResource[0].resourceSettings.dataSource.length != 0 && !ej.isNullOrUndefined(this.model.group) && ej.scheduleFeatures.resources) ? (this._grouping.length == 1) ? this._findResourceIndex(this.res1, this._tempResource[this._tempResource.length - 1].resourceSettings["id"], record[this._appointmentSettings.resourceFields.toString().split(',')[this._tempResource.length - 1]], null, null) : this._findResourceIndex(this.res1, this._tempResource[this._tempResource.length - 1].resourceSettings.id, record[this._appointmentSettings.resourceFields.toString().split(',')[this._tempResource.length - 1].trim()], this._tempResource[this._tempResource.length - 1].resourceSettings.groupId, record[this._appointmentSettings.resourceFields.toString().split(',')[this._tempResource.length - 2].trim()]) : 0;
-                if (this.model.showWeekend) {
-                    if ((this._tempResource.length != 0) && !ej.isNullOrUndefined(this.model.group) && ej.scheduleFeatures.resources)
-                        var cellId = (this.model.orientation == "vertical" && this._customOrientation == "vertical") ? this.currentView() == "day" ? resIndex + 1 : this.currentView() == "workweek" || this._isCustomMonthView() && this._oneWeek ? (resIndex * (this._dateRender.length)) + (day + 1) : this.currentView() == "workweek" ? (resIndex * (this._dateRender.length) + (new Date(startTime).getDay() + 1)) + ((rowPosition - 1) * (this.res1.length * this._dateRender.length)) : this._firstdayofweek == 0 ? (resIndex * (noOfDays) + (new Date(startTime).getDay() + 1)) + ((rowPosition - 1) * (this.res1.length * noOfDays)) : ((this.model.orientation == "vertical" && this._customOrientation == "vertical") && this._firstdayofweek != 0) ? ((resIndex * (noOfDays) + (new Date(startTime).getDay() + 1)) + ((rowPosition - 1) * (this.res1.length * noOfDays)) - this._firstdayofweek) : day + 1 : day + 1;
-                    else
-                        var cellId = ((this.model.orientation == "vertical" && this._customOrientation == "vertical") && this._isCustomMonthView() && !this._oneWeek) ? (resIndex * (noOfDays) + (new Date(startTime).getDay() + 1)) + ((rowPosition - 1) * (this.res1.length * noOfDays)) : day + 1;
-                }
-                else {
-                    var cellId = (this.model.orientation == "vertical" && this._customOrientation == "vertical") ? ((rowPosition - 1) * (this.res1.length * this.model.workWeek.length)) + (res * this.model.workWeek.length) + (day % this.model.workWeek.length) + 1 : day + 1;
-                }
-                if ((this.model.orientation == "vertical" && this._customOrientation == "vertical") && this._firstdayofweek != 0 && new Date(startTime).getDay() < this._firstdayofweek)
-                    var cellId = (resIndex * (noOfDays) + (new Date(startTime).getDay() + 1)) + ((rowPosition - 1) * (this.res1.length * noOfDays)) - this._firstdayofweek + noOfDays;
+				var cellId = this._renderCellId(record,day,res);
                 if ((this.model.orientation == "horizontal" || this._customOrientation == "horizontal") && this.model.cellWidth == "" && diffInDays > 1 && !this.model.enableRTL) {
                     var startLeft = this.element.find(".e-workcellstab tr:first").children().eq(cellId - 1).offset().left,
                         endElement = this.element.find(".e-workcellstab tr:first").children().eq(cellId - 2 + diffInDays),
@@ -8029,7 +8202,6 @@
                     }
                     if (this.model.showOverflowButton) {
                         var count = cellId - 1,
-                            DateString = new Date(record[this._appointmentSettings["startTime"]]).getTime(),
                             endDay = Math.round(((record[this._appointmentSettings["endTime"]] - record[this._appointmentSettings["startTime"]]) / 3600000) / 24),
                             i = count,
                             appCount = overlapCount + 1;
@@ -8039,7 +8211,6 @@
                             if (ej.isNullOrUndefined(record.inline) == true) {
                                 celltd.find("div.e-appointwrapper").length > 0 ? celltd.find("div.e-appointwrapper").append(overflowhtml) : (this.model.orientation == "vertical" && this._customOrientation == "vertical") ? celltd.find(".e-monthheader").after($("<div class='e-appointwrapper'></div>").append(overflowhtml)) : celltd.prepend($("<div class='e-appointwrapper'></div>").append(overflowhtml));
                             }
-                            DateString = DateString + (60 * 60 * 24 * 1000);
                             i++;
                         }
                         while (i < endDay + count);
@@ -8121,7 +8292,7 @@
         _appointmentWindow: function (e) {
 		    if (($(e.target).closest(".e-appointment,.e-alldayappointment,.e-monthappointment")) && e.type == "tap") {
 				var templist = new ej.DataManager(this._processed).executeLocal(new ej.Query().where("Guid", ej.FilterOperators.equal, $(e.target).closest(".e-appointment,.e-alldayappointment,.e-monthappointment").attr("data-guid")));
-				if (this._trigger("appointmentClick", { appointment: templist[0] })) {
+                if (this._trigger("appointmentClick", { appointment: templist[0], events: e })) {
                     return false;
                 }            
 			}
@@ -8131,7 +8302,7 @@
             }
             if (ej.isNullOrUndefined(this._appointmentAddWindow)) this._renderAppointmentWindow();
             if (!ej.isNullOrUndefined(this._appointmentAddWindow) && this._appointmentAddWindow.find(".e-recurEditor").length == 0) this._renderRecurrenceEditor();
-            if (!ej.isNullOrUndefined(this._quickAppointWindow) && this.model.showQuickWindow) this._quickAppointWindow.ejDialog("close");
+            if (!ej.isNullOrUndefined(this._quickAppointWindow) && this.model.showQuickWindow && this._quickAppointWindow.data("ejDialog")) this._quickAppointWindow.ejDialog("close");
             var startTime, endTime, _target = !ej.isNullOrUndefined(e.target) ? $(e.target) : $(e);
             if (this.currentView() != "agenda" && !_target.hasClass("e-detailedapp") && (!ej.isNullOrUndefined(this.model.workCellsTemplateId) || !ej.isNullOrUndefined(this.model.allDayCellsTemplateId)))
                 _target = !ej.isNullOrUndefined($(e.target).closest(".e-appointment,.e-alldayappointment,.e-monthappointment")) ? $(e.target).closest(".e-appointment,.e-alldayappointment,.e-monthappointment") : _target.closest(".e-workcells, .e-alldaycells, .e-monthcells");
@@ -8189,6 +8360,7 @@
                         var templist = new ej.DataManager(this._processed).executeLocal(new ej.Query().where("Guid", ej.FilterOperators.equal, this._appUid));
                         if (templist[0][this._appointmentSettings["recurrence"]]) {
                             this._parentId = templist[0]["ParentId"];
+                            this._appId = templist[0]["Id"];
                             if (this.model.showRecurrenceAlert) {
                                 if (ej.isNullOrUndefined(this._recurEditWindow)) this._renderRecurEditWindow();
                                 this._recurEditWindow.ejDialog("open");
@@ -8196,7 +8368,7 @@
                                 this._deleteBeforeOpen();
                             } else {
                                 this._editclick = false;
-                                this._showAppointmentDetails(this._parentId, false);
+                                this._showAppointmentDetails(this._appId, false);
                             }
                         } else
                             this._showAppointmentDetails(this._appUid, true);
@@ -8204,6 +8376,66 @@
                     }
                     this._editKey = false;
                 }
+            }
+        },
+
+        _openWindow: function(target) {
+            this._currentAction = ej.Schedule.Actions.Add;
+            if (!ej.isNullOrUndefined(this._appointmentAddWindow)) {
+                this._appointmentAddWindow.find(".e-recurEditor").css("display", "none");
+                this._appointmentAddWindow.find(".e-appwindow").css("display", "block");
+            }
+            target = $(target);
+            var slotDetails = this.getSlotByElement(target);
+            var startTime = slotDetails.startTime;
+            var endTime = slotDetails.endTime;
+            if (!ej.isNullOrUndefined(this.model.appointmentWindowOpen) || (!ej.isNullOrUndefined(this.model.serverEvents) && (this.model.serverEvents.indexOf("appointmentWindowOpen") != -1))) {
+                if (this._trigger("appointmentWindowOpen", slotDetails)) return false;
+            }
+            if (!ej.isNullOrUndefined(this._appointmentAddWindow)) {
+                this._appointmentAddWindow.find("#" + this._id + "subject").val("");
+                this._appointmentAddWindow.find("#" + this._id + "location").val("");
+                this._appointmentAddWindow.find("#" + this._id + "startdate").ejDatePicker("option", { value: ej.format(new Date(startTime), this._datepattern(), this.model.locale) });
+                this._appointmentAddWindow.find("#" + this._id + "enddate").ejDatePicker("option", { value: ej.format(new Date(endTime), this._datepattern(), this.model.locale) });
+                this._appointmentAddWindow.find("#" + this._id + "starttime").ejTimePicker("option", "value", ej.format(new Date(startTime), this._pattern.t, this.model.locale));
+                this._appointmentAddWindow.find("#" + this._id + "endtime").ejTimePicker("option", "value", ej.format(new Date(endTime), this._pattern.t, this.model.locale));
+                this._appointmentAddWindow.find("#" + this._id + "priority").ejDropDownList("option", "value", this.model.prioritySettings.dataSource[0][this.model.prioritySettings["value"]]);
+                this._timeZoneCollection(null);
+                this._tempStart = this._appointmentAddWindow.find("#" + this._id + "starttime").ejTimePicker("option", "value");
+                this._tempEnd = this._appointmentAddWindow.find("#" + this._id + "endtime").ejTimePicker("option", "value");
+                this._alldayCheck();
+                if (ej.scheduleFeatures.resources && (this._tempResource.length != 0) && this._tempResource[0].resourceSettings.dataSource.length != 0)
+                    this._renderResourceData(target, target[0].cellIndex);
+                if (!this.model.readOnly) {
+                    this._appointmentAddWindow.find(".e-appsave ,#" + this._id + "donerecur").ejButton("enable", true);
+                    (this._mediaQuery) && this._appointmentAddWindow.find(".e-btndelete").css("display", "none");
+                    this._appointmentAddWindow.ejDialog("open");
+                }
+                (!this._mediaQuery) && this._appointmentAddWindow.find(".subject").focus();
+                this._cellClick = false;
+            }
+        },
+
+        showAppointmentWindow: function (value, currentAction) {
+            if (ej.isNullOrUndefined(this._appointmentAddWindow)) this._renderAppointmentWindow();
+            if (!ej.isNullOrUndefined(this._appointmentAddWindow) && this._appointmentAddWindow.find(".e-recurEditor").length == 0) this._renderRecurrenceEditor();
+            this._currentAction = currentAction;
+            switch (currentAction) {
+                case ej.Schedule.Actions.Add:
+                    this._openWindow(value);
+                    break;
+                case ej.Schedule.Actions.Save:
+                case ej.Schedule.Actions.EditSeries:
+                case ej.Schedule.Actions.EditOccurrence:
+                    if (!ej.isNullOrUndefined(this._appointmentAddWindow)) this._appointmentAddWindow.ejDialog({ title: this._getLocalizedLabels("Editevent") });
+                    var eventId = value.Guid;
+                    this._parentId = value.ParentId;
+                    if (currentAction == ej.Schedule.Actions.EditSeries) {
+                        this._appUid = value.Guid;
+                        eventId = value[this._appointmentSettings['id']];
+                    }
+                    this._showAppointmentDetails(eventId, currentAction != ej.Schedule.Actions.EditSeries);
+                    break;
             }
         },
 
@@ -8227,13 +8459,14 @@
                 var tempApp1 = this._sortAppById(new ej.DataManager(this._processed).executeLocal(new ej.Query().where("Guid", ej.FilterOperators.equal, this._appUid)));
                 var templist1 = this._recurrenceAppSort(tempApp1);
             }
-            var data = !templist[0][this._appointmentSettings["recurrence"]] ? { appointment: templist[0], edit: editOcurrence } : this.model.showRecurrenceAlert ? { appointment: templist[0], edit: editOcurrence } : { appointment: templist[0], edit: editOcurrence, editSeries: true, recurrenceCollection: { occurrences: templist1[0], parentData: templist[0] } };
+            var data = !templist[0][this._appointmentSettings["recurrence"]] ? { appointment: templist[0], edit: editOcurrence } : this.model.showRecurrenceAlert ? { appointment: templist[0], edit: editOcurrence, editSeries: !editOcurrence } : { appointment: templist[0], edit: editOcurrence, editSeries: true, recurrenceCollection: { occurrences: templist1[0], parentData: templist[0] } };
             if (this._trigger("appointmentWindowOpen", data)) return false;
+            editOcurrence = !ej.isNullOrUndefined(data.editSeries) && !data.editSeries ? true: false;
             if (this.model.showRecurrenceAlert)
                 this._currentAction = (ej.isNullOrUndefined(this._currentAction) || this._currentAction == "") ? ej.Schedule.Actions.Save : this._currentAction;
             else
                 this._currentAction = this._editclick ? this._currentAction : data.editSeries ? ej.Schedule.Actions.EditSeries : ej.Schedule.Actions.EditOccurrence;
-            if (editOcurrence && this.model.showRecurrenceAlert) {
+            if (editOcurrence) {
                 (!ej.isNullOrUndefined(templist[0][this._appointmentSettings["recurrenceRule"]]) && templist[0][this._appointmentSettings["recurrenceRule"]].toString().indexOf("RECUREDITID") != -1 && this._currentAction != ej.Schedule.Actions.EditFutureOccurrences) && (this._currentAction = ej.Schedule.Actions.Save);
             }
             if (!ej.isNullOrUndefined(this._appointmentAddWindow)) {
@@ -8916,8 +9149,8 @@
                         break;
                     case "WEEKLY":
                         var byDay = recurEdit._rRule.weekDays.split(",");
-                        var dayCount = day_start.getDate() + (((recurEdit._rRule.count / byDay.length) * 7)) * (_interval);
-                        recurEndDate = new Date(new Date(day_start).setDate(Math.round(dayCount) < dayCount ? dayCount + 1 : dayCount));
+                        var dayCount = Math.round(day_start.getDate() + (((recurEdit._rRule.count / byDay.length) * 7)) * (_interval));
+                        recurEndDate = new Date(new Date(day_start).setDate(dayCount + 1));
                         break;
                     case "MONTHLY":
                         recurEndDate = new Date(new Date(day_start).setMonth(day_start.getMonth() + recurEdit._rRule.count * (_interval)));
@@ -9136,7 +9369,7 @@
                     obj[this._appointmentSettings["endTime"]] = new Date(temp.EndDate.setHours(parseInt(endtime[0], 10), parseInt(endtime[1], 10)));
                     (obj[this._appointmentSettings["recurrence"]]) && (obj[this._appointmentSettings["recurrenceRule"]] = recurEdit._recRule);
                     this._publicMethodSave = true;
-					if (ej.isNullOrUndefined(this.model.serverEvents) && !(this.dataSource() instanceof ej.DataManager)){
+					if (ej.isNullOrUndefined(this.model.serverEvents) && this._dataManager.dataSource.offline){
 						var value = this._timeZoneSavingAppoint(obj, temp);
 						obj = value.obj;
 					}
@@ -9333,7 +9566,10 @@
                     }
                     this._ignoreModifyOccurrences = beforeArgs["ignoreEditedOccurrences"];
                 }
-                var avail = this._checkAvailability(args[0]);
+                for (var i = 0; i < args.length; i++) {
+					var avail = this._checkAvailability(args[i]);
+					if (avail.length > 0) break;
+				}
                 if (args[this._appointmentSettings["startTime"]] > args[this._appointmentSettings["endTime"]] || avail.length > 0) {
                     this._showBlockAlert && this._alertBlockError();
                     return false;
@@ -9629,8 +9865,10 @@
                         });
                     }
                 }
-                this._clearFields();
-                this._appointmentAddWindow.ejDialog("close");
+                if (!ej.isNullOrUndefined(this._appointmentAddWindow)) { 
+                    this._clearFields();
+                    this._appointmentAddWindow.ejDialog("close");
+                }
             }
             if (this.element.find('div.e-draggableworkarea tr').find('td').hasClass("e-selectedCell"))
                 this._processFocus();
@@ -9642,7 +9880,6 @@
             if (this.model.showAppointmentNavigator) this._nextPrevButton();
             this.model.allowInline && this._inlineRemove();
         },
-
         _updateRecurrenceRule: function (parentObj, followObj) {
             if (ej.isNullOrUndefined(this._appointmentAddWindow)) this._renderAppointmentWindow();
             if (!ej.isNullOrUndefined(this._appointmentAddWindow) && this._appointmentAddWindow.find(".e-recurEditor").length == 0) this._renderRecurrenceEditor();
@@ -9664,14 +9901,17 @@
                     _exDate = (keyValuePair[0] == "EXDATE") ? _rules[i] : _exDate;
                     changeRule += _rules[i];
                 }
-                var recurEditor = this._appointmentAddWindow.find(".e-recurrenceeditor").data("ejRecurrenceEditor");
-                this._appointmentAddWindow.find(".recurstartdate").ejDatePicker({ value: ej.format(startDate, this._datepattern(), this.model.locale) });
+                this._recurrenceEditor.find(".recurstartdate").ejDatePicker({ value: ej.format(startDate, this._datepattern(), this.model.locale) });
                 recurEditor.recurrenceRuleSplit(changeRule);
                 recurEditor.showRecurrenceSummary();
                 var nextRule = recurEditor.getRecurrenceRule();
                 nextRule = (_exDate != "" && c == 0) ? nextRule + ";" + _exDate : nextRule;
                 generateRule.push(nextRule);
-                lastDate = new Date(followDate);
+                var newStartDate = new Date(followObj[this._appointmentSettings["startTime"]]);
+                this._recurrenceEditor.find(".recurstartdate").ejDatePicker({ value: ej.format(newStartDate, this._datepattern(), this.model.locale) });
+                var newRecurDates = recurEditor.recurrenceDateGenerator(followObj[this._appointmentSettings["recurrenceRule"]], followObj[this._appointmentSettings["startTime"]]);
+                var newFollowDate = new Date(newRecurDates[newRecurDates.length - 1]);
+                lastDate = new Date(newFollowDate);
                 startDate = new Date(followObj[this._appointmentSettings["startTime"]]);
                 previousRule = followObj[this._appointmentSettings["recurrenceRule"]];
             }
@@ -9939,6 +10179,7 @@
         },
 
         _deleteApp: function (id) {
+            var tempFilter = [];
             var currentAction = (this._actionType == ej.Schedule.Actions.DeleteSeries) ? ej.Schedule.Actions.DeleteSeries : (this._actionType == ej.Schedule.Actions.DeleteOccurrence) ? ej.Schedule.Actions.DeleteOccurrence : (this._actionType == ej.Schedule.Actions.DeleteFutureOccurrences) ? ej.Schedule.Actions.DeleteFutureOccurrences : ej.Schedule.Actions.Delete;
             var list = this.model.showRecurrenceAlert ? this._processed : currentAction == ej.Schedule.Actions.DeleteSeries ? this._currentAppointmentData : this._processed;
             var query = this.model.showRecurrenceAlert ? new ej.Query().where("Guid", ej.FilterOperators.equal, id) : currentAction == ej.Schedule.Actions.DeleteOccurrence ? new ej.Query().where("Guid", ej.FilterOperators.equal, id) : new ej.Query().where(this._appointmentSettings["id"], ej.FilterOperators.equal, id);
@@ -9950,10 +10191,10 @@
                 var occurrenceItem = new ej.DataManager(this._processed).executeLocal(new ej.Query().where("Guid", ej.FilterOperators.equal, this._appUid));
             }
             var data = this.model.showRecurrenceAlert ? !removeItem[0][this._appointmentSettings["recurrence"]] ? { appointment: removeItem[0], currentAction: currentAction } : { appointment: removeItem[0], currentAction: currentAction, recurrenceCollection: { occurrences: removeItem[0], parentData: this._getAppointmentByParentId(id) } } : { appointment: removeItem[0], currentAction: currentAction, recurrenceCollection: { occurrences: occurrenceItem[0], parentData: removeItem[0] }, deleteSeries: true };
-            if (this._trigger("beforeAppointmentRemove", data))
+            var parentObj = (this.model.showRecurrenceAlert) ? this._getAppointmentByParentId(id) : (data.deleteSeries) ? removeItem[0] : occurrenceItem[0];
+			if (this._trigger("beforeAppointmentRemove", data))
                 return false;
             currentAction = (this.model.showRecurrenceAlert) ? currentAction : this._currentAction = data.deleteSeries ? currentAction : ej.Schedule.Actions.DeleteOccurrence;
-            var parentObj = (this.model.showRecurrenceAlert) ? this._getAppointmentByParentId(id) : (data.deleteSeries) ? removeItem[0] : occurrenceItem[0];
             if (currentAction == ej.Schedule.Actions.Delete && this._groupEditing) {
                 var Parid = removeItem[0][this._appointmentSettings["recurrenceId"]] == null ? removeItem[0]["ParentId"] : removeItem[0][this._appointmentSettings["recurrenceId"]];
                 var MapValue = removeItem[0][this._appointmentSettings["recurrenceId"]] == null ? "ParentId" : this._appointmentSettings["recurrenceId"];
@@ -9971,6 +10212,10 @@
                     new ej.DataManager(this._processed).saveChanges({ added: [], changed: [], deleted: isObjAvail }, "Guid");
                     new ej.DataManager(this._renderedApp).saveChanges({ added: [], changed: [], deleted: isObjAvail }, "Guid");
                     new ej.DataManager(this._renderedAllDay).saveChanges({ added: [], changed: [], deleted: isObjAvail }, "Guid");
+                    for (var ix = 0, len = isObjAvail.length; ix < len; ix++) {
+                        this._appointmentRemove(isObjAvail[ix]);
+                        this._refreshDayAppointments(isObjAvail[ix]);
+                    }
                     var filterObj = this._currentAppointmentData.filter(function (obj) { return obj.ParentId == parentObj.ParentId; });
                     if (!ej.isNullOrUndefined(parentObj[this._appointmentSettings["recurrenceExDate"]])) {
                         var proxy = this;
@@ -10159,7 +10404,7 @@
                     return false;
                 }
                 e.preventDefault();
-                if (!ej.isNullOrUndefined(this._quickAppointWindow) && this.model.showQuickWindow) {
+                if (!ej.isNullOrUndefined(this._quickAppointWindow) && this.model.showQuickWindow && this._quickAppointWindow.data("ejDialog")) {
                     this._quickAppointWindow.ejDialog("close");
                     this._quickAppDetailsWindow.ejDialog("close");
                 }
@@ -10181,6 +10426,7 @@
                     $(e.target).hasClass("e-tophandle") ? this._topResizing = true : this._bottomResizing = true;
                 }
                 this._curElmt = $(e.target).parent();
+                this._resizeflag= false;
                 this.element.find(".e-workcells").removeClass("e-selectedCell,e-mousehover");
                 $(document).on(ej.eventType.mouseMove, $.proxy(this._appointmentResizing, this));
                 $(document).on(ej.eventType.mouseUp, $.proxy(this._appointmentResizeStop, this));
@@ -10218,7 +10464,9 @@
                         }
                     }
                     else {
-                        this._appointmentResizeHeight(appointDiv, 0, "e-workcells");
+                        if (!this.model.timeScale.enable) {
+                            appointDiv.css("height", this.element.find(".e-workcells").height() - 2);
+                        }
                     }
                 }
             }
@@ -10300,24 +10548,65 @@
                     newEndTime.setMinutes(new Date(newEndTime).getMinutes() + parseInt(diffMinutes % 60));
                 }
                 else {
-                    newEndTime.setHours(new Date(newStartTime).getHours() + (parseInt(this._curElmt.width() / this.element.find(".e-workcells").width()) / (this.model.timeScale.minorSlotCount * (60 / this.model.timeScale.majorSlot))));
-                    newEndTime.setMinutes(new Date(newStartTime).getMinutes() + parseInt(diffMinutes % 60));
+                    var cloneWidth = this.element.find(".e-scheduleAppGlassy").width();
+                    var cellWidth = this.element.find(".e-workcells").width();
+                    var start = new Date(newStartTime);
+                    var endTime = new Date(newEndTime);
+                    var dayIndex = this._dateRender.indexOf(new Date(endTime).setHours(0, 0, 0));
+					var dMinutes = (this.model.endHour - this.model.startHour) * 60;
+                    var min = cellWidth / (this.model.timeScale.majorSlot / this.model.timeScale.minorSlotCount);
+                    var diffWidth = cloneWidth - this.appoint_width;
+                    var diffMinutes = diffWidth / min;
+                    newEndTime.setDate(endTime.getDate());
+                    newEndTime.setMinutes(endTime.getMinutes() + diffMinutes);
+                    if ((newEndTime.getHours() >= this.model.endHour || (endTime.getDate() != newEndTime.getDate())) && this._resizeflag== false) {
+                        var dayMinutes = (this.model.endHour - endTime.getHours()) * 60;;
+                        dayMinutes = (endTime.getMinutes() === 0) ? dayMinutes : (dayMinutes - endTime.getMinutes());
+                        dayMinutes = (dayMinutes < 0) ? 0 : dayMinutes;
+                        var nextMinutes = diffMinutes - dayMinutes;
+						if(nextMinutes > dMinutes) {
+							 nextMinutes = nextMinutes % dMinutes;
+                        }
+                        dayIndex = dayIndex + Math.ceil((diffMinutes - dayMinutes) / dMinutes);
+                        if(dayIndex >= this._dateRender.length){
+                            dayIndex = this._dateRender.length - 1;
+                            newEndTime.setDate(new Date(this._dateRender[dayIndex]).getDate());
+                            newEndTime.setHours(this.model.endHour, 0, 0);
+                        } else {
+                        newEndTime.setDate(new Date(this._dateRender[dayIndex]).getDate());
+                        newEndTime.setHours(this.model.startHour, 0, 0);
+                        newEndTime.setMinutes(nextMinutes);
+                        }
+                    } else if (newEndTime.getHours() < this.model.startHour || (endTime.getDate() != newEndTime.getDate())) {
+                        this._resizeflag = true;
+                        var dayMinutes = (this.model.startHour - endTime.getHours()) * 60;;
+                        dayMinutes = (endTime.getMinutes() === 0) ? dayMinutes : (dayMinutes - endTime.getMinutes());
+                        var nextMinutes = Math.abs(diffMinutes - dayMinutes);
+                        if(nextMinutes > dMinutes) {
+                            nextMinutes = nextMinutes % dMinutes;
+                       }
+                       dayIndex = dayIndex - Math.ceil(Math.abs(diffMinutes - dayMinutes) / dMinutes);
+                       dayIndex = dayIndex < 0 ? 0 : dayIndex;
+                       newEndTime.setDate(new Date(this._dateRender[dayIndex]).getDate());
+                       newEndTime.setHours(this.model.endHour, 0, 0);
+                       newEndTime.setMinutes(-nextMinutes);
+                    }
                 }
                 (timesoltduration >= this._resizeInterval) ? newEndTime.setMinutes(Math.round(newEndTime.getMinutes() / this._resizeInterval) * this._resizeInterval) : newEndTime.setMinutes((newEndTime.getMinutes() / this._resizeInterval) * this._resizeInterval);
                 if (newEndTime > new Date(new Date(this._dateRender[this._dateRender.length - 1]).setHours(23, 59, 59)))
                     newEndTime = new Date(new Date(this._dateRender[this._dateRender.length - 1]).setHours(23, 59, 59));
-                if (this.model.endHour - this.model.startHour != 24) {
-                    var indexCell = parseInt((this._curElmt.offset().left + (dragArea.scrollLeft() - dragArea.offset().left) + this._curElmt.width()) / this.element.find(".e-workcells").width()) - 1;
-                    var hourValue = parseInt(indexCell / ((this.model.endHour - this.model.startHour) * this.model.timeScale.minorSlotCount * (60 / this.model.timeScale.majorSlot)));
-                    var newStart = new Date(newStartTime);
-                    var variable = (new Date(newEndTime).getHours() >= (this.model.endHour)) ? (this._dateRender[hourValue] - new Date(new Date(new Date(newStartTime).setHours(0, 0, 0, 0))).getTime()) / (24 * 1000 * 60 * 60) : 0;
-                    var missDate = this.currentView() == "workweek" ? ((variable - 1) * (this.model.endHour - this.model.startHour)) : 0;
-                    var minStartTime = (new Date(newEndTime).getHours() >= (this.model.endHour)) ? new Date(new Date(newStart).setHours(new Date(newStartTime).getHours() + missDate + (parseInt($(this._curElmt).width() / this.element.find(".e-workcells").width()) / (this.model.timeScale.minorSlotCount * (60 / this.model.timeScale.majorSlot))) + (variable * ((24 - this.model.endHour) + this.model.startHour)))) : newEndTime;
-                    if (new Date(newEndTime).getHours() >= (this.model.endHour)) minStartTime.setMinutes(new Date(newStartTime).getMinutes() + parseInt(diffMinutes % 60));
-                    if (new Date(new Date(minStartTime).setHours(0, 0, 0, 0)).getTime() != new Date(this._dateRender[hourValue]).getTime())
-                        minStartTime = new Date(this._dateRender[hourValue]).setHours(new Date(minStartTime).getHours(), new Date(minStartTime).getMinutes(), new Date(minStartTime).getSeconds(), new Date(minStartTime).getMilliseconds());
-                    newEndTime = new Date(minStartTime);
-                }
+                // if (this.model.endHour - this.model.startHour != 24) {
+                //     var indexCell = parseInt((this._curElmt.offset().left + (dragArea.scrollLeft() - dragArea.offset().left) + this._curElmt.width()) / this.element.find(".e-workcells").width()) - 1;
+                //     var hourValue = parseInt(indexCell / ((this.model.endHour - this.model.startHour) * this.model.timeScale.minorSlotCount * (60 / this.model.timeScale.majorSlot)));
+                //     var newStart = new Date(newStartTime);
+                //     var variable = (new Date(newEndTime).getHours() >= (this.model.endHour)) ? (this._dateRender[hourValue] - new Date(new Date(new Date(newStartTime).setHours(0, 0, 0, 0))).getTime()) / (24 * 1000 * 60 * 60) : 0;
+                //     var missDate = this.currentView() == "workweek" ? ((variable - 1) * (this.model.endHour - this.model.startHour)) : 0;
+                //     var minStartTime = (new Date(newEndTime).getHours() >= (this.model.endHour)) ? new Date(new Date(newStart).setHours(new Date(newStartTime).getHours() + missDate + (parseInt($(this._curElmt).width() / this.element.find(".e-workcells").width()) / (this.model.timeScale.minorSlotCount * (60 / this.model.timeScale.majorSlot))) + (variable * ((24 - this.model.endHour) + this.model.startHour)))) : newEndTime;
+                //     if (new Date(newEndTime).getHours() >= (this.model.endHour)) minStartTime.setMinutes(new Date(newStartTime).getMinutes() + parseInt(diffMinutes % 60));
+                //     if (new Date(new Date(minStartTime).setHours(0, 0, 0, 0)).getTime() != new Date(this._dateRender[hourValue]).getTime())
+                //         minStartTime = new Date(this._dateRender[hourValue]).setHours(new Date(minStartTime).getHours(), new Date(minStartTime).getMinutes(), new Date(minStartTime).getSeconds(), new Date(minStartTime).getMilliseconds());
+                //     newEndTime = new Date(minStartTime);
+                // }
             }
             else if (this._leftResizing) {
                 if ($(this.element.find('.e-workcells.e-childworkcell')[0]).offset().left < $(this._curElmt).offset().left)
@@ -10329,8 +10618,55 @@
                     diffLeft = -diff;
                 }
                 var diffMinutes = (diffLeft * 60) / ((this.element.find(".e-workcells").width() * this.model.timeScale.minorSlotCount * (60 / this.model.timeScale.majorSlot)) + 1);
-                newStartTime.setHours(parseInt(new Date(newStartTime).getHours()) + parseInt(diffMinutes / 60));
-                newStartTime.setMinutes(new Date(newStartTime).getMinutes() + parseInt(diffMinutes % 60));
+                if (this.model.endHour - this.model.startHour === 24) {
+                    newStartTime.setHours(parseInt(new Date(newStartTime).getHours()) + parseInt(diffMinutes / 60));
+                    newStartTime.setMinutes(new Date(newStartTime).getMinutes() + parseInt(diffMinutes % 60));
+                }
+                else {
+                    var cloneWidth = this.element.find(".e-scheduleAppGlassy").width();
+                    var cellWidth = this.element.find(".e-workcells").width();
+                    var start = new Date(newStartTime);
+                    var endTime = new Date(newEndTime);
+                    var dayIndex = this._dateRender.indexOf(new Date(start).setHours(0, 0, 0));
+                    var dMinutes = (this.model.endHour - this.model.startHour) * 60;
+                    var min = cellWidth / (this.model.timeScale.majorSlot / this.model.timeScale.minorSlotCount);
+                    var diffWidth = cloneWidth - this.appoint_width;
+                    var diffMinutes = diffWidth / min;
+                    newStartTime.setDate(start.getDate());
+                    newStartTime.setMinutes(start.getMinutes() - diffMinutes);
+                    if ((newStartTime.getHours() < this.model.startHour || (start.getDate() != newStartTime.getDate())) && this._resizeflag== false) {
+                        var dayMinutes = (start.getHours() - this.model.startHour) * 60;;
+                        dayMinutes = (start.getMinutes() === 0) ? dayMinutes : (dayMinutes + start.getMinutes());
+                        dayMinutes = (dayMinutes < 0) ? 0: dayMinutes;
+                        var nextMinutes = diffMinutes - dayMinutes;
+						if(nextMinutes > dMinutes) {
+							 nextMinutes = nextMinutes % dMinutes;
+                        }
+                        dayIndex = dayIndex - Math.ceil((diffMinutes - dayMinutes) / dMinutes);
+                        if(dayIndex < 0){
+                            dayIndex = 0;
+                            newStartTime.setDate(new Date(this._dateRender[dayIndex]).getDate());
+                            newStartTime.setHours(this.model.startHour, 0, 0);
+                        }else {
+                        newStartTime.setDate(new Date(this._dateRender[dayIndex]).getDate());
+                        newStartTime.setHours(this.model.endHour, 0, 0);
+                        newStartTime.setMinutes(-nextMinutes);
+                        }
+                    } else if (newStartTime.getHours() >= this.model.endHour || (start.getDate() != newStartTime.getDate())) {
+                        this._resizeflag = true;
+                        var dayMinutes = (this.model.endHour - start.getHours()) * 60;;
+                        dayMinutes = (start.getMinutes() === 0) ? dayMinutes : (dayMinutes - start.getMinutes());
+                        var nextMinutes = Math.abs(diffMinutes + dayMinutes);
+                        if(nextMinutes > dMinutes) {
+                            nextMinutes = nextMinutes % dMinutes;
+                       }
+                       dayIndex = dayIndex + Math.ceil(Math.abs(diffMinutes + dayMinutes) / dMinutes);
+                       dayIndex = dayIndex >= this._dateRender.length ? this._dateRender.length - 1 : dayIndex;
+                       newStartTime.setDate(new Date(this._dateRender[dayIndex]).getDate());
+                       newStartTime.setHours(this.model.startHour, 0, 0);
+                       newStartTime.setMinutes(nextMinutes);
+                    }
+                }
                 (timesoltduration >= this._resizeInterval) ? newStartTime.setMinutes(Math.round(newStartTime.getMinutes() / this._resizeInterval) * this._resizeInterval) : newStartTime.setMinutes((newStartTime.getMinutes() / this._resizeInterval) * this._resizeInterval);
                 if (newStartTime < new Date(this._dateRender[0]))
                     newStartTime = new Date(this._dateRender[0]);
@@ -10351,8 +10687,13 @@
                 this._curElmt.find(".e-apptime").html(ej.format(new Date(newEndTime), (this._timeMode == "12") ? this._pattern.t : "HH:mm", this.model.locale)).css("font-size", "12px").css("white-space", "normal").css("float", "left").css("margin-top", (this._curElmt.height() - (this._curElmt.find(".e-apptime").outerHeight() + this._curElmt.find(".e-apptext").outerHeight())) + "px");
             }
             else {
-                this._curElmt.find(".e-apptext").html(ej.format(new Date(newStartTime), (this._timeMode == "12") ? this._pattern.t : "HH:mm", this.model.locale)).css("font-size", "12px").css("white-space", "normal");
-                this._curElmt.find(".e-apptime").html(ej.format(new Date(newEndTime), (this._timeMode == "12") ? this._pattern.t : "HH:mm", this.model.locale)).css("font-size", "12px").css("white-space", "normal").css("float", "right").css("margin-top", (this._curElmt.height() - (this._curElmt.find(".e-apptime").outerHeight() + this._curElmt.find(".e-apptext").outerHeight())) + "px");
+                if (this.model.endHour - this.model.startHour === 24) {
+                    this._curElmt.find(".e-apptext").html(ej.format(new Date(newStartTime), (this._timeMode == "12") ? this._pattern.t : "HH:mm", this.model.locale)).css("font-size", "12px").css("white-space", "normal");
+                    this._curElmt.find(".e-apptime").html(ej.format(new Date(newEndTime), (this._timeMode == "12") ? this._pattern.t : "HH:mm", this.model.locale)).css("font-size", "12px").css("white-space", "normal").css("float", "right").css("margin-top", (this._curElmt.height() - (this._curElmt.find(".e-apptime").outerHeight() + this._curElmt.find(".e-apptext").outerHeight())) + "px");
+                } else if (!isNaN(newStartTime) && !isNaN(newEndTime)) {
+                    this._curElmt.find(".e-apptext").html(ej.format(new Date(newStartTime), (this._timeMode == "12") ? this._pattern.t : "HH:mm", this.model.locale)).css("font-size", "12px").css("white-space", "normal");
+                    this._curElmt.find(".e-apptime").html(ej.format(new Date(newEndTime), (this._timeMode == "12") ? this._pattern.t : "HH:mm", this.model.locale)).css("font-size", "12px").css("white-space", "normal").css("float", "right").css("margin-top", (this._curElmt.height() - (this._curElmt.find(".e-apptime").outerHeight() + this._curElmt.find(".e-apptext").outerHeight())) + "px");
+                }
             }
             this._resizeNewStartTime = newStartTime;
             this._resizeNewEndTime = newEndTime;
@@ -10782,13 +11123,13 @@
                             var promise, queryId = (this.dataSource() instanceof ej.DataManager) ? this._appointmentSettings["id"] : "AppTaskId";
                             (!reverse) && (promise = this._dataManager.saveChanges({ added: temp, changed: _editApp, deleted: [] }, queryId, this.model.appointmentSettings.query._fromTable));
                             for (var c = 0; c < temp.length; c++) {
-								if (ej.isNullOrUndefined(this.model.serverEvents))
+								if(ej.isNullOrUndefined(this.model.serverEvents))
 									new ej.DataManager(this._currentAppointmentData).update("AppTaskId", this._timeZoneAppointments(temp[c], "reverse"));
 								else
 									new ej.DataManager(this._currentAppointmentData).update("AppTaskId", temp[c]);								
 							}
 							for (var c = 0; c < _editApp.length; c++) {
-								if (ej.isNullOrUndefined(this.model.serverEvents))
+								if(ej.isNullOrUndefined(this.model.serverEvents))
 									new ej.DataManager(this._currentAppointmentData).update("AppTaskId", this._timeZoneAppointments(_editApp[c], "reverse"));
 								else									
 									new ej.DataManager(this._currentAppointmentData).update("AppTaskId", _editApp[c]);								
@@ -10913,9 +11254,10 @@
                             }
                             var temp = ((!ej.isNullOrUndefined(this.model.serverEvents) && (this.model.serverEvents.indexOf("resizeStop") != -1))) ? _updateList :this._timeZoneAppointments(_updateList, "");
                             var promise, queryId = (this.dataSource() instanceof ej.DataManager) ? this._appointmentSettings["id"] : "AppTaskId";
-                            (!reverse) && (promise = this._dataManager.update(queryId, temp, this.model.appointmentSettings.query._fromTable));							
-							if (ej.isNullOrUndefined(this.model.serverEvents))
-								new ej.DataManager(this._currentAppointmentData).update("AppTaskId", this._timeZoneAppointments(temp, "reverse"));
+                            (!reverse) && (promise = this._dataManager.update(queryId, temp, this.model.appointmentSettings.query._fromTable));	
+                            var updateTemp = this._timeZoneAppointments(temp, "reverse");
+							if(ej.isNullOrUndefined(this.model.serverEvents))
+								new ej.DataManager(this._currentAppointmentData).update("AppTaskId", updateTemp);
 							else 
 								new ej.DataManager(this._currentAppointmentData).update("AppTaskId", temp);
                             if (this._groupEditing) {
@@ -11030,14 +11372,15 @@
             this._leftResizing = false;
             this._rightResizing = false;
             var appointdiv;
+            var dragTarget = this.model.orientation == "vertical" ? "div.e-draggableworkarea" : "table.e-workcellstab";
             if (this.model.allowDragAndDrop) {
                 var proxy = this;
                 var $dragableElements = this.element.find(".e-appointment");
                 $dragableElements.ejDraggable({
                     handle: ".e-appointment",
 					dragOnTaphold : (proxy._mediaQuery) ? true : false,
-                    dragArea: (proxy.model.appointmentDragArea == "") ? proxy.element.find("div.e-draggableworkarea", (".e-headrealldaytable tr")[(!ej.isNullOrUndefined(this.model.group) && (this._tempResource.length != 0)) ? this._grouping.length + 1 : 1]) : $(proxy.model.appointmentDragArea),
-                    cursorAt: (proxy.model.appointmentDragArea == "") ? { top: 0, left: 0 } : { top: -40, left: -40 },
+                    dragArea: (proxy.model.appointmentDragArea == "") ? proxy.element.find(dragTarget, (".e-headrealldaytable tr")[(!ej.isNullOrUndefined(this.model.group) && (this._tempResource.length != 0)) ? this._grouping.length + 1 : 1]) : $(proxy.model.appointmentDragArea),
+                    cursorAt:(proxy.model.appointmentDragArea == "") ? { top: 0, left: 0 } : { top: -40, left: -40 },
                     dragStart: function (args) {
                         proxy._dragStart(args);
                     },
@@ -11057,7 +11400,7 @@
                 $dragableElements.ejDraggable({
                     handle: ".e-alldayappointment",
 					dragOnTaphold : (proxy._mediaQuery) ? true : false,
-                    dragArea: (proxy.model.appointmentDragArea == "") ? proxy.element : $(proxy.model.appointmentDragArea),// proxy.element.find((".e-headrealldaytable tr")[(!ej.isNullOrUndefined(this.model.group) && (this._tempResource.length!=0)) ? this._grouping.length + 1 : 1],"div.e-draggableworkarea"),
+                    dragArea: (proxy.model.appointmentDragArea == "") ? proxy.element : $(proxy.model.appointmentDragArea),
                     cursorAt: { top: 17, left: 0 },
                     dragStart: function (args) {
                         proxy._dragStart(args);
@@ -11078,7 +11421,7 @@
                 $dragableElements.ejDraggable({
                     handle: ".e-monthappointment",
 					dragOnTaphold : (proxy._mediaQuery) ? true : false,
-                    dragArea: (proxy.model.appointmentDragArea == "") ? proxy.element.find("div.e-draggableworkarea") : $(proxy.model.appointmentDragArea),
+                    dragArea: (proxy.model.appointmentDragArea == "") ? proxy.element.find(dragTarget) : $(proxy.model.appointmentDragArea),
                     cursorAt: (proxy.model.appointmentDragArea == "") ? { top: 0, left: 0 } : { top: -20, left: 10 },
                     dragStart: function (args) {
                         proxy._dragStart(args);
@@ -11106,7 +11449,8 @@
             appointdiv.find('.e-righthandle').removeClass('e-righthandle e-appointresizer-right e-icon e-ewexpand');
             appointdiv.clone().prop('id', 'cloneElement').appendTo(appointdiv.parent());
             appointdiv.css('cursor', 'move');
-            return (proxy.model.appointmentDragArea == "") ? appointdiv.addClass("e-draggableAppointment e-scheduleAppGlassy").removeClass("e-schedulemouseclose e-tophandle e-bottomhandle").css("width", _cloneWidth + "px").appendTo(proxy.element) : appointdiv.addClass("e-draggableAppointment e-scheduleAppGlassy").removeClass("e-schedulemouseclose e-tophandle e-bottomhandle").css("width", _cloneWidth + "px").appendTo($(document.body));
+            var appDragElement = (this.model.orientation == "vertical" )? proxy.element : proxy.element.find('.e-worktable .e-scroller');
+            return (proxy.model.appointmentDragArea == "") ? appointdiv.addClass("e-draggableAppointment e-scheduleAppGlassy").removeClass("e-schedulemouseclose e-tophandle e-bottomhandle").css("width", _cloneWidth + "px").appendTo(appDragElement) : appointdiv.addClass("e-draggableAppointment e-scheduleAppGlassy").removeClass("e-schedulemouseclose e-tophandle e-bottomhandle").css("width", _cloneWidth + "px").appendTo($(document.body));
         },
         _dragStart: function (args) {
             if ($(args.element[0]).hasClass("e-appointment") || $(args.element[0]).hasClass("e-monthappointment") || $(args.element[0]).hasClass("e-alldayappointment")) {
@@ -11155,13 +11499,14 @@
             }
             else
                 args.cancel = true;
-            if (!ej.isNullOrUndefined(this._quickAppointWindow) && this.model.showQuickWindow) {
+            if (!ej.isNullOrUndefined(this._quickAppointWindow) && this.model.showQuickWindow && this._quickAppointWindow.data("ejDialog")) {
                 this._quickAppointWindow.ejDialog("close");
                 this._quickAppDetailsWindow.ejDialog("close");
             }
         },
 
         _dragOver: function (args) {
+            if(this.element.find(".e-draggableworkarea")[0].offsetWidth > args.element[0].offsetWidth ){
             var $target = $(args.element);
             var data = { target: $target, interval: 10, timeDelay: 3000, scrollBy: 15 };
             !ej.isNullOrUndefined(this.element.data("ejTooltip")) && this.element.ejTooltip('hide');
@@ -11337,17 +11682,23 @@
                     this._Nextstart = Date.now();
                     this._dragCountNext = window.setInterval(changeNextWeek, proxy._timeDelay);
                 }
-            }
+                }
+            } else {
+                args.element.width(this.element.find(".e-draggableworkarea").width());
+                var curData = this._processed.filter(function (obj) { return obj.Guid == args.element.attr("data-guid"); });
+                this._dragNewStartTime= new Date(curData[0][this._appointmentSettings["startTime"]]);
+                this._dragNewEndTime= new Date(curData[curData.length - 1][this._appointmentSettings["endTime"]]);
+            }    
         },
 
         _monthdrag: function (args) {
             var model = this._appointmentSettings, dragArea = this.element.find(".e-draggableworkarea"), cellIndex;
+            var oldStartTime = new Date(this._dragApp[0][model["startTime"]]);
+            var oldEndTime = new Date(this._dragApp[0][model["endTime"]]);
             if (this.model.orientation == "vertical" && this._customOrientation == "vertical") {
                 var apps = $.extend(true, {}, this._dragApp);
                 var model = this._appointmentSettings, dragArea = this.element.find(".e-draggableworkarea");
                 var splitDrag = ((Math.ceil((apps[model["endTime"]] - apps[model["startTime"]]) / 3600000) < 24) && (apps[model["endTime"]].getDay() != apps[model["startTime"]].getDay())) ? true : false;
-                var oldStartTime = new Date(this._dragApp[0][model["startTime"]]);
-                var oldEndTime = new Date(this._dragApp[0][model["endTime"]]);
                 if ((this._dragApp[0][model["recurrence"]] && this._dragApp[0][model["recurrenceRule"]].toString().indexOf("RECUREDITID") == -1)) {
                     oldStartTime = this._dragApp[0][model["startTime"]];
                     oldEndTime = this._dragApp[this._dragApp.length - 1][model["endTime"]];
@@ -11356,7 +11707,7 @@
                 var daysInPrevMonth = newStartTime.getDay();
                 newStartTime.setDate(newStartTime.getDate() - daysInPrevMonth);
                 if (this.currentView() == "month" || (this.currentView() == "customview" && !this._oneWeek)) {
-                    cellIndex = parseInt(($(args.element[0]).offset().left + dragArea.scrollLeft() - dragArea.offset().left) / this.element.find(".e-monthcells").width());
+                    cellIndex = Math.round(($(args.element[0]).offset().left + dragArea.scrollLeft() - dragArea.offset().left) / this.element.find(".e-monthcells").eq(1).outerWidth());
                     cellIndex = (this.model.enableRTL) ? 7 - cellIndex - 1 : cellIndex;
                 }
                 else {
@@ -11368,21 +11719,7 @@
                 if (!this.model.showOverflowButton) newTopDate = this._findRowIndex(args);
                 var dateCount = this.currentView() == "month" || this._isCustomMonthView() && !this._oneWeek ? (this.model.showWeekend) ? 7 : this.model.workWeek.length : this._dateRender.length;
                 var index = (this.model.enableRTL) ? (newTopDate * dateCount) + (cellIndex - (Math.floor(cellIndex / dateCount) * dateCount)) - (oldEndTime.getDay() - oldStartTime.getDay()) : (newTopDate * dateCount) + (cellIndex - (Math.floor(cellIndex / dateCount) * dateCount));
-                newStartTime = new Date(new Date(this._dateRender[index]).setHours(oldStartTime.getHours(), oldStartTime.getMinutes(), oldStartTime.getSeconds()));
-                if (Math.ceil((this._dragApp[0][model["endTime"]] - this._dragApp[0][model["startTime"]]) / 3600000) > 24) {
-                    var trgtApp = new ej.DataManager(this._processed).executeLocal(new ej.Query().where("AppTaskId", ej.FilterOperators.equal, parseInt(args.element.attr('id').split("_")[1])));
-                    var multiDif = new Date(trgtApp[0][model["startTime"]]) - new Date(this._dragApp[0][model["startTime"]]);
-                    cellstrtime = new Date(newStartTime - multiDif);
-                    var diffTime = (newStartTime.getTime() - new Date(oldStartTime).getTime()) - new Date(multiDif).getTime();
-                }
-                else {
-                    cellstrtime = new Date(newStartTime);
-                    var diffTime = newStartTime.getTime() - new Date(oldStartTime).getTime();
-                }
-                newEndTime = new Date(new Date(oldEndTime).getTime() + diffTime);
-                cellendtime = new Date(newEndTime);
-                this._dragNewStartTime = cellstrtime;
-                this._dragNewEndTime = cellendtime;
+				newStartTime = new Date(new Date(this._dateRender[index]).setHours(oldStartTime.getHours(), oldStartTime.getMinutes(), oldStartTime.getSeconds()));
             }
             else if ((this.model.orientation == "horizontal" || this._customOrientation == "horizontal") && ej.scheduleFeatures.horizontal) {
                 var newStartTime = cellstrtime = this._dragNewStartTime;
@@ -11395,17 +11732,15 @@
                 else
                     var colIndex = Math.round(($(args.element[0]).offset().left + dragArea.scrollLeft() - dragArea.offset().left) / this.element.find(".e-workcells").eq(1).outerWidth());
                 this.element.find(".e-appointment,.e-monthappointment").css({ "pointer-events": "visible" });
-                var rowIndex = parseInt(($(args.element[0]).offset().top + dragArea.scrollTop() - dragArea.offset().top) / (this.element.find(".e-workcells")[0].offsetHeight));
+                var rowIndex = parseInt(($(args.element[0]).offset().top + args.element[0].offsetHeight + dragArea.scrollTop() - dragArea.offset().top) / (this.element.find(".e-workcells")[0].offsetHeight));
                 if (!this.model.showOverflowButton) rowIndex = this._findRowIndex(args);
                 if (this.element.find('.e-resourceheadertable .e-resourceexpand').length > 0)
                     rowIndex += $(this.element.find('.e-resourceheadertable').find('tr').filter(function () { return $(this).css('display') !== 'none'; })[rowIndex]).prevUntil("table.e-resourceheadertable").filter(function () { return $(this).css('display') == 'none'; }).length;
                 var target = $(this.element.find(".e-workcellstab tr")[rowIndex]).find("td")[colIndex];
+                var cellIndex = rowIndex;
                 if (!$(target).hasClass("e-resourceheadercells") && !ej.isNullOrUndefined(target)) {
                     this._cellIndex = (this.model.enableRTL) ? this.element.find(".e-workcells").length - (Math.floor($(args.element[0]).offset().left / this.element.find(".e-workcells").width())) : Math.floor(($(args.element[0]).offset().left + dragArea.scrollLeft() - dragArea.offset().left) / this.element.find(".e-workcells").width());
-                    var cellIndex = rowIndex;
                     if ($(args.element[0]).hasClass("e-monthappointment")) {
-                        var oldStartTime = new Date(this._dragApp[0][model["startTime"]]);
-                        var oldEndTime = new Date(this._dragApp[0][model["endTime"]]);
                         if ((this._dragApp[0][model["recurrence"]] && this._dragApp[0][model["recurrenceRule"]].toString().indexOf("RECUREDITID") == -1)) {
                             oldStartTime = this._dragApp[0][model["startTime"]];
                             oldEndTime = this._dragApp[0][model["endTime"]];
@@ -11416,37 +11751,110 @@
                         }
                         newStartTime = new Date(this.monthDays[colIndex]);
                         newStartTime.setHours(oldStartTime.getHours(), oldStartTime.getMinutes(), oldStartTime.getSeconds());
-                        cellstrtime = new Date(newStartTime);
-                        var diffTime = newStartTime.getTime() - new Date(oldStartTime).getTime();
-                        newEndTime = new Date(new Date(oldEndTime).getTime() + diffTime);
-                        cellendtime = new Date(newEndTime);
-                        this._dragNewStartTime = cellstrtime;
-                        this._dragNewEndTime = cellendtime;
+					}
+                }
+            }
+			if (Math.ceil((this._dragApp[0][model["endTime"]] - this._dragApp[0][model["startTime"]]) / 3600000) > 24) {
+				var trgtApp = new ej.DataManager(this._processed).executeLocal(new ej.Query().where("AppTaskId", ej.FilterOperators.equal, parseInt(args.element.attr('id').split("_")[1])));
+				var multiDif = new Date(trgtApp[0][model["startTime"]]) - new Date(this._dragApp[0][model["startTime"]]);
+				cellstrtime = new Date(newStartTime - multiDif);
+				var diffTime = (newStartTime.getTime() - new Date(oldStartTime).getTime()) - new Date(multiDif).getTime();
+			}
+			else {
+				cellstrtime = new Date(newStartTime);
+				var diffTime = newStartTime.getTime() - new Date(oldStartTime).getTime();
+			}
+			newEndTime = new Date(new Date(oldEndTime).getTime() + diffTime);
+            cellendtime = new Date(newEndTime);
+              if((cellendtime.getHours() == this.model.endHour && cellendtime.getMinutes() > 0) || cellendtime.getHours() > this.model.endHour || (cellendtime.getHours() == this.model.startHour && cellendtime.getMinutes() < 0) || cellendtime.getHours() < this.model.startHour) {
+                    var endTime = new Date(cellendtime);
+                    var dayIndex = this._dateRender.indexOf(new Date(endTime).setHours(0, 0, 0));
+					var dMinutes = (this.model.endHour - this.model.startHour) * 60;
+                    if ((cellendtime.getHours() >= this.model.endHour || (endTime.getDate() != cellendtime.getDate()))) {
+                        var nextMinutes = ( endTime.getHours() - this.model.endHour) * 60;;
+                        nextMinutes = (endTime.getMinutes() === 0) ? nextMinutes : ( endTime.getMinutes() + nextMinutes);
+                        nextMinutes = (nextMinutes < 0) ? 0 : nextMinutes;
+						if(nextMinutes > dMinutes) {
+							 nextMinutes = nextMinutes % dMinutes;
+                        }
+                        dayIndex = dayIndex + Math.ceil( nextMinutes / dMinutes);
+                        if(dayIndex >= this._dateRender.length){
+                            dayIndex = this._dateRender.length - 1;
+                            cellendtime.setDate(new Date(this._dateRender[dayIndex]).getDate());
+                            cellendtime.setHours(this.model.endHour, 0, 0);
+                        } else {
+                            cellendtime.setDate(new Date(this._dateRender[dayIndex]).getDate());
+                            cellendtime.setHours(this.model.startHour, 0, 0);
+                            cellendtime.setMinutes(nextMinutes);
+                        }
+                    } else if (cellendtime.getHours() < this.model.startHour || (endTime.getDate() != cellendtime.getDate())) {
+                        this._resizeflag = true;
+                        var nextMinutes = (this.model.startHour - endTime.getHours()) * 60;;
+                        nextMinutes = (endTime.getMinutes() === 0) ? nextMinutes : (nextMinutes - endTime.getMinutes());
+                        if(nextMinutes > dMinutes) {
+                            nextMinutes = nextMinutes % dMinutes;
+                       }
+                       dayIndex = dayIndex - Math.ceil(nextMinutes / dMinutes);
+                       dayIndex = dayIndex < 0 ? 0 : dayIndex;
+                       cellendtime.setDate(new Date(this._dateRender[dayIndex]).getDate());
+                       cellendtime.setHours(this.model.endHour, 0, 0);
+                       cellendtime.setMinutes(-nextMinutes);
                     }
                 }
-            }
+                if((cellstrtime.getHours() < this.model.startHour)){
+                    var start = new Date(newStartTime);
+                    var endTime = new Date(newEndTime);
+                    var dayIndex = this._dateRender.indexOf(new Date(start).setHours(0, 0, 0));
+                    var dMinutes = (this.model.endHour - this.model.startHour) * 60;
+                    newStartTime.setDate(start.getDate());
+                    if ((newStartTime.getHours() < this.model.startHour || (start.getDate() != newStartTime.getDate()))) {
+                        var nextMinutes = (  this.model.startHour - start.getHours()) * 60;;
+                        nextMinutes = (start.getMinutes() === 0) ? nextMinutes : (nextMinutes - start.getMinutes());
+                        nextMinutes = (nextMinutes < 0) ? 0: nextMinutes;
+						if(nextMinutes > dMinutes) {
+							 nextMinutes = nextMinutes % dMinutes;
+                        }
+                        dayIndex = dayIndex - Math.ceil(( nextMinutes) / dMinutes);
+                        if(dayIndex < 0){
+                            dayIndex = 0;
+                            newStartTime.setDate(new Date(this._dateRender[dayIndex]).getDate());
+                            newStartTime.setHours(this.model.startHour, 0, 0);
+                        }else {
+                        newStartTime.setDate(new Date(this._dateRender[dayIndex]).getDate());
+                        newStartTime.setHours(this.model.endHour, 0, 0);
+                        newStartTime.setMinutes(-nextMinutes);
+                        }
+                    } else if (newStartTime.getHours() >= this.model.endHour || (start.getDate() != newStartTime.getDate())) {
+                        this._resizeflag = true;
+                        var nextMinutes = (this.model.endHour - start.getHours()) * 60;;
+                        nextMinutes = (start.getMinutes() === 0) ? nextMinutes : (nextMinutes - start.getMinutes());
+                        if(nextMinutes > dMinutes) {
+                            nextMinutes = nextMinutes % dMinutes;
+                       }
+                       dayIndex = dayIndex + Math.ceil(nextMinutes / dMinutes);
+                       dayIndex = dayIndex >= this._dateRender.length ? this._dateRender.length - 1 : dayIndex;
+                       newStartTime.setDate(new Date(this._dateRender[dayIndex]).getDate());
+                       newStartTime.setHours(this.model.startHour, 0, 0);
+                       newStartTime.setMinutes(nextMinutes);
+                    }
+                }
+			this._dragNewStartTime = cellstrtime;
+			this._dragNewEndTime = cellendtime;
             if (this.model.orientation == ej.Schedule.Orientation.Vertical && this._customOrientation == "vertical") {
                 if (this.currentView() == "month" || (this.currentView() == "customview" && !this._oneWeek)) {
-                    cellIndex = parseInt(($(args.element[0]).offset().left + dragArea.scrollLeft() - dragArea.offset().left) / this.element.find(".e-monthcells").width());
+                    cellIndex = Math.round(($(args.element[0]).offset().left + dragArea.scrollLeft() - dragArea.offset().left) / this.element.find(".e-monthcells").eq(1).outerWidth());
                 }
                 else {
                     cellIndex = parseInt(($(args.element[0]).offset().left - dragArea.offset().left) / (Math.round(dragArea.width() / noOfCols)));
                 }
-            }
-            if (this.model.orientation == ej.Schedule.Orientation.Vertical && this._customOrientation == "vertical") {
-                if (this.currentView() == "month" || (this.currentView() == "customview" && !this._oneWeek)) {
-                    cellIndex = parseInt(($(args.element[0]).offset().left + dragArea.scrollLeft() - dragArea.offset().left) / this.element.find(".e-monthcells").width());
-                }
-                else {
-                    cellIndex = parseInt(($(args.element[0]).offset().left - dragArea.offset().left) / (Math.round(dragArea.width() / noOfCols)));
-                }
-            }
+            }           
             return cellIndex;
         },
 
         _dragStop: function (args) {
             clearInterval(this._dragCountPrev);
             clearInterval(this._dragCountNext);
+			((this.currentView() != "month" && !this._isCustomMonthView()) && ($(args.element[0]).hasClass("e-appointment") || (!ej.isNullOrUndefined(args.target)) && (!ej.isNullOrUndefined(args.target.className) ?args.target.className.indexOf('e-workcells') > -1 : false))) && this._dragAppointmentCurrentTime(args);
             this._dragCountPrev = this._dragCountNext = null;
             this._dragWeek = false;
             (this._mediaQuery || ej.isMobile()) && this._on(this.element, "tap", ".e-appointment,.e-alldayappointment,div.e-monthappointment,.e-agendaappointment", $.proxy(this._appointmentWindow, this));
@@ -11481,6 +11889,7 @@
             else {
                 var tempApp = this._sortAppById(new ej.DataManager(this._processed).executeLocal(new ej.Query().where("Guid", ej.FilterOperators.equal, this._appUid)));
             }
+            var oldApp = $.extend(true, {}, tempApp[0]);
             this.tempResApp = tempApp[0];
             if (tempApp.length > 1 && !tempApp[0][model["recurrence"]]) {
                 var twoDayApps = true;
@@ -11528,10 +11937,8 @@
                         if ((tempApp[0][model["recurrence"]] && tempApp[0][model["recurrenceRule"]].toString().indexOf("RECUREDITID") == -1)) {
                             newStartTime = new Date(tempApp[0][model["startTime"]]);
                             newEndTime = new Date(tempApp[0][model["endTime"]]);
-                        }
-                        var diffLeft = $(args.element[0]).offset().left + dragArea.scrollLeft() - this.element.find(".e-alldaycells").offset().left - 1;
-                        diffLeft = (this.model.enableRTL) ? Math.abs(diffLeft) : diffLeft;
-                        var cellIndex = Math.round(diffLeft / (this.element.find(".e-alldaycells").width() + 1));
+                        }                      
+                        var cellIndex = Math.round(($(args.element[0]).offset().left + dragArea.scrollLeft() - dragArea.offset().left) / this.element.find(".e-workcells").eq(1).outerWidth());
                         var count = Math.round($(args.element[0]).width() / (this.element.find(".e-alldaycells").width() + 1));
                         var overall = Math.ceil((newEndTime - newStartTime) / (1000 * 60 * 60 * 24));
                         var endInd = Math.round($(args.element[0]).width() / (this.element.find(".e-alldaycells").width() + 1));
@@ -11577,12 +11984,14 @@
                         else if (dateChange) {
                             if (newStartTime < new Date(this._dateRender[0])) {
                                 var Index = (cellIndex > cols - 1) ? (cellIndex % cols) : cellIndex;
+                                Index = (this.model.enableRTL) ? (this._dateRender.length - 1) - Index : Index;
                                 (this._resWorkWeek || this._resCustomView) ? newStartTime = new Date(new Date(this._dateRender[cellIndex])) : newStartTime.setDate(new Date(appoint[proxy._appointmentSettings["startTime"]]).getDate() + Index);
                                 newStartTime.setHours(new Date(appoint[model["startTime"]]).getHours(), new Date(appoint[model["startTime"]]).getMinutes());
                                 cellstrtime = new Date(newStartTime);
                             }
                             else {
                                 var Index = (cellIndex > cols - 1) ? (cellIndex % cols) : cellIndex;
+                                Index = (this.model.enableRTL) ? (this._dateRender.length - 1) - Index : Index;
                                 cellstrtime = (this._resWorkWeek || this._resCustomView)? new Date(new Date(this._dateRender[cellIndex])): new Date(new Date(this._dateRender[Index]));
                                 cellstrtime.setHours(new Date(appoint[model["startTime"]]).getHours(), new Date(appoint[model["startTime"]]).getMinutes());
                             }
@@ -11601,20 +12010,21 @@
             else if ((this.model.orientation == "horizontal" || this._customOrientation == "horizontal") && ej.scheduleFeatures.horizontal) {
                 var cellIndex = this._monthdrag(args);
                 newStartTime = cellstrtime = this._dragNewStartTime;
-                newEndTime = cellendtime = this._dragNewEndTime
+                newEndTime = cellendtime = this._dragNewEndTime;
             }
             if (this.model.orientation == ej.Schedule.Orientation.Horizontal && tempApp[0][model["allDay"]] && this.res1.length > 1 && !(this.currentView() == ej.Schedule.CurrentView.Month || this._isCustomMonthView())) {
                 cellstrtime = new Date(tempApp[0][model["startTime"]]);
                 cellendtime = new Date(tempApp[0][model["endTime"]]);
             }
             var curLevel = true;
+            var isResourceHeaderCell = this.element.find(".e-resourceheadertable .e-horizontresheaderdiv").eq(cellIndex).children().hasClass("e-parentnode");
             if (this._grouping.length > 0) {
                 var tempList = $.extend(true, {}, tempApp[0]);
                 tempList = this._getDragDropResourceData(this, cellIndex, tempList);
                 var resLevel = this._appointmentSettings.resourceFields.split(",");
                 var curLevel = tempList[this._appointmentSettings.resourceFields.split(",")[resLevel.length - 1]] == tempApp[0][this._appointmentSettings.resourceFields.split(",")[resLevel.length - 1]];
             }
-            if (curLevel && !ej.isNullOrUndefined(newStartTime) && new Date(newStartTime).getTime() == new Date(this._dragApp[0][model["startTime"]]).getTime() && new Date(newEndTime).getTime() == new Date(this._dragApp[this._dragApp.length - 1][model["endTime"]]).getTime()) {
+            if ((curLevel && !ej.isNullOrUndefined(newStartTime) && new Date(newStartTime).getTime() == new Date(this._dragApp[0][model["startTime"]]).getTime() && new Date(newEndTime).getTime() == new Date(this._dragApp[this._dragApp.length - 1][model["endTime"]]).getTime()) || isResourceHeaderCell) {
                 if (this.element.find("#cloneElement").length > 0) {
                     var originElmt = this._curDragElmt.clone();
                     var startTimeDisp = this._timeMode == "12" ? ej.format(tempApp[0][model["startTime"]], this._pattern.t, this.model.locale) : ej.format(tempApp[0][model["startTime"]], "HH:mm", this.model.locale);
@@ -11646,8 +12056,16 @@
                         originElmt.children().eq(1).addClass('e-righthandle e-appointresizer-right e-icon');
                     }
                     originElmt.children().eq(2).addClass('e-schedulemouseclose e-icon').removeAttr("style");
+                    if(this.currentView()== 'month' || this.model.orientation == "vertical"){
+                        originElmt[0].style.height = (this.model.orientation == "vertical") ? this.element.find('#cloneElement')[0].style.height : this.element.find('#cloneElement')[0].offsetHeight + 'px';
+                        originElmt[0].style.width = (this.model.orientation == "vertical") ? this.element.find('#cloneElement')[0].style.width : this.element.find('#cloneElement')[0].offsetWidth + 'px';
+                    }
+                    this.element.find('#cloneElement').parent().append(originElmt);
                     this._bindAppointmentAction();
                 }
+                this.element.find('#cloneElement').remove();
+                var eventArgs = (!ej.isNullOrUndefined(this.model.serverEvents) && (this.model.serverEvents.indexOf("dragStop") != -1)) ? { type: args.type } : args;
+                this._trigger("dragStop", { appointment: tempApp[0], event: eventArgs, draggedAppointment: oldApp});
                 ($(document.body).find(".e-scheduleAppGlassy").length > 0) && $(document.body).find(".e-scheduleAppGlassy").remove();
                 return false;
             }
@@ -11705,7 +12123,7 @@
                         var eventArgs = (!ej.isNullOrUndefined(this.model.serverEvents) && (this.model.serverEvents.indexOf("dragStop") != -1)) ? { type: args.type } : args;
                         if((!ej.isNullOrUndefined(this.model.serverEvents) && (this.model.serverEvents.indexOf("dragStop") != -1)))
 							this._timeZoneAppointments(_newAddList, "");
-						if (this._trigger("dragStop", { appointment: _newAddList, event: eventArgs }) || avail.length > 0) {
+						if (this._trigger("dragStop", { appointment: _newAddList, event: eventArgs, draggedAppointment: oldApp }) || avail.length > 0) {
                             this._showBlockAlert && (avail.length > 0) && this._alertBlockError();
                             _newAddList = $.extend(true, [], _prevObj);
                             reverse = true;
@@ -11736,13 +12154,13 @@
                     var promise, queryId = (this.dataSource() instanceof ej.DataManager) ? model["id"] : "AppTaskId";
                     (!reverse) && (promise = this._dataManager.saveChanges({ added: temp, changed: _editApp, deleted: [] }, queryId, this.model.appointmentSettings.query._fromTable));
                     for (var c = 0; c < temp.length; c++) {
-						if (ej.isNullOrUndefined(this.model.serverEvents))
+						if(ej.isNullOrUndefined(this.model.serverEvents))
 							new ej.DataManager(this._currentAppointmentData).update("AppTaskId", this._timeZoneAppointments(temp[c], "reverse"));
 						else 
 							new ej.DataManager(this._currentAppointmentData).update("AppTaskId", temp[c]);
 					}
                     for (var c = 0; c < _editApp.length; c++) {
-                        if (ej.isNullOrUndefined(this.model.serverEvents))
+                        if(ej.isNullOrUndefined(this.model.serverEvents))
 							new ej.DataManager(this._currentAppointmentData).update("AppTaskId", this._timeZoneAppointments(_editApp[c], "reverse"));
 						else
 							new ej.DataManager(this._currentAppointmentData).update("AppTaskId", _editApp[c]);
@@ -11838,10 +12256,9 @@
                         var recurColl = this._appointmentRecurrenceSort(recurColl);
                         if (this._groupEditing) {
                             var _upList = new ej.DataManager(this._currentAppointmentData).executeLocal(new ej.Query().where("AppTaskId", ej.FilterOperators.equal, object[0].AppTaskId));
-                            var _prevObj = _upList[0]; object[0] = _upList[0];
-                        } else {
-                            var _prevObj = $.extend({}, object[0]);
-                        }
+                            object[0] = _upList[0];
+                        } 
+                        var _prevObj = $.extend({}, object[0]);
                         (this.model.enableRecurrenceValidation) && (index = this._recuCollectionIndex(recurColl, object[0]));
 
                     }
@@ -11856,7 +12273,7 @@
                         var eventArgs = (!ej.isNullOrUndefined(this.model.serverEvents) && (this.model.serverEvents.indexOf("dragStop") != -1)) ? { type: args.type } : args;
                         if((!ej.isNullOrUndefined(this.model.serverEvents) && (this.model.serverEvents.indexOf("dragStop") != -1)))
 							this._timeZoneAppointments(object[0], "");
-						if (this._trigger("dragStop", { appointment: object[0], event: eventArgs }) || avail.length > 0) {
+						if (this._trigger("dragStop", { appointment: object[0], event: eventArgs, draggedAppointment: oldApp }) || avail.length > 0) {
                             this._showBlockAlert && (avail.length > 0) && this._alertBlockError();
                             object[0] = $.extend(true, {}, _prevObj);
                             reverse = true;
@@ -11877,7 +12294,7 @@
                             var eventArgs = (!ej.isNullOrUndefined(this.model.serverEvents) && (this.model.serverEvents.indexOf("dragStop") != -1)) ? { type: args.type } : args;
                             if((!ej.isNullOrUndefined(this.model.serverEvents) && (this.model.serverEvents.indexOf("dragStop") != -1)))
 								this._timeZoneAppointments(object[0], "");
-							if (this._trigger("dragStop", { appointment: object[0], event: eventArgs }) || avail.length > 0) {
+							if (this._trigger("dragStop", { appointment: object[0], event: eventArgs, draggedAppointment: oldApp }) || avail.length > 0) {
                                 this._showBlockAlert && (avail.length > 0) && this._alertBlockError();
                                 object[0] = $.extend(true, {}, _prevObj);
                                 reverse = true;
@@ -12018,7 +12435,7 @@
         _findRowIndex: function (args) {
             var eleOffset = $(args.element[0]).offset();
             this.element.find(".e-appointment,.e-monthappointment").css("pointer-events", "none");
-            var element = $(document.elementFromPoint((eleOffset.left - $(document).scrollLeft()), (eleOffset.top - $(document).scrollTop() - 1)));
+            var element = $(document.elementFromPoint(Math.round((eleOffset.left - $(document).scrollLeft())), Math.round((eleOffset.top - $(document).scrollTop() + 2))));
             var rowIndex = $(element).closest("td").parent().index();
             this.element.find(".e-appointment,.e-monthappointment").css("pointer-events", "visible");
             return rowIndex;
@@ -12215,10 +12632,17 @@
                     var newStart = new Date(newStartTime);
                     var missDate = this.currentView() == "workweek" ? ((variable - 1) * (this.model.endHour - this.model.startHour)) : 0;
                     minStartTime = (new Date(newEndTime).getHours() >= (this.model.endHour)) ? new Date(new Date(newStart).setHours(new Date(newStartTime).getHours() + missDate + (parseInt($(args.element[0]).width() / this.element.find(".e-workcells").width()) / (this.model.timeScale.minorSlotCount * (60 / this.model.timeScale.majorSlot))) + (variable * ((24 - this.model.endHour) + this.model.startHour)))) : newEndTime;
-                    if (new Date(newEndTime).getHours() >= (this.model.endHour)) minStartTime.setMinutes(new Date(newStartTime).getMinutes() + Math.round(parseInt(diffTimeLeft % 60) / this._dragInterval) * this._dragInterval);
                     if (this.model.endHour - this.model.startHour !== 24) {
-                        if (new Date(new Date(minStartTime).setHours(0, 0, 0, 0)).getTime() != new Date(this._dateRender[some]).getTime())
-                            minStartTime = new Date(this._dateRender[some]).setHours(new Date(minStartTime).getHours(), new Date(minStartTime).getMinutes(), new Date(minStartTime).getSeconds(), new Date(minStartTime).getMilliseconds());
+                        if (minStartTime.getHours() >= this.model.endHour) {
+                            var newHour = new Date(minStartTime).getHours() - this.model.endHour;
+                            minStartTime.setDate(new Date(this._dateRender[some]).getDate());
+                            minStartTime.setHours(this.model.startHour + newHour);
+                            minStartTime.setMinutes(new Date(minStartTime).getMinutes());
+                        }
+                        else {
+                            if (new Date(newEndTime).getHours() >= (this.model.endHour)) minStartTime.setMinutes(new Date(newStartTime).getMinutes() + Math.round(parseInt(diffTimeLeft % 60) / this._dragInterval) * this._dragInterval);
+                           minStartTime = new Date(this._dateRender[some]).setHours(new Date(minStartTime).getHours(), new Date(minStartTime).getMinutes(), new Date(minStartTime).getSeconds(), new Date(minStartTime).getMilliseconds());
+                        }                    
                     }
                     cellendtime = new Date(minStartTime);
                     this._cellIndex = (this.model.enableRTL) ? this.element.find(".e-workcells").length - (Math.round($(args.element[0]).offset().left / this.element.find(".e-workcells").width())) : Math.round(($(args.element[0]).offset().left + dragArea.scrollLeft() - dragArea.offset().left) / this.element.find(".e-workcells").eq(1).outerWidth());
@@ -12468,9 +12892,12 @@
                         leftPosition = (rStart == -1 ? 0 : parseFloat((new Date(rStartTime).getMinutes())) * (this.element.find(".e-workcells")[0].offsetWidth) * this.model.timeScale.minorSlotCount / this.model.timeScale.majorSlot);
                     }
                     else {
-                        leftPosition = (parseFloat((new Date(rStartTime).getMinutes() + (new Date(rStartTime).getMilliseconds() / 60))) * ($(this.element.find(".e-workcells")[1]).width() * this.model.timeScale.minorSlotCount) / this.model.timeScale.majorSlot) - 1;
+                        var cellCount = Math.ceil((new Date(rStartTime).getMinutes() + (new Date(rStartTime).getMilliseconds() / 60)) / (Math.round(this.model.timeScale.majorSlot / this.model.timeScale.minorSlotCount))) - 1;
+                        leftPosition = (parseFloat((new Date(rStartTime).getMinutes() + (new Date(rStartTime).getMilliseconds() / 60))) * ($(this.element.find(".e-workcells")[1]).width() * this.model.timeScale.minorSlotCount) / this.model.timeScale.majorSlot) + cellCount;
                         diffMinutes = ((new Date(rEndTime).getHours() * 60) + new Date(rEndTime).getMinutes()) - ((new Date(rStartTime).getHours() * 60) + new Date(rStartTime).getMinutes()) + 1;
-                        appWidth = diffMinutes / (this.model.timeScale.majorSlot / this.model.timeScale.minorSlotCount) * this.element.find(".e-workcells").width() + ((diffMinutes / (this.model.timeScale.majorSlot / this.model.timeScale.minorSlotCount)) - 2) + 1;
+                        var cellsCount = diffMinutes * (this.element.find(".e-workcells").width() / ((this.model.timeScale.majorSlot / this.model.timeScale.minorSlotCount))) / this.element.find(".e-workcells").width();
+                        cellsCount = (Math.floor(cellsCount) < 2) ? cellsCount : Math.floor(cellsCount);
+                        appWidth = cellsCount * this.element.find(".e-workcells").width() + cellsCount;
                         cellIndex = Math.floor((((this.model.endHour - this.model.startHour) * this.model.timeScale.minorSlotCount) * (60 / this.model.timeScale.majorSlot) * day) + (startTime * this.model.timeScale.minorSlotCount * (60 / this.model.timeScale.majorSlot)));
                     }
 					var headerCell = this.element.find(".e-workcellstab tr");
@@ -12543,13 +12970,23 @@
         _checkAvailability: function (record) {
             if (this.model.blockoutSettings.enable) {
                 var start = new Date(record[this._appointmentSettings["startTime"]]), end = new Date(record[this._appointmentSettings["endTime"]]), resId, available = [];
-                if (!ej.isNullOrUndefined(this.model.group) && ej.scheduleFeatures.resources)
-                    resId = record[this._appointmentSettings.resourceFields.toString().split(',')[this._tempResource.length - 1].trim()];
-                var predicate2 = ej.Predicate(this.model.blockoutSettings["startTime"], ej.FilterOperators.greaterThanOrEqual, start).and(this.model.blockoutSettings["endTime"], ej.FilterOperators.greaterThanOrEqual, start).and(this.model.blockoutSettings["startTime"], ej.FilterOperators.lessThan, end);
+				var predicate2 = ej.Predicate(this.model.blockoutSettings["startTime"], ej.FilterOperators.greaterThanOrEqual, start).and(this.model.blockoutSettings["endTime"], ej.FilterOperators.greaterThanOrEqual, start).and(this.model.blockoutSettings["startTime"], ej.FilterOperators.lessThan, end);
                 var predicate1 = ej.Predicate(this.model.blockoutSettings["startTime"], ej.FilterOperators.lessThanOrEqual, start).and(this.model.blockoutSettings["endTime"], ej.FilterOperators.greaterThan, start);
                 var predicate = predicate2["or"](predicate1);
-                predicate = !ej.isNullOrUndefined(resId) && !ej.isNullOrUndefined(this.model.group) && ej.scheduleFeatures.resources ? predicate["and"](this.model.blockoutSettings.resourceId, ej.FilterOperators.equal, resId) : predicate;
-                predicate = predicate["and"](this.model.blockoutSettings["isBlockAppointment"], ej.FilterOperators.equal, true);
+                if (!ej.isNullOrUndefined(this.model.group) && ej.scheduleFeatures.resources) {
+                    if (!this._groupEditing) {
+                        var resId = record[this._appointmentSettings.resourceFields.toString().split(',')[this._tempResource.length - 1].trim()];
+                        predicate = predicate["and"](this.model.blockoutSettings.resourceId, ej.FilterOperators.equal, resId);
+                    } else {
+                        var resId = record[this._appointmentSettings.resourceFields.toString().split(',')[this._tempResource.length - 1].trim()].toString().split(',');
+                        var predicate3 = new ej.Predicate(this.model.blockoutSettings.resourceId, ej.FilterOperators.equal, resId[0]);
+                        for (var res = 1; res < resId.length; res++) {
+                            predicate3 = predicate3.or(new ej.Predicate(this.model.blockoutSettings.resourceId, ej.FilterOperators.equal, resId[res]));
+                        }
+                        predicate = predicate["and"](predicate3);
+                    }
+                }
+				predicate = predicate["and"](this.model.blockoutSettings["isBlockAppointment"], ej.FilterOperators.equal, true);
                 available = new ej.DataManager(this._processedIntervals).executeLocal(new ej.Query().where(predicate));
                 return available;
             }
@@ -12601,7 +13038,7 @@
 
         _onKeyDown: function (event) {
             if (this.model.allowKeyboardNavigation) {
-                if (!ej.isNullOrUndefined(this._quickAppointWindow) && this.model.showQuickWindow) {
+                if (!ej.isNullOrUndefined(this._quickAppointWindow) && this.model.showQuickWindow && this._quickAppointWindow.data("ejDialog")) {
                     this._quickAppointWindow.ejDialog("close");
                     this._quickAppDetailsWindow.ejDialog("close");
                 }
@@ -13278,10 +13715,18 @@
                 else if ($(target).hasClass("e-monthcells")) {
                     var selCell = this.element.find('td.e-selectedCell');
                     var nsc = selCell.length - 1;
-                    var startIndex = ($(selCell[0]).parent().index() * noOfDays) + ($(selCell[0]).index() - (Math.floor($(selCell[0]).index() / noOfDays) * noOfDays));
-                    var endIndex = ($(selCell[nsc]).parent().index() * noOfDays) + ($(selCell[nsc]).index() - (Math.floor($(selCell[nsc]).index() / noOfDays) * noOfDays));
-                    var startDate = new Date(this._dateRender[startIndex]);
-                    var endDate = new Date(this._dateRender[endIndex]);
+                    if (this.model.timeScale.enable || this.currentView() == "month") {
+                        var startIndex = ($(selCell[0]).parent().index() * noOfDays) + ($(selCell[0]).index() - (Math.floor($(selCell[0]).index() / noOfDays) * noOfDays));
+                        var endIndex = ($(selCell[nsc]).parent().index() * noOfDays) + ($(selCell[nsc]).index() - (Math.floor($(selCell[nsc]).index() / noOfDays) * noOfDays));
+                        var startDate = new Date(this._dateRender[startIndex]);
+                        var endDate = new Date(this._dateRender[endIndex]);
+                    } else {
+                        noOfDays = this._dateRender.length;
+                        var startIndex = (($(selCell[0]).parent().index() * noOfDays) + ($(selCell[0]).index() - (Math.floor($(selCell[0]).index() / noOfDays) * noOfDays))) % noOfDays;
+                        var endIndex = (($(selCell[nsc]).parent().index() * noOfDays) + ($(selCell[nsc]).index() - (Math.floor($(selCell[nsc]).index() / noOfDays) * noOfDays))) % noOfDays;
+                        var startDate = new Date(this._dateRender[startIndex]);
+                        var endDate = new Date(this._dateRender[endIndex]);
+                    }
                     this.cur_StartTime = new Date(startDate.setHours(0, 0, 0));
                     this.cur_EndTime = new Date(endDate.setHours(23, 59, 59));
                 }
@@ -13982,6 +14427,10 @@
                     ej.isNullOrUndefined(obj[this._appointmentSettings["startTimeZone"]]) && (obj[this._appointmentSettings["startTimeZone"]] = (this.model.timeZone == null) ? "UTC " + this._timezoneStringValue() : this.model.timeZone);
                     ej.isNullOrUndefined(obj[this._appointmentSettings["endTimeZone"]]) && (obj[this._appointmentSettings["endTimeZone"]] = (this.model.timeZone == null) ? "UTC " + this._timezoneStringValue() : this.model.timeZone);
                 }
+				if (ej.isNullOrUndefined(this.model.serverEvents) && this._dataManager.dataSource.offline){
+				var savingTimeZone = this._timeZoneSavingAppoint(obj, "");
+                obj = savingTimeZone.obj;
+				}
                 if (!ej.isNullOrUndefined(obj[this._appointmentSettings["id"]]) || !obj[this._appointmentSettings["id"]] == "") {
                     var tempApp = new ej.DataManager(this._processed).executeLocal(new ej.Query().where(this._appointmentSettings["id"], ej.FilterOperators.equal, obj[this._appointmentSettings["id"]]));
                     if (!ej.isNullOrUndefined(tempApp[0])) {
@@ -14742,7 +15191,7 @@
         CustomView: "Custom View",
         Agenda: "Agenda",
         Detailed: "Edit Appointment",
-        EventBeginsin: "Appointment Begins in",
+        EventBeginsin: "Appointment begins in",
         Editevent: "Edit Appointment",
         Editfollowingevent: "Following Events",
         Editseries: "Edit Series",
@@ -14774,7 +15223,7 @@
         WrongPattern: "The recurrence pattern is not valid",
         CreateError: "The duration of the appointment must be shorter than how frequently it occurs. Shorten the duration, or change the recurrence pattern in the Appointment Recurrence dialog box.",
         DragResizeError: "Cannot reschedule an occurrence of the recurring appointment if it skips over a later occurrence of the same appointment.",
-        StartEndError: "End time should be greater than start time",
+        StartEndError: "The selected end date occurs before the start date.",
         SeriesChangeAlert: "The changes made to specific instances of this series will be cancelled and those appointments will match the series again.",
         MouseOverDeleteTitle: "Delete Appointment",
         DeleteConfirmation: "Are you sure you want to delete this appointment?",

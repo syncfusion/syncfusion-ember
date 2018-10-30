@@ -50,6 +50,8 @@
 
             primaryXAxis:
                 {
+                    rotateOn: "middle",
+
                     crossesAt: null,
 
                     crossesInAxis: null,
@@ -271,6 +273,8 @@
 
                             alignment: 'center',
 
+                            isReversed: false,
+
                             position: 'outside',
 
                             maximumTitleWidth: null,
@@ -368,6 +372,7 @@
 
             primaryYAxis:
                 {
+					rotateOn: "middle",
                     crossesAt: null,
                     crossesInAxis: null,
                     showNextToAxisLine: true,
@@ -542,6 +547,8 @@
 
                             alignment: 'center',
 
+                            isReversed: false,
+
                             position: 'outside',
 
                             maximumTitleWidth: null,
@@ -679,6 +686,7 @@
 
             secondaryX:
                 {
+					rotateOn: "middle",
                     crossesAt: null,
                     crossesInAxis: null,
                     showNextToAxisLine: true,
@@ -850,6 +858,7 @@
                             enableTrim: false,
                             offset: 0,
                             alignment: 'center',
+                            isReversed: false,
                             position: 'outside',
                             maximumTitleWidth: null,
                             font:
@@ -931,6 +940,7 @@
 
             secondaryY:
                 {
+					rotateOn: "middle",
                     crossesAt: null,
                     crossesInAxis: null,
                     showNextToAxisLine: true,
@@ -1080,6 +1090,7 @@
                             enableTrim: false,
                             offset: 0,
                             alignment: 'center',
+                            isReversed: false,
                             position: 'outside',
                             maximumTitleWidth: null,
                             font:
@@ -1315,6 +1326,8 @@
 
                     visible: true,
 
+                    isReversed: false,
+
                     maximumWidth: 'auto',
 
                     textOverflow: "trim",
@@ -1443,6 +1456,8 @@
                         },
 
                     visible: true,
+
+                    isReversed: false,
 
                     textOverflow: 'none',
 
@@ -1688,6 +1703,8 @@
                     },
 
                     type: 'column',
+
+                    enableTrackTooltip : true,
 
                     splitMode: 'value',
 
@@ -1935,6 +1952,8 @@
 
                         visible: false,
 
+                        isReversed: false,
+
                         format: null,
 
                         template: null,
@@ -2005,6 +2024,8 @@
                         dataLabel: {
 
                             visible: false,
+
+                            isReversed: false,
 
                             angle: 0,
 
@@ -2186,6 +2207,8 @@
                 },
 
                 type: 'column',
+
+                enableTrackTooltip : true,
 
                 splitMode: 'value',
 
@@ -2422,6 +2445,8 @@
 
                     visible: false,
 
+                    isReversed: false,
+
                     format: null,
 
                     template: null,
@@ -2493,6 +2518,8 @@
                             {
 
                                 visible: false,
+
+                                isReversed: false,
 
                                 angle: 0,
 
@@ -2696,6 +2723,8 @@
 
                     visible: false,
 
+                    isReversed: false,
+
                     type: "crosshair",
 
                     trackballTooltipSettings: {
@@ -2805,6 +2834,8 @@
                 {
 
                     enable: false,
+
+                    isReversed: false,
 
                     enableScrollbar: false,
 
@@ -3006,7 +3037,7 @@
         _tags: [{
             tag: "series",
             attr: ["xAxisName", "yAxisName", "zOrder", "endAngle", "startAngle", "explodeIndex", "labelPosition", "xName", "yName", "pointColorMappingName", "pyramidMode", "boxPlotMode", "showMedian",
-                "pieCoefficient", "explodeAll", "explodeOffset", "funnelWidth", "columnFacet", "funnelHeight", "gapRatio", "isClosed", "isTransposed",
+                "pieCoefficient", "explodeAll", "explodeOffset", "funnelWidth", "columnFacet", "funnelHeight", "gapRatio", "isClosed", "isTransposed", "enableTrackTooltip",
                 "isStacking", "bearFillColor", "bullFillColor", "dataSource", "enableAnimation", "animationDuration", "doughnutCoefficient", "doughnutSize",
                 "enableSmartLabels", "drawType", "dashArray", "visibleOnLegend", "columnSpacing", "columnWidth", "drawType", "positiveFill", "explodeIndex", "cornerRadius",
                 "lineCap", "lineJoin", "highlightSettings.enable", "highlightSettings.mode", "highlightSettings.pattern", "highlightSettings.color", "highlightSettings.opacity",
@@ -3401,8 +3432,10 @@
 
         redraw: function (excludeDataUpdate, pinchPanning, target, isTouch) {
             if (this.model.enableCanvasRendering) {
-                if (this.model.zooming.enable && this.svgRenderer.ctx)
+                if (this.model.zooming.enable && this.svgRenderer.ctx){
                     this.svgRenderer.ctx.clearRect(0, 0, $("#" + this._id).width(), $("#" + this._id).height());
+					$(this.axisScroll).empty();
+				}
                 else {
                     $(this.svgObject).remove();
                     var width = this.svgWidth;
@@ -3446,7 +3479,8 @@
                 if (!this.dragPoint || (!pinchPanning && (!this.panning || !target || this.scrollbarUpdate || (isTouch || this.panning && this.model.browserInfo.name != "chrome")) || this.model.enable3D)) {
                     $(this.svgObject).empty();  // using existing svg container
                     $(this.legendSvgContainer).empty();
-                }
+					$(this.axisScroll).empty();
+				}
                 else {
                     var svg = this.svgObject;
                     this.chartUpdating = true;
@@ -3896,7 +3930,7 @@
                     case "primaryYAxis":
                         this.model.primaryYAxis.setRange = (options[prop].range) ? true : false;
                         this.model.primaryYAxis.log_Range = options[prop].range ? options[prop].range : this.model.primaryYAxis.log_Range;
-                        this.model.primaryYAxis.actual_Range = (this.model._axes[1].setRange) ? null : this.model._axes[1].actual_Range;
+                        this.model.primaryYAxis.actual_Range = (!this.model._axes || this.model._axes[1].setRange) ? null : this.model._axes[1].actual_Range;
                         $.extend(true, this.model.primaryYAxis, {}, options[prop]);
                         break;
                     case "xZoomFactor":
@@ -4567,6 +4601,13 @@
         Near: 'near',
 
         Far: 'far'
+    };
+
+    ej.datavisualization.Chart.RotateOn = {
+
+        Start: 'start',
+
+        Middle: 'middle'
     };
 
     ej.datavisualization.Chart.TickLinesPosition = {

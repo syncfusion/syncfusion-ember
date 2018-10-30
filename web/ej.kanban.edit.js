@@ -119,7 +119,7 @@ var InternalEdit = (function () {
             if (primaryKey && data) {
                 kObj.updateCard(primaryKey, data);
                 if (kObj.model.showColumnWhenEmpty && kObj.model.initiallyEmptyDataSource) {
-                    kObj._kbnSwimLaneData.push(data.Assignee);
+                    kObj._kbnSwimLaneData.push(data[kObj.model.fields.swimlaneKey]);
                     kObj.KanbanContext._kanbanSubMenu();
                 }
             }
@@ -127,8 +127,11 @@ var InternalEdit = (function () {
                 var editItems = kObj.model.editSettings.editItems;
                 args = { requestType: "add" }, kObj._currentData = {};
                 if (kObj._isAddNewClick) {
-                    if (kObj.model.fields.swimlaneKey)
-                        kObj._currentData[kObj.model.fields.swimlaneKey] = $(kObj._newCard).parent().prev('.e-swimlanerow').find('.e-slkey').text();
+                    var swimKey = kObj.model.fields.swimlaneKey;
+                    if (!ej.isNullOrUndefined(swimKey) && kObj.model.swimlaneSettings.headers.length > 0)
+                        kObj._currentData[swimKey] = $(kObj._newCard).parent().prev('.e-swimlanerow').find('.e-slkey').attr('data-ej-slmappingkey');
+                    else if (swimKey)
+                        kObj._currentData[swimKey] = $(kObj._newCard).parent().prev('.e-swimlanerow').find('.e-slkey').text();
                     if (kObj.model.keyField)
                         kObj._currentData[kObj.model.keyField] = kObj.model.columns[$(kObj._newCard).index()].key;
                 }
@@ -680,7 +683,7 @@ var InternalEdit = (function () {
             kObj._saveArgs = args;
             kObj.updateCard(cardId, obj);
             if (kObj.model.showColumnWhenEmpty && kObj.model.initiallyEmptyDataSource) {
-                kObj._kbnSwimLaneData.push(obj.Assignee);
+                kObj._kbnSwimLaneData.push(obj[kObj.model.fields.swimlaneKey]);
                 kObj.KanbanContext._kanbanSubMenu();
             }
             if (kObj.model.editSettings.editMode == "dialog" || kObj.model.editSettings.editMode == "dialogtemplate") {
@@ -808,22 +811,29 @@ var InternalEdit = (function () {
                         var ddlItems = [], ddlTempl, $select, $option, data, uniqueData;
                         if (ej.isNullOrUndefined(curItem.dataSource)) {
                             var query;
-                            if (!kObj._keyFiltering)
-                                query = new ej.Query().select(curItem.field);
-                            else
-                                query = new ej.Query().where(ej.Predicate["or"](kObj.keyPredicates)).select(curItem.field);
-                            if (ej.isNullOrUndefined(this._dropDownManager) || (!kObj._dataManager.dataSource.offline && kObj._dataManager.dataSource.json.length))
-                                data = kObj._dataManager.executeLocal(query);
-                            else {
-                                if (kObj._dataManager.adaptor instanceof ej.JsonAdaptor && curItem.field.indexOf('.') != -1) {
-                                    var field = curItem.field.replace(/\./g, ej["pvt"].consts.complexPropertyMerge);
-                                    query = new ej.Query().select(field);
-                                }
-                                data = this._dropDownManager.executeLocal(query);
+                            if (!ej.isNullOrUndefined(kObj.model.fields.swimlaneKey) && curItem.field == kObj.model.fields.swimlaneKey && kObj.model.swimlaneSettings.headers.length > 0) {
+                                data = kObj._slKey;
+                                for (var index = 0; index < data.length; index++)
+                                    ddlItems.push({ text: kObj._slText[index], value: data[index] });
                             }
-                            uniqueData = ej.dataUtil.mergeSort(ej.dataUtil.distinct(data));
-                            for (var index = 0; index < uniqueData.length; index++)
-                                ddlItems.push({ text: uniqueData[index], value: uniqueData[index] });
+                            else {
+                                if (!kObj._keyFiltering)
+                                    query = new ej.Query().select(curItem.field);
+                                else
+                                    query = new ej.Query().where(ej.Predicate["or"](kObj.keyPredicates)).select(curItem.field);
+                                if (ej.isNullOrUndefined(this._dropDownManager) || (!kObj._dataManager.dataSource.offline && kObj._dataManager.dataSource.json.length))
+                                    data = kObj._dataManager.executeLocal(query);
+                                else {
+                                    if (kObj._dataManager.adaptor instanceof ej.JsonAdaptor && curItem.field.indexOf('.') != -1) {
+                                        var field = curItem.field.replace(/\./g, ej["pvt"].consts.complexPropertyMerge);
+                                        query = new ej.Query().select(field);
+                                    }
+                                    data = this._dropDownManager.executeLocal(query);
+                                }
+                                uniqueData = ej.dataUtil.mergeSort(ej.dataUtil.distinct(data));
+                                for (var index = 0; index < uniqueData.length; index++)
+                                    ddlItems.push({ text: uniqueData[index], value: uniqueData[index] });
+                            }
                         }
                         else
                             ddlItems = curItem.dataSource;

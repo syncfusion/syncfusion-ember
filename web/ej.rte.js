@@ -1214,8 +1214,8 @@
         },
         _crateToolbarTemplate: function () {
             this._toolBarItems = ej.buildTag("div#" + this._rteId + "_toolbar").appendTo(this._rteToolbar).height(30);
-            for (var items in this._toolsList) {
-                items = this._toolsList[items];
+            for (var i = 0; i < this._toolsList.length; i++) {
+                var items = this._toolsList[i];
                 if (!ej.isNullOrUndefined(this.model.tools[items])) {
                     if (items == "customTools")
                         !ej.isNullOrUndefined(this.model.tools[items]) && this._customTools(this.model.tools[items]);
@@ -2128,7 +2128,8 @@
 			tempSpanNode.innerHTML = "&#65279;"
 			 var range = this._getDocument().createRange(), Selection = this._getDocument().getSelection();
 			 this._getDocument().body.firstChild && this._getDocument().body.firstChild.remove();
-				this._getDocument().body.appendChild(setNode=this._getDocument().createElement("p"));
+                this._getDocument().body.appendChild(setNode=this._getDocument().createElement("p"));
+                setNode.appendChild(this._getDocument().createElement("br"));
 				setNode.appendChild(tempSpanNode);
 				Selection.removeAllRanges();
                 range.setStart(tempSpanNode.firstChild, 0);
@@ -2619,7 +2620,7 @@
             this._txtLinkText.val("");
             this._txtLinkTitle = this._linkDialog.find(".e-rte-linkTitle");
             this._txtLinkTitle.val("");
-            this._chkTarget.ejCheckBox({ check: false });
+            this._chkTarget.ejCheckBox({ checked: false });
             this._txtURL.focus();
         },
         _textFieldFocus: function (ele, start, end) {
@@ -2706,6 +2707,8 @@
                 (!ej.isNullOrUndefined(selectNode) && selectNode.tagName.toUpperCase() == 'A') ? this._txtLinkText.val($(selectNode).html()) : this._txtLinkText.val(this._selectedHTML);
                 $("#" + this._rteId + "_link_wrapper").css({ "z-index": this._onGetMaxZindex() });
                 this._linkDialog.ejDialog("open");
+                if((!ej.isNullOrUndefined(selectNode) && selectNode.tagName.toUpperCase() == 'A') && selectNode.getAttribute('target') === '_blank' )
+                    this._chkTarget.ejCheckBox({ checked: true });
                 this._textFieldFocus(this._txtURL[0], this._txtURL.val().length, this._txtURL.val().length);
             }
 
@@ -2742,7 +2745,7 @@
             if (((parseInt(Xpos) + parseInt($("#" + this._id + "_table_wrapper").css("width"))) > document.body.clientWidth) || ((parseInt(Xpos) + parseInt($("#" + this._id + "_table_wrapper").css("width"))) > parseInt($("#" + this._id + "_wrapper").css("width")) + $("#" + this._id + "_wrapper").position().left)) Xpos = (parseInt(Xpos) - (parseInt($("#" + this._id + "_table_wrapper").css("width")) - $(tableLi).width())) + "px";
             var top = (document.documentElement && document.documentElement.scrollTop) || document.body.scrollTop;
             if (top < Ypos && $(window).height() < (Ypos - top + parseInt($("#" + this._id + "_table_wrapper").css("height"))))
-                Ypos = (parseInt($("#" + this._id + "_table_wrapper").css("height")) > $(window).height()) ? top : ($(window).height() - parseInt($("#" + this._id + "_table_wrapper").css("height"))) > 0 ? ($(window).height() - parseInt($("#" + this._id + "_table_wrapper").css("height")) + top) : top;
+                Ypos = (parseInt($("#" + this._id + "_table_wrapper").css("height")) > $(window).height()) ? top : ($(window).height() - parseInt($("#" + this._id + "_table_wrapper").css("height"))) > 0 ? (($(window).height() - parseInt($("#" + this._id + "_table_wrapper").css("height")) + top)-7) : top;
             var parentOffset=this._rteWapper.offset();
 		    Xpos=parseInt(Xpos)-parseInt(parentOffset["left"]);
 			Ypos=parseInt(Ypos)-parseInt(parentOffset["top"]);
@@ -3653,7 +3656,7 @@
                     sHtml = $('<div>').append($(oEl).clone()).html();
                 }
                 if (sHtml && (this.model.maxLength != null && (this.model.maxLength > $.trim(this._getText()).length))) {
-                    this._isIE() ? this._pasteHtml(sHtml) : this._getDocument().execCommand('inserthtml', false, sHtml);
+                    this._pasteHtml(sHtml);
                     this.selectRange(this._getRange());
                 }
             }
@@ -3666,6 +3669,15 @@
             if (this.model.showDimensions) {
                 (imgX != "") && (imgEle[0].width = imgX);
                 (imgY != "") && (imgEle[0].height = imgY);
+                var sty = imageStyle.split(";"),
+                    splitHeight, splitWidth, newHeight = " height: "+imgY+"px", newWidth = " width: "+imgX+"px";
+                for (var i = 0; i < sty.length; i++) {
+                    if (sty[i].indexOf("height:") < 2 && sty[i].indexOf("height:") != -1) splitHeight = sty[i];
+                    if (sty[i].indexOf("width:") < 2 && sty[i].indexOf("width:") != -1) splitWidth = sty[i];
+                }
+                imageStyle = imageStyle.replace(splitHeight,newHeight);
+                imageStyle = imageStyle.replace(splitWidth,newWidth);
+                this._imageStyle.val(imageStyle);
             }
 
             imgEle = $(imgEle).attr('style', imageStyle);
@@ -3674,6 +3686,10 @@
             (!ej.isNullOrUndefined(borderStyle) && borderStyle != "") ? border += borderStyle + " " : border += "solid ";
             (!ej.isNullOrUndefined(borderColor) && borderColor != "") ? border += borderColor : border += "#000000";
             imgEle = imgEle.css('border', border);
+            if (!ej.isNullOrUndefined(this._imgDup)) {
+                this._resizeImgPos();
+                this._resizeImgDupPos();
+            }
         },
         _onInsertImage: function () {
             var url = this._imgDialog.find(".e-rte-imgUrl");
@@ -3797,7 +3813,7 @@
             if (!this._customTableValidation) {
                 parentTable.css({
 					'width':isNaN(Number(tableWid))?tableWid:tableWid+"px",
-                    'height': isNaN(Number(tableWid))?tableWid:tableWid+"px",
+                    'height': isNaN(Number(tableHgt))?tableHgt:tableHgt+"px",
                     'border-spacing': isNaN(Number(borderSpa))?borderSpa:borderSpa+"px",
                     'float': tblAlign,
                     'border-width': this._getTableObj("BrdrPx").data('ejNumericTextbox').getValue() + "px",
@@ -4146,7 +4162,7 @@
             imgEx = imgDup.slice(0);
             for (var i = 0; i < imgDup.length; i++) {
                 if (imgDup[i].indexOf("/") == -1) {
-                    imgDup[i] = imgDup[i].substr(0, imgDup[i].length) + "/" + imgDup[i].substr(imgDup[i].length - 1, imgDup[i].length);
+                    imgDup[i] = imgDup[i].substr(0, imgDup[i].length - 1) + "/" + imgDup[i].substr(imgDup[i].length - 1, imgDup[i].length);
                 }
                 else if (imgDup[i].lastIndexOf("/") != imgDup[i].length - 2) {
                     imgDup[i] = imgDup[i].substr(0, imgDup[i].length - 1) + "/" + imgDup[i].substr(imgDup[i].length - 1, imgDup[i].length);
@@ -4457,6 +4473,20 @@
                         k++;
                     }
                 }
+                if (xhtmlVal.indexOf("<meta") != -1) {
+                    var metaRegexp = /<meta(.*?)>/ig;
+                    var metaDup = this._getUpdaeNodeXhtml(metaRegexp, xhtmlVal,  new Array());
+                    for (var i = 0; i < metaDup.length; i++) {
+                        xhtmlVal = xhtmlVal.replace(metaDup[i], "");
+                    }
+                }
+                if (xhtmlVal.indexOf("<title>") != -1) {
+                    var titRegexp = /<title>(.*?)<\/title>/ig;
+                    var titDup = this._getUpdaeNodeXhtml(titRegexp, xhtmlVal,  new Array());
+                    for (var i = 0; i < titDup.length; i++) {
+                        xhtmlVal = xhtmlVal.replace(titDup[i], "");
+                    }
+                }
                 if (xhtmlVal.indexOf("<table") != -1) {
                     //tabletag
                     var tableRegex = /<table(.*?)<\/table>/ig;
@@ -4753,7 +4783,8 @@
                         }  
                         } 
                     for (var i = 0; i < this._alignItems.length; i++) {
-                        if (this._getCommandStatus($.trim(this._alignItems[i].toLowerCase()))) {
+                        var checkAlign = (this._isIE())?this._alignStatus($.trim(this._alignItems[i].toLowerCase())) : this._getCommandStatus($.trim(this._alignItems[i].toLowerCase()));
+                        if (checkAlign) {
                             this._toolBarObj.selectItemByID(this._rteId + "_" + this._alignItems[i]);
                             _isAligned = true;
                         } else
@@ -4792,6 +4823,32 @@
             catch (error) { }
         },
 
+        _alignStatus: function(value) {
+            var node = this._getRange().startContainer;
+            var isAlignstatus= false;
+            do {
+                    isAlignstatus = this._isAligment(node, value);
+                    node = node.parentNode;
+                } while (node && (node !== this._getDocument().body));
+            return isAlignstatus;
+        },
+
+        _isAligment: function(node, value){
+            var align = node.style && node.style.textAlign;
+            var isAlign = false
+            if (align === 'left' && value === 'justifyleft') {
+                return isAlign = true;
+            }
+            else if (align === 'center' && value === 'justifycenter') {
+                return isAlign = true;
+            }
+            else if (align === 'right' && value === 'justifyright') {
+                return isAlign = true;
+            }
+            else if (align === 'justify' && value === 'justifyfull') {
+                return isAlign = true;
+            }
+        },
         _updateFormat: function () {
             try {
                 if (this._formatDDL && this.model.showToolbar && !ej.isNullOrUndefined(this.model.tools["formatStyle"])) {
@@ -4968,8 +5025,8 @@
         },
 
         _setLocale: function () {
-            for (var items in this._toolsList) {
-                items = this._toolsList[items];
+              for (var item = 0; item < this._toolsList.length; item++) {
+                var items = this._toolsList[item];
                 var tipItems = this.model.tools[items]
                 for (var i = 0; i < tipItems.length; i++) {
                     var liTag = $("#" + this._rteId + "_" + tipItems[i].replace(/ /g, ''));
@@ -5998,6 +6055,9 @@
             }
             if ($(e.target).parents("table").length == 0) $(this._getDocument()).find(".e-rte-tablebox").remove();
             this._setAutoHeight();
+            if((e.keyCode==46||e.keyCode==8) && (this._getDocument().body.innerHTML.trim() === '<p><br></p>')){
+                e.preventDefault();
+            }
             this._trigger("keydown", { keyCode: e.keyCode });
         },
         _changeFontsize: function (status) {
@@ -6826,7 +6886,7 @@
 
             if (parentTable.find("tr").length == 1) {
                 node = $(seletedCell).parent("tr").closest("table").next()[0] || $(seletedCell).parent("tr").closest("table").prev()[0];
-                $(seletedCell).parent("tr").closest("table").remove();
+                $(seletedCell).closest("table").remove();
             }
             else {
                 node = ($(seletedCell).parent("tr").prev("tr").length != 0) ? $(seletedCell).parent("tr").prev("tr").find("td:last")[0] : $(seletedCell).parent("tr").next("tr").find("td:first")[0];

@@ -89,7 +89,7 @@
                 var defs = svg.defs({ "id": view.canvas.id + "patterndefinition" });
                 svg.appendChild(defs);
                 view.canvas.appendChild(svg.document);
-                this._renderHtmlLayer(view.canvas);
+                svg._htmlLayer = this._renderHtmlLayer(view.canvas);
                 this._addOverviewRectPanel(view);
             }
         },

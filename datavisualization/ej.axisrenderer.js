@@ -917,6 +917,7 @@ ej.EjStripline = function (chartobj) {
             axis.range.interval = interval;
             axis.actualRange.delta = end - start >= Number.MAX_VALUE ? end : end - start;
             this._calculateVisibleRange(axis);
+            axis.rangePadding = axis._rangePadding;
         },
         _calculateVisibleRange: function (axis, sender, isScroll) {
             this.chartObj = sender ? sender : this.chartObj;
@@ -3649,6 +3650,23 @@ ej.EjStripline = function (chartobj) {
                 }
             }
         },
+        // to find highest label textwidth for textanchor positions
+        _getLabelCollection: function (labelText, areaBoundWidth, xAxis, gap, options) {
+            var labelTextColl = [], arrColl = [], length;
+            if (typeof labelText == "string" && labelText.indexOf('<br>') != -1)
+                labelTextColl = labelText.split('<br>');
+            else
+                labelTextColl.push(labelText);
+            gap = gap <= 0 ? xAxis.width / xAxis.labels.length : gap;
+			length = labelTextColl.length;
+            for (var col = 0; col < length; col++) {
+                textcoll = this.rowscalculation(labelTextColl[col].toString(), areaBoundWidth, xAxis, gap, options);
+                for (var t = 0; t < textcoll.length; t++) {
+                    arrColl.push(textcoll[t]);
+                }
+            }
+            return arrColl;
+        },
 
         _drawXAxisLabels: function (axisIndex, xAxis) {
             var gTickEle = this.svgRenderer.createGroup({ 'id': this.svgObject.id + '_XAxisLabels' + '_' + axisIndex, 'cursor': 'default' }),
@@ -3700,6 +3718,7 @@ ej.EjStripline = function (chartobj) {
                 temp,
                 prePoint,
                 preTextWidth,
+                textAnchor = xAxis.rotateOn.toLowerCase(),
                 insideLabels = xAxis.labelPosition == 'inside',
                 count1 = 0, multipleRowsColl = [], nextLabelCollection = [], lblCollection = [], highestText;
             isScroll = xAxis._isScroll && !(xAxis.scrollbarSettings.pointsLength != null && xAxis.scrollbarSettings.pointsLength < xAxis.maxPointLength);
@@ -3970,6 +3989,11 @@ ej.EjStripline = function (chartobj) {
                                     }
                             }
                         }
+                        if (intersectAction == "wrap" || intersectAction == "wrapbyword") {
+                            var arrColl = this._getLabelCollection(labelText, areaBoundWidth, xAxis, gap, options);                                     
+                            var text = ej.EjSvgRender.utils._getHighestLabel(xAxis, $(this.svgObject).width(), arrColl, null);
+                            textWidth = ej.EjSvgRender.utils._measureText(text, chartAreaWidth, font).width;
+                        }
                         //To perform rotation             
                         if (labelRotation != 0 && !vmlrendering) {
                             label.displayText = typeof label.displayText == "string" && label.displayText.indexOf('<br>') != -1 ? ej.EjSvgRender.utils._getHighestLabel(xAxis, svgWidth, label.displayText) : label.displayText;
@@ -3988,13 +4012,18 @@ ej.EjStripline = function (chartobj) {
                                         options.y = (opposedPosition) ? options.y : options.y - (textHeight * (labelTextColl.length - 1));
                                     if (labelRotation != 0) {
                                         options.x = options.x + textWidth / 2;
-                                        options['text-anchor'] = "middle";
+                                        options['text-anchor'] = textAnchor;
                                     }
 
                                     this.svgRenderer.drawText(options, labelTextColl, isCanvas ? highestText : gTickEle);
                                 }
-                                else
+                                else {
+                                    if ((textAnchor == "start") && labelRotation !=0 && labelRotation != -360 && labelRotation != 360) {
+                                        options.x = options.x + textWidth / 2;
+                                        options['text-anchor'] = textAnchor;
+                                    }
                                     this.svgRenderer.drawText(options, labelText, isCanvas ? highestText : gTickEle);
+                                }
                                 //create region to chart axis labels
                                 labels[i].region = this.calculateRegion(labelText, font, options, label);
                                 this.model.xAxisLabelRegions.push(labels[i].region)
@@ -4033,8 +4062,8 @@ ej.EjStripline = function (chartobj) {
                                 else
                                     options.y = (opposedPosition) ? options.y : options.y - (textHeight * (arrColl.length - 1));
 
-                                if (labelRotation != 0) {
-                                    options['text-anchor'] = "middle";
+                                if (labelRotation != 0 && labelRotation != -360 && labelRotation != 360) {
+                                    options['text-anchor'] = textAnchor;
                                     options.x = options.x + (textWidth / 2);
                                 }
                                 this.svgRenderer.drawText(options, arrColl, isCanvas ? highestText : gTickEle);
@@ -4194,10 +4223,10 @@ ej.EjStripline = function (chartobj) {
                                     options.y = (opposedPosition) ? options.y - (textHeight * (currentLabelColl.length - 1)) : options.y;
                                 else
                                     options.y = (opposedPosition) ? options.y : options.y - (textHeight * (currentLabelColl.length - 1));
-                                if (labelRotation != 0) {
+                                if (labelRotation != 0 && labelRotation != -360 && labelRotation != 360) {
                                     var largestText = ej.EjSvgRender.utils._getHighestLabel(xAxis, svgWidth, currentLabelColl);
                                     textWidth = ej.EjSvgRender.utils._measureText(largestText, chartAreaWidth, font).width;
-                                    options['text-anchor'] = "middle";
+                                    options['text-anchor'] = textAnchor;
                                     options.x = options.x + textWidth / 2;
                                 }
                                 this.svgRenderer.drawText(options, currentLabelColl, gTickEle);
@@ -4225,6 +4254,10 @@ ej.EjStripline = function (chartobj) {
                             label.displayText = lblCollection.length > 0 ? lblCollection.join('') : labelText;
                             if (!(label.displayText.indexOf("...") != -1))
                                 label.displayText = labelText;
+                            if (labelRotation != 0 && textAnchor != "middle") {
+                                options.x = options.x + textWidth / 2;
+                                options['text-anchor'] = textAnchor;
+                            }
                             this.svgRenderer.drawText(options, lblCollection.length > 0 ? lblCollection : labelText, isCanvas ? highestText : gTickEle);
                         }
                         else if (intersectAction != "multiplerows") {
@@ -4234,14 +4267,19 @@ ej.EjStripline = function (chartobj) {
                                     options.y = (opposedPosition) ? options.y - (textHeight * (labelTextColl.length - 1)) : options.y;
                                 else
                                     options.y = (opposedPosition) ? options.y : options.y - (textHeight * (labelTextColl.length - 1));
-                                if (labelRotation != 0 || labelIntersectAction == "rotate45" || labelIntersectAction == "rotate90") {
+                                if ((labelRotation != 0 || labelIntersectAction == "rotate45" || labelIntersectAction == "rotate90")) {
                                     options.x = options.x + textWidth / 2;
-                                    options['text-anchor'] = "middle";
+                                    options['text-anchor'] = textAnchor;
                                 }
                                 this.svgRenderer.drawText(options, labelTextColl, isCanvas ? highestText : gTickEle);
                             }
-                            else
+                            else {
+                                if ((textAnchor == "start") && labelRotation != 0 && labelRotation != -360 && labelRotation != 360) {
+                                    options.x = options.x + textWidth / 2;
+                                    options['text-anchor'] = textAnchor;
+                                }
                                 this.svgRenderer.drawText(options, labelText, isCanvas ? highestText : gTickEle);
+                        }
                         }
                         //create region to chart axis labels
                         if (i != labels.length - 1 && (intersectAction == "trim" || xAxis.enableTrim))
@@ -4264,7 +4302,7 @@ ej.EjStripline = function (chartobj) {
             }
             else
                 var labelTxt = highestText ? highestText : labelText;
-            var count = lblCollection ? lblCollection.length : 1;
+            var count = lblCollection ? (lblCollection.length> 0 ? lblCollection.length : 1) : 1;
             var labelSize = count > 1 && highestText ? ej.EjSvgRender.utils._measureText(highestText, null, font) : ej.EjSvgRender.utils._measureText(labelTxt, null, font);
             var textHeight = labelSize.height * count;
             var bounds = { x: options.x, y: options.y, width: labelSize.width, height: textHeight };
@@ -4356,6 +4394,9 @@ ej.EjStripline = function (chartobj) {
 
         labelRotation: function (axis, x, y, options, label, degree, i) {
             var opposedPosition = axis._opposed;
+            var textAnchor = axis.rotateOn.toLowerCase();
+            var intersectAction = axis.labelIntersectAction.toLowerCase();
+            var diffHeight = 0;
             // To rotate axis labels
             var labelText = (label.displayText) ? label.displayText : label.Text;
             var angle = (degree > 360) ? degree - 360 : (degree < -360) ? degree + 360 : degree;
@@ -4363,14 +4404,25 @@ ej.EjStripline = function (chartobj) {
             $(options).attr('transform', rotate);
             $(options).attr('labelRotation', angle);
             $(options).attr('labelPosition', axis.labelPosition);
+            if (intersectAction == "wrap" || intersectAction == "wrapbyword")
+            {
+                var gap = axis.width / axis.labels.length;
+                var arrColl = this._getLabelCollection(labelText, this.model.m_AreaBounds.width, axis, gap, options);
+                var labelText = ej.EjSvgRender.utils._getHighestLabel(axis, $(this.svgObject).width(), arrColl, null);
+            }
             var textElement = this.svgRenderer.createText(options, labelText);
-            var diffHeight = Math.ceil(ej.EjSvgRender.utils._measureBounds(textElement, this).height - ej.EjSvgRender.utils._measureText(labelText, null, axis.font).height);
+            var textElementHeight =Math.round(ej.EjSvgRender.utils._measureBounds(textElement, this).height);
+            var labelTextHeight = ej.EjSvgRender.utils._measureText(labelText, null, axis.font).height;
+            diffHeight = Math.ceil(ej.EjSvgRender.utils._measureBounds(textElement, this).height - ej.EjSvgRender.utils._measureText(labelText, null, axis.font).height);
             diffHeight = axis._LableMaxWidth.height - diffHeight - ej.EjSvgRender.utils._measureText(labelText, null, axis.font).height;
 
             if (axis.labelPosition != 'inside')
                 var yLocation = (opposedPosition) ? (diffHeight / 2) : (-diffHeight / 2);
             else
                 var yLocation = (opposedPosition) ? (-diffHeight / 2) : (diffHeight / 2);
+            
+            if (textAnchor == "start")
+                yLocation = yLocation + ((angle < 0 && angle > -180) || angle > 180 ? ((textElementHeight) / 2) : -((textElementHeight - labelTextHeight) / 2));
 
             rotate = 'rotate(' + angle + ',' + (x) + ',' + (y + (this.model.enableCanvasRendering && axis.opposedPosition ? -yLocation : yLocation)) + ')';
             if (this.edgeLabel && degree == 90)
@@ -4650,6 +4702,7 @@ ej.EjStripline = function (chartobj) {
                     axisTitleWidth = axis.title.maximumTitleWidth,
                     axisTitlePosition = axis.title.position.toLowerCase(),
                     axisTitleAlignment = axis.title.alignment.toLowerCase(), y,
+                    isRTL = axis.title.isReversed,
                     tickLinesPosition = axis.tickLinesPosition.toLowerCase(),
                     labelPosition = axis.labelPosition.toLowerCase(),
                     m_AreaBounds = this.model.m_AreaBounds,
@@ -4681,12 +4734,12 @@ ej.EjStripline = function (chartobj) {
                 else if ((tickLinesPosition != 'inside' && labelPosition == 'inside' && !axis.showNextToAxisLine))
                     y = (axisTitlePosition == "inside") ? elementSpacing + _LableMaxWidth.height + titlesize + axis._multiLevelLabelHeight + axis.axisLine.width : elementSpacing + titlesize + axis.majorTickLines.size + axis.axisLine.width + elementSpacing + elementSpacing;
                 if (axisTitleAlignment == "far") {
-                    locX = axis.x + axis.width + axistitleoffset;
-                    textAnchor = "end";
+                    locX = isRTL ? axis.x + axistitleoffset : axis.x + axis.width + axistitleoffset;
+                    textAnchor = isRTL ? "start" : "end";
                 }
                 else if (axisTitleAlignment == "near") {
-                    locX = axis.x + axistitleoffset;
-                    textAnchor = "start";
+                    locX = isRTL ? axis.x + axis.width + axistitleoffset : axis.x + axistitleoffset;
+                    textAnchor = isRTL ? "end":"start";
                 }
                 else
                     locX = (axis.x + axis.width / 2) + axistitleoffset;

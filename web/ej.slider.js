@@ -204,8 +204,15 @@
                 this._validateValue(value, animation);
         },
 
+        _getTransition: function () {
+            var body = document.body || document.documentElement, bodyStyle = body.style,
+                support = bodyStyle.transition !== undefined || bodyStyle.WebkitTransition !== undefined || bodyStyle.MozTransition !== undefined || bodyStyle.MsTransition !== undefined || bodyStyle.OTransition !== undefined;
+            return support;
+        },
+
         _init: function () {
             this._isInteraction = true;
+            this._isTransition = this._getTransition();
             this._initialize();
             this._render();
         },
@@ -380,7 +387,7 @@
             if ($(evt.target).hasClass("e-animate"))
                 $(evt.target).removeClass('e-animate');
             if (this.model.readOnly || ej.isNullOrUndefined(evt.target)) return;
-            var value, hval;
+            var value, hVal;
             if (this.model.sliderType == "range") {
                 if ($(this.element).find('.e-handle.e-focus').is(this.firstHandle) && !this.model.enableRTL) { this.firstHandle.focus().addClass("e-no-tab"); hVal = this.handleVal; }
                 else if (!this.model.enableRTL) { this.secondHandle.focus().addClass("e-no-tab"); hVal = this.handleVal2; }
@@ -556,6 +563,7 @@
                 else this.element.addClass("e-disable");
             }
             else this._wireEvents();
+			
             if (this.model.showScale) this._renderScale(true);
             else this._setWrapperHeight();
             if (this.model.enableRTL) this._checkRTL();
@@ -594,6 +602,7 @@
 				if (this.model.orientation == "vertical") {
 					this.wrapper.addClass("e-top-to-bottom");
 				}
+				 
                 this.horDir = "right";
                 this.verDir = "top";
             }
@@ -786,8 +795,22 @@
                     properties[size] = this.handlePos + "%";
                     properties[direction] = 0;
                 }
+                var proxy = this;
                 if (!animation) this.header.css(properties);
-                else this.header.animate(properties, this.model.animationSpeed);
+                else {
+                    if (this._isTransition) {
+                        this.header[0].style.transition = 'all ' + this.model.animationSpeed + 'ms';
+                        this.header[0].style['-webkit-transition'] = 'all ' + this.model.animationSpeed + 'ms';
+                        this.header.css(direction, properties[direction]);
+                        this.header.css(size, properties[size]);
+                        setTimeout(function () {
+                            proxy.header[0].style.transition = 'none';
+                            proxy.header[0].style['-webkit-transition'] = 'none';
+                        }, this.model.animationSpeed);
+                    } else {
+                        this.header.animate(properties, this.model.animationSpeed);
+                    }
+                }
             }
         },
 
@@ -1075,10 +1098,24 @@
                 this._showhideTooltip(showTooltip);
                 if (changeEvt) this._raiseChangeEvent();
             }
-            else Handle.animate(properties, this.model.animationSpeed, function () {
-                proxy._showhideTooltip(showTooltip);
-                if (changeEvt) proxy._raiseChangeEvent();
-            });
+            else {
+                if (this._isTransition) {
+                    Handle[0].style.transition = 'all ' + this.model.animationSpeed + 'ms';
+                    Handle[0].style['-webkit-transition'] = 'all ' + this.model.animationSpeed + 'ms';
+                    Handle.css(direction, pos + '%');
+                    setTimeout(function () {
+                        Handle[0].style.transition = 'none';
+                        Handle[0].style['-webkit-transition'] = 'none';
+                        proxy._showhideTooltip(showTooltip);
+                        if (changeEvt) proxy._raiseChangeEvent();
+                    }, this.model.animationSpeed);
+                } else {
+                    Handle.animate(properties, this.model.animationSpeed, function () {
+                        proxy._showhideTooltip(showTooltip);
+                        if (changeEvt) proxy._raiseChangeEvent();
+                    });
+                }
+            }
         },
 
         _xyToPosition: function (position) {

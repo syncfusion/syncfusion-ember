@@ -12,6 +12,7 @@
         this._copyRange = [];
         this._isSpecial = !obj.isPasteValuesOnly;
         this._isShape = false;
+        this._copyRnge = {};
     };
 
     ej.spreadsheetFeatures.clipboard.prototype = {
@@ -51,13 +52,16 @@
             if (e.ctrlKey) {
                 if (e.keyCode === 67) //copy
                 {
+					evtArgs = { reqType: "copy", startcell: actSheet._startCell, endcell: actSheet._endCell, selectedCells: actSheet._selectedCells };
+					if (xlObj._trigActionBegin(evtArgs))
+						return false;
                     this._getClipboard(e);
                     this._cutCells = [];
                     $.extend(true, this._copyCells,actSheet._selectedCells);
                     if (!this._copyCells.length)
                         this._copyCells = [xlObj.XLShape._picCellIdx];
                     setTimeout(function () {
-                        xlObj.setSheetFocus();
+                        xlObj._setSheetFocus();
                     }, 0);
                 }
                 else if (e.keyCode === 88) //cut
@@ -69,6 +73,9 @@
                     }
                     if (selCells.length && xlObj._isPropExists([actSheet.selectedRange], "isReadOnly", sheetIdx))
                         return;
+					evtArgs = { reqType: "cut", startcell: actSheet._startCell, endcell: actSheet._endCell, selectedCells: actSheet._selectedCells };
+					if (xlObj._trigActionBegin(evtArgs))
+						return false;
                     if (selCells.length && xlObj._isPropExists([actSheet.selectedRange], "rule", sheetIdx))
                         xlObj.getRange(actSheet.selectedRange, sheetIdx).removeClass("e-hlcell")
                     this._copyCells = [];
@@ -77,12 +84,12 @@
                         this._cutCells = [xlObj.XLShape._picCellIdx];
                     this._getClipboard(e);
                     setTimeout(function () {
-                        xlObj.setSheetFocus();
+                        xlObj._setSheetFocus();
                     }, 0);
                 }
                 else if (e.keyCode === 86) //paste
                 {
-                    evtArgs = { reqType: "paste", isCopy: !this._cutCells.length, isShape: this._isShape };
+                    evtArgs = { reqType: "paste", isCopy: !this._cutCells.length, isShape: this._isShape, activecell: actSheet._activeCell };
                     !this._isShape && (evtArgs.cRange = this._copyRange);
                     if (xlObj._trigActionBegin(evtArgs))
                         return;
@@ -112,7 +119,7 @@
 
         _triggerKeyDown: function (keyCode, ctrlKey) {
             var xlObj = this.XLObj;
-            xlObj.setSheetFocus();
+            xlObj._setSheetFocus();
             var e = $.Event("keydown");
             e.keyCode = keyCode;
             e.ctrlKey = ctrlKey;
@@ -121,7 +128,7 @@
 
         _getClipboard: function (e) {
             var xlObj = this.XLObj, sheetIdx = xlObj.getActiveSheetIndex(), actSheet = xlObj.getSheet(sheetIdx), startcell = actSheet._startCell, endcell = actSheet._endCell;
-            var selected = xlObj._getContent(sheetIdx).find(".e-selected"), actCell = xlObj.getActiveCellElem(sheetIdx)[0];
+            var selected = xlObj._getContent(sheetIdx).find(".e-selected"), actCell = xlObj.getActiveCellElem(sheetIdx)[0], fRange;
             if (!xlObj.model.allowClipboard)
                 return;
             if (!xlObj.XLClipboard._copyBackup.cells && xlObj.model.showRibbon && !xlObj.model.isReadOnly) {
@@ -154,6 +161,15 @@
             else {
                 this._isShape = true;
                 this._copyBackup = { elem: xlObj.getSheetElement(sheetIdx).find(".e-ss-activeimg"), isCut: e.keyCode === 88, sIdx: sheetIdx };
+            }
+            for (i = 0; i < selected.length; i++) {
+                fRange = xlObj.XLEdit.getPropertyValue(xlObj._getCellIdx(selected[i]).rowIndex, xlObj._getCellIdx(selected[i]).colIndex, "formulaRange");
+                if (fRange) {
+                    if (this._copyRnge[fRange])
+                        this._copyRnge[fRange].push({ rowIdx: xlObj._getCellIdx(selected[i]).rowIndex, colIdx: xlObj._getCellIdx(selected[i]).colIndex })
+                    else
+                        this._copyRnge[fRange] = [{ rowIdx: xlObj._getCellIdx(selected[i]).rowIndex, colIdx: xlObj._getCellIdx(selected[i]).colIndex }];
+                }
             }
         },
 
@@ -250,7 +266,7 @@
             var startCell = xlObj.getSheet(sheetIdx)._startCell, endCell = xlObj.getSheet(sheetIdx)._endCell, i, j, k = 0, m, rLen, addr, cFormatRule, splitStr, shapeObj = {}, shapeElem, fltr, currCellObj, shapeRegx = new RegExp("\\b" + "e-shapebdr" + ".*?\\b", "g"), bstyle = ["solid", "dashed", "dotted"], cname;
             var minRowIdx = (startCell.rowIndex < endCell.rowIndex) ? startCell.rowIndex : endCell.rowIndex, tblName, tblRange, tableObj = this._copyBackup.table, style, bcolor, copyRowIdx;
             var minColIdx = (startCell.colIndex < endCell.colIndex) ? startCell.colIndex : endCell.colIndex, container = xlObj._dataContainer, range, cellPos, sparklineId;
-            var pstCells, selCells, cpyLen = this._copyCells.length, cutLen = this._cutCells.length;
+            var pstCells, selCells, cpyLen = this._copyCells.length, cutLen = this._cutCells.length, copyRangeKeys, multipleArrayFormula ;
             xlObj.isPasteValuesOnly && (this._isSpecial = false);
             if (this._copyRange.length) {
                 prtctRange = xlObj.swapRange(xlObj.getRangeIndices(this._copyRange[1]));
@@ -378,6 +394,21 @@
                     }
                     else
                         details.isSpecial = false;
+                    if (details.reqType == "cut-paste") {
+                        copyRangeKeys = xlObj.getObjectKeys(this._copyRnge);
+						multipleArrayFormula = xlObj.XLEdit.getPropertyValue(selCells[0].rowIndex, selCells[0].colIndex, "hasMultipleFormulaArray");
+                        for (var a = 0; a < copyRangeKeys.length; a++) {
+                            cpyCells = this._copyRnge[copyRangeKeys[a]]
+                                if (cutLen == 1 && multipleArrayFormula) {
+                                    formulaArr = xlObj.XLEdit.getPropertyValue(this._cutCells[a].rowIndex, this._cutCells[a].colIndex, "hasFormulaArray");
+                                    if (formulaArr) {
+                                        xlObj._showAlertDlg("Alert", "ArrayaFormula", 430);
+                                        this._copyRnge = {};
+                                        return;
+                                    }
+                            }
+                        }
+                    }
                     if (cutLen) { //cut special
                         cutCells = [];
                         cSheetIdx = this._copyRange[0];
@@ -562,6 +593,8 @@
 										delete cellObj['overflow'];
 										delete cellObj['isOverflow'];
 										delete cellObj['tableName'];
+										delete cellObj['isReadOnly'];
+										delete cellObj['isLocked'];
 										$.extend(true, container.sheets[sheetIdx][rowIdx][colIdx], cellObj);
 										cutCntnr = container.sheets[sheetIdx][rowIdx][colIdx];
 										if (xlObj.getObjectLength(merge))
@@ -587,7 +620,9 @@
 										if (cellObj.type === 3)
 											value2 = this._getUpdatedCellFormula(value2, this._copyCells[k], { rowIdx: rowIdx, colIdx: colIdx });
 										if (!("merge" in cellObj)) {
-											xlObj.XLEdit._updateCellValue(currentCellIdx, value2, null, null, cellObj.cellType);
+										    xlObj._dupDetails = true;
+										    xlObj.XLEdit._updateCellValue(currentCellIdx, value2, null, null, cellObj.cellType);
+										    xlObj._dupDetails = false;
 											cHeight = xlObj.XLEdit.getPropertyValue(cRowIdx, 0, (details.reqType === "copy-paste") ? "cHeight" : "pHeight", this._copyRange[0]);
                                             if (!xlObj.isUndefined(cHeight)) {
                                                 xlObj.XLEdit._updateDataContainer({ rowIndex: currentCellIdx.rowIndex, colIndex: 0 }, { dataObj: { pHeight: xlObj.getSheet(sheetIdx).rowsHeightCollection[currentCellIdx.rowIndex], cHeight: cHeight } });
@@ -813,6 +848,7 @@
                                 xlObj.XLFreeze._refreshFRowResize(xlObj._getCellIdx(currentCell[0]).rowIndex);
                         }  
                     }
+                        xlObj._hasFormulaArray = false,  xlObj._hasMultipleFormulaArray = false;
                     if (row.length < 1)
                         i = 1;                   
                     if (cutLen) {
@@ -820,6 +856,7 @@
                         this._cutCells = [];
                         this._cData = "";
                     }
+                    this._formulaArrayPaste();
                     if (this._isSpecial && isColor) { //paste - border, filtering, table                        
                         var table = this._copyBackup.table, tObj, tmgr = xlObj.getSheet(sheetIdx).tableManager, tabId;
                         range = xlObj.getRangeIndices(this._copyRange[1]);
@@ -859,7 +896,7 @@
                     if (xlObj.model.allowAutoFill)
                         xlObj.XLDragFill.positionAutoFillElement();
                     details.sheetIndex = sheetIdx;
-                    xlObj.setSheetFocus();
+                    xlObj._setSheetFocus();
                     xlObj.model.showRibbon && xlObj.XLRibbon._updateRibbonIcons();
                     evtArgs = { sheetIndex: details.sheetIndex, pasteCells: details.pasteCells, reqType: details.reqType, isSpecial: details.isSpecial, cutCells: details.cutCells, pasteSheetIndex: details.pSheetIndex };
                     if (evtArgs.reqType === "cut-paste")
@@ -885,6 +922,79 @@
 			xlObj._isCopyPaste = false;
         },
 
+        _formulaArrayPaste :  function() {
+            var xlObj = this.XLObj, range, sheetIdx = xlObj.getActiveSheetIndex(), formulaArrRange, copyCellRowDiff = 0, copyCellColDiff = 0, copyRowDiff = 0, pasteRowDiff = 0, pasteColDiff = 0, copyColDiff = 0, fArg, nAlpha, startCol, endRow, splitformula, newRnge, endCol, startRow, formulaRng, formulaRngColDiff, formulaRngRowDiff, selRng, copyRangeKeys = xlObj.getObjectKeys(this._copyRnge);
+            for (var a = 0, len = copyRangeKeys.length; a < len; a++) {
+                cpyCells = this._copyRnge[copyRangeKeys[a]];
+                var startCell = xlObj.getSheet(sheetIdx)._startCell, endCell = xlObj.getSheet(sheetIdx)._endCell, minRowIdx, minColIdx;
+                minRowIdx = (startCell.rowIndex < endCell.rowIndex) ? startCell.rowIndex : endCell.rowIndex;
+                minColIdx = (startCell.colIndex < endCell.colIndex) ? startCell.colIndex : endCell.colIndex
+                prtctRange = xlObj.swapRange(xlObj.getRangeIndices(copyRangeKeys[a]));
+                tRange = [minRowIdx, minColIdx, minRowIdx + (prtctRange[2] - prtctRange[0]), minColIdx + (prtctRange[3] - prtctRange[1])];
+                pstCells = xlObj._getSelectedRange({ rowIndex: tRange[0], colIndex: tRange[1] }, { rowIndex: tRange[2], colIndex: tRange[3] });
+                pstCellRnge = xlObj.getAlphaRange(pstCells[0].rowIndex, pstCells[0].colIndex, pstCells[pstCells.length - 1].rowIndex, pstCells[pstCells.length - 1].colIndex)
+                for (b = 0; b < cpyCells.length; b++) {
+                    xlObj._hasFormulaArray = true, xlObj._hasMultipleFormulaArray = true;
+                    if (b == 0) {
+                        range = copyRangeKeys[a];
+                        selRng = xlObj.getRangeIndices(range);
+
+                        formulaArrRange = xlObj.getSheet(sheetIdx).formulaRange[range];
+                        formula = xlObj.XLDragFill._parseFormula(formulaArrRange);
+                        newRnge = formula[0] + ":" + formula[formula.length - 1];
+                        formulaRng = xlObj.getRangeIndices(newRnge);
+                        formulaRngColDiff = formulaRng[3] - formulaRng[1];
+                        formulaRngRowDiff = formulaRng[2] - formulaRng[0];
+
+						if(!this._isCut){
+							//Copy position Difference
+							if (formulaRng[0] < selRng[0])
+								copyRowDiff = selRng[0] - formulaRng[0];
+							else if (formulaRng[0] > selRng[0])
+								copyRowDiff = formulaRng[0] - selRng[0];
+							if (formulaRng[1] < selRng[1])
+								copyColDiff = selRng[1] - formulaRng[1];
+							else if (formulaRng[1] > selRng[1])
+								copyColDiff = formulaRng[1] - selRng[1];
+
+							//Paste positon Differnces
+							pastCell = xlObj._getAlphaRange(sheetIdx, pstCells[b].rowIndex, pstCells[b].colIndex, pstCells[b].rowIndex, pstCells[b].colIndex);
+							pasteRng = xlObj.getRangeIndices(pastCell);
+							if (formulaRng[0] < pasteRng[0])
+								pasteRowDiff = pasteRng[0] - formulaRng[0];
+							else if (formulaRng[0] > pasteRng[0])
+								pasteRowDiff = formulaRng[0] - pasteRng[0];
+							if (formulaRng[1] < pasteRng[1])
+								pasteColDiff = pasteRng[1] - formulaRng[1];
+							else if (formulaRng[1] > pasteRng[1])
+								pasteColDiff = formulaRng[1] - pasteRng[1];
+						}
+                        rowDiff = pasteRowDiff - copyRowDiff;
+                        colDiff = pasteColDiff - copyColDiff;
+
+                        for (var c = 0; c < formula.length; c++) {
+                            formulaVal = formula[c].trim();
+                            if (xlObj._isCellReference(formulaVal)) {
+                                fRange = xlObj.getRangeIndices(formulaVal);
+                                rowIndex = fRange[0] + rowDiff;
+                                colIndex = fRange[1] + colDiff;
+                                nAlpha = xlObj._getAlphaRange(sheetIdx, rowIndex, colIndex, rowIndex, colIndex);
+                                formula[c] = nAlpha;
+                            }
+                        }
+                        value2 =  "=" + formula.join("");
+                        xlObj.getSheet(sheetIdx).formulaRange[pstCellRnge] = value2;
+                        xlObj.XLEdit._updateCellValue({ rowIndex: pstCells[b].rowIndex, colIndex: pstCells[b].colIndex }, value2);
+                    }
+                    else {
+                        xlObj.XLEdit._updateCellValue({ rowIndex: pstCells[b].rowIndex, colIndex: pstCells[b].colIndex }, value2);
+                    }
+
+                }
+
+            }
+            this._copyRnge = {};
+        },
         _getUpdatedCellFormula: function (val, addr, curAddr) {
             var xlObj = this.XLObj, regx = /([A-Z].*?[0-9])/g, rowDiff = curAddr.rowIdx - addr.rowIndex, colDiff = curAddr.colIdx - addr.colIndex,
                 addrs = xlObj.XLDragFill._parseFormula(val), i, len, sAdr, newCAdr, newRAdr;

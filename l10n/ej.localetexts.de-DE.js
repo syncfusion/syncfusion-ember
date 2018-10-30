@@ -62,7 +62,7 @@
                         cancel: "Stornieren",
                         reset: "Zurücksetzen"
                     },
-                    watermarkText: "Bereich auswählen",
+                    watermarkText: "Wählen Sie Bereich",
                     customPicker: "Benutzerdefinierter Auswähler",
                 };
                 break;
@@ -462,7 +462,7 @@
                             { id: "FS", text: "Ende-Start", value: "Ende-Start" },
                             { id: "FF", text: "Ende-Ende", value: "Ende-Ende" }
                     ],
-                  
+
                     linkValidationRuleText: {
                         taskBeforePredecessor: "Sie haben '{0}' verschoben, um zu beginnen, bevor '{1}' beendet ist und die beiden Aufgaben verknüpft sind. Infolgedessen können die Verbindungen nicht eingehalten werden. Wählen Sie eine der folgenden Aktionen aus, um",
                         taskAfterPredecessor: "Sie haben '{0}' von '{1}' entfernt und die beiden Aufgaben sind verknüpft. Infolgedessen können die Verbindungen nicht eingehalten werden. Wählen Sie eine der folgenden Aktionen aus, um",
@@ -470,7 +470,7 @@
 
                     linkValidationDialogTitle: "Bearbeiten bestätigen",
 
-                   
+
                     linkValidationRuleOptions: {
                         cancel: "Abbrechen, den bestehenden Link beibehalten",
                         removeLink: "Entfernen Sie den Link und verschieben Sie '{0}', um mit '{1}' zu beginnen.",
@@ -485,7 +485,8 @@
                         cancelButtonText: "Stornieren",
                         deleteButtonText: "Löschen",
                         title: "Aufgabenabhängigkeit"
-                    }
+                    },
+                    nullText: "Null"
                 };
                 break;
             case "ejGrid":
@@ -658,7 +659,26 @@
                     EMF: "EMF",
                     GIF: "GIF",
                     JPG: "JPG",
-                    BMF: "BMF"
+                    BMP: "BMP",
+                    ZoomIn: "hineinzoomen",
+                    ZoomOut: "Rauszoomen",
+                    Legend: "Legende",
+                    SmartLabels: "Intelligente Etiketten",
+                    Interactions: "Wechselwirkungen",
+                    Zooming: "Zoomen",
+                    Rotate45: "Drehen45",
+                    Rotate90: "Drehen90",
+                    Trim: "Trimmen",
+                    MultipleRows: "Mehrere Zeilen",
+                    Wrap: "Wickeln",
+                    Hide: "verbergen",
+                    WrapByWord: "Wrap nach dem Wort",
+                    CrossHair: "Kreuzes Haar",
+                    TrackBall: "Trackball",
+                    DisableTD: "Deaktivieren Sie 3D-Diagramme",
+                    None: "Keiner",
+                    Exception: "Ausnahme",
+                    OK: "OK"
                 };
                 break;
             case "ejPivotClient":
@@ -764,12 +784,12 @@
                     EqualTo: "Ist gleich",
                     ReportList: "Berichtsliste",
                     Alert: "Warnung",
-                    MDXAlertMsg: "Bitte fügen Sie eine Abmessung oder Hierachie zur entsprechenden Achse hinzu um den MDX Abfrage aufzurufen.",
-                    FilterSortRowAlertMsg: "Dimension konnte in der Zeilenachse nicht gefunden werden. Bitte fügen Sie ein Dimensionselement zu der Zeilenachse hinzu für Sortierung/Filterung.",
-                    FilterSortColumnAlertMsg: "Dimension konnte in der Spaltenachse nicht gefunden werden. Bitte fügen Sie ein Dimensionselement zu der Splatenachse hinzu für Sortierung/Filterung.",
+                    MDXAlertMsg: "Fügen Sie eine Measure, Dimension oder Hierarchie in einer geeigneten Achse hinzu, um die MDX-Abfrage anzuzeigen.",
+                    FilterSortRowAlertMsg: "Dimension wurde nicht in der Zeilenachse gefunden. Bitte fügen Sie Dimensionselement in der Zeilenachse zum Sortieren / Filtern hinzu.",
+                    FilterSortColumnAlertMsg: "Dimension wurde nicht in der Spaltenachse gefunden. Bitte fügen Sie Dimensionselement in der Spaltenachse zum Sortieren / Filtern hinzu.",
                     FilterSortcolMeasureAlertMsg: "Bitte Maße für Spaltenachse eingeben",
                     FilterSortrowMeasureAlertMsg: "Bitte Maße für Zeilenachse  eingeben",
-                    FilterSortElementAlertMsg: "Element konnte nicht in der Spaltenachse gefunden werden. Bitte fügen Sie ein Element zu der Spaltenachse hinzu für Sortierung/Filterung.",
+                    FilterSortElementAlertMsg: "Element wurde nicht in der Spaltenachse gefunden. Bitte fügen Sie ein Element in der Spaltenachse zum Sortieren / Filtern hinzu.",
                     FilterMeasureSelectionAlertMsg: "Bitte ein gültiges Maß auswählen.",
                     FilterConditionAlertMsg: "Bitte geben Sie eine gültige Bedingung an.",
                     FilterStartValueAlertMsg: "BBitte geben Sie einen Startwert an.",
@@ -800,11 +820,11 @@
                     MemberType: "Element Typ:",
                     FormatString: "String format:",
                     MultipleMeasure: "Es kann nicht mehr als ein Maß geschnitten werden.",
-                    DuplicateCalcMeasure: "Berechnetes Element mit selben Namen existiert bereits.",
-                    EmptyField: "Der Name für ein berechnetes Element oder Bezeichnung darf nicht leer sein.",
+                    DuplicateCalcMeasure: "Berechnetes Mitglied mit demselben Namen ist bereits vorhanden.",
+                    EmptyField: "Berechneter Mitgliedsname oder Ausdruck sollte nicht leer sein.",
                     EmptyFormat: "Das Format für berechnetes Element ist leer.",
                     Warning: "Warnung",
-                    Confirm: "Berechnetes Element mit dem selben Namen existiert bereits. Wollen Sie dieses ersetzen?",
+                    Confirm: "Das berechnete Mitglied mit demselben Namen ist bereits vorhanden. Willst du ersetzen?",
                     KPIs: "KPIs",
 					Collection: "Sammlung",
 					Report: "Bericht",
@@ -815,8 +835,9 @@
                     Success: "Erfolg",
                     KpiAlertMsg: "Sie sind nicht in diesem Bereich des Berichts gesetzt",
                     NotAllItemsShowing: "Nicht alle untergeordneten Knoten werden angezeigt",
-                    EditorLinkPanelAlert: "Die Mitglieder hat mehr als 1000 Produkte unter einer oder mehrerer Mutterunternehmen. Nur die ersten 1000 Elemente, die sich unter jedem Elternteil angezeigt.",
-                    NamedSetAlert:"Ein benannter Satz kann nicht auf die PivotTable-Bericht zur gleichen Zeit wie eine andere benannte Stellen auf dem gleichen Feld hinzugefügt werden. Klicken Sie auf OK zu entfernen' <Set 1> ' benannt und Hinzufügen' <Set 2> ' genannt."
+                    EditorLinkPanelAlert: "Die Mitglieder haben mehr als 1000 Artikel unter einem oder mehreren Elternteilen. Nur die ersten 1000 Elemente werden unter jedem Elternelement angezeigt.",
+                    NamedSetAlert:"Benannte Gruppen desselben Felds können nicht gleichzeitig zum PivotTable-Bericht hinzugefügt werden. Klicken Sie auf OK, um den Satz '<Satz 1>' zu entfernen und den Satz '<Satz 2>' hinzuzufügen.",
+                    Exception: "Ausnahme"
                 };
                 break;
             case "ejPivotGauge":
@@ -824,6 +845,7 @@
                 ej.PivotGauge.Locale["de-DE"] = {
                     RevenueGoal: "Umsatzziel",
                     RevenueValue: "Umsatzwert",
+                    Exception: "Ausnahme"
                 };
                 break;
             case "ejPager":
@@ -1141,20 +1163,6 @@
                     AddNew: "Neu hinzufügen",
                     Format: "Format",
                     NoMeasure: "Bitte Maße eingeben",
-                    AliceBlue: "AliceBlue",
-                    Black: "Black",
-                    Blue: "Blue",
-                    Brown: "Brown",
-                    Gold: "Gold",
-                    Green: "Green",
-                    Lime: "Lime",
-                    Maroon: "Maroon",
-                    Orange: "Orange",
-                    Pink: "Pink",
-                    Red: "Red",
-                    Violet: "Violet",
-                    White: "White",
-                    Yellow: "Yellow",
                     Solid: "Durchgehend",
                     Dashed: "Gestrichelt",
                     Dotted: "Gepunkted",
@@ -1192,7 +1200,7 @@
                     EmptyField: "Bitte BerechnetesFeld Name oder Formel eintragen",
                     NotValid: "Gegebene Formel ist nicht gültig.",
                     NotPresent: "Das Wertefeld das in den Berechneten Feldformeln verwendet wird ist nicht im PivotGrid vorhanden ",
-                    Confirm: "Berechnetes Feld mit selben Namen existiert bereits. Wollen Sie dieses Feld ersetzen?",
+                    Confirm: "Das berechnete Mitglied mit demselben Namen ist bereits vorhanden. Willst du ersetzen?",
                     CalcValue: "Berechnetes Feld kann nur in Wertbereiche eingesetzt werden ",
                     MultipleItems: "Mehrere Elemente",
                     All: "Alle",
@@ -1217,7 +1225,8 @@
                     Edit: "Bearbeiten",
                     DuplicateFormatName: "Doppelte Format Name",
                     NotAllItemsShowing: "Nicht alle untergeordneten Knoten werden angezeigt",
-                    EditorLinkPanelAlert: "Die Mitglieder hat mehr als 1000 Produkte unter einer oder mehrerer Mutterunternehmen. Nur die ersten 1000 Elemente, die sich unter jedem Elternteil angezeigt."
+                    EditorLinkPanelAlert: "Die Mitglieder haben mehr als 1000 Artikel unter einem oder mehreren Elternteilen. Nur die ersten 1000 Elemente werden unter jedem Elternelement angezeigt.",
+                    Exception: "Ausnahme"
                 };
                 break;
             case "ejPivotPager":
@@ -1299,12 +1308,13 @@
                     Cancel: "Abbrechen",
                     Close: "In der Nähe",
                     Search: "Suche",
+                    Remove: "Entfernen Sie",
                     AddCurrentSelectionToFilter: "Aktuelle Auswahl zum Filtern hinzufügen",
                     NotAllItemsShowing: "Nicht alle untergeordneten Knoten werden angezeigt",
-                    EditorLinkPanelAlert: "Die Mitglieder hat mehr als 1000 Produkte unter einer oder mehrerer Mutterunternehmen. Nur die ersten 1000 Elemente, die sich unter jedem Elternteil angezeigt.",
-                    NamedSetAlert: "Ein benannter Satz kann nicht auf die PivotTable-Bericht zur gleichen Zeit wie eine andere benannte Stellen auf dem gleichen Feld hinzugefügt werden. Klicken Sie auf OK zu entfernen' <Set 1> ' benannt und Hinzufügen' <Set 2> ' genannt."
+                    EditorLinkPanelAlert: "Die Mitglieder haben mehr als 1000 Artikel unter einem oder mehreren Elternteilen. Nur die ersten 1000 Elemente werden unter jedem Elternelement angezeigt.",
+                    NamedSetAlert: "Benannte Gruppen desselben Felds können nicht gleichzeitig zum PivotTable-Bericht hinzugefügt werden. Klicken Sie auf OK, um den Satz '<Satz 1>' zu entfernen und den Satz '<Satz 2>' hinzuzufügen."
                 };
-                break;            
+                break;
             case "ejDiagram":
                 ej.datavisualization.Diagram.Locale = ej.datavisualization.Diagram.Locale || {};
                 ej.datavisualization.Diagram.Locale["de-DE"] = {
@@ -1443,6 +1453,7 @@
                         }
                     },
                     pagesetupDialog: {
+                        close: 'Schließen',
                         paperSize: "Papiergröße",
                         height: "Höhe",
                         width: "Breite",
@@ -1458,6 +1469,41 @@
                         doneButton: "Erledigt",
                         cancelButton: "Stornieren"
                     },
+                    credential: {
+                        userName: 'Nutzername',
+                        password: 'Passwort'
+                    },
+                    waterMark: {
+                        selectOption: 'Wähle eine Option',
+                        selectValue: 'Wähle einen Wert'
+                    },
+                    errorMessage: {
+                        startMessage: 'Report Viewer hat Probleme beim Laden dieses Berichts festgestellt. Bitte',
+                        middleMessage: ' Klick hier',
+                        endMessage: 'um die Fehlerdetails zu sehen',
+                        closeMessage: 'Schließen Sie diese Nachricht'
+                    },
+                    alertMessage: {
+                        close: 'Schließen',
+                        title: 'BerichtViewer',
+                        done: 'OK',
+                        showDetails: 'Zeige Details',
+                        hideDetails: 'Details ausblenden',
+                        reportLoad: 'Bericht geladen:',
+                        RVERR0001: 'ReportViewer konnte den Bericht nicht laden',
+                        RVERR0002: 'ReportViewer konnte den Bericht nicht rendern',
+                        RVERR0003: 'Beim Ajax-Postback ist ein Fehler aufgetreten',
+                        RVERR0004: 'Bitte wählen Sie einen Wert für den Parameter',
+                        RVERR0005: 'Der Parameter {parametername} fehlt ein Wert',
+                        RVERR0006: 'Bitte geben Sie den Datentyp float ein',
+                        RVERR0007: 'Bitte geben Sie die Ganzzahl-Datentyp Eingabe',
+                        RVERR0008: 'ReportViewer konnte die Datenquellenanmeldeinformationen nicht überprüfen',
+                        RVERR0009: 'Die Ränder sind überlappt oder sie liegen außerhalb des Papiers. Geben Sie eine andere Randgröße ein.',
+                        RVERR0010: 'Bitte geben Sie einen Wert für den Parameter ein',
+                        RVERR0011: 'Der Parameter darf nicht leer sein',
+                        RVERR0012: 'Der für den Berichtsparameter {parameterprompt} angegebene Wert ist für seinen Typ nicht gültig.'
+                    },
+                    selectAll: 'Wählen Sie Alle',
                     viewButton: "Bericht sehen"
                 };
                 break;
@@ -1992,7 +2038,7 @@
                     ClearRulesfromEntireSheets: "Regeln löschen für gesamtes Blatt",
                     CellStyles: "Zellvorlagen",
                     CellStylesContent: "Eine farbige Formatvorlage ist ein guter Weg um wichtige Daten aus dem Blatt optisch hervorzuheben.",
-                    CellStyleHeaderText: "Zellenformatvorlage mit Designs",
+                    CellStyleHeaderText: "Gut, Schlecht und Neutral/Titles and Überschriften/Thematisch Zelle Stile",
                     Custom: "Geben Sie einen Nummernformatierungscode mithilfe der existierenden Codes an .",
                     CellStyleGBN: "Standard / Schlecht / Gut / Neutral",
                     CellStyleTH: "Überschrift / Titel",
@@ -2569,6 +2615,16 @@
                     CreateSparkline: "Erstellen Sie eine Sparkline",
                     SelectDataSource: "Wählen Sie einen Quelldatenbereich für die Sparkline aus",
                     SPARKLINEDESIGN: "Sparkline-Design",
+                    CancellationRequested: "Konnte nicht innerhalb des angegebenen Zeitlimits geöffnet werden",
+                    ImportPreventedOnUnknownFormula: "Diese Datei kann nicht geladen werden, da sie nicht unterstützte Formeln enthält.",
+                    PivotTableName: "PivotTable-Name",
+                    ArrayaFormula: "Sie können einen Teil eines Arrays nicht ändern",
+                    ArrayaFormulaTableAlert: "Multi-Zellen-Array-Formeln sind in Tabellen nicht zulässig",
+                    ValueFieldSettings: "Wert Feldeinstellungen",
+                    FieldTab: "Werte zusammenfassen nach",
+                    SummarizeValue: "Fassen Sie das Wertfeld nach zusammen",
+                    SummarizeChooseType: "Wählen Sie den Berechnungstyp aus, den Sie zum Zusammenfassen von Daten aus dem ausgewählten Feld verwenden möchten",
+                    FieldValue: "Quellenname:",
                 };
                 break;
             case "ejTimePicker":
@@ -2689,6 +2745,9 @@
                     okButtonText: "OK",
                     cancelButtonText: "Stornieren",
                     confirmDeleteText: "Löschen bestätigen",
+                    batchSaveConfirmText: "Sind Sie sicher Sie wollen das Speichern?",
+                    batchSaveLostChangesText: "Ungespeicherte Änderungen gehen verloren. Wollen Sie fortfahren?",
+                    cancelEditText: "Sind Sie sicher Sie wollen die Änderungen löschen?",
                     dropDownListBlanksText: "(Rohlinge)",
                     dropDownListClearText: "(Filter löschen)",
                     trueText: "Wahr",

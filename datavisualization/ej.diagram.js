@@ -155,6 +155,7 @@
             },
             showTooltip: true,
             layout: {
+                avoidSegmentOverlapping: false,
                 bounds: null,
                 type: "none",
                 horizontalAlignment: "center",
@@ -287,6 +288,7 @@
             "layout.type",
             "layout.orientation",
             "layout.horizontalSpacing",
+            "layout.avoidSegmentOverlapping ",
             "layout.verticalSpacing",
             "layout.marginX",
             "layout.marginY",
@@ -341,6 +343,7 @@
         _layoutType: ej.util.valueFunction("layout.type"),
         _layoutOrientation: ej.util.valueFunction("layout.orientation"),
         _horizontalSpacing: ej.util.valueFunction("layout.horizontalSpacing"),
+        _avoidSegmentOverlapping: ej.util.valueFunction("layout.avoidSegmentOverlapping "),
         _verticalSpacing: ej.util.valueFunction("layout.verticalSpacing"),
         _layoutMarginX: ej.util.valueFunction("layout.marginX"),
         _layoutMarginY: ej.util.valueFunction("layout.marginY"),
@@ -565,9 +568,10 @@
                     this.model.layout.margin.top = this.model.layout.margin.bottom = this._layoutMarginY();
                 }
                 this._cloneGlobalVariables();
-                this._spatialSearch = ej.datavisualization.Diagram.SpatialSearch();
+                this._spatialSearch = ej.datavisualization.Diagram.SpatialSearch(this);
                 this._initDefaults();
                 this._initViews();
+                this._initLineRouting();
                 this._initData();
                 this._initCanvas();
                 this._initDiagramTool();
@@ -588,6 +592,57 @@
             delete this._isInit;
         },
 
+        _initLineRouting: function () {
+            if (ej.datavisualization.Diagram.Util.canRouteDiagram(this)) {
+                this.lineRouting = new LineRouting();
+                this.lineRouting.firstLoad = true;
+                this.lineRouting.Init(this.model);
+                this.lineRouting.SetLineRoutingSettings();
+            }
+        },
+        _resetConnectorPoints : function (edge, diagram) {
+            if (edge._undoSegments || edge._redoSegments) {
+                var segments = edge._undoSegments ? edge._undoSegments : edge._redoSegments;
+                this.updateConnector(edge.name, { segments: segments });
+            }
+            else {
+            if (edge._points && edge._points.size() > 0) {
+                var connector = diagram.nameTable[edge.name];
+                    if (!this._isUndo && (this.activeTool.name == "move" || this.activeTool.name === "resize" || this.activateTool.name === "rotatetool"))
+                        this.tools[this.activeTool.name].undoObject.connectors[connector.name] = { name: connector.name, segments: connector.segments };
+                connector.segments = [];
+                connector.sourcePoint = edge._points.get(0);
+                connector.targetPoint = edge._points.get(edge._points.size() - 1);
+                connector._sourcePortLocation = $.extend(true, {}, edge._points.get(0));
+                connector._targetPortLocation = $.extend(true, {}, edge._points.get(edge._points.size() - 1));
+                var points = [];
+                var segments = [];
+                for (var i = 0; i < edge._points.size() - 1; i++) {                    
+                    var point1 = edge._points.get(i);
+                    var point2 = edge._points.get(i + 1);
+                    if (point1.x == point2.x && point1.y == point2.y) {
+                        edge._points.RemoveAt(i + 1);
+                        if (i + 1 == edge._points.size())
+                            break;
+                        point2 = edge._points.get(i + 1);
+                    }
+                    var length = Point.findLength(point1, point2);
+                    var direction = ej.datavisualization.Diagram.Util._getBezierDirection(point1, point2);
+                    segments.push({ length: length, direction: direction, type: "orthogonal" });
+                }
+                this.updateConnector(connector.name, { segments: segments });
+                    if (!this._isUndo && (this.activeTool.name == "move" || this.activeTool.name === "resize" || this.activateTool.name === "rotate"))
+                        this.tools[this.activeTool.name]._redoConnectors[connector.name] = { name: connector.name, segments: connector.segments };
+                delete connector._sourcePortLocation;
+                delete connector._targetPortLocation;
+            } else {
+                var connector = diagram.nameTable[edge.name];
+                connector.segments = [];
+                var segments = [{ type: "orthogonal" }];
+                this.updateConnector(connector.name, { segments: segments });
+            }
+            }
+        },
         _equivalentPropMap: function (obj, sourceObj) {
             var obj1 = {}, field;
             for (var prop in obj) {
@@ -752,7 +807,7 @@
             this._diagramLayer = null;
             this._htmlLayer = null;
             this.clearHistory();
-            this._spatialSearch = ej.datavisualization.Diagram.SpatialSearch();
+            this._spatialSearch = ej.datavisualization.Diagram.SpatialSearch(this);
             if ((this.model.dataSourceSettings && this.model.dataSourceSettings.dataSource)) {
                 this.nodes([]);
                 this.connectors([]);
@@ -1135,7 +1190,7 @@
                     case "width":
                         this._svgParentDimention = null;
                         if (options["dataSourceSettings"]) {
-                           this._layoutUpdate = true;
+                            this._layoutUpdate = true;
                         }
                         this._initViews(true);
                         this._initCanvas(true);
@@ -1144,6 +1199,7 @@
                     case "nodes":
                     case "connectors":
                         if (!initObject && !this._isPreventModelChange && (!(this._isRefreshTriggered && typeof this.model.nodes === "function"))) {
+                            this._initLineRouting();
                             initObject = this._setNodesConnectors(options, this._isLoad);
                             this._trigger("refresh");
                         }
@@ -1206,12 +1262,14 @@
                         this.model.autoScrollMargin = options[option];
                         break;
                     case "layout":
+                        if (!this._isLoad) {
                         if (options[option].marginX)
                             this.model.layout.margin.left = this.model.layout.margin.right = Number(typeof options[option].marginX === 'function' ? this._layoutMarginX() : options[option].marginX);
                         if (options[option].marginY)
                             this.model.layout.margin.top = this.model.layout.margin.bottom = Number(typeof options[option].marginY === 'function' ? this._layoutMarginY() : options[option].marginY);
                         this.model.layout = $.extend(true, {}, this.model.layout, options[option]);
-                        this._setLayout(options[option]);
+                        this._setLayout(options[option]);                       
+                        }
                         break;
                     case "selectedItems":
                         this.updateSelector(options[option]);
@@ -1231,16 +1289,18 @@
                         this._renderContextMenu();
                         break;
                     case "nodeTemplate":
-                        if (!options["dataSourceSettings"] && !options["nodes"]) {
-                            this._clearElementCollection();
-                            this._initData();
-                            diagram = this;
-                            this._views.forEach(function (viewid) {
-                                var view = diagram._views[viewid];
-                                var nodes = diagram._setNodeZOrder(view);
-                                diagram._renderDiagramObjects(nodes, view);
-                            });
-                            this.layout();
+                        if (!this._isLoad) {
+                            if (!options["dataSourceSettings"] && !options["nodes"]) {
+                                this._clearElementCollection();
+                                this._initData();
+                                diagram = this;
+                                this._views.forEach(function (viewid) {
+                                    var view = diagram._views[viewid];
+                                    var nodes = diagram._setNodeZOrder(view);
+                                    diagram._renderDiagramObjects(nodes, view);
+                                });
+                                this.layout();
+                            }
                         }
                         break;
                     case "bridgeDirection":
@@ -1297,18 +1357,27 @@
                             this.model.tooltip = ej.datavisualization.Diagram.Tooltip($.extend(true, this.model.tooltip, {}, options[option]));
                         break;
                     case "dataSourceSettings":
+                        if (!this._isLoad) {
                         object = options[option];
                         if (object && Object.keys(object).length > 0 && object.dataSource) {
                             this.clear();
                             $.extend(this.model.dataSourceSettings, options[option]);
+                            this._initLineRouting();
                             this._initData();
                             diagram = this;
                             this._views.forEach(function (viewid) {
                                 var view = diagram._views[viewid];
                                 var nodes = diagram._setNodeZOrder(view);
                                 diagram._renderDiagramObjects(nodes, view);
-                            });
-                            this.layout();
+                                });
+                                this.layout();
+                                var nodes = diagram.connectors();
+                                if (nodes.length > 1 && (ej.datavisualization.Diagram.Util.canRouteDiagram(this))) {
+                                    diagram.lineRouting.GenerateVisibilityGraph(diagram, nodes.length);
+                                    for (var i = 0; i < nodes.length; i++)
+                                            diagram._routeEdge(nodes[i]);
+                                }
+                            }
                         }
                         break;
                 }
@@ -1724,7 +1793,7 @@
             var collapsedNodes = [];
             var nodes = this.nodes();
             var nodeTemplate;
-            if (!this.model.dataSourceSettings.dataSource)
+            if (!this.model.dataSourceSettings.dataSource || this._isLoad)
                 nodeTemplate = this._getNodeTemplate();
             this._isNodeInitializing = true;
             for (var i = 0; i < nodes.length; i++) {
@@ -1780,9 +1849,16 @@
                 if (!nodes[i].isExpanded) {
                     collapsedNodes.push(nodes[i]);
                 }
+                this._setBounds(nodes[i]);
             }
             delete this._isNodeInitializing;
-            this._nodes = $.extend(true, [], nodes);
+            this._nodes = $.extend(false, [], nodes);
+            if (ej.datavisualization.Diagram.Util.canRouteDiagram(this)) {
+                this.lineRouting.GenerateVisibilityGraph(this);
+                for (var i = 0; i < this._nodes.length; i++) {
+                    this._resetValues(this._nodes[i]);
+                }
+            }
             return collapsedNodes;
         },
 
@@ -1808,6 +1884,38 @@
             var index = nodesCollection.indexOf(group);
             return index;
         },
+        _checkFromSwimlane: function (node) {
+            if (node) {
+                if (node.isSwimlane || node.isLane || node.isLaneStack || node.isPhaseStack || node.isPhase || node.type == "phase")
+                    return true;
+                if (node.parent) {
+                    var parent = this.nameTable[node.parent];
+                    if (parent) {
+                        return this._checkFromSwimlane(parent);
+                    }
+                }
+            }
+            return false
+        },
+        _setBounds: function (node) {
+            if (!this._selectedSymbol && ej.datavisualization.Diagram.Util.canRouteDiagram(this)) {
+                if (!node.segments) {
+                    if (!this._checkFromSwimlane(node)) {
+                        if (this.nodes().length == 1 && !this.lineRouting.router && !this.lineRouting.router.graph)
+                            this.lineRouting.GenerateVisibilityGraph(this, this.nodes().length == 1);
+                        this.lineRouting.RemoveNode(node);
+                        if (!this._isInit) {
+                            //this.renderGraph();
+                            this._setObstacle();
+                            this.lineRouting.AddNode(node);
+                        }
+                    }
+                }
+            }
+        },
+        _setObstacle: function () {
+            this.lineRouting.IsDirt = true
+        },
 
         _initConnectorCollection: function (dataSourceApplied) {
             var connectors = this.connectors();
@@ -1817,12 +1925,17 @@
                 connector = dataSourceApplied ? connectors[i] : this._getNewConnector(connectors[i]);
                 this.nameTable[connector.name] = connector;
                 if (!dataSourceApplied) {
-                    if (this.model.layout && this._layoutType() === ej.datavisualization.Diagram.LayoutTypes.None)
+                    if ((this.model.layout && this._layoutType() === ej.datavisualization.Diagram.LayoutTypes.None) || this._isLoad)
                         this._dock(connector, this.nameTable);
                 }
                 this._updateEdges(connector);
                 if (connectorTemplate && !dataSourceApplied) connectorTemplate(this, connector);
                 connectors[i] = connector;
+                if (this.model.layout && this._layoutType() === ej.datavisualization.Diagram.LayoutTypes.None)   {
+                    this._isUndo = true;
+                    this._routeEdge(connectors[i]);
+                    this._isUndo = false;
+                }
             }
             this._connectors = $.extend(true, [], connectors);
         },
@@ -2010,10 +2123,10 @@
                 if (!this._isContainsSameConnector(connectors, ancestor, node.name))
                     connectors.push(this._applyConnectorTemplate(mapper, null, ancestor, node.name, connectorTemplate));
                 if (!canBreak) {
-                    nextLevel = rootNodes[child[mapper.id]]
-                    if (nextLevel)
-                        this._renderChildNodes(mapper, nextLevel, node.name, nodes, connectors, rootNodes, nodeTemplate, connectorTemplate);
-                }
+                nextLevel = rootNodes[child[mapper.id]]
+                if (nextLevel)
+                    this._renderChildNodes(mapper, nextLevel, node.name, nodes, connectors, rootNodes, nodeTemplate, connectorTemplate);
+            }            
             }
         },
         _applyTemplate: function (mapper, data, collection, collname) {
@@ -2082,7 +2195,7 @@
             var child = null, index = 0;
             if (options.type == "bpmn") options = ej.datavisualization.Diagram.Util._updateBpmnChild(ej.datavisualization.Diagram.Node(options), this);
             if (options.children && options.children.length > 0) {
-                for (var i in options.children) {
+                for (var i = 0; i < options.children.length; i++) {
                     child = this.nameTable[this._getChild(options.children[i])];
                     if (child) {
                         ej.datavisualization.Diagram.SpatialUtil._removeFromaQuad(this._spatialSearch, this._spatialSearch.quadTable[child.name], child);
@@ -2265,7 +2378,18 @@
                         if (typeof child.shape !== "object" && group.type != "bpmn")
                             child = ej.datavisualization.Diagram.NodeType(child, this);
                         if (child._type != "group" && !child.children && !child.segments && child.type != "connector") {
-                            if (group.type != "bpmn" && group.type != "umlclassifier") child = this._getNewNode(child);
+                            if (group.type != "bpmn" && group.type != "umlclassifier") {
+                                var extendChild = false;
+                                if (group.parent) {
+                                    var parent1 = this.getNode(group.parent);
+                                    if (parent1 && ((parent1.subProcess && parent1.subProcess.events.length > 0) || (parent1.task && parent1.task.events.length > 0))) {
+                                        extendChild = true;
+                                    }
+                                }
+                                if (!extendChild) {
+                                    child = this._getNewNode(child);
+                                }
+                            }
                             if (child.name == "")
                                 child.name = ej.datavisualization.Diagram.Util.randomId();
                             if (child._type == "node" && child.labels.length && (child.width == 0 || child.height == 0))
@@ -2293,8 +2417,15 @@
                     this._updateQuad(this.nameTable[this._getChild(group.children[i])]);
                 }
             }
-            if (!this._isLoad)
+            if (!this._isLoad) {
                 ej.datavisualization.Diagram.Util._updateGroupBounds(group, this);
+            }
+            else if (group.parent) {
+                var parentNode = this.findNode(group.parent);
+                if (parentNode.subProcess.events.length > 0 || parentNode.task.events.length > 0) {
+                    ej.datavisualization.Diagram.Util._updateGroupBounds(group, this);
+                }
+            }
         },
         _udpateChildRotateAngle: function (group) {
             var pinx, piny, child;
@@ -2995,6 +3126,15 @@
                             else
                                 node.gradient = ej.datavisualization.Diagram.LinearGradient(options.gradient);
                         }
+                        if (options.borderGradient !== undefined) {
+                            this._comparePropertyValues(node, "borderGradient", options);
+                            if (options.borderGradient === null)
+                                node.borderGradient = options.borderGradient;
+                            else if (options.borderGradient && options.borderGradient.type === "radial")
+                                node.borderGradient = ej.datavisualization.Diagram.RadialGradient(options.borderGradient);
+                            else
+                                node.borderGradient = ej.datavisualization.Diagram.LinearGradient(options.borderGradient);
+                        }
                         if (options.isExpanded !== undefined) {
                             this._comparePropertyValues(node, "isExpanded", options);
                             node._updateExpander = true;
@@ -3105,6 +3245,9 @@
                     }
                     else if (node.type === "phase" || node.phase) {
                         this._needUpdate = false;
+                        if (options.offset) {
+                            this._updatePhase({ name: node.name, offset: options.offset });
+                        }
                         this._updateSwimlanePhase(node, options);
                     }
                 }
@@ -3331,6 +3474,13 @@
                     this._initGroupNode(node);
                     this.nameTable[node.name] = node;
                     this.nodes().push(node);
+                    if (node.parent) {
+                        var parentNode = this.nameTable[node.parent];
+                        if (parentNode) {
+                            var index1 = this._getChildIndexFromParent(parentNode, node.name);
+                            parentNode.children[index1] = node;
+                        }
+                    }
                     this._nodes = $.extend(true, [], this.nodes());
                     this._updateQuad(node);
                     ej.datavisualization.Diagram.DiagramContext.renderGroup(node, this);
@@ -3341,6 +3491,18 @@
             }
             return node;
         },
+
+        _getChildIndexFromParent: function (parentNode, childName) {
+            for (var i = 0; i < parentNode.children.length; i++) {
+                var child = parentNode.children[i];
+                child = typeof child === "object" ? child.name : child;
+                if (child === childName) {
+                    return i;
+                }
+            }
+            return null;
+        },
+
         _updateObject: function (node) {
             if (node) {
                 if (node.type == "pseudoGroup") {
@@ -3602,7 +3764,7 @@
             if (name) {
                 var connector = this._findConnector(name);
                 if (connector) {
-                    if (!this._isUndo)
+                    if (!this._isUndo && !ej.datavisualization.Diagram.Util.canRouteDiagram(this))
                         this._recordPropertiesChanged(connector, options, "connector");
                     if ((ej.datavisualization.Diagram.Util.isPageEditable(this) || ej.datavisualization.Diagram.Util.canEnableAPIMethods(this))) {
                         if (options.constraints !== undefined) {
@@ -4526,13 +4688,25 @@
                     } while (drawnY < imgHeight)
                 }
             }
+            else if (printSettings && printSettings.region === "content" && !printSettings.pageWidth && !printSettings.pageHeight) {               
+                canvas = new ej.datavisualization.Diagram.Canvas({ "id": "multiplePrint10", "width": img.width, "height": img.height });
+                ctx = canvas.document.getContext("2d");
+                ctx.drawImage(img, x + mLeft, y + mTop, img.width - (mRight + mLeft), img.height - (mTop + mBottom), 0 + mLeft, 0 + mTop, img.width - (mRight + mLeft), img.height - (mTop + mBottom));
+                url = canvas.document.toDataURL();
+                ctx.restore();
+                this._printImage(div, url, 0)
+            }
             else {
                 var x = 0, y = 0;
                 var pageSize = this._getPrintCanvasStyle(img, printSettings), pageWidth, pageHeight;
                 pageWidth = pageSize.width;
                 pageHeight = pageSize.height;
-                canvas = new ej.datavisualization.Diagram.Canvas({ "id": "multiplePrint0", "width": pageWidth, "height": pageHeight });
+                canvas = new ej.datavisualization.Diagram.Canvas({ "id": "multiplePrint0", "width": img.width, "height": img.height });
                 ctx = canvas.document.getContext("2d");
+                var ratio = Math.min(img.width / pageWidth, img.height / pageHeight);
+                pageWidth = img.width * ratio;
+                pageHeight = img.height * ratio;
+               
                 ctx.drawImage(img, x + mLeft, y + mTop, img.width - (mRight + mLeft), img.height - (mTop + mBottom), 0 + mLeft, 0 + mTop, pageWidth - (mRight + mLeft), pageHeight - (mTop + mBottom));
                 url = canvas.document.toDataURL();
                 ctx.restore();
@@ -4591,7 +4765,7 @@
         },
         print: function (options) {
             options = ej.datavisualization.Diagram.PrintSettings(options);
-            var url = this.exportDiagram({ mode: "data", region: options.region, margin: { top: 0, bottom: 0, left: 0, right: 0, }, stretch: options.stretch });
+            var url = this.exportDiagram({ mode: "data", region: options.region, margin: { top: 10, bottom: 10, left: 10, right: 10, }, stretch: options.stretch });
             this._raisePrintAction(url, options);
         },
         save: function () {
@@ -4605,6 +4779,12 @@
             }
             this._updateTableNodes();
             var model = jQuery.extend(true, {}, this.model);
+            for (var i = 0; i < model.nodes.length; i++) {
+                this._resetValues(model.nodes[i]);
+            }
+            for (var i = 0; i < model.connectors.length ; i++) {
+                this._resetValues(model.connectors[i]);
+            }
             delete model.historyManager;
             if (ej.version)
                 model.version = ej.version;
@@ -4729,6 +4909,10 @@
                                                 if (key === "labels" || key === "label" || key === "textBlock" || key === "ports") {
                                                     this._updateDefaults({ type: key })
                                                     defaultJson = this.defaultTabels[key];
+                                                    if (orgValue && orgValue.type === 'bpmn' && key === "labels") {
+                                                        defaultJson = $.extend(true, {}, defaultJson);
+                                                        defaultJson.offset = { x: 0.5, y: 1 };
+                                                    }
                                                     if (key === "label") {
                                                         defaultJson = this.defaultTabels["labels"];
                                                     }
@@ -4849,8 +5033,8 @@
                     if (child)
                         children.push(jQuery.extend(true, {}, child));
                 }
+                node.children = children;
             }
-            node.children = children;
         },
         _containsNode: function (node) {
             node = this._getChild(node);
@@ -5063,13 +5247,15 @@
             }
             this._isLoad = true;
             this._isOptimize = true;
-            this._spatialSearch = ej.datavisualization.Diagram.SpatialSearch();
+            this._spatialSearch = ej.datavisualization.Diagram.SpatialSearch(this);
             this.clear();
             this._zOrder = 0;
             if (this.enableContextMenu()) {
-                var menuObj = $("#" + this.element[0].id + "_contextMenu").data("ejMenu");
-                menuObj.destroy();
-                $("#" + this.element[0].id + "_contextMenu").remove();
+                if (!this.model.serializationSettings.preventDefaultValues || data.contextMenu) {
+                    var menuObj = $("#" + this.element[0].id + "_contextMenu").data("ejMenu");
+                    menuObj.destroy();
+                    $("#" + this.element[0].id + "_contextMenu").remove();
+                }
             }
 
             if (data && data.nodes && data.nodes.length > 0) {
@@ -5119,7 +5305,7 @@
                 click: data.click ? data.click : null,
                 connectionChange: data.connectionChange ? data.connectionChange : null,
                 defaultSettings: data.defaultSettings ? data.defaultSettings : { node: null, connector: null },
-                dataSourceSettings: data.dataSourceSettings ? data.dataSourceSettings : {},
+                dataSourceSettings: data.dataSourceSettings ? data.dataSourceSettings : {},                
                 doubleClick: data.doubleClick ? data.doubleClick : null,
                 enableContextMenu: data.enableContextMenu === undefined ? true : data.enableContextMenu,
                 tooltip: data.tooltip ? data.tooltip : null,
@@ -5129,7 +5315,7 @@
                 mouseLeave: data.mouseLeave ? data.mouseLeave : null,
                 nodeTemplate: data.nodeTemplate ? data.nodeTemplate : null,
                 rotationChange: data.rotationChange ? data.rotationChange : null,
-                selectedItems: data.selectedItems ? data.selectedItems : null,
+                selectedItems: data.selectedItems ? data.selectedItems : this.model.selectedItems,
                 width: data.width ? data.width : null,
                 constraints: data.constraints,
                 phases: data.phases ? data.phases : [],
@@ -5175,14 +5361,21 @@
             }
             return isExist;
         },
-
         _checkNodeExist: function (node, name) {
             if (node.children) {
                 for (var i = 0; i < node.children.length; i++) {
                     var child = node.children[i];
-                    if (child) {
-                        var state = this._checkNodeExist(child, name)
-                        if (state) return true;
+                    var state = this._checkNodeExist(child, name)
+                    if (state) return true;
+                }
+            }
+            else if (this.model.serializationSettings.preventDefaultValues) {
+                if (node && (node.subProcess && node.subProcess.events.length > 0 || node.task && node.task.events.length > 0)) {
+                    var eventsCollection = node.subProcess.events.length > 0 ? node.subProcess.events : node.task.events;
+                    for (var k = 0; k < eventsCollection.length; k++) {
+                        if (eventsCollection[k].name === name) {
+                            return true;
+                        }
                     }
                 }
             }
@@ -5190,6 +5383,7 @@
                 return true;
             return false;
         },
+
         layout: function () {
             this._setLayout();
         },
@@ -5776,7 +5970,7 @@
                     var firstNode = cornerNodes.top;
                     var dHei = 0;
                     var pre = null, nxt = null;
-                    for (var i in lstSelections) {
+                    for (var i = 0; i < lstSelections.length; i++) {
                         var pre = null, nxt = null;
                         pre = this.nameTable[this._getChild(lstSelections[i])];
                         nxt = this.nameTable[this._getChild(lstSelections[Number(i) + 1])];
@@ -5787,7 +5981,7 @@
                         }
                     }
                     var space = dHei / (selectionCount - 1);
-                    for (var i in lstSelections) {
+                    for (var i = 0; i < lstSelections.length; i++) {
                         pre = this.nameTable[this._getChild(lstSelections[i])];
                         nxt = this.nameTable[this._getChild(lstSelections[Number(i) + 1])];
                         if (pre && nxt) {
@@ -5817,7 +6011,7 @@
                     var firstNode = cornerNodes.left;
                     var dWid = 0;
                     var pre = null, nxt = null;
-                    for (var i in lstSelections) {
+                    for (var i = 0; i < lstSelections.length; i++) {
 
                         var pre = null, nxt = null;
                         pre = this.nameTable[this._getChild(lstSelections[i])];
@@ -5830,7 +6024,7 @@
                     }
                     var space = dWid / (selectionCount - 1);
                     var sdx = 0;
-                    for (var i in lstSelections) {
+                    for (var i = 0; i < lstSelections.length; i++) {
                         pre = this.nameTable[this._getChild(lstSelections[i])];
                         nxt = this.nameTable[this._getChild(lstSelections[Number(i) + 1])];
                         if (pre && nxt) {
@@ -5907,11 +6101,13 @@
             this._updateSelectionHandle();
         },
         _deleteZorderProcess: function () {
-            for (var i in this.nodes()) {
-                if (this.nodes()[i]._isProcessed) delete this.nodes()[i]._isProcessed;
+            var nodes = this.nodes();
+            for (var i = 0 ; i < nodes.length; i++) {
+                if (nodes[i]._isProcessed) delete nodes[i]._isProcessed;
             }
-            for (var i in this.connectors()) {
-                if (this.connectors()[i]._isProcessed) delete this.connectors()[i]._isProcessed;
+            var connectors = this.connectors()
+            for (var i = 0 ; i < connectors.length; i++) {
+                if (connectors[i]._isProcessed) delete connectors[i]._isProcessed;
             }
         },
         _bringElementsToFront: function (start, end, node, prevNode) {
@@ -6446,6 +6642,7 @@
                                 args = { object: entryItem.undoObject, isMultipleNode: entryItem.isMultipleNode };
                                 this._recordPinPointChanged(args);
                             }
+                            this._undoredoUpdateRouting(entryItem.undoObject.connectors);
                             break;
                         case "rotationchanged":
                             if (entryItem.swimlaneMultiSelection) {
@@ -6456,6 +6653,7 @@
                                 args = { object: entryItem.undoObject, isMultipleNode: entryItem.isMultipleNode };
                                 this._recordRotationChanged(args);
                             }
+                            this._undoredoUpdateRouting(entryItem.undoObject.connectors);
                             break;
                         case "sizechanged":
                             entryItem.undo = true;
@@ -6466,9 +6664,10 @@
                                 args = { object: entryItem.undoObject, isMultipleNode: entryItem.isMultipleNode };
                                 this._recordSizeChanged(args, entryItem);
                             }
+                            this._undoredoUpdateRouting(entryItem.undoObject.connectors);
                             break;
                         case "endpointchanged":
-                            args = { undoObject: entryItem.undoObject, redoObject: entryItem.redoObject, isMultipleNode: entryItem.isMultipleNode, _isUndo: true };
+                            args = { undoObject: entryItem.undoObject, redoObject: entryItem.redoObject, removePortType: entryItem.removePortType, removedPort: entryItem.removedPort, isMultipleNode: entryItem.isMultipleNode, _isUndo: true };
                             this._recordEndPointChanged(args);
                             break;
                         case "collectionchanged":
@@ -6603,7 +6802,17 @@
                 }
             }
         },
-
+        _undoredoUpdateRouting: function (connectors) {
+            if (ej.datavisualization.Diagram.Util.canRouteDiagram(this) && connectors) {
+                var keys = Object.keys(connectors);
+                for (var i = 0; i < keys.length; i++) {
+                    var edge = this.nameTable[keys[i]];
+                    edge._undoSegments = connectors[keys[i]].segments
+                    this._resetConnectorPoints(edge, null);
+                    delete edge._undoSegments;
+                }
+            }
+        },
         _redo: function (entryItem) {
             var argument = [];
             this._UndoRedo = false;
@@ -6649,6 +6858,7 @@
                                 var args = { object: entryItem.redoObject, isMultipleNode: entryItem.isMultipleNode };
                                 this._recordPinPointChanged(args);
                             }
+                            this._undoredoUpdateRouting(entryItem.redoObject.connectors);
                             break;
                         case "rotationchanged":
                             if (entryItem.swimlaneMultiSelection) {
@@ -6659,6 +6869,7 @@
                                 args = { object: entryItem.redoObject, isMultipleNode: entryItem.isMultipleNode };
                                 this._recordRotationChanged(args);
                             }
+                            this._undoredoUpdateRouting(entryItem.redoObject.connectors);
                             break;
                         case "sizechanged":
                             entryItem.undo = false;
@@ -6669,9 +6880,10 @@
                                 args = { object: entryItem.redoObject, isMultipleNode: entryItem.isMultipleNode };
                                 this._recordSizeChanged(args);
                             }
+                            this._undoredoUpdateRouting(entryItem.redoObject.connectors);
                             break;
                         case "endpointchanged":
-                            args = { undoObject: entryItem.undoObject, redoObject: entryItem.redoObject, isMultipleNode: entryItem.isMultipleNode, _isUndo: false };
+                            args = { undoObject: entryItem.undoObject, redoObject: entryItem.redoObject, removePortType: entryItem.removePortType, removedPort: entryItem.removedPort, isMultipleNode: entryItem.isMultipleNode, _isUndo: false };
                             this._recordEndPointChanged(args);
                             break;
                         case "collectionchanged":
@@ -7329,12 +7541,13 @@
                 var node = this.nameTable[name];
                 if (node && ports) {
                     for (var i = 0; i < ports.length; i++) {
-                        ports[i] = ej.datavisualization.Diagram.Port(ports[i]);
-                        node.ports.push(ports[i]);
-                        this._raisePropertyChange({ element: node, cause: ej.datavisualization.Diagram.ActionType.Unknown, propertyName: "ports", oldValue: null, newValue: ports[i] });
-                        ej.datavisualization.Diagram.DiagramContext.renderPort(node, ports[i], this);
+                        var port = ej.datavisualization.Diagram.Port(ports[i]);
+                        port.parent = node.name;
+                        node.ports.push(port);
+                        this._raisePropertyChange({ element: node, cause: ej.datavisualization.Diagram.ActionType.Unknown, propertyName: "ports", oldValue: null, newValue: port });
+                        ej.datavisualization.Diagram.DiagramContext.renderPort(node, port, this);
                     }
-                    this.addHistoryEntry({ type: "portscollectionchanged", object: node, collection: ports, changeType: "insert", isUndo: true, category: "internal" });
+                    this.addHistoryEntry({ type: "portscollectionchanged", object: node, collection: node.ports, changeType: "insert", isUndo: true, category: "internal" });
                 }
             }
         },
@@ -7408,7 +7621,7 @@
                     if (laneCollection.length > 0) {
                         pseudoChildren = this._sameParent(laneCollection, parentCollection, this._clipboardData.childTable);
                         if (nodeCollection.length > 0) {
-                            for (i in nodeCollection)
+                            for (i = 0 ; i < nodeCollection.length; i++)
                                 if (!this._collectionContains(nodeCollection[i], pseudoChildren.children))
                                     pseudoChildren.children.push(nodeCollection[i]);
                         }
@@ -7513,7 +7726,7 @@
                 var childTable = {}, collection = [], rectBounds, rect;
                 if (node._type === "group" || node.type === "pseudoGroup") {
                     var temp, i, j;
-                    var children = this._getChildren(node.children);
+                    var children = this._getChildren(node.children);                    
                     for (i = 0; i < children.length; i++) {
                         for (j = i + 1; j < children.length; j++) {
                             var nodei = this.nameTable[this._getChild(children[i])];
@@ -7526,7 +7739,16 @@
                                 }
                             }
                         }
+                    } 
+                    var connectorCollection = [];
+                    for (var m = node.children.length - 1; m >= 0; m--) {
+                        var element = this.nameTable[this._getChild(node.children[m])];
+                        if (element.type === "connector") {
+                            node.children.splice(node.children.indexOf(element.name), 1);
+                            connectorCollection.push(element.name)
+                        }
                     }
+                    node.children = node.children.concat(connectorCollection);
                     childTable = this._getChildTable(node, childTable);
                 }
                 childTable[node.name] = node;
@@ -8113,7 +8335,7 @@
                     parentName = node.name;
                 }
                 if (node.children && node.children.length > 0) {
-                    for (var i in node.children) {
+                    for (var i = 0 ; i < node.children.length; i++) {
                         this._cloneNode(node.children[i], data, name, parentName);
                         if (node.children[i]) (typeof (node.children[i]) === "string") ? node.children[i] += name : node.children[i].name += name;
                     }
@@ -8133,7 +8355,7 @@
             var tempName = node.name;
             node.name += name;
             if (node.children && node.children.length > 0) {
-                for (var i in node.children) {
+                for (var i = 0 ; i < node.children.length; i++) {
                     this._cloneNode(node.children[i], data, name, node);
                     if (typeof (node.children[i]) === "string") {
                         (node.children[i] += name)
@@ -8148,7 +8370,7 @@
             }
             if (node.phases && node.phases.length > 0) {
                 var phase;
-                for (var i in node.phases) {
+                for (var i = 0 ; i < node.phases.length; i++) {
                     phase = jQuery.extend(true, {}, this.nameTable[this._getChild(node.phases[i])]);
                     phase.name += name;
                     phase.parent += name;
@@ -8318,7 +8540,7 @@
                 this.nameTable = {};
                 this.selectionList = [];
                 this.clearHistory();
-                this._spatialSearch = ej.datavisualization.Diagram.SpatialSearch();
+                this._spatialSearch = ej.datavisualization.Diagram.SpatialSearch(this);
                 this._updateScrollOffset(0, 0);
             }
         },
@@ -8339,7 +8561,7 @@
                 this._connectors = [];
                 this.nameTable = {};
                 this.selectionList = [];
-                this._spatialSearch = ej.datavisualization.Diagram.SpatialSearch();
+                this._spatialSearch = ej.datavisualization.Diagram.SpatialSearch(this);
             }
         },
 
@@ -8490,7 +8712,34 @@
             }
             return swimlane;
         },
+
+        _resetValues: function (node) {
+            if (ej.datavisualization.Diagram.Util.canRouteDiagram(this) && !this._checkFromSwimlane(node)) {
+                if (node) {
+                    if (node._points)
+                        delete node._points
+                    if (node._sourceNodeInfo)
+                        delete node._sourceNodeInfo;
+                    if (node._targetNodeInfo)
+                        delete node._targetNodeInfo;
+                    if (node._obstacle)
+                        delete node._obstacle;
+                    if (node._outerBounds)
+                        delete node._outerBounds;
+                    if (node._sourcePointInfo)
+                        delete node._sourcePointInfo;
+                    if (node._sourcePortInfo)
+                        delete node._sourcePortInfo;
+                    if (node._targetPointInfo)
+                        delete node._targetPointInfo;
+                    if (node._targetPortInfo)
+                        delete node._targetPortInfo;
+                }
+            }
+        },
+
         _add: function (node, render, arg, restrictSelection) {
+            this._resetValues(node);
             if (!node.length > 0) {
                 node = ej.datavisualization.Diagram.NodeType(node, this);
                 var nodeTemplate, connectorTemplate;
@@ -8620,7 +8869,7 @@
                                             var parent = null;
                                             parent = this._updateChildOnGroup(node);
                                             if ((node.parent === "" || node.isPhase) || this._isInsert)
-                                                ej.datavisualization.Diagram.DiagramContext.renderNode(node, this, parent);
+                                                ej.datavisualization.Diagram.DiagramContext.renderNode(node, this, parent);                                            
                                             if (this._selectedSymbol && node.textBlock) {
                                                 var htmlLayer = this._svg.document.parentNode.getElementsByClassName("htmlLayer")[0];
                                                 if (htmlLayer) {
@@ -8645,7 +8894,7 @@
                                     }
                                 }
                             }
-
+                            this._addNodeToGraph(node)
                         }
                         else {
                             node = this._getNewConnector(node);
@@ -8660,11 +8909,13 @@
                                 if (success) {
                                     this._updateEdges(node);
                                     this._dock(node, this.nameTable);
+                                    this._routeEdge(node);
                                     ej.datavisualization.Diagram.Util.updateBridging(node, this);
                                     this._updateConnectorBridging(node);
                                     if (!node.parent) {
-                                        if (render)
+                                        if (render) {
                                             ej.datavisualization.Diagram.DiagramContext.renderConnector(node, this);
+                                        }
                                     }
                                     this.nameTable[node.name] = node;
                                     this._updateQuad(node);
@@ -9396,59 +9647,69 @@
             return div;
         },
         _renderTooltip: function (object, start) {
-            if (!(object.parent && this.nameTable[object.parent] && this.nameTable[object.parent].container)) {
-                if (this.model.selectedItems.tooltip) {
-                    var tooltipDiv = document.getElementById(this.element[0].id + "_DefaulttooltipDiv");
-                    if (!tooltipDiv) {
-                        tooltipDiv = this._createDefaultTooltip();
-                    }
-                    var template;
-                    var objectValues;
-                    var html;
-                    var width;
-                    var curZoomfactor = this._currZoom;
-                    if (!this.model.selectedItems.tooltip.templateId) {
-                        if (start) tooltipDiv.style.width = "150px";
-                        width = 150;
-                        var span = tooltipDiv.childNodes[0];
-                        if (this.activeTool instanceof ej.datavisualization.Diagram.MoveTool) {
-                            if (!object.segments)
-                                objectValues = "X : " + Math.round((object.offsetX - object.width * object.pivot.x)) + "px  " + "Y : " + Math.round((object.offsetY - object.height * object.pivot.y)) + "px";
-                        } else if (this.activeTool instanceof ej.datavisualization.Diagram.ResizeTool) {
-                            objectValues = "W : " + Math.round(object.width) + "px  H : " + Math.round(object.height) + "px";
-                        } else if (this.activeTool instanceof ej.datavisualization.Diagram.RotateTool) {
+            if ((object.parent && this.nameTable[object.parent] && this.nameTable[object.parent].container)) {
+                var scale = this._currZoom;
+                var bounds = ej.datavisualization.Diagram.Util.bounds(this.activeTool.helper, true);
+                object = { x: (bounds.x) * scale, y: (bounds.y) * scale, width: (bounds.width) * scale, height: (bounds.height) * scale, rotateAngle: this.activeTool.helper.rotateAngle, offsetX: this.activeTool.helper.offsetX, offsetY: this.activeTool.helper.offsetY, type: "SwimlaneHelper" };
+            }
+            if (this.model.selectedItems.tooltip) {
+                var tooltipDiv = document.getElementById(this.element[0].id + "_DefaulttooltipDiv");
+                if (!tooltipDiv) {
+                    tooltipDiv = this._createDefaultTooltip();
+                }
+                var template;
+                var objectValues;
+                var html;
+                var width;
+                var curZoomfactor = this._currZoom;
+                if (!this.model.selectedItems.tooltip.templateId) {
+                    if (start) tooltipDiv.style.width = "150px";
+                    width = 150;
+                    var span = tooltipDiv.childNodes[0];
+                    if (this.activeTool instanceof ej.datavisualization.Diagram.MoveTool) {
+                        if (!object.segments) {
+                            if (object.type !== "SwimlaneHelper") {
+                                 objectValues = "X : " +Math.round((object.offsetX -object.width * object.pivot.x)) + "px  " + "Y : " +Math.round((object.offsetY -object.height * object.pivot.y)) + "px";
+                            }
+                              else {
+                                    objectValues = "X : " +Math.round(object.x) + "px  " + "Y : " +Math.round(object.y) + "px";
+                          }
+                          }
+                          } else if (this.activeTool instanceof ej.datavisualization.Diagram.ResizeTool) {                             
+                            objectValues = "W : " +Math.round(object.width) + "px  H : " +Math.round(object.height) + "px";                          
+                          } else if (this.activeTool instanceof ej.datavisualization.Diagram.RotateTool) {
                             if (start) tooltipDiv.style.width = "50px";
-                            width = 50;
-                            objectValues = Math.round(object.rotateAngle) + "\xB0";
-                        }
-                        if (objectValues) {
+                             width = 50;
+                             objectValues = Math.round(object.rotateAngle) + "\xB0";                             
+                             }
+                          if (objectValues) {
                             var obj = this._getTooltipPosition(object, this.model.selectedItems.tooltip);
-                            obj.x = -this._hScrollOffset + obj.x * curZoomfactor;
-                            obj.y = -this._vScrollOffset + obj.y * curZoomfactor;
+                            obj.x = -this._hScrollOffset +obj.x * curZoomfactor;
+                            obj.y = - this._vScrollOffset +obj.y * curZoomfactor;
                             tooltipDiv.style.top = obj.y + "px";
                             tooltipDiv.style.left = obj.x + "px";
-                            tooltipDiv.style.transform = "translate(" + obj.tx + " ," + obj.ty + ")";
+                            tooltipDiv.style.transform = "translate(" +obj.tx + " ," +obj.ty + ")";
                             span.textContent = objectValues;
                         } else {
                             this._removeTooltip();
-                        }
+                            }
                     } else if ($.templates && this.model.selectedItems.tooltip) {
                         if (!object.segments) {
                             var obj = this._getTooltipPosition(object, this.model.selectedItems.tooltip);
-                            obj.x = -this._hScrollOffset + obj.x * curZoomfactor;
-                            obj.y = -this._vScrollOffset + obj.y * curZoomfactor;
+                            obj.x = -this._hScrollOffset +obj.x * curZoomfactor;
+                            obj.y = - this._vScrollOffset +obj.y * curZoomfactor;
                             tooltipDiv.style.top = obj.y + "px";
                             tooltipDiv.style.left = obj.x + "px";
-                            tooltipDiv.style.transform = "translate(" + obj.tx + " ," + obj.ty + ")";
-                            template = $.templates("#" + this.model.selectedItems.tooltip.templateId);
-                            // objectValues = [{ name: this.activeTool.selectedObject.name, x: (object.offsetX - object.width / 2) + "px", y: (object.offsetY - object.height / 2) + "px", width: object.width + "px", height: object.height + "px", rotationAngle: object.rotateAngle }];
-                            html = template.render(object);
-                            $(tooltipDiv).html(html);
-                        }
+                            tooltipDiv.style.transform = "translate(" +obj.tx + " ," +obj.ty + ")";
+                            template = $.templates("#" +this.model.selectedItems.tooltip.templateId);
+                        // objectValues = [{ name: this.activeTool.selectedObject.name, x: (object.offsetX - object.width / 2) + "px", y: (object.offsetY - object.height / 2) + "px", width: object.width + "px", height: object.height + "px", rotationAngle: object.rotateAngle }];
+                        html = template.render(object);
+                        $(tooltipDiv).html(html);
                     }
                 }
             }
         },
+
         _removeTooltip: function () {
             var tooltipDiv = document.getElementById(this.element[0].id + "_DefaulttooltipDiv");
             if (tooltipDiv) {
@@ -9793,12 +10054,20 @@
             }
         },
         _doLayout: function () {
-            if (this.model.layout && this._layoutType() !== ej.datavisualization.Diagram.LayoutTypes.None) {
+            if (this.model.layout && this._layoutType() !== ej.datavisualization.Diagram.LayoutTypes.None && !this._isLoad) {
                 //this.model.layout = new ej.datavisualization.Diagram.HierarchicalLayout(this.model.layout);
                 //this.model.layout._setModel(this);
                 this._updateEdgeCollection();
                 ej.datavisualization.Diagram.Layout.doLayout(this);
                 //this.model.layout.doLayout(this);
+                if (ej.datavisualization.Diagram.Util.canRouteDiagram(this)) {
+                    var nodes = this.nodes();
+                    if (nodes.length > 1) {
+                        this.lineRouting.GenerateVisibilityGraph(this, nodes.length);
+                        for (var i = 0; i < nodes.length; i++)
+                                this._updateAllEdges(nodes[i]);
+                    }
+                }
             }
         },
         _updateNodes: function () {
@@ -9835,30 +10104,30 @@
             ej.datavisualization.Diagram.ScrollUtil._updateRuler(this, diagram._hScrollOffset, diagram._vScrollOffset)
         },
         _containsSameIndex: function (index, parent) {
-            if (!parent) {
-                var nodes = this.nodes(), cNode;
-                for (var i = 0; i < nodes.length > 0; i++) {
-                    cNode = nodes[i];
-                    if (cNode && cNode.zOrder === index)
-                        return true;
-                }
-                var connectors = this.connectors(), cConnector;
-                for (var i = 0; i < connectors.length > 0; i++) {
-                    cConnector = connectors[i];
-                    if (cConnector && cConnector.zOrder === index)
-                        return true;
-                }
-            }
-            else {
-                var children = parent.children, child;
-                for (var i = 0; i < children.length; i++) {
-                    child = this.nameTable[this._getChild(children[i])];
-                    if (child && child.zOrder) {
-                        if (child.zOrder === index)
-                            return true;
-                    }
-                }
-            }
+            //if (!parent) {
+            //    var nodes = this.nodes(), cNode;
+            //    for (var i = 0; i < nodes.length > 0; i++) {
+            //        cNode = nodes[i];
+            //        if (cNode && cNode.zOrder === index)
+            //            return true;
+            //    }
+            //    var connectors = this.connectors(), cConnector;
+            //    for (var i = 0; i < connectors.length > 0; i++) {
+            //        cConnector = connectors[i];
+            //        if (cConnector && cConnector.zOrder === index)
+            //            return true;
+            //    }
+            //}
+            //else {
+            //    var children = parent.children, child;
+            //    for (var i = 0; i < children.length; i++) {
+            //        child = this.nameTable[this._getChild(children[i])];
+            //        if (child && child.zOrder) {
+            //            if (child.zOrder === index)
+            //                return true;
+            //        }
+            //    }
+            //}
             return false;
         },
         _setZorder: function (node) {
@@ -10705,9 +10974,22 @@
 
                         var limited = this._scrollLimit() === "limited" && (this._vScrollOffset - this._scrollPixel) >= this.model.pageSettings.scrollableArea.y * this._currZoom;
                         if ((this._vScrollOffset - this._scrollPixel) >= top || this._scrollLimit() === ej.datavisualization.Diagram.ScrollLimit.Infinity || limited) {
-                            this._updateScrollOffset(this._hScrollOffset, (this._vScrollOffset - this._scrollPixel));
-                            scrolled = true;
-                            offsetY = -this._scrollPixel;
+                            var executeScroll = false;
+                            if (this._scrollLimit() !== "diagram") {
+                                executeScroll = true;
+                            } else {
+                                if (this._vScrollbar && this._vScrollbar._scrollData) {
+                                    var vScrollElement = this._vScrollbar.element[0];
+                                    if (vScrollElement && (vScrollElement.style.visibility === "visible" || vScrollElement.style.visibility === "")) {
+                                        executeScroll = true;
+                                    }
+                                }
+                            }
+                            if (executeScroll) {
+                                this._updateScrollOffset(this._hScrollOffset, (this._vScrollOffset - this._scrollPixel));
+                                scrolled = true;
+                                offsetY = -this._scrollPixel;
+                            }
                         } else {
                             this._updateScrollOffset(this._hScrollOffset, top);
                             scrolled = true;
@@ -12014,6 +12296,22 @@
             this._comparePropertyValues(connector, "sourceNode", { sourceNode: currentObject.sourceNode });
             connector.sourceNode = currentObject.sourceNode;
             this._comparePropertyValues(connector, "targetPort", { targetPort: currentObject.targetPort });
+            if (args.removePortType == "targetpoint" || args.removePortType == "sourcepoint") {
+                var connectedNode = null;
+                if (args.removePortType == "targetpoint")
+                    connectedNode = this._findNode(args.undoObject.targetNode);
+                else
+                    connectedNode = this._findNode(args.undoObject.sourceNode);
+                var connectedPort = this._findPort(connectedNode, args.removedPort.name);
+                if (connectedNode._ports) {
+                    if (this._UndoRedo)
+                        connectedNode._ports.push(args.removedPort);
+                    else {
+                        var idx = connectedNode._ports.indexOf(args.removedPort);
+                        connectedNode._ports.splice(idx, 1);
+                    }
+                }
+            }
             connector.targetPort = currentObject.targetPort;
             this._comparePropertyValues(connector, "sourcePort", { sourcePort: currentObject.sourcePort });
             connector.sourcePort = currentObject.sourcePort;
@@ -12580,8 +12878,10 @@
                 this.scrollToNode(node);
                 if ((node.labels.length > 0 && node.labels[0].mode === "edit") && !node.labels[0].readOnly) {
                     if (!node.isPhase && !(node.isSwimlane || node.isLane)) {
-                        this._isEditing = true;
-                        this.startLabelEdit(node, node.labels[0]);
+                        if (node.type !== "umlclassifier") {
+                            this._isEditing = true;
+                            this.startLabelEdit(node, node.labels[0]);
+                        }
                     }
                 } else {
                     this.element[0].focus();
@@ -13005,7 +13305,7 @@
                         }
                     }
                     if (selectedNode.length > 0) {
-                        for (k in selectedNode)
+                        for (k = 0; k < selectedNode.length; k++)
                             pseudoGroup.children.push(selectedNode[k]);
                     }
                     if (pseudoGroup && pseudoGroup.children.length > 1) {
@@ -13118,9 +13418,52 @@
                         this._removePhase(node.name);
                         this._clearSelection();
                     }
+                    this._removeNodeFromGraph(node);
                 }
             }
         },
+
+        _canUpdateOnGraph: function (node) {
+            if (!node.parent)
+                return true;
+            return false;
+        },
+        _addNodeToGraph: function (node) {
+            if (node.type !== "pseudoGroup" && ej.datavisualization.Diagram.Util.canRouteDiagram(this) && !this._checkFromSwimlane(node)) {
+                if (this._canUpdateOnGraph(node)) {
+                    this._setBounds(node);
+                }
+            }
+        },
+        _updateNodeFromGraph: function (node) {
+            if (node.type !== "pseudoGroup" && ej.datavisualization.Diagram.Util.canRouteDiagram(this) && !this._checkFromSwimlane(node)) {
+                if (this._canUpdateOnGraph(node)) {
+                    this._setBounds(node);
+                }
+            }
+        },
+        _routeEdge: function (node) {
+            if (ej.datavisualization.Diagram.Util.canRouteDiagram(this) && !this._checkFromSwimlane(node)) {
+                if (!this.activeTool.inAction)
+                    this.lineRouting.routeEdge(node, this);
+            }
+        },
+        _updateAllEdges: function (node) {
+            if (ej.datavisualization.Diagram.Util.canRouteDiagram(this) && !this._checkFromSwimlane(node)) {
+                if (this.lineRouting) {
+                    this.lineRouting.updateAllQuadObjects(this._spatialSearch.parentQuad);
+                    this.lineRouting.RerouteConnectors(this, node);
+                }
+            }
+        },
+        _removeNodeFromGraph: function (node) {
+            if (node.type !== "pseudoGroup" && ej.datavisualization.Diagram.Util.canRouteDiagram(this) && !this._checkFromSwimlane(node)) {
+                if (this._canUpdateOnGraph(node)) {
+                    this.lineRouting.RemoveNode(node);
+                }
+            }
+        },
+
         _removeAdjacentConnections: function (node, entry) {
             var childTable = {};
             var edgeTable = {};
@@ -13181,7 +13524,7 @@
             if (lane.parent) {
                 var parent = this.nameTable[lane.parent], child;
                 if (parent && parent.children && parent.children.length > 0) {
-                    for (var i in parent.children) {
+                    for (var i = 0; i < parent.children.length; i++) {
                         child = this._getChild(parent.children[i])
                         if (child === this._getChild(lane)) {
                             return Number(i);
@@ -13438,6 +13781,7 @@
                             }
                             ej.datavisualization.Diagram.Util.removeItem(this.nodes(), this.nameTable[obj.name]);
                             this._nodes = $.extend(true, [], this.nodes());
+                            this._removeNodeFromGraph(obj);
                         } else {
                             this._removeEdges(obj);
                             obj.sourceNode = obj.sourcePort = obj.targetNode = obj.targetPort = null;
@@ -13839,29 +14183,29 @@
             return null;
         },
         updateSelector: function (option) {
-                if (this._selectedItem != "") {
-                    var options = {};
-                    if (option.offsetX)
-                        options.offsetX = Number(typeof option.offsetX === 'function' ? option.offsetX() : option.offsetX);
-                    if (option.offsetY)
-                        options.offsetY = Number(typeof option.offsetY === 'function' ? option.offsetY() : option.offsetY);
-                    if (option.width)
-                        options.width = Number(typeof option.width === 'function' ? option.width() : option.width);
-                    if (option.height)
-                        options.height = Number(typeof option.height === 'function' ? option.height() : option.height);
-                    if (option.rotateAngle)
-                        options.rotateAngle = Number(typeof option.rotateAngle === 'function' ? option.rotateAngle() : option.rotateAngle);
-                    this.updateNode(this._selectedItem, options);
-                }
-                if (option.userHandles) {
-                    this.model.selectedItems.userHandles = option.userHandles;
-                    this._initHandles();
-                    if (this.selectionList[0] && this.model.selectedItems.constraints & ej.datavisualization.Diagram.SelectorConstraints.UserHandles)
-                        ej.datavisualization.Diagram.SvgContext.updateUserHandles(this.model.selectedItems.userHandles, this.selectionList[0], this._adornerSvg, this.selectionList[0].type == "pseudoGroup", false, this._currZoom, this);
-                }
-                if (option.tooltip) {
-                    this.model.selectedItems.tooltip = ej.datavisualization.Diagram.Tooltip($.extend(true, this.model.selectedItems.tooltip, {}, option.tooltip));
-                }
+            if (this._selectedItem != "") {
+                var options = {};
+                if (option.offsetX)
+                    options.offsetX = Number(typeof option.offsetX === 'function' ? option.offsetX() : option.offsetX);
+                if (option.offsetY)
+                    options.offsetY = Number(typeof option.offsetY === 'function' ? option.offsetY() : option.offsetY);
+                if (option.width)
+                    options.width = Number(typeof option.width === 'function' ? option.width() : option.width);
+                if (option.height)
+                    options.height = Number(typeof option.height === 'function' ? option.height() : option.height);
+                if (option.rotateAngle)
+                    options.rotateAngle = Number(typeof option.rotateAngle === 'function' ? option.rotateAngle() : option.rotateAngle);
+                this.updateNode(this._selectedItem, options);
+            }
+            if (option.userHandles) {
+                this.model.selectedItems.userHandles = option.userHandles;
+                this._initHandles();
+                if (this.selectionList[0] && this.model.selectedItems.constraints & ej.datavisualization.Diagram.SelectorConstraints.UserHandles)
+                    ej.datavisualization.Diagram.SvgContext.updateUserHandles(this.model.selectedItems.userHandles, this.selectionList[0], this._adornerSvg, this.selectionList[0].type == "pseudoGroup", false, this._currZoom, this);
+            }
+            if (option.tooltip) {
+                this.model.selectedItems.tooltip = ej.datavisualization.Diagram.Tooltip($.extend(true, this.model.selectedItems.tooltip, {}, option.tooltip));
+            }
         },
         _updateSelectorObject: function (selectedShape) {
             if (!selectedShape.segments) {
@@ -14035,7 +14379,7 @@
                         }
                     }
                     else {
-                        if (evt && evt.target && evt.target.getAttribute("class") === "ej-d-port") {
+                        if (evt && evt.target && evt.target.classList && evt.target.classList.contains("ej-d-port")) {
                             var point = this._mousePosition(evt);
                             var port = this._findPortAtPoint(point, node);
                             if (port) {
@@ -14319,8 +14663,10 @@
             return false;
         },
         _updateCursor: function () {
-            this.element[0].style.cursor = this._currentCursor;
-            this._svg.document.parentNode.getElementsByClassName("htmlLayer")[0].style.cursor = this._currentCursor;
+            if (!this._isInit) {
+                this.element[0].style.cursor = this._currentCursor;
+                this._svg.document.parentNode.getElementsByClassName("htmlLayer")[0].style.cursor = this._currentCursor;
+            }
         },
         _getResizeCursor: function (resizeDirection) {
             var cursor = "default";
@@ -15030,11 +15376,15 @@
                         }
                         if (node.type != "group" && node.container)
                             ej.datavisualization.Diagram.Util._updateGroupBounds(node, this);
+                        if (!this._isUndo)
+                            this._updateNodeFromGraph(node);
                     }
                     if (node != this.activeTool.helper) {
                         //this._updateAssociatedConnectorEnds(node, nameTable);
                         if (this.nameTable[node.name]) this._updateQuad(node);
                         ej.datavisualization.Diagram.DefautShapes.translateBPMNAnnotationShape(node, dx, dy, null, this);
+                        if (!this._isUndo)
+                            this._updateNodeFromGraph(node);
                     }
                     if (this._parentNode == node) delete this._parentNode;
                     if (init && !this._preventDocking && node != this.activeTool.helper && !this._disableSegmentChange) {
@@ -15044,6 +15394,8 @@
                                 if (node.isSwimlane || ((node.type == "pseudoGroup" || node.type == "group") && !this._containsChild(node, child)))
                                     ej.datavisualization.Diagram.Util._translateLine(child, dx, dy, child);
                                 this._dock(child, this.nameTable);
+                                if (this._isLayoutRoute)
+                                    this._routeEdge(child);
                                 if (child.annotation) ej.datavisualization.Diagram.DefautShapes.updateAnnotationProperties(child, this);
                             }
                         }
@@ -15246,7 +15598,7 @@
                                     delete this._scalePseudoGroup;
                                 }
                                 else {
-                                    ej.datavisualization.Diagram.Util._updateGroupBounds(node, this);
+                                ej.datavisualization.Diagram.Util._updateGroupBounds(node, this);
                                 }
                                 if (node != this.activeTool.helper) ej.datavisualization.Diagram.DefautShapes.translateBPMNAnnotationShape(node, 1 / sw, 1 / sh, oldOffsetX, this);
                             }
@@ -15550,8 +15902,20 @@
                     }
                 if (this._disableUpdateQuad)
                     skip = true;
-                if (!skip && !object._connectorType)
+                if (!skip && !object._connectorType) {
+                    this._spatialSearch._isRouting = ej.datavisualization.Diagram.Util.canRouteDiagram(this);
+                    if (this._spatialSearch._isRouting) {
+                        var viewPort = ej.datavisualization.Diagram.ScrollUtil._viewPort(this);
+                        this._spatialSearch._viewPortWidth = viewPort.width || 1000;
+                        this._spatialSearch._viewPortHeight = viewPort.height || 1000;
+                    }
                     ej.datavisualization.Diagram.SpatialUtil._updateQuad(this, this._spatialSearch, object);
+                    if (this._spatialSearch._isRouting) {
+                        delete this._spatialSearch._isRouting;
+                        delete this._spatialSearch._viewPortWidth;
+                        delete this._spatialSearch._viewPortHeight;
+                    }
+                }
             }
         },
         _sliceDockLines: function (list) {

@@ -590,11 +590,17 @@
                         $target.addClass("e-hover");
                 } else
                     $target.removeClass("e-hover");
+                if ($(e.target).is(".e-icon.e-ascending, .e-descending") || $target.closest(".e-groupheadercell").length) {
+                    $target = $(e.target).closest(".e-groupheadercell")
+                }
                 $target.hasClass("e-groupheadercell") && this.model.groupSettings.showUngroupButton && $target.find(".e-ungroupbutton").show(150);
             } else if (e.type == "mouseleave") {
                 if ($target.hasClass("e-groupdroparea")) {
                     $target.find(".e-ungroupbutton").hide(150);
                     $target.removeClass("e-hover");
+                }
+                if ($(e.target).is(".e-icon.e-ascending, .e-descending") || $target.closest(".e-groupheadercell").length) {
+                    $target = $(e.target).closest(".e-groupheadercell")
                 }
                 $target.hasClass("e-groupheadercell") && this.model.groupSettings.showUngroupButton && $target.find(".e-ungroupbutton").hide(150);
             }
@@ -742,7 +748,8 @@
                 pred = pred["or"](fieldPred["and"](keyPred));
             }
             collection = pred ? new ej.DataManager(collection).executeLocal(query.where(pred)) : collection;
-            cLen = collection.length;
+            if(!ej.isNullOrUndefined(collection))
+			cLen = collection.length;
             if (data.length > 0) {
                 for (indx = 0; indx < cLen; indx++) {
                     if (indx > 0 && indx < cLen - 1) continue;

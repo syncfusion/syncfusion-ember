@@ -563,7 +563,7 @@
             if ((this.model.allowDragAndDrop && (this._target.closest('li').hasClass('e-tilenode') || this._target.is('li.e-tilenode') || this._target.closest('.e-rowcell').is('td')
                 || this._target.closest('.e-row').is('tr') || this._target.is('tr'))) || this._target.closest('.e-scrollbar').length > 0 || !this.model.allowMultiSelection || event.button == 2) return;
 
-            proxy = this;
+            var proxy = this;
             this._currentTarget = $(event.currentTarget);
             this._initialx = event.pageX; this._initialy = event.pageY;
 
@@ -635,9 +635,9 @@
         },
 
         _scroller: function (event) {
-            var vpos, hpos;
+            var vpos, hpos, scrollTop, scrollLeft;
             this._scrollObj = this._currentTarget.data("ejScroller");
-            var scrollTop = scrollLeft = 20;
+            scrollTop = scrollLeft = 20;
             if (this._currentTarget.hasClass("e-scroller") && !ej.isNullOrUndefined(this._firstSelectedElement)) {
                 if (this._currentTarget.find('.e-vscrollbar').length > 0) vpos = this._firstSelectedElement.offset().top - this._initialy;
                 if (this._currentTarget.find('.e-hscrollbar').length > 0) hpos = this._firstSelectedElement.offset().left - this._initialx;
@@ -652,6 +652,7 @@
         },
 
         _changeItemState: function (container, event) {
+			var proxy =  this;;
             var rowStart, rowEnd,rect = $(this._currentTarget).find('.e-fe-selection-rect');
             var itemHeight, rectStartX, rectStartY, rectEndX, rectEndY;
 
@@ -749,7 +750,7 @@
                     if (!$(this._tileNodes.eq(value)[0]).hasClass('e-active') || (event.ctrlKey || event.shiftKey)) {
                         var currentItem = this._tileNodes.eq(value);
                         if (currentItem.length == 0) continue;
-                        offset = currentItem.offset();
+                        var offset = currentItem.offset();
                         var itemleftpos = offset.left, itemtoppos = offset.top, itemrightpos = offset.left + currentItem.width(), itembottompos = offset.top + currentItem.height();
 
                         if (!((itembottompos < container.offset().top) || (itemtoppos > container.offset().top + container.height()) || (itemrightpos < container.offset().left) || (itemleftpos > container.offset().left + container.width()))) {
@@ -919,6 +920,7 @@
                     }
                     proxy._feParent[proxy._currentPath] = result.cwd;
                     proxy._readSuccess(result.files);
+					proxy._sortingDateFormat = result.dateFormat;
                     proxy._enablePostInit && proxy._postInit();
                 },
                 successAfter: this.model.ajaxSettings.read.success
@@ -1248,7 +1250,7 @@
             var previousPath = proxy._currentPath;
             var successCallback = function () {
                 proxy._currentPath = previousPath;
-                if (ej.isNullOrUndefined(data))
+                if (ej.isNullOrUndefined(data) || data == "")
                     data = proxy._fileExplorer[previousPath];
                 proxy._existingItems = [];
                 if (proxy._sourcePath != previousPath && data.length) {
@@ -1266,7 +1268,7 @@
                     proxy._pasteOperation();
                 }
             };
-            if (ej.isNullOrUndefined(data)) {
+            if (ej.isNullOrUndefined(data) || data == "") {
                 this._getFileDetails(this._currentPath, "", "", successCallback);
             }
             else {
@@ -2219,7 +2221,14 @@
                 }
                 divtag1.appendChild(divtag);
                 liTag.setAttribute("aria-selected", false);
-                liTag.setAttribute("title", value.isFile ? value.dateModified + " (" + value.size + ")" : value.dateModified);
+                if(value.dateModified){
+					liTag.setAttribute("title", value.isFile ? value.dateModified + " (" + value.size + ")" : value.dateModified);
+				} 
+				else {
+					if(value.isFile) {
+					liTag.setAttribute("title", value.size);
+					}
+				}
                 liTag.setAttribute("role", "tileitem");
                 if(proxy.model.showCheckbox){
                     var checkBox = document.createElement("input");
@@ -2281,7 +2290,8 @@
                 temp1Result[num] = result[this._count];
                num++;
             }
-            this._tileView.children().remove();
+		    this._updatevirtualscrollerheight(renamePos,result);
+		    this._tileView.children().remove();
             this._renamedStatus = false;
             return  temp1Result;
         },
@@ -2311,9 +2321,9 @@
 			
 		},
 		_addVirtualHeight:function(proxy,result){
-		    if(proxy._tileView[0].parentElement.getElementsByClassName("virtualBottom")[0] || proxy._tileView[0].parentElement.getElementsByClassName("virtualTop")[0]){
-		        proxy._tileView[0].parentElement.getElementsByClassName("virtualBottom")[0].remove();
-		        proxy._tileView[0].parentElement.getElementsByClassName("virtualTop")[0].remove();
+		    if(proxy._tileView[0].parentElement.querySelector(".virtualBottom") || proxy._tileView[0].parentElement.querySelector(".virtualTop")){
+		        $(proxy._tileView.parent()).find('.virtualTop').remove();
+		        $(proxy._tileView.parent()).find('.virtualBottom').remove();
 		        proxy._tileScroll.model.scrollTop = "0";
 			}
 		    var contentHeight = proxy._calculateLiElement(proxy, result);
@@ -2330,33 +2340,40 @@
 			var li;
 			var liHeight;
 			var contentHeight
-			var toolbarMenu = this._toolBarItems[0].getElementsByClassName('e-fe-split-context')[0];
-			var largeIconLiElement = toolbarMenu.getElementsByTagName('li')[2];
 			if (proxy.model.layout == "tile") {
-			    li = proxy._tileView[0].getElementsByTagName("li");
+			    li = proxy._tileView[0].querySelectorAll("li");
 			    if(li[0]) liHeight = li[0].offsetHeight;
 			 contentHeight = result.length/2;
 			 proxy._totalHeight = contentHeight * liHeight;
 			} else if(proxy.model.layout == "largeicons"){
-			    li = proxy._tileView[0].getElementsByTagName("li");
+			    li = proxy._tileView[0].querySelectorAll("li");
 			    if(li[0]) liHeight = li[0].offsetHeight;
 			 contentHeight = result.length/5;
 			 proxy._totalHeight = contentHeight * liHeight;
 			}
 			return proxy._totalHeight;
 		},
+		
+		 _updatevirtualscrollerheight: function (renamePos,result) {
+  		    this._tileScroll.model.scrollTop=Math.ceil(renamePos /(result.length/this._totalHeight));
+		    var totheight = this._totalHeight - this._tileScroll.model.scrollTop;
+			this._tileView[0].parentElement.querySelector(".virtualTop").style.height = this._tileScroll.model.scrollTop + "px";
+		    totheight = totheight < 0 ? 0 : totheight;
+		    this._tileView[0].parentElement.querySelector(".virtualBottom").style.height=totheight + "px";
+	   },
+	
 		_updateVirtualContentHeight: function (e, updateTopHeight) {
 		    var totHeight = this._totalHeight - e.scrollTop;
 		    if (updateTopHeight) {
 		        if (totHeight < 0) {
-		            this._tileView[0].parentElement.getElementsByClassName("virtualTop")[0].style.height = e.scrollTop + totHeight + "px";
+		            this._tileView[0].parentElement.querySelector(".virtualTop").style.height = e.scrollTop + totHeight + "px";
 		        } else { 
-		            this._tileView[0].parentElement.getElementsByClassName("virtualTop")[0].style.height = e.scrollTop + "px";
+		            this._tileView[0].parentElement.querySelector(".virtualTop").style.height = e.scrollTop + "px";
 		        }
 		    }
 		    totHeight = totHeight < 0 ? 0 : totHeight;
-            if(this._tileView[0].parentElement.getElementsByClassName("virtualBottom")[0] ){
-                this._tileView[0].parentElement.getElementsByClassName("virtualBottom")[0].style.height = totHeight + "px";
+            if(this._tileView[0].parentElement.querySelector(".virtualBottom") ){
+                this._tileView[0].parentElement.querySelector(".virtualBottom").style.height = totHeight + "px";
             }
         },
         _onMaxScroll: function (result, e) {
@@ -2397,7 +2414,7 @@
             args.path = this._pathCorrection(args.path);
             if (this._trigger("beforeGetImage", args))
                 return "";
-            if (this._currentPath.indexOf(":") == 1 || this.model.ajaxSettings.getImage.url || (this._currentPath.startsWith("//") && this.model.path == "/") ) {
+            if (this._currentPath.indexOf(":") == 1 || this._currentPath.indexOf("ftp:") == 0 || this.model.ajaxSettings.getImage.url || (this._currentPath.startsWith("//") && this.model.path == "/") ) {
                 var url = this.model.ajaxAction + "?Path=" + args.path + "&ActionType=GetImage&CanCompress=" + args.canCompress + "&Size=" + JSON.stringify(args.size) + "&SelectedItems=" + JSON.stringify(args.selectedItems);
                 if (this.model.ajaxSettings.getImage.url) {
                     if (this.model.ajaxSettings.getImage.url.indexOf("{") >= 0)
@@ -2683,7 +2700,7 @@
             }
         },
         _KeydownEventHandler: function (e) {
-            data = { keyCode: e.keyCode, altKey: e.altKey, shiftKey: e.shiftKey, ctrlKey: e.ctrlKey, originalArgs: e };
+            var data = { keyCode: e.keyCode, altKey: e.altKey, shiftKey: e.shiftKey, ctrlKey: e.ctrlKey, originalArgs: e };
             return this._trigger('keydown', data);
         },
         _getMenuPosition: function (element) {
@@ -2932,12 +2949,16 @@
                     for (var k = 0; k < this._files.length; k++) {
                         if (this._files[k].name == this._existingItems[i].Name) {
                             this._files.splice(k, 1);
+							this._uploadObj._currentElement.find(".e-uploadinput").val("");
+                            this._uploadObj._resetFileInput(this._uploadObj._currentElement.find(".e-uploadinput"));
                             break;
                         }
                     }
                 }
             }
+			if (this._files.length != 0) {
             this._uploadtag.ejUploadbox({ pushFile: this._files });
+			}
         },
         _uploadSuccess: function (args) {
             var oldPath = this._currentPath;
@@ -3170,6 +3191,8 @@
                     $(ui.helper).hide();
                     var successCallback = function (preventClick) {
                         !preventClick && proxy._clickTarget(args);
+                        if (proxy._sourcePath == proxy._originalPath)
+                            proxy._activeSource = proxy.model.selectedItems;
                         if (proxy._currentPath == proxy._sourcePath + proxy._fileName + "/")
                             return;
                         var selectedFileDetails = proxy._getSelectedItemDetails(proxy._sourcePath, proxy._fileName);
@@ -3657,8 +3680,8 @@
                 }
                 if (this._selectedRecords[record]) {
                     if (!this._selectedRecords[record].isFile) {
-                        _isUpdate = false;
-                        this._toDownload = false;
+                        _isUpdate = true;
+                        this._toDownload = true;
                     }
                 }
                 this._updateAccessValue(this._selectedRecords[record]);
@@ -3815,9 +3838,9 @@
                 }
                 $.each(this._selectedTileItems, function (index, value) {
                     if (!value.isFile) {
-                        proxy._update = false;
-                        _isUpdate = false;
-                        proxy._toDownload = false;
+                        proxy._update = true;
+                        _isUpdate = true;
+                        proxy._toDownload = true;
                     }
                     proxy._updateAccessValue(value);
                 });
@@ -4243,13 +4266,17 @@
                 if (code == 13)
                     okButton.click();
             });
-            inputtag.keypress(function (e) {
-                var code = proxy._getKeyCode(e);
-                if (/[/\\|*?"<>:]/.test(String.fromCharCode(code))) {
-                    errDiv.html(proxy._getLocalizedLabels("InvalidFileName"));
-                    return false;
+            inputtag.bind("input", function (e) {
+                var pastedData = e.target.value;
+                for (var i = 0; i < pastedData.length; i++) {
+                    var code = pastedData.charCodeAt(i);
+                    if (/[/\\|*?"<>:]/.test(String.fromCharCode(code))) {
+                        errDiv.html(proxy._getLocalizedLabels("InvalidFileName"));
+                        pastedData = pastedData.replace(/[/\\|*?"<>:]/g, '');
+                        break;
+                    }
                 }
-                return true;
+                document.activeElement.value = pastedData;
             });
             inputtag.keydown(function (e) {
                 errDiv.html("");
@@ -4269,7 +4296,7 @@
             var cancelButton = ej.buildTag('button.e-fe-btn-cancel', this._getLocalizedLabels("CancelButton"));
             divTag.append(okButton, cancelButton);
             this._alertWindow.append(labeltag, divTag);
-            proxy = this;
+            var proxy = this;
             okButton.ejButton({
                 type: "button",
                 cssClass: "e-flat",
@@ -4702,6 +4729,7 @@
         _getDetails: function () {
             var _path = (this._nodeType == "Directory" && this._currentPath != "/" && this._currentPath != "~/") ? this._getFolderPath() : this._currentPath;
             var proxy = this;
+			var names;
             if (this.model.rootFolderName.length > 0 && this._selectedContent == this.model.rootFolderName && this._treeObj.element.find('li:first > div > .e-text').hasClass("e-active") && this._selectedItems.length == 0)
                 names = [this._rootFolderName];
             else
@@ -4723,7 +4751,6 @@
                     }
                     var dialogContent = ej.buildTag('div.e-fe-table');
                     var tabletag = ej.buildTag('table'), trtag, tdtag1, tdtag2, wrapDiv, inputtag, kbsize, tdata;
-                    var rootName = proxy._feParent[Object.keys(proxy._feParent)[0]].name;
                     $.each(result.details[0], function (name, value) {
                         name = name[0].toUpperCase() + name.substr(1);   // For Asp.Net Core get details issue
 					    trtag = ej.buildTag('tr');
@@ -4945,7 +4972,10 @@
                     var itemsList = [],dateFormat = [];
                     for (var i = 0; i < items.length; i++) {
                         itemsList[i] = items[i].dateModified;
-                        dateFormat[i] = items[i].dateModified = new Date(items[i].dateModified);
+                        if (!ej.isNullOrUndefined(this._sortingDateFormat))                            
+                            dateFormat[i] = items[i].dateModified = ej.parseDate(itemsList[i],this._sortingDateFormat);
+                        else
+                            dateFormat[i] = items[i].dateModified = new Date(itemsList[i]);
                     }
                     dataMgr = ej.DataManager(items);
                     if (option) {
@@ -5920,4 +5950,4 @@
         Grid: "grid",
         LargeIcons: "largeicons"
     };
-})(jQuery, Syncfusion);
+})(jQuery, Syncfusion);

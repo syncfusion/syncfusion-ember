@@ -234,7 +234,8 @@
             this._isFormatTabTrgt = false,
             this._isChartTabTrgt = false,
             this._analyzeTabTrgt = false,
-            this._isSparklineTrgt = false
+            this._isSparklineTrgt = false,
+			this._scopeBookCln = {}
     };
 
     ej.spreadsheetFeatures.ribbon.prototype = {
@@ -510,7 +511,7 @@
         },
 
         _dialogClose: function () {
-            this.XLObj.setSheetFocus();
+            this.XLObj._setSheetFocus();
         },
 
         _beforeDlgClose: function (args) {
@@ -1308,7 +1309,7 @@
             if (settings.type === "menu") {
                 evnt = { element: args.element };
                 if (xlObj._trigger("menuClick", evnt))
-                    return;
+                    return false;
                 if (args.ID === "Open") {
                     xlObj.XLEdit._isEdit && xlObj.XLEdit.saveCell();
                     this._bSBtnClickHandler(args.ID.toLowerCase(), args);
@@ -1320,7 +1321,7 @@
                 if (args.type === "backstageItemClick") {
                     arg = { id: args.id, text: args.text, type: args.type, target: args.target, prop: args.model };
                     if (xlObj._trigger("menuClick", arg))
-                        return;
+                        return false;
                     if (args.id === "open_backStageTab") {
                         xlObj.XLEdit._isEdit && xlObj.XLEdit.saveCell();
                         this._bSBtnClickHandler("open", args);
@@ -1329,7 +1330,7 @@
                 else {
                     arg = { e: args.e, type: args.type, status: args.status, target: args.target, id: args.target.id };
                     if (xlObj._trigger("menuClick", arg))
-                        return;
+                        return false;
                     $("#" + xlObj._id + "_Ribbon").ejRibbon("hideBackstage");
                     xlObj._phoneMode && $("#" + xlObj._id + "_Ribbon").ejRibbon("goToMainContent");
                     var icon = args.model.prefixIcon;
@@ -1342,7 +1343,7 @@
             var xlObj = this.XLObj, sheetIdx = xlObj.getActiveSheetIndex(), exportType,
                 arg = { id: args.id || args.ID || args.target.id, status: args.status, prop: args.model, model: xlObj.model };
             if (xlObj._trigger("ribbonClick", arg))
-                return;
+                return false;
             $("#" + xlObj._id + "_Ribbon").ejRibbon("hideBackstage");
             switch (tab) {
                 case "open":
@@ -1684,7 +1685,7 @@
             var xlObj = this.XLObj;
             xlObj.element.find("#" + xlObj._id + "_Ribbon_analyze_PivotTable_content").width(132);
             if (!xlObj.element.find("#" + xlObj._id + "_pvttableproperties").length)
-                xlObj.element.append('<div id=' + xlObj._id + '_pvttableproperties style="display:none" ><div class="e-tablepropertiesrow" ><div class="e-tablepropertiescell">PivotTable Name:</div></div><div class="e-tablepropertiesrow" ><div class="e-tablepropertiescell"><input type="text" id=' + xlObj._id + '_Ribbon_Analyze_PivotTable_PivotTableName class="ejinputtext" style="width:106px;opacity:0.7;height: 18px;text-indent: 3px;" /></div></div></div>');
+                xlObj.element.append('<div id=' + xlObj._id + '_pvttableproperties style="display:none" ><div class="e-tablepropertiesrow" ><div class="e-tablepropertiescell">'+ xlObj._getLocStr("PivotTableName") + ':</div></div><div class="e-tablepropertiesrow" ><div class="e-tablepropertiescell"><input type="text" id=' + xlObj._id + '_Ribbon_Analyze_PivotTable_PivotTableName class="ejinputtext" style="width:106px;opacity:0.7;height: 18px;text-indent: 3px;" /></div></div></div>');
         },
 
         _renderChartDesignTab: function () {
@@ -1698,13 +1699,31 @@
         // Name Manager(NM)
         _renderNameManagerDlg: function () {
             var xlObj = this.XLObj, htmlStr = "<div id = '" + xlObj._id + "_nmdlg' style=display:'none'; ><div class='e-dlgctndiv' style='width: 100%;' ><div class='e-dlg-fields e-nmdlg-content' style='width: 100%;'><div class='e-ss-nm-dlg-grid' style='height: 180px;'><div id='" + xlObj._id + "_nmgrid' style=display:'none';></div></div></div><div class='e-dlg-fields'><label class='e-dlg-fields'>" + xlObj._getLocStr("RefersTo") + ":</label><input type='text' class='e-nmrange ejinputtext' id='" + xlObj._id + "_nmrange' disabled='true' /></div><div class='e-dlg-btnfields' ><div class='e-dlg-btnctnr'><button id='" + xlObj._id + "_nmclose' >" + xlObj._getLocStr("Close") + "</button></div></div></div></div>";
-            htmlStr = htmlStr + "<script id='" + xlObj._id + "_nmeditortemplate' class='e-hide' type='text/x-jsrender' ><div class='e-dlg-fields e-dlgctndiv'><table cellpadding='0' cellspacing='0'><tr><td>" + xlObj._getLocStr("Name") + ":</td><td><input id='" + xlObj._id + "_nmgridname' type='text' class='ejinputtext' name='name' value='{{: name}}'/></td></tr><tr class='e-dlgtd-fields'><td>" + xlObj._getLocStr("Scope") + ":</td><td><input class='e-nmscope ejinputtext' id='" + xlObj._id + "_nmgridscope' type='text' disabled='disabled' name='scope' value='" + xlObj._getLocStr("Workbook") + "'/></td></tr><tr class='e-dlgtd-fields'><td>" + xlObj._getLocStr("Comment") + ":</td><td><textarea id='" + xlObj._id + "_nmgridcomment' class='e-ss-textarea' style=' resize: none; height: 44px; width: 100%;' name='comment' value='{{: comment}}'>{{: comment}}</textarea></td></tr><tr class='e-dlgtd-fields'><td>" + xlObj._getLocStr("RefersTo") + ":</td><td><input type='text' class='ejinputtext' id='" + xlObj._id + "_nmgridrefersto' name = 'refersto' value='{{: refersto}}' /></td></tr></table></div></script>";
+            htmlStr = htmlStr + "<script id='" + xlObj._id + "_nmeditortemplate' class='e-hide' type='text/x-jsrender' ><div class='e-dlg-fields e-dlgctndiv'><table cellpadding='0' cellspacing='0'><tr><td>" + xlObj._getLocStr("Name") + ":</td><td><input id='" + xlObj._id + "_nmgridname' type='text' class='ejinputtext' name='name' value='{{: name}}'/></td></tr><tr class='e-dlgtd-fields'><td>" + xlObj._getLocStr("Scope") + ":</td><td><input class='ejinputtext' id='" + xlObj._id + "_nmgridscope' type='text' name='scope' value='" + xlObj._getLocStr("Workbook") + "'/></td></tr><tr class='e-dlgtd-fields'><td>" + xlObj._getLocStr("Comment") + ":</td><td><textarea id='" + xlObj._id + "_nmgridcomment' class='e-ss-textarea' style=' resize: none; height: 44px; width: 100%;' name='comment' value='{{: comment}}'>{{: comment}}</textarea></td></tr><tr class='e-dlgtd-fields'><td>" + xlObj._getLocStr("RefersTo") + ":</td><td><input type='text' class='ejinputtext' id='" + xlObj._id + "_nmgridrefersto' name = 'refersto' value='{{: refersto}}' /></td></tr></table></div></script>";
             xlObj.element.append(htmlStr);
             $("#" + xlObj._id + "_nmclose").ejButton({ showRoundedCorner: true, width: 68, click: $.proxy(this._nmdlgClose, xlObj) });
             this._renderNMGrid();
             $("#" + xlObj._id + "_nmdlg").ejDialog({ enableResize: false, showOnInit: false, title: xlObj._getLocStr('NameManager'), enableModal: true, width: "auto", height: "auto", cssClass: "e-ss-dialog e-ss-nmdlg e-" + xlObj._id + "-dlg", close: ej.proxy(this._dialogClose, this), beforeClose: ej.proxy(this._beforeDlgClose, this), open: ej.proxy(this._nmDlgOpen, this) });
         },
-
+          _renderNMDDownList: function () {
+			  var xlObj = this.XLObj;
+               $("#" + xlObj._id + "_nmgridscope").ejDropDownList({
+               dataSource: this._nameMSheetNames(),
+                width: "100%",
+                height: "44px"
+            });
+        },
+		_nameMSheetNames: function() { 
+		 var xlObj = this.XLObj, sheetname = [], shtnameclt =[], i, len, sheets = xlObj._getSheetNames();
+            shtnameclt[0] = { value: "Workbook", text:"Workbook" };
+            for (i = 1, len = sheets.length; i <= len; i++) {
+                if (sheets[i - 1].isVisible) {
+                    sheetname[i] = sheets[i - 1].text;
+                    shtnameclt[i] = { value: sheetname[i], text: sheetname[i] };
+                }
+            }
+            return shtnameclt;
+		},
         _renderNMGrid: function () {
             var xlObj = this.XLObj;
             $("#" + xlObj._id + "_nmgrid").ejGrid({
@@ -1786,7 +1805,7 @@
                             break;
                     }
                 }
-                if (this.XLRibbon._validateNamedRange(data.name, data.refersto))
+                if (this.XLRibbon._validateNamedRange(data.name, data.refersto, data.scope))
                     args.cancel = false;
                 else
                     canBreak && this.model.nameManager.push(sheet._nmValue);
@@ -1808,12 +1827,13 @@
                     editDlgInpElem = $("#" + this._id + "_nmgridEditForm").find("input[type='button']:first");
                     editDlgInpElem.data("ejButton").option({ "text": this._getLocStr("Ok"), cssClass: "e-ss-okbtn" });
                     editDlgInpElem.parent().addClass("e-dlg-btnfields").css("text-align", "right");
+					this.XLRibbon._renderNMDDownList();
                     break;
                 case "save":
-                    this.XLRibbon._addNamedRange(gridInst, args.data.name, args.data.refersto, args.data.comment, args.data.sheetIndex);
+                    this.XLRibbon._addNamedRange(args.data.name, args.data.refersto, args.data.comment, args.data.sheetIndex, args.data.scope);
                     break;
                 case "delete":
-                    this.XLRibbon._removeNamedRange(gridInst, args.data.name);
+                    this.XLRibbon._removeNamedRange(gridInst, args.data.name, args.data.scope);
                     break;
                 case "cancel":
                     gridInst.element.focus();
@@ -1821,69 +1841,118 @@
             }
         },
 
-        _updateNamedRanges: function (name, refersto, skipAutoComp) {
+        _updateNamedRanges: function (name, refersto, skipAutoComp, scope) {
             var xlObj = this.XLObj;
             refersto = xlObj.XLEdit._parseSheetRef(refersto, true);
-            xlObj._calcEngine.addNamedRange(name, refersto.replace("=", ""));
-            xlObj._formulaCollection.push({ text: "=" + name, display: name });
+			if(scope.toUpperCase() === "WORKBOOK") {
+				xlObj._calcEngine.addNamedRange(name, refersto.replace("=", ""));
+				this._scopeBookCln[name] = {isName: true};
+			}
+			else
+				xlObj._calcEngine.addNamedRange(scope + "!" + name, refersto.replace("=", ""));
+            this._updateScopeRange();
             if (!skipAutoComp)
                 xlObj.XLEdit._refreshAutoComplete();
         },
 
         _updateUseInFormulaTrgt: function () {
-            var i = 0, xlObj = this.XLObj, htmlStr = "", trgt = $("#" + xlObj._id + "_nmuseinformula"), nameMgr = xlObj.model.nameManager, len = nameMgr.length;
+            var i = 0, xlObj = this.XLObj, htmlStr = "", trgt = $("#" + xlObj._id + "_nmuseinformula"), nameMgr = xlObj.model.nameManager, len = nameMgr.length, sheetIdx = xlObj.getActiveSheetIndex(), scopeIndex, ranges;
             while (i < len) {
-                htmlStr = htmlStr + "<div class='e-nmuseinformularow' style = 'color:#333333'>" + nameMgr[i].name + "</div>";
+				if(nameMgr[i].scope.toUpperCase() !== "WORKBOOK") {
+					scopeIndex = xlObj._getSheetIndexByName(nameMgr[i].scope);
+					ranges = xlObj.getSheet(sheetIdx)._scopeRanges;
+				}
+				if(nameMgr[i].scope.toUpperCase() === "WORKBOOK" || sheetIdx === scopeIndex && ranges && ranges[nameMgr[i]["name"]] && !ranges[nameMgr[i]["name"]]["isSameName"])
+                      htmlStr = htmlStr + "<div class='e-nmuseinformularow' style = 'color:#333333'>" + nameMgr[i].name + "</div>";
                 i++;
             }
-            len ? $("#" + xlObj._id + "_Ribbon_Others_Formulas_UseInFormula").ejSplitButton("enable") : $("#" + xlObj._id + "_Ribbon_Others_Formulas_UseInFormula").ejSplitButton("disable");
+            htmlStr.length ? $("#" + xlObj._id + "_Ribbon_Others_Formulas_UseInFormula").ejSplitButton("enable") : $("#" + xlObj._id + "_Ribbon_Others_Formulas_UseInFormula").ejSplitButton("disable");
             trgt.html("<div>" + htmlStr + "</div>");
         },
 
-        addNamedRange: function (name, refersTo, comment, sheetIdx) {
-            var xlObj = this.XLObj, gridInst = $("#" + xlObj._id + "_nmgrid").data("ejGrid"), sheetIdx = sheetIdx || xlObj.getActiveSheetIndex();
-            if (this._validateNamedRange(name, refersTo)) {
+        addNamedRange: function (name, refersTo, comment, sheetIdx, scope) {
+            var xlObj = this.XLObj, gridInst = $("#" + xlObj._id + "_nmgrid").data("ejGrid"), sheetIdx = sheetIdx || xlObj.getActiveSheetIndex(), nmgr = xlObj.model.nameManager, len = nmgr.length, i, sheet;
+			scope = scope ? scope : "workbook" ;
+            if (this._validateNamedRange(name, refersTo, scope)) {
                 if (gridInst) {
-                    gridInst.addRecord({ name: name, refersto: refersTo, comment: comment ? comment : "", scope: "WorkBook", sheetIndex: sheetIdx });
+                    gridInst.addRecord({ name: name, refersto: refersTo, comment: comment ? comment : "", scope: scope ? scope : "WorkBook", sheetIndex: sheetIdx });
                     gridInst.refreshContent();
                 }
                 else {
-                    xlObj.model.nameManager.push({ name: name, refersto: refersTo, comment: comment, sheetIndex: sheetIdx, scope: "workbook" });
-                    this._addNamedRange(gridInst, name, refersTo, comment, sheetIdx);
+					//for(i=0;i<len;i++) {
+						//if(nmgr[i].name.toUpperCase() === name.toUpperCase()) {
+						//	sheet = xlObj.getSheet(sheetIdx);
+						//	!sheet._scopeRanges[name] && (sheet._scopeRanges[name] = {});
+						//	sheet._scopeRanges[name]["isSameName"] = true;
+						//}
+			        //}
+                   // xlObj.model.nameManager.push({ name: name, refersto: refersTo, comment: comment, sheetIndex: sheetIdx, scope: scope ? scope : "workbook" });
+                    this._addNamedRange(name, refersTo, comment, sheetIdx, scope);
                 }
             }
         },
 
-        _addNamedRange: function (gridInst, name, refersTo, comment, sheetIdx) {
-            var xlObj = this.XLObj;
-            gridInst && (xlObj.model.nameManager = gridInst.model.dataSource.slice(0));
-            this._updateNamedRanges(name, refersTo);
-            this._updateUseInFormulaTrgt();
+        _addNamedRange: function (name, refersTo, comment, sheetIdx, scope) {
+            var xlObj = this.XLObj, nmgr = xlObj.model.nameManager, len = nmgr.length, i, scopeIndex, sheet;
+			scope = scope ? scope : "workbook" ;
+			scopeIndex = xlObj._getSheetIndexByName(scope)
+			scopeIndex = scopeIndex ? scopeIndex : sheetIdx;
+			if(scope.toUpperCase() !== "WORKBOOK") {
+				sheet = xlObj.getSheet(scopeIndex);
+				if(sheet._scopeRanges[name]) {
+				   sheet._scopeRanges[name]["name"] = scope + "!" + name;
+			       sheet._scopeRanges[name]["refersto"] = refersTo;
+				}
+				else 
+					sheet._scopeRanges[name] = {name: scope + "!" + name, refersto:refersTo};
+			}
+			for(i=0;i<len;i++) {
+				if(nmgr[i].name.toUpperCase() === name.toUpperCase() && ((nmgr[i].scope.toUpperCase() === "WORKBOOK" && scope.toUpperCase() !== "WORKBOOK") || nmgr[i].scope.toUpperCase() !== "WORKBOOK" && scope.toUpperCase() === "WORKBOOK")) {
+					scopeIndex = (scope.toUpperCase() === "WORKBOOK") ? xlObj._getSheetIndexByName(nmgr[i].scope) : xlObj._getSheetIndexByName(scope);
+					if(!xlObj.getObjectLength(xlObj.getSheet(scopeIndex)._scopeRanges[name]))
+						xlObj.getSheet(scopeIndex)._scopeRanges[name] = {}
+					xlObj.getSheet(scopeIndex)._scopeRanges[name]["isSameName"] = true;
+				}
+			}
+			if(!(xlObj.isImport || xlObj.model.isImport))
+			   xlObj.model.nameManager.push({ name: name, refersto: refersTo, comment: comment, sheetIndex: sheetIdx, scope: scope });
+            this._updateNamedRanges(name, refersTo, false, scope);
+			if(!(xlObj.isImport || xlObj.model.isImport))
+				this._updateUseInFormulaTrgt();
             !xlObj._isSheetNavigate && xlObj._trigActionComplete({ sheetIndex: sheetIdx, reqType: "named-range", name: name, refersTo: refersTo, comment: comment });
         },
 
-        removeNamedRange: function (name) {
+        removeNamedRange: function (name, scope) {
             if (!name)
-                if (!name)
-                    return;
+				return;
             var xlObj = this.XLObj, gridInst = $("#" + xlObj._id + "_nmgrid").data("ejGrid"), nameMgr, nameMgrIdx;
+			scope = scope ? scope : "workbook" ;
             if (gridInst) {
                 gridInst.option("editSettings", { "allowDeleting": true });
-                gridInst.deleteRecord("name", { name: name })
+                gridInst.deleteRecord("name", { name: name , scope: scope });
                 gridInst.option("editSettings", { "allowDeleting": false });
             }
             else {
                 nameMgr = xlObj.model.nameManager;
-                nameMgrIdx = this._validateNameManager(name);
+                nameMgrIdx = this._validateNameManager(name, scope);
+				if(nameMgrIdx < 0)
+					return;
                 xlObj.model.nameManager.splice(nameMgrIdx, 1);
-                this._removeNamedRange(gridInst, name)
+                this._removeNamedRange(gridInst, name, scope);
             }
         },
 
-        _removeNamedRange: function (gridInst, name) {
-            var i, nameMgr, xlObj = this.XLObj, nm = xlObj.model.nameManager[xlObj.model.nameManager.length - 1];
+        _removeNamedRange: function (gridInst, name, scope) {
+            var i, nameMgr, xlObj = this.XLObj;
             gridInst && (xlObj.model.nameManager = gridInst.model.dataSource.slice(0));
             nameMgr = xlObj.model.nameManager;
+			if(scope.toUpperCase() === "WORKBOOK")
+				delete this._scopeBookCln[name];
+			else {
+				var scopeRange = xlObj.getSheet(xlObj._getSheetIndexByName(scope))._scopeRanges, scopeName = name;
+				name = scopeRange[name].name;
+				delete scopeRange[scopeName];
+			}
             xlObj._calcEngine.removeNamedRange(name);
             xlObj._updateFormulaCollection();
             i = nameMgr.length;
@@ -1892,14 +1961,29 @@
                     xlObj._formulaCollection.push({ text: "=" + nameMgr[i].name, display: nameMgr[i].name });
             }
             this._updateUseInFormulaTrgt();
+				
         },
+		
+		_updateScopeRange: function() { 
+		 var i, xlObj = this.XLObj, nameMgr = xlObj.model.nameManager, len = nameMgr.length, sheetIdx = xlObj.getActiveSheetIndex(), sheet =  xlObj.getSheet(sheetIdx);
+		  xlObj._updateFormulaCollection();
+		  for(i=0;i<len;i++)
+		  {
+			  if(nameMgr[i].scope.toUpperCase() === "WORKBOOK" || xlObj._getSheetIndexByName(nameMgr[i].scope) === sheetIdx) {
+				  if(sheet._scopeRanges[nameMgr[i].name] && sheet._scopeRanges[nameMgr[i].name].isSameName && nameMgr[i].scope.toUpperCase() !== "WORKBOOK")
+					xlObj._formulaCollection.push({ text: "=" + nameMgr[i].name + " (worksheet)", display: nameMgr[i].name + "(worksheet)" });
+				else
+					xlObj._formulaCollection.push({ text: "=" + nameMgr[i].name, display: nameMgr[i].name });
+			  }
+		  }
+		},
 
-        _validateNamedRange: function (name, refersTo) {
+        _validateNamedRange: function (name, refersTo, scope) {
             var range, libMgr, nameMgr, adlg, text, xlObj = this.XLObj, rangeAlert = "NMRangeAlert", invalidName = "NMNameAlert", uniqueName = "NMUniqueNameAlert", action;
             range = this._validateDollarRange(refersTo);
             if (name)
                 (name.length > 0) && (libMgr = /^([a-zA-Z_0-9]){0,255}$/.test(name) && this._validateLibraryFunctions(name));
-            nameMgr = this._validateNameManager(name);
+            nameMgr = this._validateNameManager(name, scope);
             if (xlObj._isUndoRedo || (range && libMgr && nameMgr < 0))
                 return true;
             else {
@@ -1925,11 +2009,12 @@
             return true;
         },
 
-        _validateNameManager: function (name) {
+        _validateNameManager: function (name, scope) {
             var i = 0, nameMgr = this.XLObj.model.nameManager, length = nameMgr.length;
             name = ej.isNullOrUndefined(name) ? "" : name.toString().toUpperCase();
+			scope = scope ? scope : "Workbook";
             while (i < length) {
-                if (nameMgr[i].name.toUpperCase() === name)
+                if (nameMgr[i].scope.toUpperCase() === scope.toUpperCase() && nameMgr[i].name.toUpperCase() === name)
                     return i;
                 i++;
             }
@@ -2069,8 +2154,11 @@
                 else
                     tmgr[tid].range = rrange;
                 this._isFilterSelect.isFiltered && xlObj.XLFilter._clearFilterTable(sheetIndex, parseInt(tid), true);
+                xlObj.XLFormat._isFAT = true;
                 xlObj.XLFormat._createTable(tid, { format: tmgr[tid].format });
+                xlObj.XLFormat._isFAT = false;
                 xlObj.XLFilter._extendFilterRange(tid, tmgr[tid].range);
+				xlObj.XLFormat._updateTableFormula("updateRange", tmgr[tid], sheetIndex);
                 if (tmgr[tid].range[2] == rrange[2] - 1) {
                     xlObj._dupDetails = true;
                     totRow.option("checked", true);
@@ -2119,13 +2207,20 @@
             ej.isNullOrUndefined(tmgr[tid].totalRow) ? xlObj.XLFormat._calculateTotalRow(sheetIdx, tid, true, true) : xlObj.XLFormat._calculateTotalRow(sheetIdx, tid, false, false);
         },
         _fatNameDlgBtnClick: function (args) {
-            var obj, xlObj = this.XLObj, sid = xlObj._id;
+            var obj, xlObj = this.XLObj, sid = xlObj._id, rowIdx, colIdx, arrayFormula;
             $('#' + sid + '_fatnamedlg').ejDialog('close');
             if (args.model.text === xlObj._getLocStr('Ok')) {
-                obj = { header: $("#" + sid + "_fatheader").ejCheckBox("checked"), name: document.getElementById(sid + '_fatname').value, format: xlObj.XLFormat._formatAsTableStyle.format };
+                rowIdx = xlObj._getSelectedCells().selCells[0].rowIndex;
+                colIdx = xlObj._getSelectedCells().selCells[0].colIndex;
+                arrayFormula = xlObj.XLEdit.getPropertyValue(rowIdx, colIdx, "hasFormulaArray", xlObj.getActiveSheetIndex());
+                if (arrayFormula)
+                    xlObj._showAlertDlg("Alert", "ArrayaFormulaTableAlert", 430);
+                else {
+                    obj = { header: $("#" + sid + "_fatheader").ejCheckBox("checked"), name: document.getElementById(sid + '_fatname').value, format: xlObj.XLFormat._formatAsTableStyle.format };
                 if (xlObj.XLFormat._formatAsTableStyle.formatName)
                     obj["formatName"] = xlObj.XLFormat._formatAsTableStyle.formatName;
                 xlObj.XLFormat.createTable(obj);
+                }
             }
         },
 
@@ -2188,7 +2283,7 @@
 
         _designTabUpdate: function (tid, cellIdx) {
             var xlObj = this.XLObj;
-            if (xlObj.model.showRibbon && !xlObj._phoneMode) {
+             if (xlObj.model.showRibbon)  {
                 var xlId = xlObj._id, btnObj, robj = $('#' + xlObj._id + '_Ribbon').ejRibbon('instance'), tmgr = xlObj.getSheet(xlObj.getActiveSheetIndex()).tableManager;
                 robj.showTab(xlObj._getLocStr('Design'));
                 if (this._isDesignTab && !robj._isCollapsed)
@@ -2210,7 +2305,7 @@
 
         _formatTabUpdate: function () {
             var xlObj = this.XLObj;
-            if (xlObj.model.showRibbon && !xlObj._phoneMode) {
+               if (xlObj.model.showRibbon) {
                 var robj = $("#" + xlObj._id + "_Ribbon").ejRibbon("instance"), heightElem = xlObj.element.find("#" + xlObj._id + "_Ribbon_Format_Size_PictureHeight"), widthElem = xlObj.element.find("#" + xlObj._id + "_Ribbon_Format_Size_PictureWidth");
                 robj.showTab(xlObj._getLocStr("FORMAT"));
                 xlObj._shapeChange = true;
@@ -2236,7 +2331,7 @@
 
         _chartDesignTabUpdate: function (chartElem) {
             var xlObj = this.XLObj, dataVal, index, state;
-            if (xlObj.model.showRibbon && !xlObj._phoneMode) {
+            if (xlObj.model.showRibbon) {
                 var robj = $('#' + xlObj._id + '_Ribbon').data('ejRibbon'), cid = chartElem.get(0).id, left = chartElem.get(0).offsetLeft, top = chartElem.get(0).offsetTop, cModel = chartElem.ejChart("model"), themesElem = robj.element.find("#" + xlObj._id + "_Ribbon_ChartDesign_ChartThemes_ChartThemes");
                 index = xlObj._getIdxWithOffset(top, left, true);
                 xlObj.XLShape._picCellIdx = { rowIndex: index.rowIdx, colIndex: index.colIdx };
@@ -2642,7 +2737,7 @@
                 $("#" + xlObj._id + "_Ribbon_btnMin").val("");
                 $("#" + xlObj._id + "_Ribbon_btnMax").val("");
                 $("#" + xlObj._id + "_ValDialog").ejDialog("close");
-                xlObj.setSheetFocus();
+                xlObj._setSheetFocus();
             }
         },
 
@@ -2910,7 +3005,7 @@
                 rule = (xlObj.XLRibbon._currentCFormat === xlObj._id + "_CreateRule") ? "formularule" : xlObj.XLRibbon._currentCFormat;
                 xlObj.XLCFormat._cFormat(rule, $("#" + xlObj._id + "_Ribbon_input1").val(), $("#" + xlObj._id + "_Ribbon_input2").val(), ddObj.getSelectedValue());
                 $("#" + xlObj._id + "_CFDialog").ejDialog("close");
-                xlObj.setSheetFocus();
+                xlObj._setSheetFocus();
             }
         },
 
@@ -2918,7 +3013,7 @@
             var xlObj = this.XLObj;
             $("#" + xlObj._id + "_Form_CFDialog").validate().resetForm();
             $("#" + xlObj._id + "_CFDialog").ejDialog("close");
-            xlObj.setSheetFocus();
+            xlObj._setSheetFocus();
         },
 
         _sheetData: function (e) {
@@ -3217,7 +3312,7 @@
                     break;
                 case "FR_CloseBtn":
                     $("#" + xlObj._id + "_FRDialog").ejDialog("close");
-                    xlObj.setSheetFocus();
+                    xlObj._setSheetFocus();
                     break;
             }
             xlObj.hideWaitingPopUp();
@@ -3407,7 +3502,7 @@
         _dlgPvtCancel: function () {
             var xlObj = this.XLObj;
             $("#" + xlObj._id + "_PvtDialog").ejDialog("close");
-            xlObj.setSheetFocus();
+            xlObj._setSheetFocus();
         },
 
         _rBtnPvtOnClick: function (id, e) {
@@ -3469,7 +3564,7 @@
                     $("#" + xlObj._id + "_GoDialog").ejDialog("close");
                     break;
             }
-            xlObj.setSheetFocus();
+            xlObj._setSheetFocus();
         },
 
         _borderPicture: function () {
@@ -3493,7 +3588,7 @@
                 xlObj.XLFormat.format({ "style": { "background-color": $("#" + xlObj._id + "_Ribbon_Home_Font_FillColor").ejColorPicker('option', 'value') } });
             else if (name === "Ribbon_Home_Font_FontColor")
                 xlObj.XLFormat.format({ "style": { "color": $("#" + xlObj._id + "_Ribbon_Home_Font_FontColor").ejColorPicker('option', 'value') } });
-            xlObj.setSheetFocus();
+            xlObj._setSheetFocus();
         },
 
         _ribbonClickHandler: function (args) {
@@ -3522,7 +3617,7 @@
             if (xlObj._trigger("ribbonClick", arg)) {
                 if (xlObj.model.showRibbon)
                     xlObj.XLRibbon._updateRibbonIcons();
-                return;
+                return false;
             }
             if (!ej.isNullOrUndefined(xlObj._getAutoFillOptElem()) && xlObj.model.autoFillSettings.showFillOptions) {
                 xlObj._getAutoFillOptElem().addClass("e-hide");
@@ -3650,7 +3745,7 @@
                         }
                     }
                     xlObj.XLSelection.refreshSelection();
-                    xlObj.XLDragFill.positionAutoFillElement();
+                    xlObj.XLDragFill && xlObj.XLDragFill.positionAutoFillElement();
                     break;
                 case xlObj._id + "_Ribbon_Home_Alignment_TopAlign":
                 case xlObj._id + "_Ribbon_Home_Alignment_MiddleAlign":
@@ -4259,94 +4354,48 @@
                     }
                     break;
                 case xlObj._id + "_Ribbon_SparklineDesign_Show_HighPoint":
-                    var sId = xlObj.XLEdit.getPropertyValue(xlObj._getSelectedCells().selCells[0].rowIndex, xlObj._getSelectedCells().selCells[0].colIndex, "sparkline") , sparkline;
-                    sparkline = sheet.shapeMngr.sparkline;
-                    if (args.isChecked)
-                        xlObj.XLSparkline.changePointColor(sId[0], {highPointColor: "red"});
-                    else {
-                        delete sparkline[sId]["HighPoint"];
-                        delete sparkline[sId]["highPointColor"];
-                        $("#" + sId[0]).ejSparkline("option", { highPointColor: null });
-                    }
+                    var sId = xlObj.XLEdit.getPropertyValue(xlObj._getSelectedCells().selCells[0].rowIndex, xlObj._getSelectedCells().selCells[0].colIndex, "sparkline");
+                    xlObj.XLSparkline.changePointColor(sId[0], {highPointColor: "red"}, sheetIdx, args.isChecked);
                     break;
                 case xlObj._id + "_Ribbon_SparklineDesign_Show_NegativePoints":
-                    var sId = xlObj.XLEdit.getPropertyValue(xlObj._getSelectedCells().selCells[0].rowIndex, xlObj._getSelectedCells().selCells[0].colIndex, "sparkline"), sparkline;
-                    sparkline = sheet.shapeMngr.sparkline;
-                    if (args.isChecked)
-                        xlObj.XLSparkline.changePointColor(sId[0], {negativePointColor:"orange"});
-                    else {
-                        delete sparkline[sId]["NegativePoints"];
-                        delete sparkline[sId]["negativePointColor"];
-                        $("#" + sId[0]).ejSparkline("option", { negativePointColor: null });
-                    }
+                    var sId = xlObj.XLEdit.getPropertyValue(xlObj._getSelectedCells().selCells[0].rowIndex, xlObj._getSelectedCells().selCells[0].colIndex, "sparkline");
+                    xlObj.XLSparkline.changePointColor(sId[0], {negativePointColor:"orange"}, sheetIdx, args.isChecked);
                     break;
                 case xlObj._id + "_Ribbon_SparklineDesign_Show_LowPoint":
-                    var sId = xlObj.XLEdit.getPropertyValue(xlObj._getSelectedCells().selCells[0].rowIndex, xlObj._getSelectedCells().selCells[0].colIndex, "sparkline"), sparkline;
-                    sparkline = sheet.shapeMngr.sparkline;
-                    if (args.isChecked)
-                        xlObj.XLSparkline.changePointColor(sId[0], {lowPointColor:"orange"});
-                    else {
-                        delete sparkline[sId]["LowPoint"];
-                        delete sparkline[sId]["lowPointColor"];
-                        $("#" + sId[0]).ejSparkline("option", { lowPointColor: null });
-                    }
+                    var sId = xlObj.XLEdit.getPropertyValue(xlObj._getSelectedCells().selCells[0].rowIndex, xlObj._getSelectedCells().selCells[0].colIndex, "sparkline");
+                    xlObj.XLSparkline.changePointColor(sId[0], {lowPointColor:"orange"}, sheetIdx, args.isChecked);                   
                     break;
                 case xlObj._id + "_Ribbon_SparklineDesign_Show_FirstPoint":
-                    var sId = xlObj.XLEdit.getPropertyValue(xlObj._getSelectedCells().selCells[0].rowIndex, xlObj._getSelectedCells().selCells[0].colIndex, "sparkline"), sparkline;
-                    sparkline = sheet.shapeMngr.sparkline;
-                    if (args.isChecked)
-                        xlObj.XLSparkline.changePointColor(sId[0], {startPointColor:"green"});
-                    else {
-                        delete sparkline[sId]["FirstPoint"];
-                        delete sparkline[sId]["startPointColor"];
-                        $("#" + sId[0]).ejSparkline("option", { startPointColor: null });
-                    }
+                    var sId = xlObj.XLEdit.getPropertyValue(xlObj._getSelectedCells().selCells[0].rowIndex, xlObj._getSelectedCells().selCells[0].colIndex, "sparkline");
+                    xlObj.XLSparkline.changePointColor(sId[0], {startPointColor:"green"}, sheetIdx, args.isChecked);
                     break;
                 case xlObj._id + "_Ribbon_SparklineDesign_Show_LastPoint":
-                    var sId = xlObj.XLEdit.getPropertyValue(xlObj._getSelectedCells().selCells[0].rowIndex, xlObj._getSelectedCells().selCells[0].colIndex, "sparkline"), sparkline;
-                    sparkline = sheet.shapeMngr.sparkline;
-                    if (args.isChecked)
-                        xlObj.XLSparkline.changePointColor(sId[0], {endPointColor: "violet"});
-                    else {
-                        delete sparkline[sId]["LastPoint"];
-                        delete sparkline[sId]["endPointColor"];
-                        $("#" + sId[0]).ejSparkline("option", { endPointColor: null });
-                    }
+                    var sId = xlObj.XLEdit.getPropertyValue(xlObj._getSelectedCells().selCells[0].rowIndex, xlObj._getSelectedCells().selCells[0].colIndex, "sparkline");
+                    xlObj.XLSparkline.changePointColor(sId[0], {endPointColor: "violet"}, sheetIdx, args.isChecked);
                     break;
                 case xlObj._id + "_Ribbon_SparklineDesign_Show_Markers":
-                    var sId = xlObj.XLEdit.getPropertyValue(xlObj._getSelectedCells().selCells[0].rowIndex, xlObj._getSelectedCells().selCells[0].colIndex, "sparkline"), sparkline = sheet.shapeMngr.sparkline;
-                    if (sparkline[sId[0]].type == "Line") {
-                        if (args.isChecked) {
-                            $("#" + sId[0]).ejSparkline("option", { markerSettings: { visible: true } });
-                            sparkline[sId]["Markers"] = true;
-                            sparkline[sId]["markerSettings"] = { visible: true };
-                        }
-                        else {
-                            $("#" + sId[0]).ejSparkline("option", { markerSettings: { visible: null } });
-                            sparkline[sId]["Markers"] = false;
-                            sparkline[sId]["markerSettings"] = { visible: false };
-                        }
-                    }
+                    var sId = xlObj.XLEdit.getPropertyValue(xlObj._getSelectedCells().selCells[0].rowIndex, xlObj._getSelectedCells().selCells[0].colIndex, "sparkline");
+                    xlObj.XLSparkline.changePointColor(sId[0], { markerSettings: { visible: true } }, sheetIdx, args.isChecked);
                     break;
                 case xlObj._id + "_Ribbon_SparklineColor":
                     var sId = xlObj.XLEdit.getPropertyValue(xlObj._getSelectedCells().selCells[0].rowIndex, xlObj._getSelectedCells().selCells[0].colIndex, "sparkline"), color;
                     color = args.value;
-                    xlObj.XLSparkline.changePointColor(sId[0], {fill: color});
+                    xlObj.XLSparkline.changePointColor(sId[0], {fill: color},sheetIdx,args.isInteraction);
                     break;
                 case xlObj._id + "_Ribbon_MarkerNegativePoint":
                     var sId = xlObj.XLEdit.getPropertyValue(xlObj._getSelectedCells().selCells[0].rowIndex, xlObj._getSelectedCells().selCells[0].colIndex, "sparkline"), color;
                     color = args.value;
-                    xlObj.XLSparkline.changePointColor(sId[0], {negativePointColor:color});
+                    xlObj.XLSparkline.changePointColor(sId[0], {negativePointColor:color},sheetIdx,args.isInteraction);
                     break;
                 case xlObj._id + "_Ribbon_MarkerHighPoint":
                     var sId = xlObj.XLEdit.getPropertyValue(xlObj._getSelectedCells().selCells[0].rowIndex, xlObj._getSelectedCells().selCells[0].colIndex, "sparkline"), color;
                     color = args.value;
-                    xlObj.XLSparkline.changePointColor(sId[0], {highPointColor: color});
+                    xlObj.XLSparkline.changePointColor(sId[0], {highPointColor: color},sheetIdx,args.isInteraction);
                     break;
                 case xlObj._id + "_Ribbon_MarkerLowPoint":
                     var sId = xlObj.XLEdit.getPropertyValue(xlObj._getSelectedCells().selCells[0].rowIndex, xlObj._getSelectedCells().selCells[0].colIndex, "sparkline"), color;
                     color = args.value;
-                    xlObj.XLSparkline.changePointColor(sId[0], {lowPointColor: color});
+                    xlObj.XLSparkline.changePointColor(sId[0], {lowPointColor: color},sheetIdx,args.isInteraction);
                     break;
                 case xlObj._id + "_Ribbon_PictureColor":
                 case xlObj._id + "_Ribbon_Format_Border_PictureBorder":
@@ -4418,7 +4467,7 @@
                     break;
             }
             if ((this._id.indexOf("Comment") < 0 && this._id.indexOf("FindSelect") < 0) || xlObj.XLSearch._isApplied) {
-                xlObj.setSheetFocus();
+                xlObj._setSheetFocus();
                 xlObj.XLSearch._isApplied = false;
             }
             xlObj._isRibbonClick = false;
@@ -4913,7 +4962,7 @@
                     height: height,
                     width: width,
                     beforeOpen: $.proxy(this._splitBeforeOpen, this, id),
-                    close: (id === "Others_Cells_InsertCellOptions" || id === "Others_Cells_DeleteCellOptions" || id === "Data_DataTools_DataValidationOptions" || id === "Home_Clipboard_PasteOptions") ? $.proxy(this._splitbtnClose, this, id) : null,
+                    close: (id === "Home_Font_Border" || "Others_Cells_InsertCellOptions" || id === "Others_Cells_DeleteCellOptions" || id === "Data_DataTools_DataValidationOptions" || id === "Home_Clipboard_PasteOptions") ? $.proxy(this._splitbtnClose, this, id) : null,
                 },
                 customToolTip:
                 {
@@ -4948,21 +4997,84 @@
             else if (id === "Home_Font_Border") {
                 xlObj.XLFormat._resizeBorderMenu(args);
                 this._renderBorderCP(args);
+                var len, winHght = window.innerHeight, licollection, brdrElement = $("#" + this.XLObj._id + "_Ribbon_Home_Font_Border")[0].getBoundingClientRect(), brdrLiElement = $("#" + this.XLObj._id + "_Ribbon_Border"),
+                    menuObj = brdrLiElement.data("ejMenu"), customUp = brdrLiElement.find("#" + this.XLObj._id + "_customup")[0], customDown = brdrLiElement.find("#" + this.XLObj._id + "_customdown")[0], grpPanel = $("#" + this.XLObj._id + "GroupPanel"),
+                    licollection = brdrLiElement.children(), len = licollection.length, numItem = Math.round((winHght - (brdrElement.top + brdrElement.height)) / 26);// 26 li element height
+                  if (len * 26 > winHght - (brdrElement.top + brdrElement.height)) {
+                    if (ej.isNullOrUndefined(customUp) && ej.isNullOrUndefined(customDown)) {
+                        menuObj.insert([{ id: this.XLObj._id + "_customdown", parentId: null, text: " ", spriteCssClass: 'e-icon e-chevron-down' }], "#" + this.XLObj._id + "_Ribbon_Border");
+                        menuObj.insertBefore([{ id: this.XLObj._id + "_customup", parentId: null, text: " ", spriteCssClass: 'e-icon e-chevron-up' }], "#" + this.XLObj._id + "_Ribbon_Border");
+                        customUp = brdrLiElement.find("#" + this.XLObj._id + "_customup")[0], customDown = brdrLiElement.find("#" + this.XLObj._id + "_customdown")[0];
+                        if (xlObj._browserDetails.name === "msie" && xlObj._browserDetails.version === "8.0") {
+                            customUp.attachEvent("onclick", this._menuclick, true);
+                            customDown.attachEvent("onclick", this._menuclick, true);
+                        }
+                        else {
+                            customUp.addEventListener("click", this._menuclick, true);
+                            customDown.addEventListener("click", this._menuclick, true);
+                        }
+                        xlObj.addClass(customUp.querySelector("span"), "e-customup");
+                        xlObj.addClass(customDown.querySelector("span"), "e-customup")
+                    }
+                    for (var i = 1 ; i < len-1; i++)
+                        xlObj.addClass(licollection[i], "e-hide");
+                    for (var i = 0; i < numItem - 2; i++)
+                        xlObj._removeClass(licollection[i], "e-hide");
+                    menuObj.disableItemByID(customUp.id);
+                    menuObj.enableItemByID(customDown.id);
+                }
+                else if(!ej.isNullOrUndefined(customUp) && !ej.isNullOrUndefined(customDown))
+                {
+                    xlObj.addClass(customUp, "e-hide");
+                    xlObj.addClass(customDown, "e-hide");
+                }
             }
             else if (id === "Home_Styles_ConditionalFormatting") {
                 $("#" + xlObj._id + "_CFormat").width(200);
                 xlObj._phoneMode ? $("#" + xlObj._id + "_CFormat").find("ul").addClass("e-adaptive") : $("#" + xlObj._id + "_CFormat").find("ul").removeClass("e-adaptive");
             }
-			else if(id == "Others_CalCulation_CalculationOptions") {
-				if (xlObj._calcEngine.getCalculatingSuspended()) {
-					$("#" + xlObj._id + "_CalcManual").find("span").addClass("e-ss-calcauto");
-					$("#" + xlObj._id + "_CalcAuto").find("span").removeClass("e-ss-calcauto");
-				}
-				else {
-					$("#" + xlObj._id + "_CalcAuto").find("span").addClass("e-ss-calcauto");
-					$("#" + xlObj._id + "_CalcManual").find("span").removeClass("e-ss-calcauto");
-				}
-			}
+            else if (id == "Others_CalCulation_CalculationOptions") {
+                if (xlObj._calcEngine.getCalculatingSuspended()) {
+                    $("#" + xlObj._id + "_CalcManual").find("span").addClass("e-ss-calcauto");
+                    $("#" + xlObj._id + "_CalcAuto").find("span").removeClass("e-ss-calcauto");
+                }
+                else {
+                    $("#" + xlObj._id + "_CalcAuto").find("span").addClass("e-ss-calcauto");
+                    $("#" + xlObj._id + "_CalcManual").find("span").removeClass("e-ss-calcauto");
+                }
+            }
+        },
+
+        _menuclick: function (event) {
+            event.stopImmediatePropagation();
+            if (event.target) {
+                var element = event.currentTarget, parentElem = $("#" + element.parentElement.id), liCollection = parentElem.children(), menuObj = parentElem.data("ejMenu"), customUp = parentElem.children()[0], customDown = parentElem.children()[18],
+                    visibleItems = $("#" + element.parentElement.id).find("li:visible"), lastChild = visibleItems[visibleItems.length - 2], lastChildIdx = $(lastChild).index(), firstChild = visibleItems[1], firstChildIdx = $(firstChild).index();
+                if (event.currentTarget.id.indexOf("customup") > 0) {
+                    if (firstChild.id != "bottom") {
+                        for (var i = 1; i < 3; i++) {
+                            visibleItems.eq(visibleItems.length - (i + 1)).addClass("e-hide");
+                            liCollection.eq(firstChildIdx - i).removeClass("e-hide");
+                        }
+                        if ($(customDown).hasClass("e-disable-item"))
+                            menuObj.enableItemByID(customDown.id);
+                    }
+                    else if (firstChild.id == "bottom")
+                        menuObj.disableItemByID(customUp.id);
+                }
+                else {
+                    if (lastChild.id.indexOf("borderstyle") == -1) {
+                        for (var i = 1; i < 3; i++) {
+                            visibleItems.eq(i).addClass("e-hide");
+                            liCollection.eq(lastChildIdx + i).removeClass("e-hide");
+                        }
+                        if ($(customUp).hasClass("e-disable-item"))
+                            menuObj.enableItemByID(customUp.id);
+                    }
+                    else if (lastChild.id.indexOf("borderstyle") > -1)
+                        menuObj.disableItemByID(customDown.id);
+                }
+            }
         },
 
         _renderBorderCP: function (args) {
@@ -4977,7 +5089,16 @@
         },
 
         _splitbtnClose: function (id, args) {
-            this.XLObj.element.find("#" + this.XLObj._id + "_Ribbon_" + id).parents("div.e-controlpadding").siblings().children("button").removeClass("e-active");
+            if (id == "Home_Font_Border") {
+                var liElem = $("#" + this.XLObj._id + "_Ribbon_Border"), menuObj = liElem.data("ejMenu"), lielem = liElem.children(), len = liElem.children().length;
+                lielem.removeClass("e-hide");
+                if ($(lielem[0]).hasClass("e-disable-item"))
+                    menuObj.enableItemByID(lielem[0].id);
+                if ($(lielem[len-1]).hasClass("e-disable-item"))
+                menuObj.enableItemByID(lielem[len-1].id);
+            }
+            else
+                this.XLObj.element.find("#" + this.XLObj._id + "_Ribbon_" + id).parents("div.e-controlpadding").siblings().children("button").removeClass("e-active");
         },
 
         _fpbeforeOpen: function (args) {
@@ -5148,8 +5269,8 @@
 
         _homeTabControls: function () {
             var xlObj = this.XLObj, xlId = xlObj._id, xlEle = xlObj.element, rbnId = xlId + "_Ribbon_", fontStr = rbnId + "Home_Font_";
-            $("#" + fontStr + "FillColor").ejColorPicker({ value: "#FFFF00", locale: xlObj.model.locale, modelType: "palette", showSwitcher: false, cssClass: "e-ss-colorpicker", toolIcon: "e-ss-backgroundcolor", open: $.proxy(this._colorPickerHandler, this, "Ribbon_Home_Font_FillColor"), change: $.proxy(this._colorPickerHandler, this, "Ribbon_Home_Font_FillColor"), select: $.proxy(this._cpClickHandler, this, "Ribbon_Home_Font_FillColor") });
-            $("#" + fontStr + "FontColor").ejColorPicker({ value: "#FF0000", locale: xlObj.model.locale, modelType: "palette", showSwitcher: false, cssClass: "e-ss-colorpicker", toolIcon: "e-ss-fontcolor", open: $.proxy(this._colorPickerHandler, this, "Ribbon_Home_Font_FontColor"), change: $.proxy(this._colorPickerHandler, this, "Ribbon_Home_Font_FontColor"), select: $.proxy(this._cpClickHandler, this, "Ribbon_Home_Font_FontColor") });
+            $("#" + fontStr + "FillColor").ejColorPicker({ value: "#FFFF00", locale: xlObj.model.locale, modelType: "palette", showSwitcher: false, cssClass: "e-ss-colorpicker", toolIcon: "e-ss-backgroundcolor e-icon", open: $.proxy(this._colorPickerHandler, this, "Ribbon_Home_Font_FillColor"), change: $.proxy(this._colorPickerHandler, this, "Ribbon_Home_Font_FillColor"), select: $.proxy(this._cpClickHandler, this, "Ribbon_Home_Font_FillColor") });
+            $("#" + fontStr + "FontColor").ejColorPicker({ value: "#FF0000", locale: xlObj.model.locale, modelType: "palette", showSwitcher: false, cssClass: "e-ss-colorpicker", toolIcon: "e-ss-fontcolor e-icon", open: $.proxy(this._colorPickerHandler, this, "Ribbon_Home_Font_FontColor"), change: $.proxy(this._colorPickerHandler, this, "Ribbon_Home_Font_FontColor"), select: $.proxy(this._cpClickHandler, this, "Ribbon_Home_Font_FontColor") });
             $("#" + rbnId + "BorderCP").ejColorPicker({ value: "#278787", displayInline: true, modelType: "picker" });
             $("#" + rbnId + "BorderCP_Presets").hide();
             $("#" + rbnId + "Border").addClass("e-spreadsheet e-border");
@@ -5408,14 +5529,14 @@
         _chartTypeCancel: function (args) {
             var xlObj = this.XLObj;
             $("#" + xlObj._id + "_charttypedlg").ejDialog("close");
-            xlObj.setSheetFocus();
+            xlObj._setSheetFocus();
         },
 
         _chartType: function (chart, len, cnt, typecnt, type, title) {
             var cell, childs, child, elem, i, parent, typ, hdr = "<div class='e-chartheader'><span>", elem = "<div class='e-chartcontent'>",
                 chartIcon = chart.toLowerCase(), obj = { visible: false }, xlObj = this.XLObj, text = xlObj._getLocStr(chart), dim = "2-D";
             for (i = 0; i < len; i++) {
-                cell = "<div class='e-" + xlObj._id + " e-chartcell e-" + chartIcon + (i + 1) + "' title=" + title[i] + "></div>";
+                cell = "<div class='e-ss-" + xlObj._id + " e-chartcell e-" + chartIcon + (i + 1) + "' title=" + title[i] + "></div>";
                 elem += cell;
                 if (i === cnt)
                     elem += "</div>" + hdr + "3-D " + text + "</span></div><div class='e-chartcontent'>";

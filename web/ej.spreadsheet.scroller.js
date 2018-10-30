@@ -5,6 +5,7 @@
     ej.spreadsheetFeatures.scroller = function (obj) {
         this.XLObj = obj;
         this._isIntrnlScroll = false;
+		this._isScrollToCell = false;
     };
 
     ej.spreadsheetFeatures.scroller.prototype = {
@@ -21,7 +22,7 @@
 			}
         },
 
-        _getRowHeights: function (sheetIdx, rowIdx, cellHgt) { // no need this logic
+        _getRowHeights: function (sheetIdx, rowIdx, cellHgt, isRefreshScroller) { // no need this logic
             var i, blkIdx, len, xlObj = this.XLObj, sheet = xlObj.getSheet(sheetIdx), rowHtColl = sheet.rowsHeightCollection, rowHeight = sheet._rowHeightCollection, hideRowsColl = sheet.hideRowsCollection;
             if (!rowIdx)
                 rowIdx = 1;
@@ -30,7 +31,7 @@
             if (!cellHgt && xlObj.model.scrollSettings.allowScrolling) {
                 if (xlObj.model.scrollSettings.allowVirtualScrolling)
                     xlObj._refreshVrtlBlocks(sheetIdx);
-                this._refreshScroller(sheetIdx, "refresh", "vertical");
+                !isRefreshScroller && !xlObj._isTableBrdrEnd && this._refreshScroller(sheetIdx, "refresh", "vertical");
             }
         },
 		
@@ -235,19 +236,19 @@
         },
 
 		_spreadHS: function(args) {
-		    var pix, xlObj = this.XLObj, sheetIdx = xlObj.getActiveSheetIndex(), sheet = xlObj.getSheet(sheetIdx), hScroll = this._hScroller(sheetIdx), content = xlObj._getContent(sheetIdx),
-                cont = content.find(".e-content"), colgrp = content.find('col'), sheet = xlObj.getSheet(sheetIdx), count = ((args.scrollLeft - sheet._scrollLeft) / sheet.columnWidth);
-            args["reachedEnd"] = Math.ceil(parseFloat(hScroll.element.find(".e-hhandle").css('left'))) + Math.ceil(parseFloat(hScroll.element.find(".e-hhandle").width())) >= xlObj.element.find(".e-hhandlespace").width() - 2;
-            pix = args.scrollLeft;
+		    var pix, xlObj = this.XLObj, sheetIdx = xlObj.getActiveSheetIndex(), sheet = xlObj.getSheet(sheetIdx), hScroll = this._hScroller(sheetIdx), hhandle = hScroll.element.find(".e-hhandle")[0], hStyle = hhandle.getBoundingClientRect(), content = xlObj._getContent(sheetIdx),
+                cont = content.find(".e-content"), colgrp = content.find('col'), count = ((args.scrollLeft - sheet._scrollLeft) / sheet.columnWidth);
+            args["reachedEnd"] = Math.ceil(parseFloat(hhandle.offsetLeft)) + Math.ceil(parseFloat(hScroll.element.find(".e-hhandle").width())) >= xlObj.element.find(".e-hhandlespace").width() - 2;            pix = args.scrollLeft;
             if (xlObj.model.enableContextMenu)
                 xlObj.XLCMenu.hideCMenu();
             if (xlObj.model.scrollSettings.scrollMode === ej.Spreadsheet.scrollMode.Infinite && args.scrollData.step > -1 && !xlObj._scrollReverse) {
                 if (args.reachedEnd && sheet._leftCol.idx + count <= sheet.colCount) {
                     args.cancel = true;
                     this._scrollRight(sheetIdx);
-                    pix = (hScroll._scrollData.handleSpace - hScroll._scrollData.handle) * hScroll._scrollData.onePx;
+					if(!this._isScrollToCell)
+						pix = (hScroll._scrollData.handleSpace - hScroll._scrollData.handle) * hScroll._scrollData.onePx;
                     this._refreshScroller(sheetIdx, "refresh", "horizontal");
-                    hScroll.element.find(".e-hhandle").css("left", (hScroll._scrollData.handleSpace - (hScroll._scrollData.handle + 1)));
+                    hScroll.element.find(".e-hhandle")[0].style.left = (hScroll._scrollData.handleSpace - (hScroll._scrollData.handle + 1)) + "px";
                     hScroll.value(pix);
                 }
                 else if (sheet._leftCol.idx + count > sheet.colCount && args.scrollLeft >= sheet._scrollLeft && args.scrollLeft > 0 && sheet.colCount < xlObj._maxColCnt) {
@@ -268,9 +269,9 @@
 		_scrollSpreadY: function (args) {
 		    var newCnt, ndiff, diff, oldCnt, activeCell, wdiff = 0, xlObj = this.XLObj, sheetIdx = xlObj.getActiveSheetIndex(), sheet = xlObj.getSheet(sheetIdx), vScroll = xlObj.getSheetElement(sheetIdx).find("#vscrollBar");
 		    xlObj._isScrolling = true;
-			if (sheet._isFreezed && xlObj._isFrozen(xlObj.getFrozenRows())) {
+		    if (sheet._isFreezed && xlObj._isFrozen(xlObj.getFrozenRows())) {
                 xlObj.XLFreeze._frozenScrollHandler(args);
-                this._getFirstRow(xlObj.getActiveSheetIndex());
+                !this._isIntrnlScroll && this._getFirstRow(xlObj.getActiveSheetIndex());
             }
             else {
                 oldCnt = xlObj.getDigits(sheet._bottomRow.idx);
@@ -298,7 +299,7 @@
 		_scrollHandler: function (args) {
 		    var j, key, rIdx, rowIdx, contTBody, cellTypes, rowHdrTBody, rangeData, clKeys, nstartRIdx, nendRIdx, pstartRIdx, pendRIdx, rowIdxs, currentTopRow, offset, i, hgt, height, canRefresh, isRefreshed, prop, len, fitWidth,
                 xlObj = this.XLObj, sheetIdx = xlObj.getActiveSheetIndex(), sheet = xlObj.getSheet(sheetIdx), aCell = xlObj.getActiveCell(sheetIdx), isScrollDown = args.scrollTop >= sheet._scrollTop, vScroll = this._vScroller(sheetIdx),
-                count = ((args.scrollTop - sheet._scrollTop) / sheet.rowHeight) + 1, cont = xlObj._getContent(sheetIdx).find(".e-content"), contHt; // +1 for adding one extra row for creating a new block
+                count = ((args.scrollTop - sheet._scrollTop) / sheet.rowHeight) + 1, cont = xlObj._getContent(sheetIdx).find(".e-content"), contHt, contentrows, rowhdrrows; // +1 for adding one extra row for creating a new block
 		    offset = i = hgt = height = 0;
 		    canRefresh = isRefreshed = false;
 		    if ((args.scrollTop === sheet._scrollTop || (sheet._bottomRow.idx + count > sheet.rowCount)) && xlObj.model.scrollSettings.scrollMode === ej.Spreadsheet.scrollMode.Infinite ) {
@@ -362,6 +363,9 @@
 		                    rangeData = xlObj.getRangeData({ property: prop, sheetIdx: sheetIdx, rowIdxs: rowIdxs, withRowIdx: true });
 		                    rowHdrTBody.append(xlObj._renderRowHdr(rangeData.rowIdx, sheetIdx));
 		                    contTBody.append(xlObj._renderData(rangeData, sheetIdx));
+							contentrows = xlObj._getContTBody(sheetIdx).find("tr");
+							rowhdrrows = xlObj._getRowHdrTBody(sheetIdx).find("tr");
+							xlObj.setRows([rowhdrrows, contentrows], sheetIdx);
                             sheet._virtualRowIdx = sheet._virtualRowIdx.concat(rangeData.rowIdx);
 		                    canRefresh = true;
 		                }
@@ -379,10 +383,6 @@
                         xlObj._refreshViewport(args.scrollTop, sheetIdx);
                         canRefresh = isRefreshed = true;
 		            }
-					if (xlObj.model.allowCellType)
-						xlObj.XLCellType._rangeCellTypes(sheet.cellTypes, sheetIdx);
-					if (xlObj.model.allowSparkline)
-							xlObj.XLSparkline._refreshContentWithSparkline(sheetIdx);
 		        }
 		        else {
 		            if ((args.scrollTop + args.model.viewportsize) < sheet._virtualContTBodyOffset.top && (args.scrollTop + args.model.viewportsize) >= sheet._virtualTopTBodyOffset.top) {
@@ -405,6 +405,9 @@
 		                    rangeData = xlObj.getRangeData({ property: prop, sheetIdx: sheetIdx, rowIdxs: rowIdxs, withRowIdx: true });
 		                    rowHdrTBody.prepend(xlObj._renderRowHdr(rangeData.rowIdx, sheetIdx));
 		                    contTBody.prepend(xlObj._renderData(rangeData, sheetIdx));
+							contentrows = xlObj._getContTBody(sheetIdx).find("tr");
+							rowhdrrows = xlObj._getRowHdrTBody(sheetIdx).find("tr");
+							xlObj.setRows([rowhdrrows, contentrows], sheetIdx);
                             sheet._virtualRowIdx = rangeData.rowIdx.concat(sheet._virtualRowIdx);
 		                    canRefresh = true;
 		                }
@@ -439,7 +442,7 @@
 		    this._getFirstRow(sheetIdx);
 		    if (xlObj.model.allowSelection && (sheet._isRowSelected || sheet._isColSelected || sheet._isSheetSelected)) {
 		        xlObj.XLSelection.refreshSelection();
-		        xlObj.XLDragFill.positionAutoFillElement();
+				xlObj.XLDragFill && xlObj.XLDragFill.positionAutoFillElement();
 		    }
 		    if (canRefresh) {
 		        if (xlObj.XLComment)
@@ -456,9 +459,9 @@
 		},
 		
 		_spreadVS: function(args) {
-		    var pix, xlObj = this.XLObj, sheetIdx = xlObj.getActiveSheetIndex(), sheet = xlObj.getSheet(sheetIdx), vScroll = this._vScroller(sheetIdx),
+		    var pix, xlObj = this.XLObj, sheetIdx = xlObj.getActiveSheetIndex(), sheet = xlObj.getSheet(sheetIdx), vScroll = this._vScroller(sheetIdx), vhandle = vScroll.element.find(".e-vhandle")[0], vStyle = vhandle.getBoundingClientRect(),
                 content = xlObj._getJSSheetContent(sheetIdx).find(".e-spreadsheetcontentcontainer > .e-content"), count = ((args.scrollTop - sheet._scrollTop) / sheet.rowHeight);
-            args["reachedEnd"] = Math.ceil(parseFloat(vScroll.element.find(".e-vhandle").css('top'))) + Math.ceil(parseFloat(vScroll.element.find(".e-vhandle").height())) >= vScroll.element.find(".e-vhandlespace").height() - 2;
+            args["reachedEnd"] = Math.ceil(parseFloat(vhandle.offsetTop)) + Math.ceil(parseFloat(vStyle.height)) >= vScroll.element.find(".e-vhandlespace").height() - 2;
             pix = args.scrollTop;
             if (xlObj.model.enableContextMenu)
                 xlObj.XLCMenu.hideCMenu();
@@ -470,9 +473,10 @@
                             hold = true;
                             for (var i = 0; i < 20; i++)
                                 proxy._scrollBottom(sheetIdx);
-                            pix = (vScroll._scrollData.handleSpace - vScroll._scrollData.handle) * vScroll._scrollData.onePx;
+							if(!this._isScrollToCell)
+								pix = (vScroll._scrollData.handleSpace - vScroll._scrollData.handle) * vScroll._scrollData.onePx;
                             proxy._refreshScroller(sheetIdx, "refresh", "vertical");
-                            vScroll.element.find(".e-vhandle").css("top", (vScroll._scrollData.handleSpace - (vScroll._scrollData.handle)));
+                            vScroll.element.find(".e-vhandle")[0].style.top = (vScroll._scrollData.handleSpace - vScroll._scrollData.handle) + "px";
                             vScroll.scroll(pix);
                             clearInterval(interval);
                             return;
@@ -502,9 +506,10 @@
                     args.cancel = true;
                     if (!hold || !btnClk) {
                         this._scrollBottom(sheetIdx, (args.scrollTop - sheet._scrollTop)/20 + 1);
-                        pix = (vScroll._scrollData.handleSpace - vScroll._scrollData.handle) * vScroll._scrollData.onePx;
+						if(!this._isScrollToCell)
+							pix = (vScroll._scrollData.handleSpace - vScroll._scrollData.handle) * vScroll._scrollData.onePx;
                         proxy._refreshScroller(sheetIdx, "refresh", "vertical");
-                        vScroll.element.find(".e-vhandle").css("top", (vScroll._scrollData.handleSpace - (vScroll._scrollData.handle)));
+                        vScroll.element.find(".e-vhandle")[0].style.top = (vScroll._scrollData.handleSpace - (vScroll._scrollData.handle)) + "px";
                         vScroll.value(pix);
                     }
                 }
@@ -547,7 +552,7 @@
             vScroll.model.maximum = vScroll.model.maximum + xlObj.model.rowHeight;
             vScroll._scrollData.scrollable = vScroll._scrollData.scrollable + xlObj.model.rowHeight;
             this._refreshScroller(sheetIdx, "refresh", "vertical");
-            vScroll.element.find(".e-vhandle").css("top", (vScroll._scrollData.handleSpace - (vScroll._scrollData.handle + 1)));
+            vScroll.element.find(".e-vhandle")[0].style.top = (vScroll._scrollData.handleSpace - (vScroll._scrollData.handle + 1)) + "px";
             pix = (vScroll._scrollData.handleSpace - vScroll._scrollData.handle) * vScroll._scrollData.onePx;
             vScroll.value(pix);
             for (i = 0, len = xlObj.model.sheets[sheetIdx]._fRow; i < len; i++)
@@ -557,20 +562,24 @@
         },
 
         _getFirstRow: function (sheetIdx) {
-            var xlObj = this.XLObj, sheet = xlObj.getSheet(sheetIdx), top, topIdx, bottomIdx, rowHtColl = sheet._rowHeightCollection;
-            top = xlObj._getContent(sheetIdx).find(".e-content").scrollTop();
-            topIdx = xlObj._getIdxWithOffset(top, null, true, null, sheetIdx).rowIdx;
-            sheet._topRow = { idx: topIdx, value: rowHtColl[topIdx] };
+            var xlObj = this.XLObj, sheet = xlObj.getSheet(sheetIdx), top = 0, topIdx, bottomIdx, rowHtColl = sheet._rowHeightCollection;
+            if(xlObj.getFrozenRows(sheetIdx) < 1) {
+                top = xlObj._getContent(sheetIdx).find(".e-content").scrollTop();
+				topIdx = xlObj._getIdxWithOffset(top, null, true, null, sheetIdx).rowIdx;
+				sheet._topRow = { idx: topIdx, value: rowHtColl[topIdx] };
+			}
             bottomIdx = xlObj._getIdxWithOffset(top + sheet._vPortHgt, null, true, null, sheetIdx).rowIdx || sheet.rowCount - 1;
             sheet._bottomRow = { idx: bottomIdx, value: rowHtColl[bottomIdx] };
             sheet.topLeftCell = xlObj.getAlphaRange(sheet._topRow.idx, sheet._leftCol.idx);
         },
 
         _getFirstColumn: function (sheetIdx) {
-            var xlObj = this.XLObj, sheet = xlObj.getSheet(sheetIdx), left, leftIdx, rightIdx, colWtColl = sheet._colWidthCollection;
-            left = xlObj._getContent(sheetIdx).find(".e-content").scrollLeft();
-            leftIdx = xlObj._getIdxWithOffset(null, left, true, null, sheetIdx).colIdx;
-            sheet._leftCol = { idx: leftIdx, value: colWtColl[leftIdx] };
+            var xlObj = this.XLObj, sheet = xlObj.getSheet(sheetIdx), left = 0, leftIdx, rightIdx, colWtColl = sheet._colWidthCollection;
+            if(xlObj.getFrozenColumns(sheetIdx) < 1) {
+				left = document.getElementById(xlObj._id + "_content").scrollLeft;
+				leftIdx = xlObj._getIdxWithOffset(null, left, true, null, sheetIdx).colIdx;
+				sheet._leftCol = { idx: leftIdx, value: colWtColl[leftIdx] };
+			}
             rightIdx = xlObj._getIdxWithOffset(null, left + sheet._vPortWth, true, null, sheetIdx).colIdx || sheet.colCount - 1;
             sheet._rightCol = { idx: rightIdx, value: colWtColl[rightIdx] };
             sheet.topLeftCell = xlObj.getAlphaRange(sheet._topRow.idx, sheet._leftCol.idx);
@@ -594,15 +603,17 @@
 
             if (xlObj._isFrozen(sheet.frozenColumns))
                 fcolDiff = xlObj._getColOffsetLeft(sheet, sheet._frozenColumns - 1);
-
+			this._isScrollToCell = true;
             xlObj._scrollContent({ x: (colWdth ? colWdth : 0) - sheet._scrollLeft - fcolDiff, y: (rowhgt ? rowhgt : 0) - sheet._scrollTop - frowDiff });
+			this._isScrollToCell = false;
         },
 
         _scrollSelectedPosition: function (sheetIdx, aCell) {
             if (this.XLObj._isExport)
                 return;
             var leftPx, topPx, buffHeight = 0, xlObj = this.XLObj, hScroll = this._hScroller(sheetIdx), vScroll = this._vScroller(sheetIdx), actCellInfo = xlObj._getCellInfo(aCell), sheet = xlObj.getSheet(sheetIdx), content = xlObj._getJSSheetContent(sheetIdx).find(".e-spreadsheetcontentcontainer > .e-content"),
-            dupDetails = xlObj._dupDetails, vReachedEnd = (Math.ceil(parseFloat(vScroll.element.find(".e-vhandle").css('top'))) + vScroll._scrollData.handle) >= (vScroll._scrollData.handleSpace), hReachedEnd = (Math.ceil(parseFloat(hScroll.element.find(".e-hhandle").css('left'))) + hScroll._scrollData.handle) >= (hScroll._scrollData.handleSpace);
+				hhandleElem = hScroll.element.find(".e-hhandle"), vhandleElem = vScroll.element.find(".e-vhandle"), hStyle = hhandleElem[0].getBoundingClientRect(), vStyle = vhandleElem[0].getBoundingClientRect(),
+            dupDetails = xlObj._dupDetails, vReachedEnd = (vStyle.top + vScroll._scrollData.handle) >= (vScroll._scrollData.handleSpace), hReachedEnd = (vStyle.left + hScroll._scrollData.handle) >= (hScroll._scrollData.handleSpace);
             if (!xlObj.isUndefined(hScroll)) {
                 if ((parseInt(actCellInfo.width) + (actCellInfo.left - content.offset().left)) > content.width())
                 {
@@ -644,14 +655,14 @@
                     rowCls += " e-fcol-hide";
                 tdCell += String.format("<td class=\"{0}\" style=\"{2}\"  >{1}</td>", rowCls, "");
             }
-            trRData = String.format("<tr style='{0}' idx=\"{1}\">" + tdCell + "</tr>", "height:" + xlObj.model.rowHeight + "px;", value - 1);
+            trRData = String.format("<tr style='{0}' data-idx=\"{1}\">" + tdCell + "</tr>", "height:" + xlObj.model.rowHeight + "px;", value - 1);
             return trRData;
         },
 
         _rowHeaderTemplate: function (value, height) {
             var tdRHdrCData, trRHdrData, height = height ? height : this.XLObj.model.rowHeight;
             tdRHdrCData = String.format("<td class=\"{0}\"  >{1}</td>", "e-rowheader", value);
-            trRHdrData = String.format("<tr style='{0}' idx=\"{1}\">" + tdRHdrCData + "</tr>", "height:" + height + "px;", value - 1);
+            trRHdrData = String.format("<tr style='{0}' data-idx=\"{1}\">" + tdRHdrCData + "</tr>", "height:" + height + "px;", value - 1);
             return trRHdrData;
         },
 
@@ -669,8 +680,10 @@
         },
 
         _columnHeaderTemplate: function (colCnt, sheetIdx) {
-            var divcell, divCData, tdCData;
-            divcell = this.XLObj._generateHeaderText(colCnt);
+            var divcell, divCData, tdCData, xlObj = this.XLObj,  sheet = xlObj.getSheet(sheetIdx), i, len = xlObj.getObjectLength(xlObj._copyColumns);
+            divcell = xlObj._generateHeaderText(colCnt);
+			  if (sheet.fieldAsColumnHeader && len && xlObj._copyColumns[divcell])
+				   divcell = xlObj._copyColumns[divcell].text;
             divCData = String.format("<div class = \"{0}\" > {1}</div>", "e-headercelldiv", divcell);
             tdCData = String.format("<th class=\"{0}\"  >{1}</th>", "e-headercell", divCData);
             return tdCData;
@@ -679,8 +692,8 @@
         _createNewRow: function (sheetIdx, rowIdx, colIdx, status) {
             var tbody, trow, trRData, tbodyRHdr, thdr, xlObj = this.XLObj, isVirtualScroll = xlObj.model.scrollSettings.allowVirtualScrolling, xlSelc = xlObj.XLSelection, sheet = xlObj.getSheet(sheetIdx), rowElemIdx;
             if (!isVirtualScroll) {
-                tbody = xlObj._getContent(sheetIdx).find("tbody")[0];
-                tbodyRHdr = xlObj._getJSSheetRowHeaderContent(sheetIdx).find("tbody")[0];
+                tbody = xlObj._getContent(sheetIdx).find("tbody").not("[class *= 'e-ss-virtual']")[0];
+                tbodyRHdr = xlObj._getJSSheetRowHeaderContent(sheetIdx).find("tbody").not("[class *= 'e-ss-virtual']")[0];
             }
             else {
                 tbody = xlObj._getContent(sheetIdx).find("tbody")[1];
@@ -837,6 +850,7 @@
             value = $(tdRData).text();
             sheet.columns.push({
                 field: field,
+				 text: field,
                 type: value != null ? (value.getDay ? "date" : typeof (value)) : null,
                 width: $(tdRData).width()
             });           

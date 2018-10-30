@@ -71,6 +71,15 @@ var InternalScroller = (function () {
         else
             kObj.element.find(".e-kanbanheader").removeClass("e-scrollcss");
     };
+    InternalScroller.prototype._refreshSwimlaneToggleScroller = function () {
+        var kObj = this.kanbanObj;
+        var vScrollArea = kObj.headerContent.find('.e-hscrollcss');
+        kObj.KanbanScroll._refreshScroller({ requestType: "refresh" });
+        if (kObj.getContent().find('.e-vscrollbar').length > 0)
+            vScrollArea.removeClass('e-vscroll-area');
+        else
+            vScrollArea.addClass('e-vscroll-area');
+    };
     return InternalScroller;
 }());
 window.ej.createObject("ej.KanbanFeatures.Scroller", InternalScroller, window);

@@ -1336,6 +1336,7 @@
             element.centerX = element.canvasEl[0].width / 2;
             element.centerY = element.canvasEl[0].height / 2;
             var padding = 20, maxRadius, legendActualBounds, position, height, width;
+			var gaugePosition = this.model.gaugePosition.toLowerCase();
             if (this.model.legend.visible) {
 			    if (this.model.theme == "flatdark") this.model.legend.font.color = (ej.util.isNullOrUndefined(this.model.legend.font.color)) ? "#8c8c8c" : this.model.legend.font.color;
                 else this.model.legend.font.color = (ej.util.isNullOrUndefined(this.model.legend.font.color)) ? "#282828" : this.model.legend.font.color;
@@ -1385,7 +1386,7 @@
             if (this._isHalfCircle && this._isHalfCircle()) {
                 if ((element.model.frame.halfCircleFrameEndAngle - element.model.frame.halfCircleFrameStartAngle) >= 180) {
                     if (element.model.frame.halfCircleFrameStartAngle == 0) {
-                        switch (element.model.gaugePosition) {
+                        switch (gaugePosition) {
                             case "center":
                                 element.centerY = (element.model.height / 2) - (element.model.radius / 2);
                                 element.centerX = element.model.width / 2;
@@ -1425,7 +1426,7 @@
                         }
                     }
                     else if(element.model.frame.halfCircleFrameStartAngle == 90){
-                        switch (element.model.gaugePosition) {
+                        switch (gaugePosition) {
                             case "center":
                                 element.centerY = element.model.height / 2;
                                 element.centerX = (element.model.width / 2) + (element.model.radius / 2);
@@ -1465,7 +1466,7 @@
                         }
                     }
                     else if (element.model.frame.halfCircleFrameStartAngle == 180) {
-                        switch (element.model.gaugePosition) {
+                        switch (gaugePosition) {
                             case "center":
                                 element.centerY = (element.model.height / 2) + (element.model.radius / 2);
                                 element.centerX = element.model.width / 2;
@@ -1506,7 +1507,7 @@
                     }
                 }
                 else if (element.model.frame.halfCircleFrameStartAngle == 270 && element.model.frame.halfCircleFrameEndAngle == 90) {
-                    switch (element.model.gaugePosition) {
+                    switch (gaugePosition) {
                         case "center":
                             element.centerY = element.model.height / 2;
                             element.centerX = (element.model.width / 2) - (element.model.radius / 2);
@@ -1587,7 +1588,7 @@
                         }
                     }
                     else if (element.model.frame.halfCircleFrameStartAngle == 90) {
-                        switch (element.model.gaugePosition) {
+                        switch (gaugePosition) {
                             case "center":
                                 element.centerY = (element.model.height / 2) - (element.model.radius / 2);
                                 element.centerX = (element.model.width/2) + (element.model.radius/2);
@@ -2018,7 +2019,7 @@
 
 		 	
         _isHalfCircle: function () {
-            if (this.model.frame.frameType == "halfcircle")
+            if (this.model.frame.frameType.toLowerCase() == "halfcircle")
                 return true;
             else
                 return false;
@@ -2450,10 +2451,10 @@
                 "fillStyle": (this.model.backgroundColor == "transparent") ? "rgba(0,0,0,0)" : this._getColor(null, this.model.backgroundColor),
                 "counterClockwise": false
             };
-            if (this.model.frame.frameType == "fullcircle") {
+            if (this.model.frame.frameType.toLowerCase() == "fullcircle") {
                 this._drawCircleFrame(this.frameOuterLocation, this.frameInnerStyle);
             }
-            else if (this.model.frame.frameType == "halfcircle") {
+            else if (this.model.frame.frameType.toLowerCase() == "halfcircle") {
                 this._drawHalfCircle(this.frameInnerLocation, this.frameInnerStyle);
             }
             if (this.contextEl.getImageData)
@@ -2630,10 +2631,10 @@
         },
 	 
         _drawIndicator: function (index, element) {
-            var self = this, isInStateRange = false;
-            this.region = { "centerX": element.position.x - element.width / 2, "textLocation": element.position, "centerY": element.position.y - element.height / 2, "startAngle": 0, "endAngle": 2 * Math.PI };
+            var self = this, isInStateRange = false, indicatorType = element.type.toLowerCase(); 
+            this.region = { "centerX": element.position.x - element.width / 2, "startX": element.position.x, "startY": element.position.y, "textLocation": element.position, "centerY": element.position.y - element.height / 2, "startAngle": 0, "endAngle": 2 * Math.PI };
             this.style = {
-                "radius": (element.height + element.width) / 2,
+                "radius": element.width / 2,
                 "strokeStyle": "#2BA104",
                 "cornerRadius": element.type == "roundedrectangle" ? 2 : 0,
                 "height": element.height,
@@ -2649,7 +2650,7 @@
             };
             if (this.model.drawIndicators)
                 this._onDrawIndicators(this.style, this.region);
-            if (element.type == ej.datavisualization.CircularGauge.IndicatorType.Image) {
+            if (indicatorType == ej.datavisualization.CircularGauge.IndicatorType.Image) {
                 var image = new Image();
                 image.onload = function () {
                     self.contextEl.drawImage(this, element.position.x, element.position.y);
@@ -2667,21 +2668,25 @@
                         }
                         self.style.strokeStyle = (srEl.borderColor == "transparent") ? "rgba(0,0,0,0)" : srEl.borderColor;
                         self.style.fillStyle = (srEl.backgroundColor == "transparent") ? "rgba(0,0,0,0)" : srEl.backgroundColor;
-                        self._drawIndicatorFrame(element.type, self.region, self.style);
+                        self._drawIndicatorFrame(indicatorType, self.region, self.style);
                     }
+					else{
+						self.style.strokeStyle = (srEl.borderColor == "transparent") ? "rgba(0,0,0,0)" : srEl.borderColor;
+						self.style.fillStyle = (srEl.backgroundColor == "transparent") ? "rgba(0,0,0,0)" : srEl.backgroundColor;
+					}
                 });
             }
-            if (!isInStateRange && element.type != ej.datavisualization.CircularGauge.IndicatorType.Image) {
-                self._drawIndicatorFrame(element.type, self.region, self.style);
+            if (!isInStateRange && indicatorType != ej.datavisualization.CircularGauge.IndicatorType.Image) {
+                self._drawIndicatorFrame(indicatorType, self.region, self.style);
             }
-            if (this.contextEl.getImageData && element.type != ej.datavisualization.CircularGauge.IndicatorType.Image)
+            if (this.contextEl.getImageData && indicatorType != ej.datavisualization.CircularGauge.IndicatorType.Image)
                 this.indicatorImage = this.contextEl.getImageData(0, 0, this.model.width, this.model.height);
         },
 
         _drawIndicatorFrame: function(type, location,style) {
             switch (type) {
                 case "circle":
-                    this._drawCircleFrame(location, style);
+                    this._drawIndicatorCircle(location, style);
                     break;
                 case "roundedrectangle":
                 case "rectangle":
@@ -2690,6 +2695,51 @@
                 case "text":
                     this._drawText(location, style);
                     break;
+				case "triangle":
+				    this._drawIndicatorTriangle(location, style, this)
+					 break;
+				case "diamond":
+					this._drawDiamond(location, style, this);
+					break;
+				case "trapezoid":
+					 this._drawTrapezoid(location, style, this);
+					 break;
+			    case "pentagon":
+					 this._drawPentagon(location, style, this);
+					 break;
+			    case "wedge":
+					 this._drawWedge(location, style, this);
+					 break;
+				case "star":
+					this._drawIndicatorStar(location, style, this);
+					break;
+				case "ellipse":
+					this._drawIndicatorEllipse(location, style, this);
+					break;
+				case "horizontalline":
+					this._drawHorizontalLine(location, style, this);
+					break;
+				case "verticalline":
+					this._drawVerticalLine(location, style, this);
+					break;
+				case "cross":
+				    this._drawCross(location, style, this);
+					break;
+				case "uparrow":
+				    this._drawUpArrow(location, style, this);
+					break;
+				case "downarrow":
+				    this._drawDownArrow(location, style, this);
+					break;
+				case "invertedtriangle":
+				    this._drawIndicatorInvertedTriangle(location, style, this);
+					break;
+				case "leftarrow":
+				    this._drawLeftArrow(location, style, this);
+					break;
+				case "rightarrow":
+				    this._drawRightArrow(location, style, this);
+					break;
             }
         },
 		 	
@@ -2753,6 +2803,14 @@
             if (style.indicatorText)
                 this._drawText(location, style);
         },
+		
+		 _drawIndicatorCircle: function (location, style) {
+            this._contextOpenPath(style, this);
+            this.contextEl.arc(location.startX + (style.width/2), location.startY , style.radius, location.startAngle, location.endAngle, style.counterClockwise);
+            this._contextClosePath(style, this);
+            if (style.indicatorText)
+                this._drawText(location, style);
+        },
 		 
         _drawHalfCircle: function (location, style) {
             this._contextOpenPath(style, this);
@@ -2764,7 +2822,7 @@
 		 
         _drawRectangleFrame: function (location, style) {
             this._contextOpenPath(style, this);
-            this.contextEl.translate(location.centerX, location.centerY - style.height / 2);
+            this.contextEl.translate(location.startX, location.startY - style.height / 2);
             this.contextEl.lineTo(style.cornerRadius, 0);
             this.contextEl.lineTo(style.width - style.cornerRadius, 0);
             this.contextEl.quadraticCurveTo(style.width, 0, style.width, style.cornerRadius);
@@ -4167,7 +4225,8 @@
           
 		  
         _setTheme: function () {
-            var selectedTheme =this.model.themeProperties[this.model.theme];
+			var theme = this.model.theme.toLowerCase();
+            var selectedTheme =this.model.themeProperties[theme];
             this._setThemeColors(selectedTheme);
         },
 		  
@@ -4251,6 +4310,18 @@
             element.contextEl.lineTo(style.width / 4, style.height / 2);
             this._contextClosePath(style, element);
         },
+		_drawIndicatorStar: function (location, style, element) {
+			style = this._setPointerDimension(style, element);
+            this._contextOpenPath(style, element);
+            element.contextEl.translate(location.startX, location.startY);
+            element.contextEl.lineTo(0, style.height / 2);
+            element.contextEl.lineTo(style.width / 2, -style.height/2 );
+            element.contextEl.lineTo(style.width, style.height/2 );
+			element.contextEl.lineTo(0, -style.height/4 );
+			element.contextEl.lineTo(style.width, -style.height/4 );
+			element.contextEl.lineTo(0, style.height/2 );
+            this._contextClosePath(style, element);            
+        },
 		  
         _drawStar: function (location, style, element) {
             this._contextOpenPath(style, element);
@@ -4317,6 +4388,123 @@
             element.contextEl.closePath();
             element.contextEl.stroke();
         },
+		
+		_drawHorizontalLine: function (location, style, element) {
+            element.contextEl.beginPath();
+            element.contextEl.strokeStyle = style.fillStyle;
+            element.contextEl.globalAlpha = style.opacity;
+            element.contextEl.lineWidth = style.lineWidth;
+            element.contextEl.moveTo(location.startX, location.startY);
+            element.contextEl.lineTo((location.startX + style.width), location.startY);
+            element.contextEl.closePath();
+            element.contextEl.stroke();
+        },
+		
+		_drawVerticalLine: function (location, style, element) {
+            element.contextEl.beginPath();
+            element.contextEl.strokeStyle = style.fillStyle;
+            element.contextEl.globalAlpha = style.opacity;
+            element.contextEl.lineWidth = style.lineWidth;
+            element.contextEl.moveTo(location.startX, location.startY + style.height / 2);
+            element.contextEl.lineTo((location.startX), location.startY + (-style.height/2));
+            element.contextEl.closePath();
+            element.contextEl.stroke();
+        },
+		
+		
+		_drawCross: function (location, style, element) {
+			style = this._setPointerDimension(style, element);
+            this._contextOpenPath(style, element);
+            element.contextEl.translate(location.startX, location.startY);
+            element.contextEl.lineTo(0, 0);
+            element.contextEl.lineTo(style.width , 0 );
+            element.contextEl.moveTo(style.width/2, 0 );
+			element.contextEl.lineTo(style.width/2, -style.height/2 );
+			element.contextEl.moveTo(style.width/2, 0 );
+			element.contextEl.lineTo(style.width/2, style.height/2 );
+            this._contextClosePath(style, element);	
+        },
+		
+		_drawIndicatorTriangle: function (location, style, element) {
+			style = this._setPointerDimension(style, element);
+            this._contextOpenPath(style, element);
+            element.contextEl.translate(location.startX, location.startY);
+            this._setContextRotation(style, element);
+            element.contextEl.lineTo(0, style.height / 2);
+            element.contextEl.lineTo(style.width / 2, -style.height/2 );
+            element.contextEl.lineTo(style.width, style.height/2 );
+            this._contextClosePath(style, element);
+			
+        },
+		
+		_drawIndicatorInvertedTriangle: function (location, style, element) {
+			style = this._setPointerDimension(style, element);
+            this._contextOpenPath(style, element);
+            element.contextEl.translate(location.startX, location.startY);
+            element.contextEl.lineTo(0, -style.height / 2);
+            element.contextEl.lineTo(style.width, -style.height/2 );
+            element.contextEl.lineTo(style.width/2, style.height/2 );
+            this._contextClosePath(style, element);
+        },
+		
+		_drawUpArrow: function (location, style, element) {
+			style = this._setPointerDimension(style, element);
+            this._contextOpenPath(style, element); 
+			element.contextEl.translate(location.startX, location.startY);
+			element.contextEl.lineTo(0, 0);
+            element.contextEl.lineTo(style.width/2, -style.height/2);
+			element.contextEl.lineTo(style.width, 0);
+			element.contextEl.lineTo((style.width * (3/4)), 0);
+			element.contextEl.lineTo((style.width * (3/4)) , style.height/2);
+			element.contextEl.lineTo((style.width/4), style.height/2 );
+            element.contextEl.lineTo((style.width/4), 0 );
+            this._contextClosePath(style, element);
+        },
+		
+		_drawDownArrow: function (location, style, element) {
+			style = this._setPointerDimension(style, element);
+            this._contextOpenPath(style, element); 
+			element.contextEl.translate(location.startX, location.startY);
+			 element.contextEl.lineTo(0, 0);
+			element.contextEl.lineTo((style.width/4), 0);
+            element.contextEl.lineTo((style.width/4),(-style.height/2));
+			element.contextEl.lineTo((style.width * (3/4)), (-style.height/2));
+			element.contextEl.lineTo((style.width * (3/4)), 0);
+			element.contextEl.lineTo(style.width , 0);
+			element.contextEl.lineTo(style.width/2 , (style.height/2));
+            this._contextClosePath(style, element);
+        },
+		
+		_drawLeftArrow: function (location, style, element) {
+			style = this._setPointerDimension(style, element);
+            this._contextOpenPath(style, element);
+            element.contextEl.moveTo(location.startX , location.startY);
+            element.contextEl.lineTo(location.startX + (style.width/2), location.startY + (-style.height/2));
+			element.contextEl.lineTo((location.startX + style.width/2), location.startY + (-style.height / 4));
+			element.contextEl.lineTo(location.startX + style.width, location.startY + (-style.height / 4));
+			element.contextEl.lineTo(location.startX + style.width, location.startY + (style.height/4));
+			element.contextEl.lineTo(location.startX + (style.width/2), location.startY + style.height/4);
+			element.contextEl.lineTo(location.startX + (style.width/2), location.startY + style.height/2);
+            element.contextEl.lineTo(location.startX , location.startY );
+            this._contextClosePath(style, element);
+
+					    
+        },
+		
+		_drawRightArrow: function (location, style, element) {
+			style = this._setPointerDimension(style, element);
+            this._contextOpenPath(style, element);  
+            element.contextEl.lineTo(location.startX , location.startY);
+			element.contextEl.lineTo(location.startX , location.startY + (-style.height / 4));
+			element.contextEl.lineTo((location.startX + style.width/2), location.startY + (-style.height / 4));
+			element.contextEl.lineTo(location.startX + (style.width/2), location.startY + (-style.height / 2) );
+			element.contextEl.lineTo(location.startX + (style.width), location.startY);
+			element.contextEl.lineTo(location.startX + (style.width/2), location.startY + (style.height/2));
+			element.contextEl.lineTo(location.startX + (style.width/2), location.startY + (style.height/4));
+			element.contextEl.lineTo(location.startX , location.startY + (style.height / 4));
+			element.contextEl.lineTo(location.startX , location.startY );
+            this._contextClosePath(style, element);
+        },
 		  
         _drawTrapezoid: function (location, style, element) {
             style = this._setPointerDimension(style, element);
@@ -4371,6 +4559,24 @@
                     element._renderItems();
             }).attr('src', imageUrl);
         },
+		
+		_drawIndicatorEllipse: function (location, style, element) {           
+            style = this._setPointerDimension(style, element);
+            this._contextOpenPath(style, element);
+            element.contextEl.moveTo(location.startX, location.startY);
+            element.contextEl.bezierCurveTo(
+				location.startX , location.startY - style.height/2, // C1
+				location.startX + style.width, location.startY - style.height/2, // C2
+				location.startX + style.width, location.startY); // A2
+			element.contextEl.bezierCurveTo(
+				location.startX + style.width, location.startY + style.height/2, // C3
+				location.startX , location.startY + style.height/2, // C4
+				location.startX, location.startY); // A1            
+            this._contextClosePath(style, element);
+								
+        },
+		
+		
 		  
         _drawEllipse: function (location, style, element) {
             var radius = Math.sqrt(style.height * style.height + style.width * style.width) / 2;
@@ -4644,7 +4850,38 @@
           
         Text: "text",
           
-        Image:"image"
+        Image:"image",
+		
+        Cross: "cross",
+          
+        Diamond: "diamond",
+          
+        DownArrow: "downarrow",
+          
+        Ellipse: "ellipse",
+          
+        HorizontalLine: "horizontalLine",
+                  
+		InvertedTriangle: "invertedtriangle",
+          
+        LeftArrow: "leftarrow",
+          
+        Pentagon: "pentagon",
+                  
+        RightArrow: "rightarrow",
+          
+        Star: "star",
+          
+        Trapezoid: "trapezoid",
+          
+        Triangle: "triangle",
+          
+        UpArrow: "uparrow",
+          
+        VerticalLine: "verticalline",
+          
+        Wedge: "wedge"
+		
     };
 	  
  	ej.datavisualization.CircularGauge.Themes= {

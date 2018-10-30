@@ -701,12 +701,23 @@ var ejDateRangePicker = (function (_super) {
         }
         this._leftTime.ejTimePicker(TPSettings);
         this._leftTime.ejTimePicker({
-            "select": function (e) {
+            "select": function(e) {
+                if (proxy._selectedStartDate) {
+                    proxy.model.startDate = proxy._selectedStartDate = new Date(proxy._selectedStartDate.toDateString() + " " + e.value);
+                    return;
+                }
+                proxy._selectedEndDate = null;
+                proxy._leftDP.option("value", proxy._selectedStartDate ||
+                    ((+new Date(new Date().setHours(0, 0, 0, 0)) >= +proxy.model.minDate && +new Date(new Date().setHours(0, 0, 0, 0)) <= +proxy.model.maxDate) ? new Date(new Date().setHours(0, 0, 0, 0)) : proxy.model.minDate));
+                proxy._selectedStartDate = proxy.model.startDate = proxy._selectedStartDate || ((+new Date(new Date().setHours(0, 0, 0, 0)) >= +proxy.model.minDate && +new Date(new Date().setHours(0, 0, 0, 0)) <= +proxy.model.maxDate) ? new Date(new Date().setHours(0, 0, 0, 0)) : proxy.model.minDate)
+                if (proxy._selectedStartDate) proxy._setStartDate(proxy.model.startDate, $('.current-month[data-date="' + proxy.model.startDate.toDateString() + '"]'), true);
+                proxy._rangeRefresh(proxy._setArgs(proxy._leftDP.popup));
                 if (proxy.model.startDate && proxy.model.endDate) {
-                    if (proxy._rightTP && proxy.model.startDate.toLocaleDateString() == proxy.model.endDate.toLocaleDateString())
-                        proxy._rightTP.option("minTime", e.value);
+                    proxy._updateRanges("left");
+                    if (proxy._rightTP && proxy.model.startDate.toLocaleDateString() == proxy.model.endDate.toLocaleDateString())                
                     proxy._buttonDiv.find(".e-drp-apply").removeClass("e-disable");
                 }
+
             }
         })
         this._leftTP = this._leftTime.ejTimePicker("instance");
@@ -714,9 +725,63 @@ var ejDateRangePicker = (function (_super) {
         this._rightDiv.append(this._rightTime);
         this._rightDiv.addClass("e-right-timepicker");
         this._rightTime.ejTimePicker(TPSettings);
-        this._leftTime.ejTimePicker({
+        this._rightTime.ejTimePicker({
             "select": function (e) {
+                if (proxy._selectedEndDate) {
+                    proxy.model.endDate = proxy._selectedEndDate = new Date(proxy._selectedEndDate.toDateString() + " " + e.value);
+                    proxy._buttonDiv.find(".e-drp-apply").removeClass("e-disable");
+                    return;
+                }
+                var tempDateVal = new Date(new Date().toDateString() + " " + this.model.value);
+                proxy._rightDP.option("value", proxy._selectedEndDate ||
+                    ((+new Date(tempDateVal) >= +proxy.model.minDate && +new Date(new Date(tempDateVal)) <= +proxy.model.maxDate) ? new Date(new Date(tempDateVal)) : proxy.model.minDate));
+                proxy._selectedEndDate = proxy.model.endDate = proxy._selectedEndDate || ((+new Date(new Date(tempDateVal)) >= +proxy.model.minDate && +new Date(new Date(tempDateVal)) <= +proxy.model.maxDate) ? new Date(new Date(tempDateVal)) : proxy.model.minDate)
+                var cal_type = ($($('.current-month[data-date="' + proxy.model.endDate.toDateString() + '"]')).parents(".e-left-datepicker").length > 0) ? "left" : "right";
+                var currentDate = proxy._selectedEndDate;
+                var dateString = proxy.model.endDate.toDateString();
+                if ((proxy._selectedEndDate >= proxy._selectedStartDate)) {
+                    proxy._setEndDate(proxy.model.endDate, $('.current-month[data-date="' + proxy.model.endDate.toDateString() + '"]'), true);
+                } else if ((currentDate < proxy._selectedStartDate && proxy.model.backwardSelection)) {
+                    var minDate = currentDate;
+                    var dateString = $($('.current-month[data-date="' + proxy.model.endDate.toDateString() + '"]')).attr("data-date");
+                    proxy._updateDP(proxy, new Date(currentDate), "rightDP");
+                    proxy._rightDP._stopRefresh = false;
+                    proxy._rightDP.element.parents(".e-datewidget").removeClass("e-error");
+                    var endElement = $(proxy.datePopup.find('.current-month[data-date="' + dateString + '"]'));
+                    proxy._selectedStartDate = proxy.model.startDate;
+                    proxy._selectedEndDate = new Date(currentDate);
+                    proxy._setEndDate(proxy._selectedEndDate, endElement, true);
+                    proxy._startDate.date = proxy._selectedStartDate;
+                    if (cal_type == "left") {
+                        proxy.model.startDate = proxy._selectedEndDate;
+                        proxy.model.endDate = proxy._selectedStartDate;
+                        proxy._updateDP(proxy, proxy._selectedStartDate, "rightDP");
+                        proxy._updateDP(proxy, proxy._selectedEndDate, "leftDP");
+                    }
+                    else if (cal_type == "right") {
+                        proxy._updateDP(proxy,  proxy.model.endDate, "leftDP");
+                        proxy._updateDP(proxy,  proxy.model.startDate, "rightDP");
+                    }
+                }
+                else {
+                    proxy._selectedStartDate = currentDate;
+                    proxy._selectedEndDate = null;
+                    if (proxy._endDate)
+                        proxy._endDate.date = null;
+                    proxy.popup.find(".in-range").removeClass("in-range");
+                    proxy._leftDP.option("value", proxy._selectedStartDate ||
+                        ((+new Date(new Date(tempDateVal)) >= +proxy.model.minDate && +new Date(new Date(tempDateVal)) <= +proxy.model.maxDate) ? new Date(new Date(tempDateVal)) : proxy.model.minDate));
+                    proxy._leftTP.option("value", ej.format(proxy._selectedStartDate, proxy.model.timeFormat, proxy.model.locale));
+                    if (cal_type == "right") {
+                        proxy._updateDP(proxy, proxy._selectedStartDate, "leftDP");
+                    }
+                    proxy._updateDP(proxy, null, "rightDP");
+                    proxy._setStartDate(proxy._selectedStartDate, $('.current-month[data-date="' + proxy.model.endDate.toDateString() + '"]'), true);
+                }
+                proxy._updateRanges("left");
+                proxy._updateRanges("right");
                 if (proxy.model.startDate && proxy.model.endDate) {
+                    proxy._updateRanges("left");
                     proxy._buttonDiv.find(".e-drp-apply").removeClass("e-disable");
                 }
             }
@@ -726,6 +791,22 @@ var ejDateRangePicker = (function (_super) {
         this._on(this._rightTP.element, "keydown", this._onKeyDown);
         //below code for position the timepicker and datepicker
         this._setTimePickerPos();
+    };
+    ejDateRangePicker.prototype._updateDP = function (obj, value, element) {
+        var proxy = obj;
+        var dpElement;
+        if (element === "rightDP") {
+            dpElement = proxy._rightDP;
+            dpElement.option("value", value);
+            dpElement.element.val(ej.format(value, proxy.model.dateFormat, proxy.model.locale));
+            proxy._rightTP.option("value", ej.format(value, proxy.model.timeFormat, proxy.model.locale));
+        } else {
+            dpElement = proxy._leftDP;
+            dpElement.option("value", value);
+            dpElement.element.val(ej.format(value, proxy.model.dateFormat, proxy.model.locale));
+            proxy._leftTP.option("value", ej.format(value, proxy.model.timeFormat, proxy.model.locale));
+        }
+
     };
     ejDateRangePicker.prototype._setTimePickerPos = function () {
         $("#" + this._id + "_lTime_timewidget").css({
@@ -1086,6 +1167,9 @@ var ejDateRangePicker = (function (_super) {
         } else if ((this._selectedStartDate !== null && this._selectedEndDate == null) && !(currentDate < this._selectedStartDate)) {
             var minDate = currentDate;
             var dateString = $(e.currentTarget).attr("data-date");
+			this._leftDP._stopRefresh = true;
+			this._leftDP.option("value", new Date(this._selectedStartDate));
+			this._leftDP._stopRefresh = false;
             this._rightDP._stopRefresh = true;
             this._rightDP.option("value", new Date(dateString));
             this._rightDP._stopRefresh = false;
@@ -1172,8 +1256,8 @@ var ejDateRangePicker = (function (_super) {
             return;
         var $this = this._leftTP;
         var _value = ej.format(this._leftTP.model.value || this._leftDP.model.value || this._rightDP.model.value, $this.model.timeFormat, this.model.locale);
-        if (_value)
-            this._rightTP.option("minTime", _value);
+        //if (_value)
+         //   this._rightTP.option("minTime", _value);
         if (_value)
             this._leftTP.option("value", _value);
     };
@@ -1190,21 +1274,21 @@ var ejDateRangePicker = (function (_super) {
             this.popup.find("td.e-start-date").removeClass("e-start-date").addClass("e-end-date");
             current_element.removeClass("e-end-date").addClass("e-start-date showrange");
         }
-        if (this._startDate.date.getFullYear() == this._endDate.date.getFullYear()) {
+        if ( this._startDate && !ej.isNullOrUndefined(this._startDate.date) && this._startDate.date.getFullYear() == this._endDate.date.getFullYear()) {
             if (this._startDate.date.getMonth() == this._endDate.date.getMonth()) {
                 return;
             }
         }
         if (!this.model.enableTimePicker)
             return;
-        if (this.model.startDate.getDate() == this.model.endDate.getDate()) {
+        if (this.model.startDate && this.model.startDate.getDate() == this.model.endDate.getDate()) {
             this._rightTP.option("minTime", this._leftTP.option("value") || "");
             this._rightTP.option("value", this._leftTP.option("value") || "");
         } else {
             var $this = this._rightTP;
             var _value = ej.format(this._rightTP.model.value, $this.model.timeFormat, this.model.locale);
-            if (_value)
-                this._rightTP.option("minTime", _value);
+         //   if (_value)
+           //     this._rightTP.option("minTime", _value);
             if (_value)
                 this._rightTP.option("value", _value);
         }
@@ -1302,12 +1386,10 @@ var ejDateRangePicker = (function (_super) {
             this._scrollerObj.destroy();
         this.popup.remove();
     };
-    ejDateRangePicker.prototype.addRanges = function (args) {
+    ejDateRangePicker.prototype.addRanges = function (label,range) {
         var proxy = this, _ranges_li = "", title;
-        if (args) {
-            for (var i = 0; i < args.length; i++) {
-                var s = args[i];
-                var value = s.range;
+        if (range) {
+                var value = range;
                 if (value.length === 2) {
                     var start = new Date(value[0]);
                     var end = new Date(value[1]);
@@ -1316,11 +1398,10 @@ var ejDateRangePicker = (function (_super) {
                     if (ej.isNullOrUndefined(end))
                         end = new Date(value[1]);
                     if (start <= end) {
-                        if (!s.label)
-                            s.label = "PreDefined Ranges";
-                        _ranges_li += "<li aria-selected='false' title='" + s.label + "'class='rangeItem' data-e-range='" + JSON.stringify(value) + "' data-e-value='" + s.range + "'>" + s.label + "</li>";
+                        if (!label)
+                            label = "PreDefined Ranges";
+                        _ranges_li += "<li aria-selected='false' title='" + label + "'class='rangeItem' data-e-range='" + JSON.stringify(value) + "' data-e-value='" + range + "'>" + label + "</li>";
                     }
-                }
             }
         }
         this._renderRangesWrapper();
@@ -1530,7 +1611,7 @@ var ejDateRangePicker = (function (_super) {
                     element.addClass("showrange");
                 element.removeClass("in-range");
             }
-            if (!ej.isNullOrUndefined(proxy._endDate) && !ej.isNullOrUndefined(proxy._endDate.date))
+            if (!ej.isNullOrUndefined(proxy._startDate) && !ej.isNullOrUndefined(proxy._endDate.date))
                 if (!ej.isNullOrUndefined(proxy._endDate) && date.toDateString() == proxy._endDate.date.toDateString() && proxy._endDate.date >= proxy._startDate.date) {
                     element.addClass("e-end-date").removeClass("e-state-hover e-active");
                     element.removeClass("in-range");
@@ -1539,7 +1620,7 @@ var ejDateRangePicker = (function (_super) {
                 element.addClass("e-end-date").removeClass("e-state-hover e-active");
                 element.removeClass("in-range");
             }
-            if (!ej.isNullOrUndefined(proxy._endDate) && !ej.isNullOrUndefined(proxy._endDate.date))
+            if (!ej.isNullOrUndefined(proxy._startDate) && !ej.isNullOrUndefined(proxy._endDate.date))
                 if (!ej.isNullOrUndefined(proxy._endDate) && date.toDateString() == proxy._endDate.date.toDateString() && proxy._endDate.date < proxy._startDate.date) {
                     element.addClass("e-start-date").removeClass("e-active");
                     if (!ej.isNullOrUndefined(proxy._endDate) && !ej.isNullOrUndefined(proxy._endDate.date) && proxy._startDate.date.toDateString() != proxy._endDate.date.toDateString())

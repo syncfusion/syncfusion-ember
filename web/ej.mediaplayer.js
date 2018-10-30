@@ -85,7 +85,7 @@ var __extends = (this && this.__extends) || function (d, b) {
                 forwardTime: 10,
                 rewindTime: 10,
                 playlistTitle: "Playlist",
-                locale: "default"
+                locale: "en-US",
             };
             this.model = this.defaults;
             this.observable = ["value"];
@@ -146,6 +146,9 @@ var __extends = (this && this.__extends) || function (d, b) {
                         break;
                     case "source":
                         this._playlist = this.model.source = options[option];
+                        this._setMediaTypes();
+                        this._renderElementByType(this._mediaDiv, this._playlist);
+                        this._setAllMediaProperties();
                         break;
                     case "volume":
                         this.model.volume = options[option];
@@ -322,6 +325,8 @@ var __extends = (this && this.__extends) || function (d, b) {
         ejMediaPlayer.prototype._getTypeFromUrl = function (url) {
             if (this._isVaildYoutubeUrl(url))
                 return ej.MediaPlayer.Types.Youtube;
+            else if (this._isValidVimeoUrl(url))
+                return ej.MediaPlayer.Types.Video;
             else if (this._isVaildVideoUrl(url))
                 return ej.MediaPlayer.Types.Video;
             else if (this._isVaildAudioUrl(url))
@@ -342,6 +347,13 @@ var __extends = (this && this.__extends) || function (d, b) {
             if (match && match[2].length == 11) {
                 return true;
             }
+        };
+        ejMediaPlayer.prototype._isValidVimeoUrl = function (url) {
+            var regExp = /^.*(vimeo\.com\/)((channels\/[A-z]+\/)|(groups\/[A-z]+\/videos\/))?([0-9]+)/, match = url.match(regExp);
+            if (match == null) {
+                regExp = /^.*(https?:\/\/)?(www\.)?(player\.)?vimeo\.com\/([a-z]*\/)*([0-9]{6,11})[?]?.*/, match = url.match(regExp);
+            }
+            return (match && match[5].length != null);
         };
         ejMediaPlayer.prototype._getExtensionFromUrl = function (url) {
             var parts = url.split('.');
@@ -2192,7 +2204,7 @@ var __extends = (this && this.__extends) || function (d, b) {
             }
         };
         ejMediaPlayer.prototype._processYoutubeAPI = function (APIName, args) {
-            if (this._youtubeIns) {
+            if (this._youtubeIns && args != null) {
                 return this._youtubeIns[APIName](args);
             }
         };

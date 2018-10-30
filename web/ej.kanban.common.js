@@ -298,7 +298,7 @@ var InternalCommon = (function () {
     };
     InternalCommon.prototype._updateKbnPriority = function (priorityData, cData) {
         var kObj = this.kanbanObj, currData = kObj._currentJsonData, colData, oldData, primary = kObj.model.fields.primaryKey, prkey = kObj.model.fields.priority, slKey = kObj.model.fields.swimlaneKey;
-        if ((!ej.isNullOrUndefined(kObj._filterToolBar) && kObj._filterToolBar.find('.e-select').length > 0) || (kObj._searchBar != null && kObj._searchBar.find(".e-cancel").length > 0))
+        if ((!ej.isNullOrUndefined(kObj._filterToolBar) && kObj._filterToolBar.find('li.e-select').length > 0) || (kObj._searchBar != null && kObj._searchBar.find(".e-cancel").length > 0))
             currData = kObj._initialData;
         oldData = this._getKanbanCardData(currData, cData[primary])[0];
         cData[prkey] = parseInt(cData[prkey]);
@@ -391,7 +391,6 @@ var InternalCommon = (function () {
                     kObj._cardEditClick = null;
                     kObj._dblArgs = null;
                     kObj._cDeleteData = null;
-                    $("#" + kObj._id).data("ejWaitingPopup").hide();
                 });
                 bulkUpdate.fail(function (e) {
                     var argsKanban;
@@ -669,13 +668,13 @@ var InternalCommon = (function () {
             case "leftArrow":
                 if (selectedcard.length > 0 && (document.activeElement["id"] == kObj._id))
                     this._moveCurrentCard(rowCellIndex.cellIndex[rowCellIndex.cellIndex.length - 1], "left", e);
-                if (kObj.model.isResponsive && kObj.element.hasClass('e-responsive') && kObj._kbnTransitionEnd)
+                if (kObj.model.isResponsive && kObj.element.hasClass('e-responsive'))
                     kObj.KanbanAdaptive._kbnRightSwipe();
                 break;
             case "rightArrow":
                 if (selectedcard.length > 0 && (document.activeElement["id"] == kObj._id))
                     this._moveCurrentCard(rowCellIndex.cellIndex[rowCellIndex.cellIndex.length - 1], "right", e);
-                if (kObj.model.isResponsive && kObj.element.hasClass('e-responsive') && kObj._kbnTransitionEnd)
+                if (kObj.model.isResponsive && kObj.element.hasClass('e-responsive'))
                     kObj.KanbanAdaptive._kbnLeftSwipe();
                 break;
             case "multiSelectionByDownArrow":
@@ -1749,11 +1748,6 @@ var InternalCommon = (function () {
                             if (kObj.element.hasClass('e-responsive') && colval.find('.e-cell-scrollcontent').length > 0)
                                 colval.find('.e-cell-scrollcontent').addClass("e-hide");
                             var contentTop = colval.offset().top, sCountTop = colval.find('.e-shrinkcount').offset().top;
-                            if (kObj.model.enableRTL && contentTop > sCountTop) {
-                                var topVal = contentTop - sCountTop, sHeader = colval.find(".e-shrinkheader");
-                                topVal = (sHeader.offset().top - (contentTop + kObj.element.offset().top)) + topVal;
-                                sHeader.css({ 'position': 'relative', 'top': topVal - 6 });
-                            }
                             colval.find(".e-customaddbutton").addClass("e-hide");
                             colval.find(".e-limits").addClass("e-hide");
                             colval.find(".e-shrinkcount").text(kObj._columnCardcount(kObj.currentViewData, kObj.model.columns[i].key, kObj.model.fields.swimlaneKey ? j : null, kObj));

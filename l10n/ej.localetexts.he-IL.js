@@ -473,7 +473,8 @@
                         cancelButtonText: "לְבַטֵל",
                         deleteButtonText: "לִמְחוֹק",
                         title: "תלות המשימות"
-                    }
+                    },
+                    nullText:"ריק"
                 };
                 break;
             case "ejGrid":
@@ -523,6 +524,7 @@
                     ResponsiveFilter: "לְסַנֵן",
                     ResponsiveSorting: "סוג",
                     Search: "לְחַפֵּשׂ",
+					NumericTextBoxWaterMark: "Entrer la valeur",
                     DatePickerWaterMark: "תאריך בחר",
                     EmptyDataSource: "בנתוני המקור אינו יכול להיות ריק בעומס הראשוני מאז עמודות נוצרות מתוך DATASOURCE ב Grid טור-אוטומטית",
                     ForeignKeyAlert: "La valeur mise à jour devrait être une valeur de clé étrangère valide",
@@ -644,7 +646,26 @@
                     EMF: "EMF",
                     GIF: "GIF",
                     JPG: "JPG",
-                    BMF: "BMF"
+                    BMP: "BMP",
+                    ZoomIn: "להגדיל",
+                    ZoomOut: "להקטין את התצוגה",
+                    Legend: "אגדה",
+                    SmartLabels: "תוויות חכמות",
+                    Interactions: "אינטראקציות",
+                    Zooming: "זום",
+                    Rotate45: "סובב",
+                    Rotate90: "סובב90",
+                    Trim: "מְטוּפָּח",
+                    MultipleRows: "שורות מרובות",
+                    Wrap: "לַעֲטוֹף",
+                    Hide: "להתחבא",
+                    WrapByWord: "לעטוף במילה",
+                    CrossHair: "שיער",
+                    TrackBall: "מסלול כדור",
+                    DisableTD: "השבת תרשימים תלת ממדיים",
+                    None: "אף אחד",
+                    Exception: "חריג",
+                    OK: "בסדר"
                 };
                 break;
             case "ejPivotClient":
@@ -751,11 +772,11 @@
                     ReportList: "רשימת דוחות",
                     Alert: "התראה",
                     MDXAlertMsg: "אנא הוסף מידה, dimension או היררכיה על ציר המתאים כדי להציג את שאילתת MDX.",
-                    FilterSortRowAlertMsg: "Dimension לא נמצא ציר שורה אנא הוסף Dimension רכיב ציר שורה של מיון/סינון.",
-                    FilterSortColumnAlertMsg: "Dimension לא נמצא בעמודה ציר. אנא הוסף רכיב Dimension בעמודה ציר עבור מיון/סינון.",
+                    FilterSortRowAlertMsg: "ממד לא נמצא בציר השורה. הוסף רכיב אלמנט בציר השורה למיון / סינון.",
+                    FilterSortColumnAlertMsg: "ממד לא נמצא בציר העמודה. הוסף אלמנט מאפיין בציר העמודות למיון / סינון.",
                     FilterSortcolMeasureAlertMsg: "אנא הוסף את העמודה כדי למדוד את ציר",
                     FilterSortrowMeasureAlertMsg: "אנא הוסף מידה את ציר שורה",
-                    FilterSortElementAlertMsg: "רכיב לא נמצא בעמודה ציר. אנא הוסף את האלמנט בעמודה ציר עבור מיון/סינון.",
+                    FilterSortElementAlertMsg: "אלמנט לא נמצא בציר העמודה. יש להוסיף אלמנט בציר עמודה למיון / סינון.",
                     FilterMeasureSelectionAlertMsg: "בחר מידה חוקי.",
                     FilterConditionAlertMsg: "אנא הגדר במצב חוקי.",
                     FilterStartValueAlertMsg: "אנא הגדר ערך התחלה.",
@@ -786,11 +807,11 @@
                     MemberType: "סוג של חבר:",
                     FormatString: "מחרוזת התבנית:",
                     MultipleMeasure: "יותר מאשר אמצעי אחד אינו יכול להיות פרוס.",
-                    DuplicateCalcMeasure: "חבר מחושב עם שם זהה כבר קיים.",
-                    EmptyField: "מחושב לפי שם החבר או הביטוי אינו יכול להיות ריק.",
+                    DuplicateCalcMeasure: "החבר המחושב עם אותו שם כבר קיים",
+                    EmptyField: "שם המשתמש או הביטוי המחושבים לא צריכים להיות ריקים.",
                     EmptyFormat: "מחרוזת התבנית עבור חבר מחושבים ריק.",
                     Warning: "אזהרה",
-                    Confirm: "מחושב חבר עם שם זהה קיים כבר. עקב ברצונך להחליף?",
+                    Confirm: "החבר המחושב עם אותו שם כבר קיים. האם אתה רוצה להחליף?",
                     KPIs: "KPIs",
 					Collection: "אוסף",
 					Report: "דוח",
@@ -801,8 +822,9 @@
                     Success: "הצלחה",
                     KpiAlertMsg: "אתה מעביר את השדה אינו יכול להיות ממוקם באזור זה של הדוח",
                     NotAllItemsShowing: "לא כל ילד צמתים מוצגים",
-                    EditorLinkPanelAlert: "חברי יש יותר מאלף פריטים תחת אחד או יותר אב. רק הראשונה 1000 מוצגים פריטים תחת כל אב.",
-                    NamedSetAlert: "שם הגדר לא ניתן להוסיף את דוחשם הגדר לא ניתן להוסיף את דוחשם הגדר לא ניתן להוסיף את דוח PivotTable באותו הזמן כמו בשם אחר הגדר מבוסס על אותה שדה. לחץ על אישור כדי להסיר ' <Set 1> ' בשם להגדיר ולהוסיף ' <Set 2> ' בשם."
+                    EditorLinkPanelAlert: "לחברים יש יותר מ -1000 פריטים תחת הורה אחד או יותר. רק 1,000 הפריטים הראשונים מוצגים מתחת לכל הורה.",
+                    NamedSetAlert: "שם הגדר לא ניתן להוסיף את דוחשם הגדר לא ניתן להוסיף את דוחשם הגדר לא ניתן להוסיף את דוחPivotTable באותו הזמן כמו בשם אחר הגדר מבוסס על אותה שדה. לחץ על אישור כדי להסיר ' <Set 1> ' בשם להגדיר ולהוסיף ' <Set 2> ' בשם.",
+                    Exception: "חריג"
                 };
                 break;
             case "ejPivotGauge":
@@ -810,6 +832,7 @@
                 ej.PivotGauge.Locale["he-IL"] = {
                     RevenueGoal: "יעד הכנסה",
                     RevenueValue: "ערך הכנסה",
+                    Exception: "חריג"
                 };
                 break;
             case "ejPager":
@@ -1128,20 +1151,6 @@
                     AddNew: "הוסף חדש",
                     Format: "תבנית",
                     NoMeasure: "אנא הוסף בכל מידה",
-                    AliceBlue: "AliceBlue",
-                    Black: "Black",
-                    Blue: "Blue",
-                    Brown: "Brown",
-                    Gold: "Gold",
-                    Green: "Green",
-                    Lime: "Lime",
-                    Maroon: "Maroon",
-                    Orange: "Orange",
-                    Pink: "Pink",
-                    Red: "Red",
-                    Violet: "Violet",
-                    White: "White",
-                    Yellow: "Yellow",
                     Solid: "קבוע",
                     Dashed: "מדוכא",
                     Dotted: "מרוסק",
@@ -1179,7 +1188,7 @@
                     EmptyField: "הזן שם שדה מחושב לפי נוסחה או",
                     NotValid: "נוסחה נתון אינו חוקי",
                     NotPresent: "להשתמש בהם בכל שדה הערך של שדה מחושב לפי נוסחה אינו נוכח ה- PivotGrid",
-                    Confirm: "שדה מחושב עם שם זהה קיים כבר. עקב ברצונך להחליף ?",
+                    Confirm: "החבר המחושב עם אותו שם כבר קיים. האם אתה רוצה להחליף?",
                     CalcValue: "שדה מחושב ניתן להכניס רק אזור ערך שדה",
                     MultipleItems: "פריטים מרובים",
                     All: "כל",
@@ -1204,7 +1213,8 @@
                     Edit: "ערוך",
                     DuplicateFormatName: "שם תבנית כפולים",
                     NotAllItemsShowing: "לא כל ילד צמתים מוצגים",
-                    EditorLinkPanelAlert: "חברי יש יותר מאלף פריטים תחת אחד או יותר אב. רק הראשונה 1000 מוצגים פריטים תחת כל אב."
+                    EditorLinkPanelAlert: "לחברים יש יותר מ -1000 פריטים תחת הורה אחד או יותר. רק 1,000 הפריטים הראשונים מוצגים מתחת לכל הורה.",
+                    Exception: "חריג"
                 };
                 break;
             case "ejPivotPager":
@@ -1280,10 +1290,11 @@
                     OK: "אישור",
                     Cancel: "ביטול",
                     Search: "חיפוש",
+                    Remove: "הסר",
                     AddCurrentSelectionToFilter: "הוסף את הבחירה הנוכחית לסנן",
                     NotAllItemsShowing: "לא כל ילד צמתים מוצגים",
-                    EditorLinkPanelAlert: "חברי יש יותר מאלף פריטים תחת אחד או יותר אב. רק הראשונה 1000 מוצגים פריטים תחת כל אב.",
-                    NamedSetAlert: "שם הגדר לא ניתן להוסיף את דוחשם הגדר לא ניתן להוסיף את דוחשם הגדר לא ניתן להוסיף את דוח PivotTable באותו הזמן כמו בשם אחר הגדר מבוסס על אותה שדה. לחץ על אישור כדי להסיר ' <Set 1> ' בשם להגדיר ולהוסיף ' <Set 2> ' בשם."
+                    EditorLinkPanelAlert: "לחברים יש יותר מ -1000 פריטים תחת הורה אחד או יותר. רק 1,000 הפריטים הראשונים מוצגים מתחת לכל הורה.",
+                    NamedSetAlert: "שם הגדר לא ניתן להוסיף את דוחשם הגדר לא ניתן להוסיף את דוחשם הגדר לא ניתן להוסיף את דוחPivotTable באותו הזמן כמו בשם אחר הגדר מבוסס על אותה שדה. לחץ על אישור כדי להסיר ' <Set 1> ' בשם להגדיר ולהוסיף ' <Set 2> ' בשם."
                 };
                 break;
             case "ejDiagram":
@@ -1402,6 +1413,7 @@
                         },
                     },
                     pagesetupDialog: {
+                        close: 'לִסְגוֹר',
                         paperSize: 'גודל נייר',
                         height: 'גוֹבַה',
                         width: 'רוֹחַב',
@@ -1417,6 +1429,41 @@
                         doneButton: 'בוצע',
                         cancelButton: 'לְבַטֵל'
                     },
+                    credential: {
+                        userName: 'שם משתמש',
+                        password: 'סיסמה'
+                    },
+                    waterMark: {
+                        selectOption: 'בחר אפשרות',
+                        selectValue: 'בחר ערך'
+                    },
+                    errorMessage: {
+                        startMessage: 'דוח Viewer נתקל בבעיות מסוימות בטעינת דוח זה. אנא',
+                        middleMessage: ' לחץ כאן',
+                        endMessage: 'כדי לראות את פרטי השגיאה',
+                        closeMessage: 'סגור הודעה זו'
+                    },
+                    alertMessage: {
+                        close: 'לִסְגוֹר',
+                        title: 'דווח על',
+                        done: 'בסדר',
+                        showDetails: 'הראה פרטים',
+                        hideDetails: 'הסתר פרטים',
+                        reportLoad: 'דווח על טעינה:',
+                        RVERR0001: 'ReportViewer נכשל בטעינת הדוח',
+                        RVERR0002: 'ReportViewer נכשל בהפקת הדוח',
+                        RVERR0003: 'אירעה שגיאה בהודעה חוזרת של ajax',
+                        RVERR0004: 'בחר ערך עבור הפרמטר',
+                        RVERR0005: 'הפרמטר {parametername} חסר ערך',
+                        RVERR0006: 'הזן את סוג הזנת נתוני הצף',
+                        RVERR0007: 'אנא הכנס את סוג הנתונים של סוג הנתונים השלם',
+                        RVERR0008: 'ReportViewer נכשל באימות אישורי Datasource',
+                        RVERR0009: 'השוליים חופפים או שהם מחוץ לנייר. הזן גודל שולי אחר.',
+                        RVERR0010: 'הזן ערך עבור הפרמטר',
+                        RVERR0011: 'הפרמטר אינו יכול להיות ריק',
+                        RVERR0012: 'הערך הנתון לפרמטר הדוח {parameterprompt} אינו תקף עבור הסוג שלו.'
+                    },
+                    selectAll: 'בחר הכל',
                     viewButton: "צפה בדוח",
                 };
                 break;
@@ -1636,6 +1683,7 @@
                     Done: "בוצע",
                     Cancel: "לְבַטֵל",
                     Ok: "בסדר",
+                    Repeat: "חזור", 
                     RepeatBy: "חזור על ידי",
                     RepeatEvery: "חזור על כל",
                     RepeatOn: "חזור על",
@@ -1650,7 +1698,7 @@
                     EveryWeekDay: "בכל יום מימות השבוע",
                     Never: "לעולם לא",
                     After: "לאחר",
-                    Occurence: "מופע (ים)",
+                    Occurrence: "מופע (ים)",
                     On: "עַל",
                     Edit: "לַעֲרוֹך",
                     RecurrenceDay: "יום (ים)",
@@ -2482,6 +2530,16 @@
                     CreateSparkline: "צור Sparkline",
                     SelectDataSource: "בחר טווח נתונים מקור עבור sparkline",
                     SPARKLINEDESIGN: "עיצוב נוצץ",
+                    CancellationRequested: "לא ניתן היה לפתוח את הזמן שצוין",
+                    ImportPreventedOnUnknownFormula: "לא ניתן לטעון את הקובץ הזה מכיוון שהוא מכיל נוסחאות שאינן נתמכות",
+                    PivotTableName: "שם PivotTable",
+                    ArrayaFormula: "אתה לא יכול לשנות חלק מערך",
+                    ArrayaFormulaTableAlert: "נוסחאות מערך רב-תאיות אינן מותרות בטבלאות",
+                    ValueFieldSettings: "הגדרות שדה ערך",
+                    FieldTab: "לסכם ערכים לפי",
+                    SummarizeValue: "סכם את שדה הערך לפי",
+                    SummarizeChooseType: "בחר את סוג החישוב שבו ברצונך להשתמש כדי לסכם נתונים מהשדה שנבחר",
+                    FieldValue: "שם המקור:",
                 };
                 break;
             case "ejTimePicker":
@@ -2602,6 +2660,9 @@
                     okButtonText: "בסדר",
                     cancelButtonText: "לְבַטֵל",
                     confirmDeleteText: "אשרמחיקה",
+                    batchSaveConfirmText: "האם אתה בטוח שאתה רוצה לשמור את השינויים?",
+                    batchSaveLostChangesText: "שינויים שלא נשמרו יאבדו. האם אתה בטוח שברצונך להמשיך?",
+                    cancelEditText: "האם אתה בטוח שברצונך לבטל את השינויים?",
                     dropDownListBlanksText: "(מקומות ריקים)",
                     dropDownListClearText: "(נקה מסנן)",
                     trueText: "נָכוֹן",

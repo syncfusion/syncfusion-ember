@@ -145,10 +145,10 @@
 
             var el = ej.buildTag(
                 "div." + d.css + "scroll e-box",
-                    String.format(divString, "up e-chevron-up_01 e-icon e-box e-button", d.buttonSize) +
-                    String.format(divString, "handlespace", d.handleSpace,
-                        String.format(divString, "handle e-box e-pinch", d.handle)) +
-                    String.format(divString, "down e-chevron-down_01 e-icon e-box e-button", d.buttonSize),
+                String.format(divString, "up e-chevron-up_01 e-icon e-box e-button", d.buttonSize) +
+                String.format(divString, "handlespace", d.handleSpace,
+                    String.format(divString, "handle e-box e-pinch", d.handle)) +
+                String.format(divString, "down e-chevron-down_01 e-icon e-box e-button", d.buttonSize),
                 lit
             );
 
@@ -257,9 +257,9 @@
                         pixel = top < ((pixel - this.model.minimum) / this._scrollData.onePx) ? top : ((pixel - this.model.minimum) / this._scrollData.onePx);
                         if (ej.browserInfo().name == "msie" && isNaN(pixel)) pixel = "";
                         this.content()[0].style.top = pixel + "px";
+                            }
+                        }
                     }
-                }
-            }
         },
 
         _changeTop: function (d, step, source) {
@@ -322,7 +322,7 @@
             if (!this._enabled) return;
             this._d = down;
             this._data = this._d.data.d,
-            this._data.target = this._d.target;
+                this._data.target = this._d.target;
             this._data.fromScroller = true;
             this[this._data.handler].css("transition", "none");
             this._on($(document), "mousemove touchmove", { d: this._data, source: "thumb" }, this._mouseMove);
@@ -361,7 +361,7 @@
                     value = step * this._data.onePx;
                     this._changeTop(this._data, value, "thumb", this._d);
                 }
-                this._trigger("thumbMove", { originalEvent: move,direction:(this._data.step>0)?+1:-1, scrollData: this._data });
+                this._trigger("thumbMove", { originalEvent: move, direction: (this._data.step > 0) ? +1 : -1, scrollData: this._data });
             }
             if (skip === 1)
                 this._prevY = pageXY;
@@ -370,7 +370,7 @@
         _spaceMouseDown: function (e) {
             if (!e.data || !this._enabled) return;
             var d = e.data.d;
-			var offsetValue = this[d.handler][0].getBoundingClientRect();
+            var offsetValue = this[d.handler][0].getBoundingClientRect();
             if (e.which !== 1 || e.target === this[d.handler][0]) return;
             var step = e.data.step ? this.model.smallChange : this.model.largeChange, hTop = e.data.top || offsetValue[d.lPosition];
             e[d.clientXy] = e[d.clientXy] || 0;
@@ -498,7 +498,8 @@
         },
 
         content: function () {
-            if (!this._content || !this._content.length)
+            if (!this._contentOffsetParent && this._content && this._content[0]) this._contentOffsetParent = this._content[0].offsetParent;
+            if (!this._content || !this._content.length || !this._contentOffsetParent)
                 this._content = this.element.children().first().addClass("e-content");
 
             return this._content;
@@ -508,6 +509,7 @@
 
         _init: function () {
             if (!ej.isNullOrUndefined(this.content()[0])) {
+                this._isJquery3 = (parseInt($.fn.jquery) >= 3) ? true : false;
                 this._tempWidth = this.model.width;
                 this._prevScrollWidth = this.content()[0].scrollWidth, this._prevScrollHeight = this.content()[0].scrollHeight;
                 this.element.addClass("e-widget");
@@ -516,6 +518,8 @@
                 this._wheelStart = true;
                 this._eleHeight = this.model.height;
                 this._eleWidth = this.model.width;
+                this._isNativeScroll = ej.isDevice();
+                this.model.targetPane != null && this.content().find(this.model.targetPane).addClass('e-target-pane');
                 if (this.model.enableRTL === undefined) {
                     this.model.enableRTL = this.element.css("direction") === "rtl";
                 }
@@ -524,12 +528,14 @@
                     this.element.addClass("e-rtl");
                     this._rtlScrollLeftValue = this.content().scrollLeft();
                 }
+                this._isNativeScroll && this.element.addClass("e-native-scroll");
                 this._on(this.content(), "scroll", this._scroll);
                 this.model.targetPane != null && this._on(this.content().find(this.model.targetPane), "scroll", this._scroll);
                 if (this.scrollLeft())
                     this._setScrollLeftValue(this.scrollLeft());
                 if (this.scrollTop())
-                    this.content().scrollTop(this.scrollTop());
+                    this.scrollTop(this._isJquery3 ? Math.ceil(this.scrollTop()) : this.scrollTop());
+                this.content().scrollTop(this.scrollTop());
 
                 if (this.model.autoHide) {
                     this._autohide();
@@ -544,6 +550,7 @@
                 if (this._prevScrollWidth !== this.content()[0].scrollWidth || this._prevScrollHeight !== this.content()[0].scrollHeight) this.refresh();
             }
             this._addActionClass();
+            this._isNativeScroll && this._on(this.content(), "scrollstop", this._touchDown);
         },
         _addActionClass: function () {
             //e-pinch class enables the touch mode operations in IE browsers
@@ -556,11 +563,11 @@
         },
         _setDimension: function () {
             if (!ej.isNullOrUndefined(this.model.height) && typeof this.model.height === "string" && this.model.height.indexOf("%") != -1) {
-                if (!this._vScroll) $(this.content()[0]).height("");
+                if (!(this._vScroll || this._hScroll)) $(this.content()[0]).height("");
                 else this.model.height = this._convertPercentageToPixel(parseInt(this._eleHeight), this.element.parent().height());
             }
             if (!ej.isNullOrUndefined(this.model.width) && typeof this.model.width === "string" && this.model.width.indexOf("%") != -1) {
-                if (!this._hScroll) $(this.content()[0]).width("");
+                if (!(this._hScroll || this._vScroll)) $(this.content()[0]).width("");
                 else this.model.width = this._convertPercentageToPixel(parseInt(this._eleWidth), this.element.parent().width());
             }
         },
@@ -628,9 +635,9 @@
                 if (this._hScroll || this._vScroll) {
                     this.content().addClass("e-content");
                     var rect = this._exactElementDimension(this.element);
-                    this._elementDimension(rect);                    
-                    if(this.model.targetPane !== null && this.content().find(this.model.targetPane)[0] !== undefined) this.content().find(this.model.targetPane)[0].scrollLeft = this.scrollLeft();
-					else if (!this.isHScroll() && (this.element.children(".e-hscrollbar").length > 0)) this._ensureScrollers();
+                    this._elementDimension(rect);
+                    if (this.model.targetPane !== null && this.content().find(this.model.targetPane)[0] !== undefined) this.content().find(this.model.targetPane)[0].scrollLeft = this.scrollLeft();
+                    else if (!this.isHScroll() && (this.element.children(".e-hscrollbar").length > 0)) this._ensureScrollers();
                     if ((isNaN(this._eleWidth) && (this._eleWidth.indexOf("%") > 0)) && (isNaN(this._eleHeight) && (this._eleHeight.indexOf("%") > 0))) $(window).on('resize', $.proxy(this._resetScroller, this));
                 } else
                     this.content().removeClass("e-content");
@@ -638,28 +645,28 @@
                 this._parentHeight = $(this.element).parent().height(); this._parentWidth = $(this.element).parent().width();
             }
         },
-        _elementDimension:function(rect){
+        _elementDimension: function (rect) {
             this._ElementHeight = rect.height - (this["border_bottom"] + this["border_top"] + this["padding_bottom"] + this["padding_top"]);
             this.content()[this._contentHeight](this._ElementHeight - ((this._hScroll && !this.model.autoHide) ? this.model.scrollerSize :
-             this.element.find(".e-hscrollbar").is(':visible') ? this.model.scrollerSize : 0));
+                this.element.find(".e-hscrollbar").is(':visible') ? this.model.scrollerSize : 0));
             this._ElementWidth = rect.width - (this["border_left"] + this["border_right"] + this["padding_left"] + this["padding_right"]);
             this.content()[this._contentWidth](this._ElementWidth - ((this._vScroll && !this.model.autoHide) ? this.model.scrollerSize :
-            this.element.find(".e-vscrollbar").is(':visible') ? this.model.scrollerSize : 0));
-        },        
+                this.element.find(".e-vscrollbar").is(':visible') ? this.model.scrollerSize : 0));
+        },
         _convertPercentageToPixel: function (ele, outer) {
             return Math.floor((ele * outer) / 100);
         },
 
         isHScroll: function () {
-			var updatedWidth = (parseFloat($.fn.jquery) >= 3) ? Math.ceil(this.element.width()) : this.element.width(); 
-			var modelWidth = this.model.width;
-			if (!ej.isNullOrUndefined(this.model.width)){
-				if(typeof this.model.width === "string" && this.model.width.indexOf("%") != -1){
-					modelWidth = updatedWidth;
-				} else {
-					modelWidth = (parseFloat($.fn.jquery) >= 3 && !isNaN(parseFloat(this.model.width))) ? Math.ceil(parseFloat(this.model.width)) : this.model.width; 
-				}
-			}
+            var updatedWidth = (parseFloat($.fn.jquery) >= 3) ? Math.ceil(this.element.width()) : this.element.width();
+            var modelWidth = this.model.width;
+            if (!ej.isNullOrUndefined(this.model.width)) {
+                if (typeof this.model.width === "string" && this.model.width.indexOf("%") != -1) {
+                    modelWidth = updatedWidth;
+                } else {
+                    modelWidth = (parseFloat($.fn.jquery) >= 3 && !isNaN(parseFloat(this.model.width))) ? Math.ceil(parseFloat(this.model.width)) : this.model.width;
+                }
+            }
             if (!ej.isNullOrUndefined(this._tempWidth) && typeof this._tempWidth === "string" && this._tempWidth.indexOf("%") != -1) {
                 if (!ej.isNullOrUndefined(this.model.width) && typeof this.model.width === "string" && this.model.width.indexOf("%") != -1)
                     return this.content()[0].scrollWidth > updatedWidth;
@@ -673,8 +680,8 @@
                     else {
                         if (this.content()[0].scrollWidth > modelWidth) return true;
                         else if (this.content()[0].scrollWidth == modelWidth)
-                            if (this.model.autoHide && $(this.content()[0]).find('> *').length > 0) return $(this.content()[0]).find('> *')[0].scrollWidth > $(this.content()[0]).width();                            
-                            else if( $(this.content()[0]).find('> *').length > 0) return $(this.content()[0]).find('> *')[0].scrollWidth > (!ej.isNullOrUndefined(this._tempVscrollbar) ? modelWidth - this.model.scrollerSize : modelWidth);
+                            if (this.model.autoHide && $(this.content()[0]).find('> *').length > 0) return $(this.content()[0]).find('> *')[0].scrollWidth > $(this.content()[0]).width();
+                            else if ($(this.content()[0]).find('> *').length > 0) return $(this.content()[0]).find('> *')[0].scrollWidth > (!ej.isNullOrUndefined(this._tempVscrollbar) ? modelWidth - this.model.scrollerSize : modelWidth);
                         return false;
                     }
                     return false;
@@ -845,7 +852,7 @@
                 else {
                     scrollbar.model.width = scrollbar.model.viewportSize = this.model.width - (isOtherScroll ? this.model.scrollerSize : 0);
                     scrollbar.model.height = this.model.scrollerSize;
-                    scrollbar.model.maximum = ((this.model.targetPane != null && this.content().find(this.model.targetPane).length > 0) ? this.content().find(this.model.targetPane)[0]["scrollWidth"] + (this.content().width() - $(this.model.targetPane).outerWidth()) : this.content()[0]["scrollWidth"]) - scrollbar.model.viewportSize;
+                    scrollbar.model.maximum = ((this.model.targetPane != null && this.content().find(this.model.targetPane).length > 0) ? this.content().find(this.model.targetPane)[0]["scrollWidth"] + (this.content().width() - this.content().find($(this.model.targetPane)).outerWidth()) : this.content()[0]["scrollWidth"]) - scrollbar.model.viewportSize;
                     if (!this.model.enableRTL)
                         scrollbar.model.value = this.scrollLeft();
                 }
@@ -856,8 +863,8 @@
             if (this.model.autoHide) {
                 this.element.addClass("e-autohide");
                 this._on(this.element, "mouseenter mouseleave touchstart touchend", this._scrollerHover);
-                this.content().siblings(".e-scrollbar.e-js").hide();
-				this._elementDimension(this._exactElementDimension(this.element));
+                if (!this.element.is(":hover")) this.content().siblings(".e-scrollbar.e-js").hide();
+                this._elementDimension(this._exactElementDimension(this.element));
             }
             else {
                 this.element.removeClass("e-autohide");
@@ -911,12 +918,12 @@
             if (!needRefresh) {
                 this.element.find(">.e-content").removeAttr("style");
             }
-			else{
-					this._tempVscrollbar = null;
-					this.element.children(".e-vscrollbar").remove();
-					this._tempHscrollbar = null;
-					this.element.children(".e-hscrollbar").remove();
-			}
+            else {
+                this._tempVscrollbar = null;
+                this.element.children(".e-vscrollbar").remove();
+                this._tempHscrollbar = null;
+                this.element.children(".e-hscrollbar").remove();
+            }
 
             if (!ej.isNullOrUndefined(this._eleHeight) && typeof this._eleHeight === "string" && this._eleHeight.indexOf("%") != -1 && this._parentHeight != $(this.element).parent().height()) {
                 var element = this._exactElementDimension(this.element.parent());
@@ -939,7 +946,8 @@
             else
                 this.content().scrollLeft(scrollLeftValue);
             if ((this.scrollTop() && ej.isNullOrUndefined(this._vScrollbar)) || (!ej.isNullOrUndefined(this._vScrollbar) && (this._vScrollbar && this._vScrollbar._scrollData != null) && !this._vScrollbar._scrollData.skipChange))
-                this.content().scrollTop(this.scrollTop());
+                this.scrollTop(this._isJquery3 ? Math.ceil(this.scrollTop()) : this.scrollTop());
+            this.content().scrollTop(this.scrollTop());
 
             if (this._vScrollbar) {
                 this._vScrollbar._scrollData.dimension = "Height";
@@ -997,7 +1005,7 @@
             if (pixel === "") return;
             if (disableAnimation) {
                 var e = { source: source || "custom", scrollData: this._vScrollbar ? this._vScrollbar._scrollData : null, scrollTop: pixel, originalEvent: e };
-                pixel = e.scrollTop;
+                pixel = (!this._isJquery3) ? e.scrollTop : Math.ceil(e.scrollTop);
                 this.scrollTop(pixel);
                 if (this._trigger("scroll", e)) return;
                 this.content().scrollTop(pixel);
@@ -1005,6 +1013,7 @@
             }
             if (ej.isNullOrUndefined(animationSpeed) || animationSpeed === "") animationSpeed = 100;
             if (this._vScrollbar) pixel = parseFloat(pixel) > this._vScrollbar._scrollData.scrollable ? this._vScrollbar._scrollData.scrollable : parseFloat(pixel)
+            pixel = (!this._isJquery3) ? pixel : Math.ceil(pixel);
             this.scrollTop(pixel);
             this.content().stop().animate({
                 scrollTop: pixel
@@ -1117,7 +1126,7 @@
                 data = this._scrollXdata;
             if (e.wheelDeltaX == 0) this._wheelx = e.wheelDeltaX;
             if (e.wheelDelta) {
-				delta = this._normalizingDelta(e);                
+                delta = this._normalizingDelta(e);
                 if (window.opera) {
                     if (parseFloat(window.opera.version, 10) < 10)
                         delta = -delta;
@@ -1142,13 +1151,13 @@
                 proxy._wheelStart = true;
                 proxy._trigger("wheelStop", { originalEvent: e, scrollData: ori.data.d, direction: direction });
             }, 250));
-        },		
-		
+        },
+
         _normalizingDelta: function (e) {
             var delta = navigator.platform.indexOf("Mac") == 0 ? -e.wheelDelta / 3 : -e.wheelDelta / 120;
             return delta;
-		},
-		
+        },
+
         _contentHeightWidth: function () {
             if (this.content().siblings().css("display") == "block" && this.model.autoHide) {
                 this._hScroll && this.content()[this._contentHeight](this._ElementHeight - (this.model.scrollerSize));
@@ -1179,12 +1188,13 @@
         _mouseUp: function (e) {
             if (!e.data) return;
             var d = e.data.d;
-			if(this.model.enableRTL && (e.type=="mouseup" || e.type =="touchend")){
-				this.model.scrollLeft = this._rtlScrollLeftValue - this.model.scrollLeft;
-			}
+            if (this.model.enableRTL && (e.type == "mouseup" || e.type == "touchend")) {
+                this.model.scrollLeft = this._rtlScrollLeftValue - this.model.scrollLeft;
+            }
             if (e.type === "mouseup" || e.type === "touchend" || (!e.toElement && !e.relatedTarget)) {
                 this.content().css("cursor", "default");
                 this._off($(document), "mousemove touchmove");
+                this._off(this.content(), "touchmove", this._touchMove);
                 this._off($(document), "mouseup touchend", this._mouseUp);
                 d.fromScroller = false;
                 if (this._mouseMoved === true && e.data.source === "thumb" && !ej.isNullOrUndefined(this.model)) {
@@ -1195,6 +1205,7 @@
                 }
             }
             d.up = true;
+            this._mouseMoved = false;
             window.ontouchmove = null;
         },
 
@@ -1213,14 +1224,14 @@
             d.fromScroller = true;
             var prevY = null, skip = 1, min = 5, direction;
             this._document = $(document); this._window = $(window);
-			if (Math.abs(this._relDisX) > Math.abs(this._relDisY))
+            if (Math.abs(this._relDisX) > Math.abs(this._relDisY))
                 this._swipe = (this._relDisX < 0) ? "left" : "right";
             else
                 this._swipe = (this._relDisY < 0) ? "up" : "down";
             this._mouseMove = function (move) {
-				if(this.model.enableRTL){
-						this._UpdateScrollLeftValue(down);
-				}
+                if (this.model.enableRTL) {
+                    this._UpdateScrollLeftValue(down);
+                }
                 if (this._startX + this._startY != move.clientX + move.clientY) {
                     this._relDisX = ((move.clientX != undefined) ? this._startx = move.clientX : this._startx = move.originalEvent.changedTouches[0].clientX) - this._startX;
                     this._relDisY = ((move.clientY != undefined) ? this._starty = move.clientY : this._starty = move.originalEvent.changedTouches[0].clientY) - this._startY;
@@ -1282,7 +1293,7 @@
                                 else if (!ej.isNullOrUndefined(this._vScrollbar))
                                     this._vScrollbar["scroll"](sTop, "thumb", true, move.type);
                                 this.content().css("cursor", "pointer");
-                                this._trigger("thumbMove", { originalEvent: move,direction:( this._swipe == "down" || this._swipe =="right")? 1 :-1, scrollData: d });
+                                this._trigger("thumbMove", { originalEvent: move, direction: (this._swipe == "down" || this._swipe == "right") ? 1 : -1, scrollData: d });
                             }
                         }
                     }
@@ -1299,18 +1310,69 @@
                     }
                 }
             }
-            this._on($(document), "mousemove touchmove", { d: d, source: "thumb" }, this._mouseMove);
-            this._mouseMoved = false;
+            this._trigger("touchStart", { originalEvent: down, direction: (this._swipe == "down" || this._swipe == "right") ? 1 : -1, scrollData: this._scrollData, scrollTop: this.content().scrollTop(), scrollLeft: this.content().scrollLeft() });
+            this._on($(document), "mousemove", { d: d, source: "thumb" }, this._mouseMove);
+            if (!this._isNativeScroll) this._on($(document), "touchmove", { d: d, source: "thumb" }, this._mouseMove);
+            else {
+                this._on(this.content(), "touchmove", { d: d, source: "thumb" }, this._touchMove);
+            }
             this._on($(document), "mouseup touchend", { d: d, source: "thumb" }, this._mouseUp);
+        },
+
+        _touchMove: function (e) {
+            this.content().css("cursor", "pointer");
+            this._mouseMoved = true;
+            this._tempLeft = this.model.targetPane != null ? this.content().find(this.model.targetPane).scrollLeft() : this.content().scrollLeft();
+            this._tempTop = this.content().scrollTop();
+        },
+
+        _touchDown: function (e) {
+            var data;
+            if (this._tempLeft != this.scrollLeft()) data = this._scrollXdata;
+            else if (this._tempTop != this.scrollTop()) data = this._scrollYdata;
+            else data = (!this._scrollYdata) ? this._scrollXdata : this._scrollYdata;
+            this._trigger("scrollStop", { source: "thumb" || "custom", originalEvent: e, scrollData: data, scrollTop: this.content().scrollTop(), scrollLeft: this.content().scrollLeft() });
+        },
+
+        _speedScrolling: function (e) {
+            if (this._mouseMoved) {
+                if (this.element.find(".e-vhandle").length > 0) {
+                    var scrollTop = this.content().scrollTop();
+                    if (this._tempTop !== scrollTop) {
+                        this._trigger("thumbMove", { originalEvent: e, direction: (this._swipe == "down" || this._swipe == "right") ? 1 : -1, scrollData: this._scrollData });
+                        this._vScrollbar["scroll"](this.content().scrollTop(), "thumb", true, "touchmove");
+                        var e = { source: "thumb" || "custom", scrollData: this._vScrollbar ? this._vScrollbar._scrollData : null, scrollTop: this.content().scrollTop(), originalEvent: e };
+                        var pixel = (!this._isJquery3) ? e.scrollTop : Math.ceil(e.scrollTop);
+                        this.scrollTop(pixel);
+                        if (this._trigger("scroll", e)) return;
+                    }
+                }
+                if (this.element.find(".e-hhandle").length > 0) {
+                    var contentArea = this.model.targetPane != null ? this.content().find(this.model.targetPane) : this.content();
+                    var scrollLeft = contentArea.scrollLeft();
+                    if (this._tempLeft !== scrollLeft) {
+                        this._trigger("thumbMove", { originalEvent: e, direction: (this._swipe == "down" || this._swipe == "right") ? 1 : -1, scrollData: this._scrollData });
+                        this._hScrollbar["scroll"](contentArea.scrollLeft(), "thumb", true, "touchmove");
+                        var e = { source: "thumb" || "custom", scrollData: this._hScrollbar ? this._hScrollbar._scrollData : null, scrollLeft: this.content().scrollLeft(), originalEvent: e };
+                        var pixel = (!this._isJquery3) ? e.scrollLeft : Math.ceil(e.scrollLeft);
+                        this.scrollLeft(pixel);
+                        if (this._trigger("scroll", e)) return;
+                    }
+                }
+                this.content().css("cursor", "pointer");
+            }
         },
 
         _scroll: function (e) {
             var dS = [this._vScrollbar ? this._vScrollbar._scrollData : null, this._hScrollbar ? this._hScrollbar._scrollData : null];
-            
+
+            if (this._evtData) var data = this._evtData.d ? this._evtData.d : this._evtData;
+
             for (var i = 0; i < 2; i++) {
                 var d = dS[i];
                 if (!d || d.skipChange) continue;
-                if(this.model && ((!this.model.targetPane) || (this.model.targetPane && this._evtData && this._evtData.xy != "X")))d.dimension === "height" ? this.scrollTop(e.target[d.scrollVal]) : this.scrollLeft(e.target[d.scrollVal])
+                if (this.model && ((!this.model.targetPane) || (this.model.targetPane && data && data.xy != "X")))
+                    d.dimension === "height" ? this.scrollTop(e.target[d.scrollVal]) : this.scrollLeft(e.target[d.scrollVal])
                 if (this.model && this.model.targetPane != null && i == 1 && this.content().find(this.model.targetPane).length)
                     d.sTop = this.content().find(this.model.targetPane)[0][d.scrollVal];
                 else d.scrollVal == "scrollTop" ? d.sTop = this.scrollTop() : d.sTop = this.scrollLeft();
@@ -1324,22 +1386,23 @@
                     this._hScrollbar["scroll"](d.sTop, "", true);
                 } else
                     this._vScrollbar["scroll"](d.sTop, "", true);
-                if (dS.length == 2 && i == 1 || dS.length == 1 && i == 0){
+                if (dS.length == 2 && i == 1 || dS.length == 1 && i == 0) {
                     this._externalScroller = false;
                     this.model && this._trigger('scroll', { source: "custom", scrollData: this._hScrollbar ? this._hScrollbar._scrollData : null, scrollLeft: this.scrollLeft(), originalEvent: e });
                 }
             }
-			 this._UpdateScrollLeftValue(e);
+            if (this._isNativeScroll && this.model.enableTouchScroll) this._speedScrolling(e);
+            this._UpdateScrollLeftValue(e);
         },
-		
-		_UpdateScrollLeftValue: function(e){
-            if(this.model && e.type != "touchstart" && e.type != "mousedown" && this.model.enableRTL &&  this._rtlScrollLeftValue && this.model.scrollLeft != this._previousScrollLeft){
-                this.model.scrollLeft =  this._rtlScrollLeftValue - this.model.scrollLeft;
+
+        _UpdateScrollLeftValue: function (e) {
+            if (this.model && e.type != "touchstart" && e.type != "mousedown" && this.model.enableRTL && this._rtlScrollLeftValue && this.model.scrollLeft != this._previousScrollLeft) {
+                this.model.scrollLeft = this._rtlScrollLeftValue - this.model.scrollLeft;
                 this._previousScrollLeft = this.model.scrollLeft;
             }
-            if((this.model && e.type == "touchstart" || e.type== "mousedown") && this.model.enableRTL){
-				this.model.scrollLeft = this.content().scrollLeft();
-				this.option("scrollLeft", this.content().scrollLeft());
+            if ((this.model && e.type == "touchstart" || e.type == "mousedown") && this.model.enableRTL) {
+                this.model.scrollLeft = this.content().scrollLeft();
+                this.option("scrollLeft", this.content().scrollLeft());
             }
         },
 
@@ -1362,6 +1425,7 @@
         },
 
         _destroy: function () {
+            this._off(this.content(), "scrollstop", this._touchDown);
             this.element.css({ "width": "", "height": "" }).children(".e-vscrollbar,.e-hscrollbar").remove();
             this.content().removeClass("e-content").css({ "width": "", "height": "" });
             this.element.removeClass("e-widget");

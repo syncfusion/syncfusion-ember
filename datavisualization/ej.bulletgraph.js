@@ -422,12 +422,13 @@
         },
           
         _renderBulletGraph: function () {
+			var theme =  this.model.theme.toLowerCase();
             if (this._isSVG()) {
                 this.svgRenderer = new ej.EjSvgRender(this.element);
                 this.svgObject = this.svgRenderer.svgObj;
                 this._trigger("load");
                 this._setSvgSize(this);
-                this._setTheme(ej.datavisualization.BulletGraph.Themes, this.model.theme);
+                this._setTheme(ej.datavisualization.BulletGraph.Themes,theme);
                 this.bindEvents();
                 this._renderBulletElements();               
                 if (this.model.enableAnimation)

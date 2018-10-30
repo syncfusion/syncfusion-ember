@@ -564,7 +564,7 @@
                this.element.find('.e-uploadinput').click();
         },
 
-          _onDropHandler: function (e) {
+        _onDropHandler: function (e) {
             if (ej.browserInfo().name === "msie" && ej.browserInfo().version === "8.0" || ej.browserInfo().version === "9.0") return false;
             if (this._currentElement.hasClass("e-disable")) return false;
             e.stopPropagation();
@@ -613,7 +613,6 @@
             }
             
         },
-		
 		_fileSelect:function(e){
 			if (this._trigger("fileSelect", {files:this._files})) { this._resetFileInput(this._currentElement.find(".e-uploadinput")); return false; }
             this._fileUpload(e);

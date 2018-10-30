@@ -923,20 +923,22 @@
             options.children = childNodes;
             options.constraints = options.constraints ? options.constraints : ej.datavisualization.Diagram.NodeConstraints.Default;
             $.extend(true, childNodes, [{ fillColor: options.fillColor, constraints: constraints, shadow: options.shadow, borderColor: options.borderColor, borderWidth: options.borderWidth, opacity: options.opacity, gradient: options.gradient }, { opacity: options.opacity, fillColor: "black", visible: true }]);
+            childNodes[1].fillColor = options.borderColor;
+            childNodes[1].borderColor = options.borderColor;
             switch (options.gateway) {
                 case "none":
                     childNodes[1].visible = false;
                     break;
-                case "exclusive":
+                case "exclusive":                  
                     childNodes[1].pathData = "M 11.196 29.009 l 6.36 -9.712 l -5.764 -8.899 h 4.393 l 3.732 5.979 l 3.656 -5.979 h 4.354 l -5.789 9.039 l 6.36 9.572 h -4.532 l -4.126 -6.437 l -4.139 6.437 H 11.196 Z";
                     break;
-                case "inclusive":
+                case "inclusive":                    
                     childNodes[1].pathData = "M 20.323 31.333 c -6.625 0 -12.015 -5.39 -12.015 -12.015 s 5.39 -12.015 12.015 -12.015 s 12.016 5.39 12.016 12.015 S 26.948 31.333 20.323 31.333 Z M 20.323 9.303 c -5.522 0 -10.015 4.493 -10.015 10.015 s 4.492 10.015 10.015 10.015 s 10.016 -4.493 10.016 -10.015 S 25.846 9.303 20.323 9.303 Z";
                     break;
                 case "parallel":
                     childNodes[1].pathData = "M 18.394 29.542 v -8.833 H 9.626 v -3.691 h 8.768 V 8.251 h 3.734 v 8.767 h 8.768 v 3.691 h -8.768 v 8.833 H 18.394 Z";
                     break;
-                case "complex":
+                case "complex":                    
                     childNodes[1].pathData = "M29.198,19.063L23.089,19.063L27.794,14.358L26.38,12.944L21.223,18.101L21.223,10.443L19.223,10.443L19.223,17.976L14.022,12.776L12.608,14.19L17.48,19.063L10.365,19.063L10.365,21.063L18.261,21.063L12.392,26.932L13.806,28.346L19.223,22.929L19.223,30.225L21.223,30.225L21.223,22.805L25.925,27.507L27.339,26.093L22.309,21.063L29.198,21.063z";
                     break;
                 case "eventbased":
@@ -1063,7 +1065,7 @@
                         childNodes.push({ name: options.name + "_member" + "_classifier", labels: [{ text: memberText, horizontalAlignment: "left", textAlign: "left", offset: { x: 0, y: 0.5 } }], constraints: constraints });
                 }
                 var method = options["class"] ? options["class"] : options["interface"];
-                if (method && method.methods && method.methods.length) {
+                 if (method && method.methods && method.methods.length) {
                     for (i = 0; i < method.methods.length ; i++) {
                         method.methods[i] = ej.datavisualization.Diagram.ClassMethod(method.methods[i]);
                         if (method.methods[i].scope && method.methods[i].scope == "public")
@@ -1105,7 +1107,7 @@
                 options._type = "group";
                 //  options.labels[0] = $.extend(false, {}, { readOnly: true }, options.labels[0]);
                 options.constraints = options.constraints ? options.constraints : ej.datavisualization.Diagram.NodeConstraints.Default;
-                options.constraints = options.constraints & ~(ej.datavisualization.Diagram.NodeConstraints.ResizeNorthEast | ej.datavisualization.Diagram.NodeConstraints.ResizeWest | ej.datavisualization.Diagram.NodeConstraints.ResizeSouthEast | ej.datavisualization.Diagram.NodeConstraints.ResizeNorthWest | ej.datavisualization.Diagram.NodeConstraints.ResizeSouthWest | ej.datavisualization.Diagram.NodeConstraints.ResizeNorth | ej.datavisualization.Diagram.NodeConstraints.ResizeSouth | ej.datavisualization.Diagram.NodeConstraints.Rotate | ej.datavisualization.Diagram.NodeConstraints.ResizeEast | ej.datavisualization.Diagram.NodeConstraints.Drag);
+                options.constraints = options.constraints & ~(ej.datavisualization.Diagram.NodeConstraints.ResizeNorthEast | ej.datavisualization.Diagram.NodeConstraints.ResizeWest | ej.datavisualization.Diagram.NodeConstraints.ResizeSouthEast | ej.datavisualization.Diagram.NodeConstraints.ResizeNorthWest | ej.datavisualization.Diagram.NodeConstraints.ResizeSouthWest | ej.datavisualization.Diagram.NodeConstraints.ResizeNorth | ej.datavisualization.Diagram.NodeConstraints.ResizeSouth | ej.datavisualization.Diagram.NodeConstraints.Rotate | ej.datavisualization.Diagram.NodeConstraints.ResizeEast);
                 for (var i = 0; i < childNodes.length; i++) {
                     if (childNodes.length == 1) {
                         if (options["class"]) {
@@ -1222,17 +1224,20 @@
             }
             var centerX = options.offsetX ? (options.offsetX - options.width * pivot.x + options.width / 2) : options.width * pivot.x + options.width / 2;
             if (!childNodes.length) {
-                var constraints = ej.datavisualization.Diagram.NodeConstraints.Default ^ (ej.datavisualization.Diagram.NodeConstraints.PointerEvents | ej.datavisualization.Diagram.NodeConstraints.Connect | ej.datavisualization.Diagram.NodeConstraints.Resize);
+                var constraints = ej.datavisualization.Diagram.NodeConstraints.Default ^ (ej.datavisualization.Diagram.NodeConstraints.PointerEvents | ej.datavisualization.Diagram.NodeConstraints.Connect);
                 var defaultProperty = { parent: options.name, type: "node", shape: "path", offsetX: centerX, ports: [], rotateAngle: options.rotateAngle, constraints: constraints, _isDisabled: true, _isInternalShape: true };
-                childNodes.push({ name: options.name + "_0", width: options.width, height: options.height, offsetY: y + options.height / 2, addInfo: { offset: { x: 0.5, y: 0.5 } }, shape: "polygon", points: [{ x: 29.904, y: 5 }, { x: 7.853, y: 5 }, { x: 7.853, y: 45 }, { x: 42.147, y: 45 }, { x: 42.147, y: 17.242 }, { x: 29.932, y: 5 }, { x: 29.932, y: 17.242 }, { x: 42.147, y: 17.242 }] });
-                childNodes.push({ name: options.name + "_1", width: 7.5, height: 15, offsetY: 85 + y, addInfo: { offset: { x: .5, y: 1 }, margin: { bottom: 15 } }, fillColor: "black", pathData: "M 0 0 L 0.1 0 L 0.1 2 L 0 2 Z M 0.4 0 L 0.6 0 L 0.6 2 L0.4 2 Z M 0.9 0 L 1 0 L 1 2 L 0.9 2 Z " });
-                childNodes.push({ name: options.name + "_2", width: 25, height: 20, offsetX: x + 15, offsetY: y + 15, addInfo: { offset: { x: 0, y: 0 }, margin: { left: 17.5, top: 15 } }, borderColor: "black", fillColor: "white", pathData: "M 3 9.4 l 6 0 v 2.4 l 3.6 -4 L 9 4 v 2.5 H 3 V 9.4 Z" });
+                childNodes.push({ name: options.name + "_0", width: options.width, height: options.height, offsetY: y + options.height / 2, addInfo: { offset: { x: 0.5, y: 0.5 } }, constraints: constraints, shape: "polygon", points: [{ x: 29.904, y: 5 }, { x: 7.853, y: 5 }, { x: 7.853, y: 45 }, { x: 42.147, y: 45 }, { x: 42.147, y: 17.242 }, { x: 29.932, y: 5 }, { x: 29.932, y: 17.242 }, { x: 42.147, y: 17.242 }] });
+                childNodes.push({ name: options.name + "_1", width: 7.5, height: 15, offsetY: 85 + y, addInfo: { offset: { x: .5, y: 1 }, margin: { bottom: 15 } }, constraints: constraints & ~ej.datavisualization.Diagram.NodeConstraints.Resize, fillColor: "black", pathData: "M 0 0 L 0.1 0 L 0.1 2 L 0 2 Z M 0.4 0 L 0.6 0 L 0.6 2 L0.4 2 Z M 0.9 0 L 1 0 L 1 2 L 0.9 2 Z " });
+                childNodes.push({ name: options.name + "_2", width: 25, height: 20, offsetX: x + 15, offsetY: y + 15, addInfo: { offset: { x: 0, y: 0 }, margin: { left: 17.5, top: 15 } }, constraints: constraints & ~ej.datavisualization.Diagram.NodeConstraints.Resize, borderColor: "black", fillColor: "white", pathData: "M 3 9.4 l 6 0 v 2.4 l 3.6 -4 L 9 4 v 2.5 H 3 V 9.4 Z" });
                 for (i = 0; i < childNodes.length; i++)
                     childNodes[i] = ej.datavisualization.Diagram.Node($.extend(false, {}, defaultProperty, childNodes[i]));
             }
             options.children = childNodes;
             options.constraints = options.constraints ? options.constraints : ej.datavisualization.Diagram.NodeConstraints.Default;
-            $.extend(true, childNodes, [{ fillColor: options.fillColor, constraints: options.constraints, shadow: options.shadow, borderColor: options.borderColor, borderWidth: options.borderWidth, opacity: options.opacity, gradient: options.gradient }, { opacity: options.opacity, visible: options.data.collection }, { opacity: options.opacity, visible: true }]);
+            if (options.constraints & ej.datavisualization.Diagram.NodeConstraints.Shadow) {
+                constraints = constraints | ej.datavisualization.Diagram.NodeConstraints.Shadow;
+            }
+            $.extend(true, childNodes, [{ fillColor: options.fillColor, constraints: constraints, shadow: options.shadow, borderColor: options.borderColor, borderWidth: options.borderWidth, opacity: options.opacity, gradient: options.gradient }, { opacity: options.opacity, visible: options.data.collection }, { opacity: options.opacity, visible: true }]);
             switch (options.data.type) {
                 case "none":
                     childNodes[2].visible = false;
@@ -1246,48 +1251,48 @@
             }
             return options;
         },
-        _getBPMNActivityShape: function (options, diagram) {
-            var childNodes = [], childTable = {}, i;
-            if (options.children == undefined) options.children = [];
-            options._type = "group";
-            options.canUngroup = false;
-            options.task = ej.datavisualization.Diagram.BPMNTask(options.task);
-            options.subProcess = ej.datavisualization.Diagram.BPMNSubProcess(options.subProcess);
-            options = $.extend(false, {}, ej.datavisualization.Diagram.BPMNActivityDefaults, options);
-            for (i = 0; i < options.children.length; i++) {
-                if (diagram.nameTable[options.children[i].name || options.children[i]]) {
-                    childNodes.push(diagram.nameTable[options.children[i].name || options.children[i]]);
-                    childNodes[i].rotateAngle = options.rotateAngle;
-                }
-            }
-            if (!childNodes.length) {
-                var constraints = ej.datavisualization.Diagram.NodeConstraints.Default & ~(ej.datavisualization.Diagram.NodeConstraints.PointerEvents | ej.datavisualization.Diagram.NodeConstraints.Connect | ej.datavisualization.Diagram.NodeConstraints.Resize);
-                var defaultProperty = { parent: options.name, type: "node", shape: "path", ports: [], labels: [], constraints: constraints, rotateAngle: options.rotateAngle, _isDisabled: true, _isInternalShape: true };
-                childNodes.push({ name: options.name + "_activity", width: options.width, height: options.height, addInfo: { offset: { x: 0.5, y: 0.5 } }, constraints: constraints | ej.datavisualization.Diagram.NodeConstraints.Resize });
-                childNodes.push({ name: options.name + "_taskType", width: 14, height: 14, borderColor: "black", addInfo: { offset: { x: 0, y: 0 }, hAlign: "left", vAlign: "top", margin: { left: 14, top: 14 } }, pathData: "M10 0L40 0L30 40L0 40Z" });
-                childNodes.push({ name: options.name + "_loop", width: 12, height: 12, addInfo: { offset: { x: 0.5, y: 1 }, hAlign: "center", vAlign: "bottom", margin: { bottom: 12 } }, borderColor: "black", fillColor: "black", pathData: "M10 0L40 0L30 40L0 40Z" });
-                childNodes.push({ name: options.name + "_compensation", width: 12, height: 12, addInfo: { offset: { x: 0.5, y: 1 }, hAlign: "center", vAlign: "bottom", margin: { bottom: 12 } }, borderColor: "black", fillColor: "black", pathData: "M10 0L40 0L30 40L0 40Z" });
-                childNodes.push({ name: options.name + "_expanded", width: 12, height: 12, constraints: constraints, addInfo: { offset: { x: 0.5, y: 1 }, hAlign: "center", vAlign: "bottom", margin: { bottom: 12 } }, borderColor: "black", fillColor: "black", pathData: "M10 0L40 0L30 40L0 40Z" });
-                childNodes.push({ name: options.name + "_adhoc", width: 12, height: 8, addInfo: { offset: { x: 0.5, y: 1 }, hAlign: "center", vAlign: "bottom", margin: { bottom: 12 } }, borderColor: "black", fillColor: "black", pathData: "M10 0L40 0L30 40L0 40Z" });
-                childNodes.push({ name: options.name + "_event_1", width: 24, height: 24, addInfo: { offset: { x: 0, y: 0 }, hAlign: "left", vAlign: "top", margin: { left: 18, top: 18 } } });
-                childNodes.push({ name: options.name + "_event_2", width: 20.4, height: 20.4, addInfo: { offset: { x: 0, y: 0 }, hAlign: "left", vAlign: "top", margin: { left: 18, top: 18 } } });
-                childNodes.push({ name: options.name + "_event_3", width: 12, height: 12, addInfo: { offset: { x: 0, y: 0 }, hAlign: "left", vAlign: "top", margin: { left: 18, top: 18 } } });
-
-                for (i = 0; i < childNodes.length; i++)
-                    childNodes[i] = ej.datavisualization.Diagram.Node($.extend(true, {}, defaultProperty, childNodes[i]));
-
-                if (options.activity == "subprocess" && !options.subProcess.collapsed && options.subProcess.processes && options.subProcess.processes.length) {
-                    for (var j = 0, process = options.subProcess.processes; j < options.subProcess.processes.length; j++) {
-                        process[j] = ej.datavisualization.Diagram.Node(ej.datavisualization.Diagram.NodeType(process[j], diagram));
-                        childNodes.push(process[j]);
+        _getBPMNActivityShape: function (options, diagram) {            
+                var childNodes = [], childTable = {}, i;
+                if (options.children == undefined) options.children = [];
+                options._type = "group";
+                options.canUngroup = false;
+                options.task = ej.datavisualization.Diagram.BPMNTask(options.task);
+                options.subProcess = ej.datavisualization.Diagram.BPMNSubProcess(options.subProcess);
+                options = $.extend(false, {}, ej.datavisualization.Diagram.BPMNActivityDefaults, options);
+                for (i = 0; i < options.children.length; i++) {
+                    if (diagram.nameTable[options.children[i].name || options.children[i]]) {
+                        childNodes.push(diagram.nameTable[options.children[i].name || options.children[i]]);
+                        childNodes[i].rotateAngle = options.rotateAngle;
                     }
                 }
-            }
-            options.constraints = options.constraints ? options.constraints : ej.datavisualization.Diagram.NodeConstraints.Default;
-            options.children = this._updateBPMNActivityShape(options, childNodes);
-            for (i = 0; i < options.children.length; i++)
-                childTable[options.children[i].name] = options.children[i];
-            ej.datavisualization.Diagram.Util._updateBPMNProperties(options, diagram, childTable);
+                if (!childNodes.length) {
+                    var constraints = ej.datavisualization.Diagram.NodeConstraints.Default & ~(ej.datavisualization.Diagram.NodeConstraints.PointerEvents | ej.datavisualization.Diagram.NodeConstraints.Connect | ej.datavisualization.Diagram.NodeConstraints.Resize);
+                    var defaultProperty = { parent: options.name, type: "node", shape: "path", ports: [], labels: [], constraints: constraints, rotateAngle: options.rotateAngle, _isDisabled: true, _isInternalShape: true };
+                    childNodes.push({ name: options.name + "_activity", width: options.width, height: options.height, addInfo: { offset: { x: 0.5, y: 0.5 } }, constraints: constraints | ej.datavisualization.Diagram.NodeConstraints.Resize });
+                    childNodes.push({ name: options.name + "_taskType", width: 14, height: 14, borderColor: "black", addInfo: { offset: { x: 0, y: 0 }, hAlign: "left", vAlign: "top", margin: { left: 14, top: 14 } }, pathData: "M10 0L40 0L30 40L0 40Z" });
+                    childNodes.push({ name: options.name + "_loop", width: 12, height: 12, addInfo: { offset: { x: 0.5, y: 1 }, hAlign: "center", vAlign: "bottom", margin: { bottom: 12 } }, borderColor: "black", fillColor: "black", pathData: "M10 0L40 0L30 40L0 40Z" });
+                    childNodes.push({ name: options.name + "_compensation", width: 12, height: 12, addInfo: { offset: { x: 0.5, y: 1 }, hAlign: "center", vAlign: "bottom", margin: { bottom: 12 } }, borderColor: "black", fillColor: "black", pathData: "M10 0L40 0L30 40L0 40Z" });
+                    childNodes.push({ name: options.name + "_expanded", width: 12, height: 12, constraints: constraints, addInfo: { offset: { x: 0.5, y: 1 }, hAlign: "center", vAlign: "bottom", margin: { bottom: 12 } }, borderColor: "black", fillColor: "black", pathData: "M10 0L40 0L30 40L0 40Z" });
+                    childNodes.push({ name: options.name + "_adhoc", width: 12, height: 8, addInfo: { offset: { x: 0.5, y: 1 }, hAlign: "center", vAlign: "bottom", margin: { bottom: 12 } }, borderColor: "black", fillColor: "black", pathData: "M10 0L40 0L30 40L0 40Z" });
+                    childNodes.push({ name: options.name + "_event_1", width: 24, height: 24, addInfo: { offset: { x: 0, y: 0 }, hAlign: "left", vAlign: "top", margin: { left: 18, top: 18 } } });
+                    childNodes.push({ name: options.name + "_event_2", width: 20.4, height: 20.4, addInfo: { offset: { x: 0, y: 0 }, hAlign: "left", vAlign: "top", margin: { left: 18, top: 18 } } });
+                    childNodes.push({ name: options.name + "_event_3", width: 12, height: 12, addInfo: { offset: { x: 0, y: 0 }, hAlign: "left", vAlign: "top", margin: { left: 18, top: 18 } } });
+
+                    for (i = 0; i < childNodes.length; i++)
+                        childNodes[i] = ej.datavisualization.Diagram.Node($.extend(true, {}, defaultProperty, childNodes[i]));
+
+                    if (options.activity == "subprocess" && !options.subProcess.collapsed && options.subProcess.processes && options.subProcess.processes.length) {
+                        for (var j = 0, process = options.subProcess.processes; j < options.subProcess.processes.length; j++) {
+                            process[j] = ej.datavisualization.Diagram.Node(ej.datavisualization.Diagram.NodeType(process[j], diagram));
+                            childNodes.push(process[j]);
+                        }
+                    }
+                }
+                options.constraints = options.constraints ? options.constraints : ej.datavisualization.Diagram.NodeConstraints.Default;
+                options.children = this._updateBPMNActivityShape(options, childNodes);
+                for (i = 0; i < options.children.length; i++)
+                    childTable[options.children[i].name] = options.children[i];
+                ej.datavisualization.Diagram.Util._updateBPMNProperties(options, diagram, childTable);
             return options;
         },
         _getBPMNGroupShape: function (options, diagram) {
@@ -1342,12 +1347,15 @@
                     break;
                 case "throwingintermediate":
                 case "end":
-                    childNodes[0].fillColor = event != "end" ? "white" : "black";
+                    childNodes[0].fillColor = event != "end" ? "white" : node.borderColor;
                     childNodes[0].gradient = null;
                     childNodes[2].fillColor = "black";
                     childNodes[2].borderColor = node.fillColor;
                     break;
             }
+
+            childNodes[2].fillColor = node.borderColor;
+            childNodes[2].borderColor = node.borderColor;
             switch (trigger) {
                 case ej.datavisualization.Diagram.BPMNTriggers.None:
                     childNodes[2].visible = false;
@@ -1355,14 +1363,15 @@
                 case ej.datavisualization.Diagram.BPMNTriggers.Message:
                     childNodes[2].pathData = "M0,0 L19.8,12.8 L40,0 L0, 0 L0, 25.5 L40, 25.5 L 40, 0";
                     childNodes[2].height = 3 * childNodes[2].width / 4;
+                    childNodes[2].borderColor = "white";
                     break;
-                case ej.datavisualization.Diagram.BPMNTriggers.Timer:
+                case ej.datavisualization.Diagram.BPMNTriggers.Timer:                   
                     childNodes[2].pathData = "M40,20c0,8.654-5.496,16.024-13.189,18.81" +
                                              "C24.685,39.58,22.392,40,20,40C8.954,40,0,31.046,0,20S8.954,0,20,0S40,8.954,40,20z M20,0 L20,2.583 L20,5.283 M10.027,2.681 L11.659,5.507 L12.669,7.257 M2.731,9.989 L6.014,11.885 L7.307,12.631 M0.067,19.967 L2.667,19.967 L5.35,19.967" +
                                              "M2.748,29.939 L5.731,28.217 L7.323,27.298 M10.056,37.236 L11.292,35.095 L12.698,32.66 M20.033,39.9 L20.033,36.417 L20.033,34.617 M30.006,37.219 L28.893,35.292 L27.364,32.643 M37.302,29.911 L34.608,28.355 L32.727,27.269" +
                                              "M39.967,19.933 L37.417,19.933 L34.683,19.933 M37.286,9.961 L34.583,11.521 L32.71,12.602 M29.977,2.664 L28.653,4.957 L27.336,7.24 M22.104,8.5 L19.688,20 L24.75,20 L31.604,20 L24.75,20 L19.688,20z";
                     break;
-                case ej.datavisualization.Diagram.BPMNTriggers.Error:
+                case ej.datavisualization.Diagram.BPMNTriggers.Error:                    
                     childNodes[2].pathData = "M 23.77 18.527 l -7.107 27.396 l 8.507 -17.247 L 36.94 40.073 l 6.394 -25.997 l -8.497 15.754 L 23.77 18.527 Z";
                     break;
                 case ej.datavisualization.Diagram.BPMNTriggers.Escalation:
@@ -1375,6 +1384,7 @@
                     childNodes[2].pathData = "M 25.7086 0 L 0 25 L 25.7086 50 V 26.3752 L 50 50 V 0 L 25.7086 23.6248 V 0 Z ";
                     break;
                 case ej.datavisualization.Diagram.BPMNTriggers.Conditional:
+                    childNodes[2].borderColor = "white";
                     childNodes[2].pathData = "M 0 0 H 16 V 16 H 0 z M 1.14 3.2 H 14.85 M 1.14 6.4 H 14.85 M 1.14 9.6 H 14.85 M 1.14 12.8 H 14.85";
                     break;
                 case ej.datavisualization.Diagram.BPMNTriggers.Link:
@@ -1386,7 +1396,7 @@
                 case ej.datavisualization.Diagram.BPMNTriggers.Terminate:
                     childNodes[2].pathData = "M 25 50 C 11.21 50 0 38.79 0 25 C 0 11.21 11.21 0 25 0 C 38.78 0 50 11.21 50 25 C 50 38.79 38.78 50 25 50";
                     break;
-                case ej.datavisualization.Diagram.BPMNTriggers.Multiple:
+                case ej.datavisualization.Diagram.BPMNTriggers.Multiple:                                 
                     childNodes[2].pathData = "M 17.784 48.889 H 42.21 l 7.548 -23.23 L 29.997 11.303 L 10.236 25.658 L 17.784 48.889 Z";
                     break;
                 case ej.datavisualization.Diagram.BPMNTriggers.Parallel:
@@ -1443,12 +1453,13 @@
                         eventCollections[i].fillColor = 'transparent';
                         eventCollections[i].offset = ej.datavisualization.Diagram.Point(eventCollections[i].offset.x ? eventCollections[i].offset.x : null, eventCollections[i].offset.y ? eventCollections[i].offset.y : null);
                         eventCollections[i] = ej.datavisualization.Diagram.Node($.extend(true, { name: node.name + "_" + ej.datavisualization.Diagram.Util.randomId() }, ej.datavisualization.Diagram.BPMNEventDefaults, defaultProperty, eventCollections[i]));
-                        eventNodes = [{ width: 24, height: 24 }, { width: 20.4, height: 20.4 }, { width: 12, height: 12 }];
+                        eventCollections[i].ports = eventCollections[i].ports.length > 0 ? eventCollections[i].ports : node.ports;
+                        eventNodes = [{ width: 24, height: 24 }, { width: 20.4, height: 20.4 }, { width: 12, height: 12 }];                      
                         for (var j = 0; j < eventNodes.length; j++) {
                             var eventDefaultProperty = { parent: eventCollections[i].name, type: "node", shape: "path", rotateAngle: eventCollections[i].rotateAngle, constraints: constraints, _isInternalShape: true, opacity: node.opacity, addInfo: { offset: eventCollections[i].offset } };
                             eventNodes[j] = ej.datavisualization.Diagram.Node($.extend(true, { name: eventCollections[i].name + "_" + ej.datavisualization.Diagram.Util.randomId() }, eventDefaultProperty, eventNodes[j]));
                         }
-                        eventCollections[i].children = eventNodes
+                        eventCollections[i].children = eventNodes                        
                     }
                     this._updateBPMNEventShape(node, eventNodes, eventCollections[i].event, eventCollections[i].trigger);
                 }
@@ -1876,7 +1887,7 @@
         isBPMNContainerChild: function (node, diagram) {
             if (node && node.parent) {
                 var parent = diagram.nameTable[node.parent];
-                return (parent && parent.type == "bpmn" && parent.shape != "group" && parent.container) ? true : false;
+                return (parent && parent.type == "bpmn" && parent.shape != "group" && parent.container && parent.activity !== "subprocess") ? true : false;
             }
         },
         canMoveOutofBounds: function (diagram, element, ptX, ptY) {

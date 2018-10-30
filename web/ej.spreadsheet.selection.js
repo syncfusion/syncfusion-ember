@@ -115,7 +115,7 @@
                     if ($(trgt).parents(".e-spreadsheetcontentcontainer").length > 0) {
                         if (e.ctrlKey && xlObj.model.selectionSettings.selectionType === ej.Spreadsheet.SelectionType.Default && xlObj.model.selectionSettings.selectionUnit === ej.Spreadsheet.SelectionUnit.MultiRange) {
                             cont = xlObj._getContent(xlObj.getActiveSheetIndex());
-                            cont.find("td[class *='activecell']").removeClass("e-activecell");
+							cont.find("td[class *='activecell']").removeClass("e-activecell");
 							cont.find("td[class *='focus']").removeClass("e-focusright e-focusbottom");
                             range = xlObj.swapRange([sheet._startCell.rowIndex, sheet._startCell.colIndex, sheet._endCell.rowIndex, sheet._endCell.colIndex]);
                             xlObj.getRange(range).addClass("e-ctrlselected");
@@ -188,9 +188,9 @@
             var trgt, $trgt, mergeBtn, style, prctRange, cells, cell, currcell, autofillRange, options, btnObj, moveEvt, endEvt, chngdTouch, prfmDragFill = true,
                 xlObj = this, selObj = xlObj.XLSelection, sheetIdx = xlObj.getActiveSheetIndex(), sheet = xlObj.getSheet(sheetIdx), range = sheet.selectedRange,
                 sheetElement = xlObj.getSheetElement(sheetIdx), type = xlObj.model.selectionSettings.selectionType, scell = sheet._startCell, eCell = sheet._endCell,
-                types = ej.Spreadsheet.SelectionType,cont = xlObj._getJSSheetContent(sheetIdx).find(".e-spreadsheetcontentcontainer > .e-content");
+                types = ej.Spreadsheet.SelectionType,cont = xlObj._getJSSheetContent(sheetIdx).find(".e-spreadsheetcontentcontainer > .e-content"), isRibbonUpdated = false;
             if (!xlObj.XLEdit._isEdit)
-                xlObj.setSheetFocus();
+                xlObj._setSheetFocus();
             if (xlObj._isTouchEvt) {
                 endEvt = xlObj._getBrowserEvt("end");
                 if (selObj._canTouchMove)
@@ -248,7 +248,7 @@
                         autofillRange = xlObj.XLDragFill._getAutoFillRange(currcell);
                     if (!autofillRange || !autofillRange.fillRange) {
                         selObj._aFillDownHandler = false;
-                        xlObj.XLDragFill.positionAutoFillElement();
+                        xlObj.XLDragFill && xlObj.XLDragFill.positionAutoFillElement();
                         return;
                     }
                     prctRange = xlObj.swapRange(autofillRange.fillRange);
@@ -261,6 +261,7 @@
                     if (!prfmDragFill) {
                         selObj._aFillDownHandler = false;
                         xlObj.XLSelection.selectRange(scell, eCell);
+						isRibbonUpdated = true;
                         xlObj.XLDragFill.positionAutoFillElement();
                         return;
                     }
@@ -333,6 +334,7 @@
                                 selObj.selectColumns(sheet._startCell.colIndex, sheet._endCell.colIndex);
                             else
                                 selObj.selectRange(sheet._startCell, sheet._endCell, trgt);
+							isRibbonUpdated = true;
                             if (sheet._isFreezed)
                                 xlObj.XLFreeze._refreshSelection();
                         }
@@ -343,6 +345,7 @@
                                 selObj.selectColumns(0, sheet.colCount - 1);
                             else
                                 selObj.selectRows(sheet._startCell.rowIndex, sheet._endCell.rowIndex);
+							isRibbonUpdated = true;
                             selObj._hdrClick = false;
                         }
                         selObj._isOutsideBordering = selObj._isGridBordering = false;
@@ -366,6 +369,7 @@
                         selObj.selectRows(0, sheet.rowCount - 1);
                     else
                         selObj.selectColumns(sheet._startCell.colIndex, sheet._endCell.colIndex);
+					isRibbonUpdated = true;
                 }
                 selObj._isOutsideBordering = selObj._isGridBordering = false;
 				cont.removeClass("e-ss-drwbrdrcursor e-ss-drwbrdrgridcursor").addClass("e-ss-cursor");
@@ -377,7 +381,7 @@
             }
 			if(xlObj.model.allowCellFormatting && xlObj.XLFormat._formatEnable)
 			    xlObj.XLFormat._fPMouseUp(e);
-			if(xlObj.model.showRibbon)
+			if(xlObj.model.showRibbon && !isRibbonUpdated)
 			    xlObj.XLEdit._isEdit ? xlObj.XLRibbon._disableRibbonIcons() : xlObj.XLRibbon._updateRibbonIcons();
 			if (xlObj.model.allowAutoFill && !selObj._isOutsideBordering && !selObj._isGridBordering)
 			    xlObj.XLDragFill.positionAutoFillElement(selObj._aFillDownHandler);
@@ -455,13 +459,13 @@
                 sheet._goToCollection = { multiple: false, selected: [] };
             prevRange = sheet.selectedRange;
             currRange = xlObj.swapRange([startCell.rowIndex, startCell.colIndex, endCell.rowIndex, endCell.colIndex]);
-            isTrue = !xlObj.isImport && (!sheet._isImported || sheet._isLoaded);
+            isTrue = !(xlObj.isImport || xlObj.model.isImport) && (!sheet._isImported || sheet._isLoaded);
             if (isTrue && xlObj.model.beforeCellSelect) {
                 args = { prevRange: prevRange, currRange: currRange, sheetIdx: sheetIdx };
                 if (trgt)
                     args.target = trgt;
                 if (!xlObj._intrnlReq && xlObj._trigger("beforeCellSelect", args))
-                    return;
+                    return false;
             }
             xlObj._dStartCell = startCell;
             xlObj._dEndCell = endCell;
@@ -494,10 +498,6 @@
             sheet._selectedCells = xlObj._getSelectedRange(startCell, endCell);
             if (xlObj.model.allowFormulaBar && !xlObj.XLEdit._isFormulaEdit)                
                 xlObj.updateFormulaBar();
-			if(startCell.rowIndex === 0 && (endCell.rowIndex === sheet.rowCount - 1))
-				sheet._isColSelected = this._isColSelected = true;
-			if(startCell.colIndex === 0 && (endCell.colIndex === sheet.colCount - 1))
-				sheet._isRowSelected = this._isRowSelected = true;
 			xlObj.XLDragFill && xlObj.XLDragFill.positionAutoFillElement();
             if(isUndefined && (xlObj.model.enableContextMenu || xlObj.model.showRibbon))
                 xlObj.XLRibbon._dirtySelect(cells);
@@ -522,6 +522,7 @@
             this.selectRange(sheet._startCell, sheet._endCell);
             this._selectRow(xlObj._getRowIdx(rowIdx), "e-rowselected");
             sheet._isRowSelected = true;
+            this._isRowSelected = true;
         },
 
         selectRows: function (startIndex, endIndex) {
@@ -534,6 +535,7 @@
             this.selectRange(sheet._startCell, sheet._endCell);
             this._markHeaderSelection([sheet._startCell.rowIndex, sheet._startCell.colIndex, sheet._endCell.rowIndex, sheet._endCell.colIndex], "row");
             sheet._isRowSelected = true;
+            this._isRowSelected = true;
         },
 
         selectColumn: function (colIdx) {
@@ -546,6 +548,7 @@
             this.selectRange(sheet._startCell, sheet._endCell);
             this._selectColumn(colIdx, "e-colselected");
             sheet._isColSelected = true;
+            this._isColSelected = true;
         },
 
         selectColumns: function (startIndex, endIndex) {
@@ -558,14 +561,21 @@
             this.selectRange(sheet._startCell, sheet._endCell);
             this._markHeaderSelection([sheet._startCell.rowIndex, sheet._startCell.colIndex, sheet._endCell.rowIndex, sheet._endCell.colIndex], "column");
             sheet._isColSelected = true;
+            this._isColSelected = true;
         },
 
         selectSheet: function (isMouse) {
-            var  xlObj = this.XLObj, sheet = xlObj.getSheet(xlObj.getActiveSheetIndex());
+            var  rowIdx, colIdx, xlObj = this.XLObj, sheetIdx = xlObj.getActiveSheetIndex(), sheet = xlObj.getSheet(sheetIdx), actCell = xlObj.getActiveCell();
             if (!xlObj.model.allowSelection)
                 return;
-            if(isMouse)
-                sheet._activeCell = { rowIndex: sheet._topRow.idx, colIndex: 0 };
+            if(isMouse){
+				rowIdx = sheet._topRow.idx;
+				colIdx = sheet._leftCol.idx;
+				if(actCell.rowIndex != rowIdx || actCell.colIndex != colIdx){
+					sheet._activeCell = { rowIndex: sheet._topRow.idx, colIndex: sheet._leftCol.idx };
+					xlObj.XLScroll.scrollToCell(xlObj._getRangeArgs([rowIdx, colIdx, rowIdx, colIdx]));
+				}
+			}
             sheet._startCell = { rowIndex: 0, colIndex: 0 };
             sheet._endCell = { rowIndex: sheet.rowCount - 1, colIndex: sheet.colCount - 1 };
             this.selectRange(sheet._startCell, sheet._endCell);
@@ -687,10 +697,34 @@
                 minc ? leftElem.removeClass(hide).animate({ top: ltop.toString(), left: lleft.toString(), height: lhgt.toString() }, time, type) : leftElem.addClass(hide);
             }
             else {
-                minr ? topElem.css({ top: ttop, left: tleft, width: twid }) : topElem.addClass(hide);
-                rightElem.css({ top: rtop, left: rleft, height: rhgt });
-                bottomElem.css({ top: btop, left: bleft, width: bwid });
-                minc ? leftElem.css({ top: ltop, left: lleft, height: lhgt }) : leftElem.addClass(hide);
+				if(topElem) {
+					if(minr) {
+						topElem[0].style.top = ttop + "px";
+						topElem[0].style.left = tleft + "px";
+						topElem[0].style.width = twid + "px";					
+					}
+					else
+						topElem.addClass(hide)
+				}
+				if(rightElem) {
+					rightElem[0].style.top = rtop + "px";
+					rightElem[0].style.left = rleft + "px";
+					rightElem[0].style.height = rhgt + "px";
+				}
+				if(bottomElem) {
+					bottomElem[0].style.top = btop + "px";
+					bottomElem[0].style.left = bleft + "px";
+					bottomElem[0].style.width = bwid + "px";					
+				}
+				if(leftElem) {
+					if(minc) {
+						leftElem[0].style.top = ltop + "px";
+						leftElem[0].style.left = lleft + "px";
+						leftElem[0].style.height = lhgt + "px";					
+					}
+					else
+						leftElem.addClass(hide)
+				}
             }
         },
 
@@ -859,7 +893,7 @@
                 isNormal = true;
                 sElem.detach();
             }
-            cells = sElem[0].querySelectorAll(".e-selected,.e-rowselected,.e-colselected,.e-rowhighlight,.e-colhighlight,.e-sheetselected,.e-activecell");
+            cells = sElem.find(".e-selected,.e-rowselected,.e-colselected,.e-rowhighlight,.e-colhighlight,.e-sheetselected,.e-activecell");
             i = cells.length;
             while (i--)
                 cells[i].className = cells[i].className.replace(new RegExp(className, "g"), '').replace(/ +/g, ' ');

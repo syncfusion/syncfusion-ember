@@ -506,8 +506,10 @@
                                 delete res.$attr;
                                 ej.copyObject(model, res);
                             }
-                            model._applyScope = function (e) {
-                                eA.applyScope(scope);
+                            if (proto._rootCSS == "e-button") {
+                                model._click = function (e) {
+                                    eA.applyScope(scope);
+                                }
                             }
                             if (settings.requireFormatters && ctrls && ctrls.length && ctrls[0]) {
                                 model._change = function (e) {                                    

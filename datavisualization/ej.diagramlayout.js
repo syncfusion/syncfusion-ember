@@ -55,7 +55,7 @@
             layout.updateView = updateView === undefined ? true : layout.updateView;
             layout.objects = [];
             if (layout.type === "symmetriclayout") {
-                var smtLayout = new SymmetricLayoutManager(layout.diagram.model, 50);
+                var smtLayout = new SymmetricLayoutManager(layout.diagram, 50);
                 smtLayout.MaxIteration = layout.maxIteration;
                 smtLayout.SpringLength = layout.springLength;
                 smtLayout.SpringFactor = layout.springFactor;
@@ -76,7 +76,12 @@
             diagram = layout.diagram
             model = diagram.model;
             nodes = diagram.nodes();
-            if (this._checkMultiparent(nodes, layout) ) {
+            var distributeLine;
+            if (this._checkMultiparent(nodes, layout)) {
+                distributeLine = new ej.datavisualization.Diagram.LineDistribution(this);
+                if (layout.avoidSegmentOverlapping) {
+                    distributeLine._initLineDistribution(layout);
+                }
                 ej.datavisualization.Diagram.MultipleParentHierarchicalLayout.doLayout(layout);
             }
             else {
@@ -137,6 +142,7 @@
                             for (i = 0; i < layout._firstLevelNodes.length; i++) {
                                 this._updateConnectors(layout, layout._firstLevelNodes[i], 1);
                             }
+                        }
                             for (var j = 0; j < layout.diagram.model.connectors.length; j++) {
                                 delete layout.diagram.model.connectors[j]._visited;
                             }
@@ -147,6 +153,8 @@
                         }
                     }
                 }
+            if (layout.avoidSegmentOverlapping) {
+                distributeLine._distributeLines(layout);
             }
             delete layout.diagram.minSpaceBetweenNode;
         },
@@ -159,8 +167,8 @@
                         this._checkCyclicNodes(node, layout, node.name))) {
                         delete layout._processedNodes;
                         return true;
-                    }
                 }
+            }
             }
             delete layout._processedNodes;
             return false;
@@ -176,16 +184,16 @@
                             return true;
                         }
                         else {
-                            var targetNode = layout.diagram.nameTable[connector.targetNode];
+                        var targetNode = layout.diagram.nameTable[connector.targetNode];
                             if (targetNode) {
                                 if (targetNode.outEdges && targetNode.outEdges.length > 0) {
                                     var isCycle = this._checkCyclicNodes(targetNode, layout, nodeName);
                                     if (isCycle)
-                                        return true;
-                                }
-                            }
+                            return true;
                         }
                     }
+                }
+            }
                 }
             }
             return false;
@@ -196,7 +204,7 @@
             for (var i = 0; i < processedNodes.length; i++) {
                 if (processedNodes[i] === name)
                     return true;
-            }
+                }
             return false;
         },
 
@@ -1280,6 +1288,7 @@
                 }
             }
             layout.diagram._updateQuad(layout.diagram.nameTable[node.name]);
+            layout.diagram._setBounds(node);
             if (layout.diagram._svg)
                 ej.datavisualization.Diagram.DiagramContext.update(node, layout.diagram);
         },
@@ -1526,8 +1535,17 @@
             var dnodes = this.diagram.nodes();
             this.nodes = [];
             var filledVertexSet = {};
+            var distributeLine = new ej.datavisualization.Diagram.LineDistribution(this);
+            distributeLine.edgeMapper = [];
             for (var i = 0; i < dnodes.length; i++) {
                 var node = this._createVertex(dnodes[i], dnodes[i].name, 0, 0, dnodes[i].width, dnodes[i].height);
+
+                var outEdges = dnodes[i].outEdges.slice();
+                for (var j = 0; j < outEdges.length; j++) {
+                    var outEdge = layout.diagram.nameTable[outEdges[j]];
+                    distributeLine._setEdgeMapper({ key: outEdge, value: [] });
+                }
+
                 this.nodes.push(node);
                 filledVertexSet[node.name] = node;
             }
@@ -1541,6 +1559,7 @@
                 }
             }
             var limit = { marginX: 0, marginY: 0 };
+            var matrixModel;
             for (var i = 0; i < hierarchyVertices.length; i++) {
                 var vertexSet = hierarchyVertices[i];
                 var tmp = [];
@@ -1551,28 +1570,37 @@
                 this._cycleStage(model);
                 this._layeringStage(model, candidateRoots);
                 this._crossingStage(model);
-                limit = this._placementStage(model, limit.marginX, limit.marginY, parent);
+
+                // New implementation for placing elements
+                var matrixModel = new ej.datavisualization.Diagram.MatrixModel({ model: model, matrix: [], rowOffset: [] });
+                distributeLine._arrangeElements(matrixModel);
+
+                //limit = this._placementStage(model, limit.marginX, limit.marginY, parent);
             }
             var modelBounds = this._getModelBounds(this.nodes);
             var viewPort = ej.datavisualization.Diagram.ScrollUtil._viewPort(layout.diagram, true);
-            var trnsX = (viewPort.width - modelBounds.width) / 2;
+            var trnsX = ((viewPort.width - modelBounds.width) / 2) - modelBounds.x;
+            var trnsY = ((viewPort.height - modelBounds.height) / 2) - modelBounds.y;
+
+            trnsX = Math.round(trnsX);
+            trnsY = Math.round(trnsY);
             var margin = layout.margin || {};
             margin.left = margin.left || 0;
             margin.right = margin.right || 0;
             margin.top = margin.top || 0;
             margin.bottom = margin.bottom || 0;
-            if (layout.marginX) {
-                margin.left = layout.marginX;
-            }
-            if (layout.marginY) {
-                margin.top = layout.marginY;
-            }
+
+            var isHorizontal = layout.orientation == "lefttoright"
+                     || layout.orientation == "righttoleft";
+            var inversespacing = !isHorizontal ? layout.verticalSpacing : layout.horizontalSpacing;
+            var nodeWithMultiEdges = [];
+
             for (var i = 0; i < this.nodes.length; i++) {
                 var clnode = this.nodes[i];
                 if (clnode && !clnode.source && !clnode.target) {
                     var dnode = this.diagram.nameTable[clnode.name];
-                    var dx = (clnode.geometry.x + dnode.width / 2) + margin.left;
-                    var dy = (clnode.geometry.y + dnode.height / 2) + margin.top;
+                    var dx = (clnode.geometry.x + (clnode.geometry.width / 2));
+                    var dy = (clnode.geometry.y + (clnode.geometry.height / 2));
                     var x = dx, y = dy;
                     if (layout.orientation === "bottomtotop") {
                         y = modelBounds.height - dy;
@@ -1580,10 +1608,146 @@
                     else if (layout.orientation === "righttoleft") {
                         x = modelBounds.width - dx;
                     }
+                    x += margin.left;
+                    y += margin.top;
                     x += trnsX;
-                    this.diagram._translate(dnode, x - dnode.offsetX, y - dnode.offsetY, layout.diagram.nameTable);
-                    if (!this.diagram._isInit)
-                        ej.datavisualization.Diagram.DiagramContext.update(dnode, this.diagram);
+                    y += trnsY;
+                    if (dnode != null)
+                    {
+                        this.diagram._translate(dnode, x - dnode.offsetX, y - dnode.offsetY, layout.diagram.nameTable);
+                        if (!this.diagram._isInit)
+                            ej.datavisualization.Diagram.DiagramContext.update(dnode, this.diagram);
+                        if (clnode.inEdges.length > 0 || clnode.outEdges.length > 0)
+                        {
+                            nodeWithMultiEdges.push(dnode);
+                        }
+                    }
+                }
+            }
+            var modifiedConnectors = [];
+            var transModelBounds = new ej.datavisualization.Diagram.Rectangle(
+                modelBounds.x + trnsX,
+                modelBounds.y + trnsY,
+                modelBounds.width,
+                modelBounds.height);
+            for (var i = 0 ; i < nodeWithMultiEdges.length; i++) {
+                var node = nodeWithMultiEdges[i];
+                if (node.outEdges != null && node.outEdges.length > 0) {
+                    var count = node.outEdges.length;
+                    for (var j = 0; j < count; j++) {
+                        var internalConnector = layout.diagram.nameTable[node.outEdges[j]];
+                        internalConnector._pointCollection = [];
+                        if (count > 1) {
+                            var segmentsize = inversespacing / 2.0;
+                            var intermediatePoint = null;
+                            var key;
+                            var edgeMapper = distributeLine._getEdgeMapper();
+                            for (var k = 0; k < edgeMapper.length; k++) {
+                                if (edgeMapper[k].key == internalConnector) {
+                                    key = k;
+                                    break;
+                                }
+                            }
+                            if (edgeMapper[key].value.length > 0) {
+                                var edgePt = edgeMapper[key].value[0];
+                                var dx1 = edgePt.x + margin.left;
+                                var dy1 = edgePt.y + margin.top;
+                                var x1 = dx1, y1 = dy1;
+                                if (layout.orientation == "bottomtotop") {
+                                    y1 = modelBounds.height - dy1;
+                                }
+                                else if (layout.orientation == "righttoleft") {
+                                    x1 = modelBounds.width - dx1;
+                                }
+
+                                x1 += trnsX;
+                                y1 += trnsY;
+
+                                intermediatePoint = new ej.datavisualization.Diagram.Point(x1, y1);
+                            }
+
+                            var pts = [];
+                            for (var p = 0 ; p < internalConnector.segments.length; p++) {
+                                var pt = internalConnector.segments[p].points;
+                                for (var temp in pt) {
+                                        pts.push(pt[temp]);
+                                }
+                            }
+
+                            pts = distributeLine._updateConnectorPoints(pts, segmentsize, intermediatePoint, transModelBounds);
+
+                            for (p = 0; p < pts.length; p++) {
+                                var pt = pts[p];
+
+                                internalConnector._pointCollection.push(new ej.datavisualization.Diagram.Point(pt.x, pt.y));
+                            }
+                            distributeLine._resetConnectorPoints(internalConnector, layout.diagram);
+                        }
+                        modifiedConnectors.push(internalConnector);
+                    }
+                }
+
+                if (node.inEdges != null && node.inEdges.length > 1) {
+                    var count = node.inEdges.length;
+                    var edgeMapper = distributeLine._getEdgeMapper();
+                    for (var j = 0; j < count; j++) {
+                        var internalConnector = layout.diagram.nameTable[node.inEdges[j]];
+                        if (!distributeLine._containsValue(modifiedConnectors, internalConnector))  //!modifiedConnectors.Contains(internalConnector))
+                        {
+                            internalConnector._pointCollection = [];// new List<Syncfusion.Base.Diagram.Primitives.Point>();
+                            //internalConnector.ResetPoints();
+                        }
+
+                        if (count > 1) {
+                            var segmentsize = inversespacing / 2.0;
+                            var intermediatePoint = null;
+                            var key;
+                            for (var k = 0; k < edgeMapper.length; k++) {
+                                if (edgeMapper[k].key == internalConnector) {
+                                    key = k;
+                                    break;
+                                }
+                            }
+                            if (edgeMapper[key].value.length > 0
+                                && !distributeLine._containsValue(modifiedConnectors, internalConnector))  //!modifiedConnectors.Contains(internalConnector))
+                            {                               
+                                var edgePt = edgeMapper[k].value[0];
+                                var dx1 = edgePt.x + margin.left;
+                                var dy1 = edgePt.y + margin.top;
+                                var x1 = dx1, y1 = dy1;
+                                if (layout.orientation == "bottomtotop") {
+                                    y1 = modelBounds.height - dy1;
+                                }
+                                else if (layout.orientation == "righttoleft") {
+                                    x1 = modelBounds.width - dx1;
+                                }
+
+                                x1 += trnsX;
+                                y1 += trnsY;
+                                intermediatePoint = new ej.datavisualization.Diagram.Point(x1, y1);
+                            }
+
+                            var pts = [];// internalConnector.ToPoints(true).Reverse().ToList();
+                            for (var p = 0 ; p < internalConnector.segments.length; p++) {
+                                var pt = internalConnector.segments[p].points;
+                                for (var temp in pt) {
+                                    //if (temp == 0 || (temp > 0 && !(pt[temp - 1].x == pt[temp].x && pt[temp - 1].y == pt[temp].y)))
+                                        pts.push(pt[temp]);
+                                }
+                            }
+                            pts.reverse();
+                            pts = distributeLine._updateConnectorPoints(pts, segmentsize, intermediatePoint, transModelBounds);
+                            pts.reverse();
+                            internalConnector._pointCollection = [];
+                            for (p = 0; p < pts.length; p++) {
+                                var pt = pts[p];
+                                internalConnector._pointCollection.push(new ej.datavisualization.Diagram.Point(pt.x, pt.y));
+                            }
+                            //internalConnector.segments[0].points = internalConnector._points;
+                            //layout.diagram.updateConnector(internalConnector.name, { segments: internalConnector.segments });
+                            distributeLine._resetConnectorPoints(internalConnector, layout.diagram);
+                        }
+                    }
                 }
             }
         },
@@ -2013,7 +2177,7 @@
             return list;
         },
         //used to create a duplicate of the node as vertex for layout
-        _createVertex: function (dnode, value, x, y, width, height) {
+        _createVertex: function (dnode, value, x, y, width, height) {            
             var geometry = new ej.datavisualization.Diagram.Rectangle(x, y, width, height);
             geometry.relative = true;
             var vertex = {
@@ -2143,7 +2307,7 @@
                     index = ej.datavisualization.Diagram.Util.indexOf(array, obj);
                 }
             }
-            for (var key in array) {
+            for (var key = 0; key < array.length; key++) {
                 if (array[key] == obj) {
                     delete array[key];
                     result = obj;
@@ -2340,7 +2504,7 @@
         //used to create the duplicate of the edges on the layout model
         MultiParentModel.prototype._createInternalCells = function (layout, vertices, internalVertices) {
             for (var i = 0; i < vertices.length; i++) {
-                internalVertices[i] = { x: [], y: [], temp: [], cell: vertices[i], id: vertices[i].name, connectsAsTarget: [], connectsAsSource: [] }
+                internalVertices[i] = { x: [], y: [], temp: [], cell: vertices[i], id: vertices[i].name, connectsAsTarget: [], connectsAsSource: [],identicalSibilings:null, type:"internalVertex" };
                 this._setDictionary(this.vertexMapper, vertices[i], internalVertices[i]);
                 var conns = ej.datavisualization.Diagram.MultipleParentHierarchicalLayout._getEdges(vertices[i]);
                 internalVertices[i].connectsAsSource = [];
@@ -2350,7 +2514,7 @@
                         var undirectedEdges = layout._getEdgesBetween(vertices[i], cell, false);
                         var directedEdges = layout._getEdgesBetween(vertices[i], cell, true);
                         if (undirectedEdges != null && undirectedEdges.length > 0 && directedEdges.length * 2 >= undirectedEdges.length) {
-                            var internalEdge = { x: [], y: [], temp: [], edges: undirectedEdges, ids: [] };
+                            var internalEdge = { x: [], y: [], temp: [], edges: undirectedEdges, ids: [], identicalSibilings:null, type:"internalEdge" };
                             for (var m = 0; m < undirectedEdges.length; m++) {
                                 internalEdge.ids.push(undirectedEdges[m].name);
                             }
@@ -2365,6 +2529,12 @@
                 }
                 internalVertices[i].temp[0] = 0;
             }
+        };
+        MultiParentModel.prototype._getType = function (type) {
+            if (type === "internalVertex")
+                return "internalVertex";
+            else
+                return "internalEdge";
         };
         //used to set the optimum value of each vertex on the layout
         MultiParentModel.prototype._fixRanks = function () {
@@ -2825,4 +2995,1206 @@
     })();
     ej.datavisualization.Diagram.CrossReduction = CrossReduction;
     //end region
+
+    var LineDistribution = (function () {
+        var edgeMapper = [];
+        function LineDistribution() {
+            this.edgeMapper = [];
+        };
+        LineDistribution.prototype._setEdgeMapper = function (value){
+            this.edgeMapper.push(value);
+        };
+        LineDistribution.prototype._getEdgeMapper = function(){
+            return this.edgeMapper;
+        };
+        LineDistribution.prototype._initLineDistribution = function (graph) {            
+            var srcDirection = "bottom";
+            var tarDirection = "top";
+
+            if (graph.orientation == ej.datavisualization.Diagram.LayoutOrientations.BottomToTop) {
+                srcDirection = "top";
+                tarDirection = "bottom";
+            }
+            else if (graph.orientation == ej.datavisualization.Diagram.LayoutOrientations.RightToLeft) {
+                srcDirection = "left";
+                tarDirection = "right";
+            }
+            else if (graph.orientation == ej.datavisualization.Diagram.LayoutOrientations.LeftToRight) {
+                srcDirection = "right";
+                tarDirection = "left";
+            }
+            var graphnodes = graph.diagram._spatialSearch.parentQuad.objects;
+            if (graphnodes.length > 0) {
+                for (var i = 0 ; i < graphnodes.length; i++) {
+                    var node = graphnodes[i];
+                    this._addDynamicPortandDistrrbuteLine(graph, node, srcDirection, tarDirection);
+                }
+            }
+        };
+        LineDistribution.prototype._addDynamicPortandDistrrbuteLine = function (layout, node, sourceDirection, targetDirection) {
+            if (!(node._ports && node._ports == null)) {
+                node._ports = [];
+            }
+            var existingPorts = node._ports;
+
+            var portColls = [];
+            var outConnectors = node.outEdges;
+            var inConnectors = node.inEdges;
+
+            for (var name in outConnectors) {
+                var internalConnector = layout.diagram.nameTable[outConnectors[name]];
+                var sourceNodePort = ej.datavisualization.Diagram.Util.findPortByName(node, internalConnector.sourcePort);
+                var direction = sourceDirection;
+                if (sourceNodePort == null) {
+                    sourceNodePort = ej.datavisualization.Diagram.Port({});
+                    sourceNodePort.type = "internal";
+                    node._ports.push(sourceNodePort);
+                    //delete internalConnector._sourcePortLocation;
+                    layout.diagram.updateConnector(internalConnector.name, { sourcePort: sourceNodePort.name });
+
+                    //internalConnector.sourcePort = sourceNodePort;
+                }
+
+                if (direction == null) {
+                    var pts = internalConnector.segments[0].points;
+                    direction = ej.datavisualization.Diagram.Util._getBezierDirection(pts[0], pts[1]);// ej.datavisualization.Diagram.Geometry._findDirection(pts[0], pts[1]);
+                }
+
+                portColls.push({ port: sourceNodePort, direction: direction });
+            }
+
+            for (var name in inConnectors) {
+                var internalConnector = layout.diagram.nameTable[inConnectors[name]];
+                var targetNodePort = ej.datavisualization.Diagram.Util.findPortByName(node, internalConnector.targetPort);
+                var direction = targetDirection;
+                if (targetNodePort == null) {
+                    targetNodePort = ej.datavisualization.Diagram.Port({});
+                    targetNodePort.type = "internal";
+                    node._ports.push(targetNodePort);
+                    //delete internalConnector._targetPortLocation;
+                    layout.diagram.updateConnector(internalConnector.name, { targetPort: targetNodePort.name });
+                }
+                if (direction == null) {
+                    var pts = internalConnector.segments[0].points;
+                    direction = ej.datavisualization.Diagram.Util._getBezierDirection(pts[pts.length - 2], (pts[pts.length - 1]));
+                }
+                portColls.push({ port: targetNodePort, direction: direction });
+            }
+
+            var topPorts = [];
+            var leftPorts = [];
+            var bottomPorts = [];
+            var rightPorts = [];
+
+            for (var key in portColls) {
+                var temp = portColls[key];
+
+                if (temp.direction == "top")
+                    topPorts.push(temp);
+                else if (temp.direction == "left")
+                    leftPorts.push(temp);
+                else if (temp.direction == "bottom")
+                    bottomPorts.push(temp);
+                else
+                    rightPorts.push(temp);
+            }
+
+            if (topPorts.length > 0) {
+                for (var i = 0; i < topPorts.length; i++) {
+                    var port = topPorts[i].port;
+                    port.offset = { x: (i + 1) * (1.0 / (topPorts.length + 1)), y: 0 };
+                }
+            }
+
+            if (bottomPorts.length > 0) {
+                for (var i = 0; i < bottomPorts.length; i++) {
+                    var port = bottomPorts[i].port;
+                    port.offset = { x: (i + 1) * (1.0 / (bottomPorts.length + 1)), y: 1 };
+                }
+            }
+
+            if (leftPorts.length > 0) {
+                for (var i = 0; i < leftPorts.length; i++) {
+                    var port = leftPorts[i].port;
+                    port.offset = { x: 0, y: (i + 1) * (1.0 / (leftPorts.length + 1)) };
+                }
+            }
+
+            if (rightPorts.length > 0) {
+                for (var i = 0; i < rightPorts.length; i++) {
+                    var port = rightPorts[i].port;
+                    port.offset = { x: 1, y: (i + 1) * (1.0 / (rightPorts.length + 1)) };
+                }
+            }
+        };
+        LineDistribution.prototype._containsValue = function (list, keyValue) {
+            for (var i = 0; i < list.length; i++) {
+                if (list[i].key == keyValue || list[i] == keyValue) {
+                    return true;
+                }
+            }
+            return false;
+        };
+        LineDistribution.prototype._distributeLines = function (layout) {
+            var isHorizontal = layout.orientation == "lefttoright"
+                               || layout.orientation == "righttoleft";
+            var inversespacing = !isHorizontal ? layout.verticalSpacing : layout.horizontalSpacing;
+            var srcdecoratorSize = 8.0, tardecoratorSize = 10.0;
+            var avaibaleSpace = inversespacing - srcdecoratorSize - tardecoratorSize;
+            var graph = [];// new SortedList<double, List<ObstacleSegment>>();
+            var connectorObstacles = [];//new List<ConnectorObstacle>();
+            var globalConnectors = layout.diagram.connectors();
+            for (var i = 0; i < globalConnectors.length; i++)  //foreach (var connector in this.Graph.SharedData.GlobalConnectors.Values)
+            {
+                var connector = globalConnectors[i];
+                var pts = [];
+                for (var key in connector.segments) {
+                    var seg = connector.segments[key];
+                    for (var k in seg.points) {
+                        var pt = seg.points[k];
+                        if (pts.length == 0 || !(ej.datavisualization.Diagram.Geometry.isEqualPoint(pt, pts[pts.length - 1])))
+                            pts.push(pt);
+                    }
+                }
+                var obssegments = [];
+                for (var j = 1; j < pts.length; j++) {
+                    var obstacle = ej.datavisualization.Diagram.ObstacleSegment({ startpt: pts[j - 1], endpt: pts[j], id: connector.id });
+                    obssegments.push(obstacle);
+                }
+
+                var connectorObstacle = { wrapper: connector, segments: obssegments };
+                var segments = [];
+                if (!isHorizontal) {
+                    for (var key in connectorObstacle.segments) {
+                        var obstacle = connectorObstacle.segments[key];
+                        if (obstacle.orientation == "horizontal")
+                            segments.push(obstacle);
+                    }
+                }
+                else {
+                    for (var key in connectorObstacle.segments) {
+                        var obstacle = connectorObstacle.segments[key];
+                        if (obstacle.orientation == "vertical")
+                            segments.push(obstacle);
+                    }
+                }
+
+                for (var j = 0; j < segments.length; j++) {
+                    var obstacleSegment = segments[j];
+                    if (!this._containsValue(graph, obstacleSegment.coord)) {//  !graph.ContainsKey(obstacleSegment.Coord)) {
+                        graph.push({ key: obstacleSegment.coord, value: [] });
+                    }
+
+                    var index;
+                    for (var k in graph) {
+                        var key = graph[k].key;
+                        if (key == obstacleSegment.coord) {
+                            index = k;
+                            break;
+                        }
+                    }
+                    graph[index].value.push(obstacleSegment);
+                }
+
+                connectorObstacles.push(connectorObstacle);
+            }
+
+            var modifiedgrap = [];// new SortedList<double, List<ObstacleSegment>>();
+            for (var m = 0; m < graph.length; m++) {
+                var row = graph[m];
+                var sortedrow = row.value;//.OrderBy(e => e.Start);
+                sortedrow.sort(function (a, b) { return a.start - b.start });
+
+                var groupby = [];
+
+                var index = 0;
+
+                var maxEnd = Number.MIN_VALUE;
+                groupby.push([]);
+                for (var n = 0 ; n < sortedrow.length; n++) {
+                    var obstacleSegment = sortedrow[n];
+                    if (!(groupby[index].length > 0) || maxEnd >= obstacleSegment.start) {
+                        groupby[index].push(obstacleSegment);
+                        maxEnd = Math.max(maxEnd, groupby[index][groupby[index].length - 1].end);
+                    }
+                    else {
+                        index++;
+                        groupby.push([]);
+                        groupby[index].push(obstacleSegment);
+                        maxEnd = groupby[index][groupby[index].length - 1].end;
+                    }
+                }
+
+                for (var n = 0 ; n < groupby.length; n++) {
+                    var group = groupby[n];
+                    var sortedGroup = [];//group.Value.OrderBy(e => e.Start).ToList();
+                    for (var j = 0; j < group.length; j++) {
+                        var e = group[j];
+                        if (e.start)
+                            sortedGroup.push(e);
+                    }
+                    var comparingDir = isHorizontal ? "bottom" : "right";
+
+                    var directed = [];//sortedGroup.Where(e => e.Direction == comparingDir).ToList();
+                    for (var j = 0; j < sortedGroup.length; j++) {
+                        var e = sortedGroup[j];
+                        if (e.direction == comparingDir)
+                            directed.push(e);
+                    }
+
+                    var reversedirected = [];//sortedGroup.Where(e => e.Direction != comparingDir).ToList();
+                    for (var j = 0; j < sortedGroup.length; j++) {
+                        var e = sortedGroup[j];
+                        if (e.direction != comparingDir)
+                            reversedirected.push(e);
+                    }
+
+                    var mutual = [];//new List<ObstacleSegment>();
+                    if (directed.length > 0) {
+                        var temp = directed[0].start;
+
+                        var j = 0;
+                        while (j < reversedirected.length) {
+                            if (reversedirected[j].end > temp) {
+                                mutual.push(reversedirected[j]);
+                                reversedirected.splice(j, 1);
+                            }
+                            else {
+                                j++;
+                            }
+                            for (var i = 0; i < layout.diagram.model.connectors.length; i++) {
+                                delete layout.diagram.model.connectors[i]._visited;
+                                for (var j = 0; j < layout.diagram.model.connectors.length; j++) {
+                                    delete layout.diagram.model.connectors[j]._visited;
+                                }
+                                for (var j = 0; j < layout.diagram.model.nodes.length; j++) {
+                                    delete layout.diagram.model.nodes[j]._visited1;
+                                    delete layout.diagram.model.nodes[j]._isRightAdded;
+                                }
+                            }
+                        }
+                    }
+                    var mutualRow = [];// new Dictionary<int, List<ObstacleSegment>>();
+                    mutualRow = this._updateSegmentRow(mutual, mutualRow);
+
+                    var directedRow = [];//new Dictionary<int, List<ObstacleSegment>>();
+                    directedRow = this._updateSegmentRow(reversedirected, directedRow);
+                    directed.reverse();
+                    directedRow = this._updateSegmentRow(directed, directedRow);
+
+
+                    if (!mutualRow[mutualRow.length - 1].length > 0) {
+                        mutualRow.splice(mutualRow.length - 1, 1);
+                    }
+
+                    if (!directedRow[directedRow.length - 1].length > 0) {
+                        directedRow.splice(directedRow.length - 1, 1);
+                    }
+
+                    var subrow = [];// new Dictionary<int, List<ObstacleSegment>>();
+                    var descAdding = mutual.length > 0 && (sortedGroup[0].direction == mutual[0].direction
+                                                      || sortedGroup[sortedGroup.length - 1].direction == mutual[mutual.length - 1].direction);
+                    if (descAdding) {
+                        subrow = directedRow;
+                        for (var p = 0; p < mutualRow.length; p++) {
+                            var obj = mutualRow[p];
+                            subrow[subrow.length] = obj;
+                        }
+                        for (var j = 0; j < layout.diagram.model.nodes.length; j++) {
+                            delete layout.diagram.model.nodes[j]._visited1;
+                            delete layout.diagram.model.nodes[j]._isRightAdded;
+                        }
+                    }
+                    else {
+                        subrow = mutualRow;
+                        for (var p = 0; p < directedRow.length; p++) {
+                            var obj = directedRow[p];
+                            subrow[subrow.length] = obj;
+                        }
+                    }
+
+                    if (subrow.length > 1) {
+                        var directionModifier = 1;
+                        if (layout.orientation == "bottomtotop"
+                            || layout.orientation == "righttoleft") {
+                            directionModifier = -1;
+                        }
+
+                        var startCoord = row.key - (directionModifier * avaibaleSpace / 2.0);
+                        var diff = avaibaleSpace / subrow.length;
+
+                        for (var i = 0; i < subrow.length; i++) {
+                            var newcoord = startCoord + (i * diff * directionModifier);
+                            for (var p = 0; p < subrow[i].length; p++) {
+                                var obstacleSegment = subrow[i][p];
+                                obstacleSegment.coord = newcoord;
+                                if (!this._containsValue(modifiedgrap, obstacleSegment.coord)) {  //!modifiedgrap.ContainsKey(obstacleSegment.Coord)) {
+                                    modifiedgrap.push({ key: obstacleSegment.coord, value: [] });
+                                }
+                                var index;
+                                for (var k in modifiedgrap) {
+                                    var key = modifiedgrap[k].key;
+                                    if (key == obstacleSegment.coord) {
+                                        index = k;
+                                        break;
+                                    }
+                                }
+                                modifiedgrap[index].value.push(obstacleSegment);
+                            }
+                        }
+                    }
+                }
+            }
+
+            for (var m = 0; m < connectorObstacles.length; m++) {
+                var connectorObstacle = connectorObstacles[m];
+                var pts = [];//new List<Point>();
+                for (var i = 0; i < connectorObstacle.segments.length; i++) {
+                    if (i == 0) {
+                        pts.push(this._getObstacleStartPoint(connectorObstacle.segments[i]));
+                    }
+                    else if (isHorizontal) {
+                        if (connectorObstacle.segments[i].orientation == "vertical") {
+                            pts[pts.length - 1] = this._getObstacleStartPoint(connectorObstacle.segments[i]);
+                        }
+                    }
+                    else if (!isHorizontal) {
+                        if (connectorObstacle.segments[i].orientation == "horizontal") {
+                            pts[pts.length - 1] = this._getObstacleStartPoint(connectorObstacle.segments[i]);
+                        }
+                    }
+
+                    pts.push(this._getObstacleEndPoint(connectorObstacle.segments[i]));
+                }
+
+                //connectorObstacle.Wrapper.Points =
+                //    pts.Select(p => new Syncfusion.Base.Diagram.Primitives.Point(p.X, p.Y)).ToList();
+                connectorObstacle.wrapper._pointCollection = [];
+                for (j = 0; j < pts.length; j++) {
+                    var p = pts[j];
+                    if (j == 0 || (j > 0 && !(ej.datavisualization.Diagram.Geometry.isEqualPoint(p, pts[j - 1]))))
+                        connectorObstacle.wrapper._pointCollection.push(new ej.datavisualization.Diagram.Point(p.x, p.y));
+                }
+                this._resetConnectorPoints(connectorObstacle.wrapper, layout.diagram);
+                delete connectorObstacle.wrapper._pointCollection;
+            }
+        };        
+        LineDistribution.prototype._getObstacleStartPoint = function (segment) {
+            if (segment.orientation == "horizontal") {
+                if (segment.direction == "left") {
+                    return new ej.datavisualization.Diagram.Point(segment.end, segment.coord);
+                }
+
+                return new ej.datavisualization.Diagram.Point(segment.start, segment.coord);
+            }
+
+            if (segment.direction == "top") {
+                return new ej.datavisualization.Diagram.Point(segment.coord, segment.end);
+            }
+
+            return new ej.datavisualization.Diagram.Point(segment.coord, segment.start);
+        };
+        LineDistribution.prototype._getObstacleEndPoint = function (segment) {
+            if (segment.orientation == "horizontal") {
+                if (segment.direction == "left") {
+                    return new ej.datavisualization.Diagram.Point(segment.start, segment.coord);
+                }
+
+                return new ej.datavisualization.Diagram.Point(segment.end, segment.coord);
+            }
+
+            if (segment.direction == "top") {
+                return new ej.datavisualization.Diagram.Point(segment.coord, segment.start);
+            }
+
+            return new ej.datavisualization.Diagram.Point(segment.coord, segment.end);
+        };
+        LineDistribution.prototype._updateSegmentRow = function (obstacleSegments, segmentRow) {
+            var k = 0;
+            if (!(segmentRow.length > 0)) {
+                segmentRow[0] = [];
+            }
+
+            for (var i = 0; i < obstacleSegments.length; i++) {
+                var obstacleSegment = obstacleSegments[i];
+                while (k < segmentRow.length) {
+                    if (k == segmentRow.length - 1) {
+                        segmentRow[k + 1] = [];
+                    }
+
+                    if (!(segmentRow[k].length > 0) || segmentRow[k][segmentRow[k].length - 1].end < obstacleSegment.start) {
+                        segmentRow[k].push(obstacleSegment);
+                        break;
+                    }
+
+                    k++;
+                }
+            }
+            return segmentRow;
+        };
+        LineDistribution.prototype._resetConnectorPoints = function (edge, diagram) {
+            if (edge._pointCollection && edge._pointCollection.length > 0) {
+                var connector = edge;
+                connector.segments = [];
+                connector.sourcePoint = edge._pointCollection[0];
+                connector.targetPoint = edge._pointCollection[edge._pointCollection.length - 1];
+                var points = [];
+                var segments = [];
+                for (var i = 0; i < edge._pointCollection.length - 1; i++) {
+                    var point1 = edge._pointCollection[i];
+                    var point2 = edge._pointCollection[i + 1];
+                    var length = ej.datavisualization.Diagram.Geometry.distance(point1, point2);
+                    var direction = ej.datavisualization.Diagram.Util._getBezierDirection(point1, point2);
+                    segments.push({ length: length, direction: direction, type: "orthogonal" });
+                }
+                diagram.updateConnector(connector.name, { segments: segments });
+            }
+        };
+        LineDistribution.prototype._updateConnectorPoints = function (connectorPoints, startSegmentSize, intermediatePoint, layoutBounds) {
+            var isHorizontal = this.orientation == "lefttoright"
+                             || this.orientation == "righttoleft";
+            var pts = connectorPoints;
+            if (pts.length > 2) {
+                var newPt = ej.datavisualization.Diagram.Geometry.transform(pts[0], ej.datavisualization.Diagram.Util.findAngle(pts[0], pts[1]), startSegmentSize);   //pts[0].Transform(startSegmentSize, pts[0].FindAngle(pts[1]));
+                var nextPt = ej.datavisualization.Diagram.Geometry.transform(newPt, ej.datavisualization.Diagram.Util.findAngle(pts[1], pts[2]), ej.datavisualization.Diagram.Util.findLength(pts[1], pts[2]));// newPt.Transform(pts[1].FindLength(pts[2]), pts[1].FindAngle(pts[2]));
+                pts.splice(1, 2, newPt, nextPt);
+                if (intermediatePoint != null) {
+                    var index = 2;
+                    var ptsCount = pts.length;
+                    var newPt1 = ej.datavisualization.Diagram.Geometry.transform(
+                        pts[ptsCount - 1],
+                        ej.datavisualization.Diagram.Util.findAngle(pts[ptsCount - 1], pts[ptsCount - 2]),
+                        startSegmentSize);
+                    pts.splice(ptsCount - 1, 0, newPt1);
+                    while (index < (pts.length - 2)) {
+                        pts.splice(index, 1);
+                    }
+
+                    var edgePt = intermediatePoint;
+                    ej.datavisualization.Diagram.Geometry.inflate(layoutBounds, layoutBounds.width, layoutBounds.height);
+
+                    var line1 = [];
+                    line1[0] = new ej.datavisualization.Diagram.Point(edgePt.x, layoutBounds.y);
+                    line1[1] = new ej.datavisualization.Diagram.Point(edgePt.x, layoutBounds.y + layoutBounds.height);
+
+                    var line2 = [];
+                    line2[0] = new ej.datavisualization.Diagram.Point(layoutBounds.x, pts[1].y);
+                    line2[1] = new ej.datavisualization.Diagram.Point(layoutBounds.x + layoutBounds.width, pts[1].y);
+
+                    var line3 = [];
+                    line3[0] = new ej.datavisualization.Diagram.Point(layoutBounds.x, newPt1.y);
+                    line3[1] = new ej.datavisualization.Diagram.Point(layoutBounds.x + layoutBounds.width, newPt1.y);
+
+
+                    if (isHorizontal) {
+                        line1[0] = new ej.datavisualization.Diagram.Point(layoutBounds.x, edgePt.y);
+                        line1[1] = new ej.datavisualization.Diagram.Point(layoutBounds.x + layoutBounds.width, edgePt.y);
+
+                        line2[0] = new ej.datavisualization.Diagram.Point(pts[1].x, layoutBounds.y);
+                        line2[1] = new ej.datavisualization.Diagram.Point(pts[1].x, layoutBounds.y + layoutBounds.height);
+
+                        line3[0] = new ej.datavisualization.Diagram.Point(newPt1.x, layoutBounds.y);
+                        line2[1] = new ej.datavisualization.Diagram.Point(newPt1.x, layoutBounds.y + layoutBounds.height);
+                    }
+
+                    var intercepts1 = [ej.datavisualization.Diagram.Util.interSect2(line1[0], line1[1], line2[0], line2[1])];
+                    var intercepts2 = [ej.datavisualization.Diagram.Util.interSect2(line1[0], line1[1], line3[0], line3[1])];
+
+                    if (intercepts2.length > 0) {
+                        pts.splice(2, 0, intercepts2[0]);
+                    }
+
+                    if (intercepts1.length > 0) {
+                        pts.splice(2, 0, intercepts1[0]);
+                    }
+                }
+            }
+
+            var i = 1;
+            while (i < pts.length - 1) {
+                if (ej.datavisualization.Diagram.Geometry.isEqualPoint(pts[i - 1], pts[i])) {
+                    pts.splice(i, 1);
+                }
+                else if (ej.datavisualization.Diagram.Util.findAngle(pts[i - 1], pts[i]) == ej.datavisualization.Diagram.Util.findAngle(pts[i], pts[i + 1])) {
+                    pts.splice(i, 1);
+                }
+                else {
+                    i++;
+                }
+            }
+
+            return pts;
+        };
+        LineDistribution.prototype._updateMutualSharing = function (cell, id)
+        {
+            if (cell.identicalSibilings != null)
+            {
+                cell.identicalSibilings.push(id);
+            }
+            else
+            {
+                cell.identicalSibilings = [];
+                cell.identicalSibilings.push(id);
+            }
+        };
+        LineDistribution.prototype._groupLayoutCells = function (matrixModel) {
+            var ranks = matrixModel.model.ranks;
+            for (var j = ranks.length - 1; j >= 0; j--) {
+                var vertices = [];
+                for (var v = 0 ; v < ranks[j].length; v++) {
+                    var rank = ranks[j][v];
+                    var type = ej.datavisualization.Diagram.MultiParentModel.prototype._getType(rank.type);
+                    if (type === "internalVertex")
+                        vertices.push(ranks[j][v]);
+                }
+
+                var edges = [];
+                for (var e = 0 ; e < ranks[j].length; e++) {
+                    var rank = ranks[j][e];
+                    var type = ej.datavisualization.Diagram.MultiParentModel.prototype._getType(rank.type);
+                    if (type === "internalEdge")
+                        edges.push(rank);
+                }
+
+                while (vertices.length > 1) {
+                    var vertex1 = vertices[0];
+                    var parentset1 = this._selectIds(vertex1.connectsAsTarget, true); //  internalVertex.connectsAsTarget.Select(e => e.Source.ID);
+                    var childset1 = this._selectIds(vertex1.connectsAsSource, false); //internalVertex.connectsAsSource.Select(e => e.Target.ID);
+                    while (vertices.length > 1) {
+                        var vertex2 = vertices[1];
+                        var parentset2 = this._selectIds(vertex2.connectsAsTarget, true); // internalVertex1.connectsAsTarget.Select(e => e.Source.ID);
+                        var childset2 = this._selectIds(vertex2.connectsAsSource, false);  // internalVertex1.connectsAsSource.Select(e => e.Target.ID);
+                        var parentequals = this._compareLists(parentset1, parentset2);
+                        var childequals = this._compareLists(childset1, childset2);
+                        if (parentequals && childequals) {
+                            this._updateMutualSharing(vertices[0], vertex2.id);
+                            this._updateMutualSharing(vertices[1], vertex1.id);
+                            vertices.splice(1, 1);
+                            continue;
+                        }
+                        break;
+                    }
+                    vertices.splice(0, 1);
+                }
+
+
+                while (edges.length > 1) {
+                    var internalEdge = edges[0];
+                    var parentset = internalEdge.source;
+                    var childset = internalEdge.target;
+                    if (parentset.identicalSibilings != null) {
+
+                        var groupedges = [];
+
+                        for (var i = 0; i < edges.length; i++) {
+                            var edge = edges[i];
+                            if (edge.target == childset) {
+                                groupedges.push(edge);
+                            }
+                        }
+
+                        for (var i = 0 ; i < groupedges.length; i++) {
+                            var internalEdgese = groupedges[i];
+                            if (this._containsValue(parentset.identicalSibilings, internalEdgese.source.id)) {
+                                internalEdgese.Source.identicalSibilings = null;
+                            }
+                        }
+                        internalEdge.source.identicalSibilings = null;
+                    }
+                    edges.splice(0, 1);
+                }
+            }
+        };
+        LineDistribution.prototype._selectIds = function (node, source) {
+            var returnIds = [];
+            for (var i = 0; i < node.length; i++) {
+                var connector = node[i];
+                if (source) {
+                    returnIds.push(connector.source.id);
+                }
+                else {
+                    returnIds.push(connector.target.id);
+                }
+            }
+            return returnIds;
+        };
+        LineDistribution.prototype._createMatrixCells = function (matrixModel) {
+            var layoutSettings = matrixModel.model.layout;
+            var isHorizontal = layoutSettings.orientation == "lefttoright"
+                               || layoutSettings.orientation == "righttoleft";
+            var spacing = isHorizontal ? layoutSettings.verticalSpacing : layoutSettings.horizontalSpacing;
+            var spacingInverse = !isHorizontal ? layoutSettings.verticalSpacing : layoutSettings.horizontalSpacing;
+            
+            var ranks = matrixModel.model.ranks;
+            var matrixCellMapper = [];// new Dictionary<int, Dictionary<object, MatrixCellGroup>>();
+            var rowoffset = -spacingInverse;
+            for (var j = ranks.length - 1; j >= 0; j--) {
+                var maxDimension = 0.0;
+                var index = (ranks.length - 1) - j;
+                var rank = ranks[j].slice();//.ToList();
+
+                // Creating new row and adding it to matrix
+                var matrixRow = [];//new List<MatrixCellGroup>();                
+                matrixModel.matrix.push({ key: index, value: matrixRow });
+
+                // Creating new row mapper
+                var tempMatrixRow = [];//new Dictionary<object, MatrixCellGroup>();
+                matrixCellMapper.push({ index: index, value: tempMatrixRow });
+
+                while (rank.length > 0) //.Any())
+                {
+                    var layoutCell = rank[0];
+                    var matrixCell = ej.datavisualization.Diagram.MatrixCellGroup({ level: index, parents: [], children: [], visitedParents: [], visitedChildren: [], ignoredChildren: [], cells: [], size: 0, offset: 0, initialOffset: 0 });
+                    matrixRow.push(matrixCell);
+                    var type = ej.datavisualization.Diagram.MultiParentModel.prototype._getType(layoutCell.type);
+                    if (type === "internalVertex")//is InternalVertex)
+                    {
+                        matrixCell.cells.push(layoutCell);
+                        if (layoutCell.identicalSibilings != null) {
+                            for (var i = 0 ; i < rank.length; i++) //foreach (var internalVertex in rank.OfType<InternalVertex>())
+                            {
+                                var internalVertex = rank[i];
+                                var type = ej.datavisualization.Diagram.MultiParentModel.prototype._getType(internalVertex.type);
+
+                                if (type === "internalVertex" && this._containsValue(layoutCell.identicalSibilings, internalVertex.id)) {
+                                    matrixCell.cells.push(internalVertex);
+                                    if (matrixCell.cells.length > layoutCell.identicalSibilings.length) {
+                                        break;
+                                    }
+                                }
+                            }
+                        }
+
+                        for (var i = 0; i < matrixCell.cells.length; i++)// foreach (var internalVertex in matrixCell.Cells.OfType<InternalVertex>())
+                        {
+                            var internalVertex = matrixCell.cells[i];
+                            var type = ej.datavisualization.Diagram.MultiParentModel.prototype._getType(internalVertex.type);
+                            if (type === "internalVertex") {
+                                var geometry = internalVertex.cell.geometry;
+                                matrixCell.size += isHorizontal ? geometry.height : geometry.width;
+                                maxDimension = Math.max(maxDimension, !isHorizontal ? geometry.height : geometry.width);
+                                tempMatrixRow.push({ key: internalVertex.id, value: matrixCell });
+                                if (internalVertex.connectsAsTarget.length > 0) {
+                                    for (var k = 0; k < internalVertex.connectsAsTarget.length; k++) //foreach (var internalEdgese in internalVertex.ConnectsAsTarget)
+                                    {
+                                        var internalEdgese = internalVertex.connectsAsTarget[k];
+                                        var key = null;
+                                        if (this._containsValue(matrixCellMapper[index - 1].value, internalEdgese.ids)) { //matrixCellMapper[index - 1].ContainsKey(internalEdgese.ids)) {
+                                            key = internalEdgese.ids;
+                                        }
+                                        else if (this._containsValue(matrixCellMapper[index - 1].value, internalEdgese.source.id)) { //matrixCellMapper[index - 1].ContainsKey(internalEdgese.Source.ID)) {
+                                            key = internalEdgese.source.id;
+                                        }
+
+                                        if (key != null) {
+                                            var parentcell = matrixCellMapper[index - 1].value;
+                                            var parentMartixCell;
+                                            for (var v = 0 ; v < parentcell.length; v++) {
+                                                if (parentcell[v].key == key) {
+                                                    parentMartixCell = parentcell[v].value;
+                                                    break;
+                                                }
+                                            }
+                                            if (!this._containsValue(matrixCell.parents, parentMartixCell)) { //   !matrixCell.Parents.Contains(parentMartixCell)) {
+                                                matrixCell.parents.push(parentMartixCell);
+                                            }
+
+                                            if (!this._containsValue(parentMartixCell.children, matrixCell)) { //!parentMartixCell.Children.Contains(matrixCell)) {
+                                                parentMartixCell.children.push(matrixCell);
+                                            }
+                                        }
+                                    }
+                                }
+                                rank.reverse();
+                                rank.pop();
+                                rank.reverse();
+                            }
+                        }
+                        matrixCell.size += (matrixCell.cells.length - 1) * spacing;
+                    }
+                    else if (type === "internalEdge")
+                    {
+                        matrixCell.cells.push(layoutCell);
+
+                        for (var i = 0; i < matrixCell.cells.length; i++) //  foreach (var internalEdge in matrixCell.Cells.OfType<InternalEdges>())
+                        {
+                            var internalEdge = matrixCell.cells[i];
+                            var type1 = ej.datavisualization.Diagram.MultiParentModel.prototype._getType(internalEdge.type);
+
+                            if (type1 === "internalEdge" && internalEdge.edges != null) {
+                                // need to spacing based on its source and target Node
+                                var edgeSpacing = 5;
+                                var cellSize = -edgeSpacing;
+                                for (var k = 0; k < internalEdge.edges.length; k++)  //foreach (var internalConnector in internalEdge.Edges)
+                                {
+                                    var internalConnector = internalEdge.edges[k];
+                                    // need to summ up the line width
+                                    cellSize += 1 + edgeSpacing;
+                                }
+
+                                matrixCell.size += cellSize;
+                            }
+
+                            tempMatrixRow.push({ key: internalEdge.ids, value: matrixCell });
+
+                            var key = null;
+                            if (this._containsValue(matrixCellMapper[index - 1].value, internalEdge.ids)) {     //matrixCellMapper[index - 1].ContainsKey(internalEdge.ids)) {
+                                key = internalEdge.ids;
+                            }
+                            else if (this._containsValue(matrixCellMapper[index - 1].value, internalEdge.source.id)) {  //matrixCellMapper[index - 1].ContainsKey(internalEdge.Source.ID)) {
+                                key = internalEdge.source.id;
+                            }
+
+                            if (key != null) {
+                                var parentcell = matrixCellMapper[index - 1].value;
+                                var parentMartixCell;
+                                for (var v = 0 ; v < parentcell.length; v++) {
+                                    if (parentcell[v].key == key) {
+                                        parentMartixCell = parentcell[v].value;
+                                        break;
+                                    }
+                                }
+                                if (!this._containsValue(matrixCell.parents, parentMartixCell)) {//   !matrixCell.Parents.Contains(parentMartixCell)) {
+                                    matrixCell.parents.push(parentMartixCell);
+                                }
+
+                                if (!this._containsValue(parentMartixCell.children, matrixCell)) {//!parentMartixCell.Children.Contains(matrixCell)) {
+                                    parentMartixCell.children.push(matrixCell);
+                                }
+                            }
+
+                            rank.reverse();
+                            rank.pop();
+                            rank.reverse();
+                        }
+
+                        matrixCell.size += (matrixCell.cells.length - 1) * spacing;
+                    }
+                }
+
+                matrixModel.rowOffset.push(rowoffset + (maxDimension / 2) + spacingInverse);
+                rowoffset += maxDimension + spacingInverse;
+            }
+        };
+        LineDistribution.prototype._setXYforMatrixCell = function (matrixModel) {
+            var layoutSettings = matrixModel.model.layout;
+            var isHorizontal = layoutSettings.orientation == "lefttoright"
+                               || layoutSettings.orientation == "righttoleft";
+            var spacing = isHorizontal ? layoutSettings.verticalSpacing : layoutSettings.horizontalSpacing;
+
+            for (var i = 0; i < matrixModel.matrix.length; i++) //foreach (var matrixrow1 in matrixModel.Matrix.Values)  //i
+            {
+                var matrixrow1 = matrixModel.matrix[i].value;
+                for (var j = 0; j < matrixrow1.length; j++) //  foreach (var matrixCell in matrixrow1) //j
+                {
+                    var matrixCell = matrixrow1[j];
+                    var start = matrixCell.offset - (matrixCell.size / 2);
+                    for (var k = 0; k < matrixCell.cells.length; k++) // foreach (var cell in matrixCell.Cells) //k
+                    {
+                        var cell = matrixCell.cells[k];
+                        var type = ej.datavisualization.Diagram.MultiParentModel.prototype._getType(cell.type);
+                        if (type === "internalVertex") {
+                            var internalVertex = cell;
+                            var width = internalVertex.cell.geometry.width;
+                            var height = internalVertex.cell.geometry.height;
+                            if (isHorizontal) {
+                                internalVertex.cell.geometry = new ej.datavisualization.Diagram.Rectangle(
+                                    matrixModel.rowOffset[matrixCell.level] - (width / 2),
+                                    start,
+                                    width,
+                                    height);
+                            }
+                            else {
+                                internalVertex.cell.geometry = new ej.datavisualization.Diagram.Rectangle(
+                                    start,
+                                    matrixModel.rowOffset[matrixCell.level] - (height / 2),
+                                    width,
+                                    height);
+                            }
+
+                            start += (isHorizontal ? height : width) + spacing;
+                        }
+                        else if (type === "internalEdge") {
+                            var internalEdges = cell;
+                            var parent = matrixCell.visitedParents[0];
+                            var isContainSibilingVertex = false;
+                            for (var l = 0; l < parent.visitedChildren.length; l++) {
+                                var children = parent.visitedChildren[l];
+                                var cells = [];
+                                for (var m = 0; m < children.cells.length; m++) {
+                                    var cell = children.cells[m];
+                                    var type = ej.datavisualization.Diagram.MultiParentModel.prototype._getType(cell.type);
+                                    if (type === "internalVertex") {
+                                        cells.push(cell);
+                                    }
+                                }
+                                if (cells.length > 0) {
+                                    isContainSibilingVertex = true;
+                                    break;
+                                }
+                            }
+
+                            // Need to updated line width
+                            var lineWidth = 1, edgeSpacing = 5;
+                            for (var m = 0; m < internalEdges.edges.length; m++) {
+                                var internalConnector = internalEdges.edges[m];
+                                var pt = new ej.datavisualization.Diagram.Point(start + (lineWidth / 2.0), matrixModel.rowOffset[matrixCell.Level]);
+                                if (isHorizontal) {
+                                    pt = new ej.datavisualization.Diagram.Point(matrixModel.rowOffset[matrixCell.level], start + (lineWidth / 2.0));
+                                }
+                                
+                                if (this._containsValue(this._getEdgeMapper(), internalConnector)) {  //matrixModel.Model.Layout.EdgesMapper.ContainsKey(internalConnector)) {
+                                    var key;
+                                    for (var l = 0; l < this._getEdgeMapper().length; l++)
+                                    {
+                                        if (this._getEdgeMapper()[l].key == internalConnector) {
+                                            key = l;
+                                            break;
+                                        }
+                                    }
+                                    this._getEdgeMapper()[key].value.push(pt);
+                                }
+
+                                start += lineWidth + edgeSpacing;
+                            }
+
+                            start += spacing;
+                        }
+                    }
+                }
+            }
+        };
+        LineDistribution.prototype._arrangeElements = function (matrixModel) {
+            var layoutSettings = matrixModel.model.layout;
+            var isHorizontal = layoutSettings.orientation == ej.datavisualization.Diagram.LayoutOrientations.LeftToRight
+            || layoutSettings.orientation == ej.datavisualization.Diagram.LayoutOrientations.RightToLeft;
+
+            var spacing = isHorizontal ? layoutSettings.verticalSpacing : layoutSettings.horizontalSpacing;
+            var spacingInverse = !isHorizontal ? layoutSettings.verticalSpacing : layoutSettings.horizontalSpacing;
+            // Need to group element before
+            this._groupLayoutCells(matrixModel);
+            this._createMatrixCells(matrixModel);
+           
+            for (var j = 0; j < matrixModel.matrix.length; j++) { // foreach (var matrixKey in this.matrix.Keys)
+                var matrixKey = matrixModel.matrix[j].key;
+                var matrixrow = matrixModel.matrix[matrixKey].value;
+                for (var i = 1; i < matrixrow.length; i++) {
+                    var cell = matrixrow[i];
+                    var prevCell = matrixrow[i - 1];
+                    cell.offset += prevCell.offset + (prevCell.size / 2) + spacing + (cell.size / 2);
+                }
+            }
+
+
+            for (var j = 0; j < matrixModel.matrix[0].value.length; j++) {
+                var root = matrixModel.matrix[0].value[j];
+                this._arrangeMatrix(root, null, matrixModel);
+            }
+
+            for (var k = 0; k < matrixModel.matrix.length; k++) {
+                var row = matrixModel.matrix[k].value;
+                for (var i = 0; i < row.length; i++) {
+                    var cell = row[i];
+                    if (cell.visitedParents.length > 1) {
+                        var firstParent = cell.visitedParents[0];
+                        var lastParent = cell.visitedParents[cell.visitedParents.length - 1];
+                        var firstVertexParent = this._findParentVertexCellGroup(firstParent);
+                        var lastVertexParent = this._findParentVertexCellGroup(lastParent);
+
+                        if (firstParent != firstVertexParent && firstVertexParent.offset < firstParent.offset)
+                        {
+                            firstParent = firstVertexParent;
+                        }
+
+                        if (lastParent != lastVertexParent && lastVertexParent.offset > lastParent.offset)
+                        {
+                            lastParent = firstVertexParent;
+                        }
+
+                        var newoffset = (firstParent.offset + lastParent.offset) / 2;
+                        var availOffsetMin = cell.initialOffset, availOffsetMax = cell.offset;
+                        if (!(availOffsetMax == availOffsetMin))
+                        {
+                            if (newoffset >= availOffsetMin && newoffset <= availOffsetMax)
+                            {
+                                this._translateMatrixCells(newoffset - cell.offset, cell);
+                            }
+                            else if (newoffset < availOffsetMin)
+                            {
+                                this._translateMatrixCells(availOffsetMin - cell.offset, cell);
+                            }
+                        }
+                    }
+                }
+            }
+
+            this._setXYforMatrixCell(matrixModel);
+        };
+        LineDistribution.prototype._findParentVertexCellGroup = function (cell) {
+            if (cell.cells[0]) {
+                return cell;
+            }
+
+            if (cell.parents.length > 0) {
+                return this._findParentVertexCellGroup(cell.parents[0]);
+            }
+
+            return cell;
+        };
+        LineDistribution.prototype._translateMatrixCells = function (value, cell)
+        {
+            if (!(value == 0)) {
+                cell.offset += value;
+                if (cell.visitedChildren.length > 0) {
+                    for (var i = 0 ; i < cell.visitedChildren.length; i++) //foreach (var cellVisitedChild in cell.visitedChildren)
+                    {
+                        var cellVisitedChild = cell.visitedChildren[i];
+                        this._translateMatrixCells(value, cellVisitedChild);
+                    }
+                }
+            }
+        };
+        LineDistribution.prototype._arrangeMatrix = function (cell, parent, matrixModel) {
+            var layoutSettings = matrixModel.model.layout;
+            var isHorizontal = layoutSettings.orientation == "lefttoright"
+                               || layoutSettings.orientation == "righttoleft";
+            var spacing = isHorizontal ? layoutSettings.verticalSpacing : layoutSettings.horizontalSpacing;
+
+            var matrix = matrixModel.matrix;
+            var matrixRow = matrix[cell.level].value;
+            var matrixIndex = matrixRow.indexOf(cell);
+
+            if (cell.visitedParents.length > 0) {
+                if (cell.visitedParents.length == 1) {
+                    cell.initialOffset = cell.offset;
+                }
+
+                if (matrixIndex + 1 < matrixRow.length) {
+                    var nextCell = matrixRow[matrixIndex + 1];
+                    if (nextCell.visitedParents.length > 0) {
+                        if (!this._containsValue(cell.visitedParents, parent)) {   //   !cell.VisitedParents.Contains(parent)) {
+                            cell.visitedParents.push(parent);
+                            parent.ignoredChildren.push(cell);
+                            return;
+                        }
+                    }
+                }
+            }
+
+            if (!(cell.children.length > 0))//!cell.Children.Any())
+            {
+                var validOffset = cell.offset;
+                if (matrixIndex > 0) {
+                    var prevCell = matrixRow[matrixIndex - 1];
+                    validOffset = prevCell.offset + (prevCell.size / 2) + spacing + (cell.size / 2);
+                }
+
+                this._shiftMatrixCells(validOffset - cell.offset, cell, false, null, matrixModel);
+            }
+            else {
+                for (var i = 0 ; i < cell.children.length; i++)// foreach (var matrixCellChild in cell.Children)
+                {
+                    var matrixCellChild = cell.children[i];
+                    if (!this._containsValue(cell.visitedChildren, matrixCellChild)) {  //!cell.visitedChildren.Contains(matrixCellChild)) {
+                        this._arrangeMatrix(matrixCellChild, cell, matrixModel);
+                        cell.visitedChildren.push(matrixCellChild);
+                    }
+                }
+
+                if (cell.visitedChildren.length > 0)//.Any())
+                {
+                    var children = cell.visitedChildren.slice();
+                    for (var i = 0 ; i < cell.ignoredChildren.length; i++)  //foreach (var cellIgnoredChild in cell.IgnoredChildren)
+                    {
+                        var cellIgnoredChild = cell.ignoredChildren[i];
+                        children.splice(i, 1, cellIgnoredChild);//.Remove(cellIgnoredChild);
+                    }
+
+                    if (children.length > 0) {
+                        var firstChild = cell.visitedChildren[0];
+                        var lastChild = cell.visitedChildren[cell.visitedChildren.length -1];
+                        var x1 = firstChild.offset - (firstChild.size / 2);
+                        var x2 = lastChild.offset + (lastChild.size / 2);
+                        var newoffset = (x1 + x2) / 2;
+                        if (newoffset < cell.offset) {
+                            this._shiftMatrixCells(cell.offset - newoffset, firstChild, true, cell, matrixModel);
+                        }
+                        else if (newoffset > cell.offset) {
+                            this._shiftMatrixCells(newoffset - cell.offset, cell, false, null, matrixModel);
+                        }
+                    }
+                }
+            }
+
+            if (!this._containsValue(cell.visitedParents, parent)) {   //  !cell.VisitedParents.Contains(parent))
+                cell.visitedParents.push(parent);
+            }
+        };
+        LineDistribution.prototype._shiftMatrixCells = function (value, startingCell, shiftChildren, parentCell, matrixModel) {
+            if (!(value == 0)) {
+                var matrix = matrixModel.matrix;
+                var matrixRow = matrix[startingCell.level].value;
+                var index = matrixRow.indexOf(startingCell);
+
+                for (var i = index; i < matrixRow.length; i++) {
+                    matrixRow[i].offset += value;
+                }
+
+                if (shiftChildren) {
+                    if (startingCell.visitedChildren.length > 0) {
+                        this._shiftMatrixCells(
+                            value,
+                            startingCell.visitedChildren[0],
+                            true,
+                            startingCell,
+                            matrixModel);
+                    }
+                    else {
+                        var i = 1;
+                        var nextSibilingwithChild = null;
+                        while (index + i < matrixRow.length) {
+                            var nextCell = matrixRow[index + i];
+                            if (parentCell != null && this._containsValue(nextCell.visitedParents, parentCell)) {   // nextCell.VisitedParents.Contains(parentCell)) {
+                                if (nextCell.visitedChildren.length > 0) {
+                                    nextSibilingwithChild = nextCell;
+                                }
+                                else {
+                                    i++;
+                                    continue;
+                                }
+                            }
+
+                            break;
+                        }
+
+                        if (nextSibilingwithChild != null) {
+                            this._shiftMatrixCells(
+                                value,
+                                nextSibilingwithChild.visitedChildren[0],                                
+                                true,
+                                nextSibilingwithChild,
+                                matrixModel);
+                        }
+                    }
+                }
+            }
+        };
+        LineDistribution.prototype._compareLists = function (list1, list2) {
+            var newList1 = list1.slice();
+            var newList2 = list2.slice();
+            if (newList1.length == newList2.length) {
+                if (newList1.length == 0) {
+                    return true;
+                }
+                else {
+                    var isSame = true;
+                    for (var i = 0; i < newList2.length; i++)// foreach (var o in newList2)
+                    {
+                        var o = newList2[i];
+                        for (var j = i ; j < newList1.length; j++) {
+                            if (!(newList1[j] == o)) {
+                                isSame = false;
+                                break;
+                            }
+                        }
+                    }
+
+                    return isSame;
+                }
+            }
+
+            return false;
+        };
+        return LineDistribution;
+    })();
+    ej.datavisualization.Diagram.LineDistribution = LineDistribution;
+
+    ej.datavisualization.Diagram.ConnectorObstacleDefaults = {
+        wrapper: null,
+        segments: []
+    };
+    ej.datavisualization.Diagram.ConnectorObstacle = function (options) {
+        options.wrapper = options.wrapper;
+        options.segments = options.segments;        
+        return $.extend(false, {}, ej.datavisualization.Diagram.ConnectorObstacleDefaults, options);
+    };
+    ej.datavisualization.Diagram.ObstacleSegmentDefaults = {
+        start: Number,
+        end: Number,
+        coord: Number,
+        direction: null,
+        distance: Number,
+        orientation: null,
+        id: Number,
+        startpoint: ej.datavisualization.Diagram.Point,
+        endpoint: ej.datavisualization.Diagram.Point
+    };
+    ej.datavisualization.Diagram.ObstacleSegment = function (options) {
+        options.direction = ej.datavisualization.Diagram.Util._getBezierDirection(options.startpt, options.endpt); // ej.datavisualization.Diagram.Geometry._findDirection(options.startpt, options.endpt);
+        options.distance = ej.datavisualization.Diagram.Util.findLength(options.startpt, options.endpt);
+        options.orientation = options.direction == "left" || options.direction == "right" ? "horizontal" : "vertical";
+        options.id = options.id;
+        if (options.orientation == "horizontal") {
+            options.coord = options.startpt.y;
+            if (options.direction == "left") {
+                options.start = options.endpt.x;
+                options.end = options.startpt.x;
+            }
+            else {
+                options.start = options.startpt.x;
+                options.end = options.endpt.x;
+            }
+        }
+        else {
+            options.coord = options.startpt.x;
+            if (options.direction == "top") {
+                options.start = options.endpt.y;
+                options.end = options.startpt.y;
+            }
+            else {
+                options.start = options.startpt.y;
+                options.end = options.endpt.y;
+            }
+        }
+
+        return $.extend(false, {}, ej.datavisualization.Diagram.ObstacleSegmentDefaults, options);
+    };
+    ej.datavisualization.Diagram.MatrixModelDefaults = {
+        model: null,
+        matrix: [],
+        rowOffset: []
+    };
+    ej.datavisualization.Diagram.MatrixModel = function (options) {
+        options.model = options.model;
+        options.matrix = options.matrix || [];
+        options.rowOffset = options.rowOffset || [];
+        return $.extend(false, {}, ej.datavisualization.Diagram.MatrixModelDefaults, options);
+    };
+    ej.datavisualization.Diagram.MatrixCellGroupDefaults = {
+        parents: [],
+        children: [],
+        visitedParents: [],
+        visitedChildren: [],
+        ignoredChildren: [],
+        cells: [],
+        size: Number,
+        offset: Number,
+        level: Number,
+        initialOffset: Number
+    };
+    ej.datavisualization.Diagram.MatrixCellGroup = function (options) {
+        options.level = options.level;
+        options.parents = options.parents;
+        options.children = options.children;
+        options.visitedChildren = options.visitedChildren;
+        options.visitedParents = options.visitedParents;
+        options.ignoredChildren = options.ignoredChildren;
+        options.cells = options.cells;
+        options.offset = options.offset;
+        options.initialOffset = options.initialOffset
+        return $.extend(false, {}, ej.datavisualization.Diagram.MatrixCellGroupDefaults, options);
+    };
+
+
+
 })(jQuery, Syncfusion);

@@ -43,7 +43,8 @@ var __extends = (this && this.__extends) || function (d, b) {
                     tag: "filterSettings",
                     attr: ["text", "query", "description"]
                 },
-                { tag: "editSettings.editItems", attr: ["field", "editType", "validationRules", "editParams", "defaultValue"] }
+                { tag: "editSettings.editItems", attr: ["field", "editType", "validationRules", "editParams", "defaultValue"] },
+                { tag: "swimlaneSettings.headers", attr: ["text", "key"] }
             ];
             this.localizedLabels = null;
             this.currentViewData = null;
@@ -88,6 +89,9 @@ var __extends = (this && this.__extends) || function (d, b) {
                 },
                 searchSettings: {
                     fields: "array"
+                },
+                swimlaneSettings: {
+                    headers: "array"
                 }
             };
             this.defaults = {
@@ -123,7 +127,9 @@ var __extends = (this && this.__extends) || function (d, b) {
                     unassignedGroup: {
                         enable: true,
                         keys: ["null", "undefined", ""]
-                    }
+                    },
+                    showEmptySwimlane: false,
+                    headers: []
                 },
                 fields: {
                     content: null,
@@ -235,6 +241,7 @@ var __extends = (this && this.__extends) || function (d, b) {
             this._kbnFilterCollection = [];
             this._kbnAdaptDdlData = [];
             this._kbnSwimLaneData = [];
+            this._headerWidth = [];
             this._kbnAdaptDdlIndex = 0;
             this._kbnSwipeWidth = 0;
             this._kbnSwipeCount = 0;
@@ -246,7 +253,6 @@ var __extends = (this && this.__extends) || function (d, b) {
             this._kbnAutoFilterCheck = false;
             this._autoKbnSwipeLeft = false;
             this._autoKbnSwipeRight = false;
-            this._kbnTransitionEnd = true;
             this._kbnDdlWindowResize = false;
             this._conmenu = null;
             this._rowIndexesColl = [];
@@ -301,6 +307,8 @@ var __extends = (this && this.__extends) || function (d, b) {
             this._enableSwimlaneCount = true;
             this._kTouchBar = null;
             this._contextSwimlane = null;
+            this._slText = null;
+            this._slKey = null;
             this._initialData = null;
             this._searchBar = null;
             this._originalScrollHeight = null;
@@ -547,7 +555,7 @@ var __extends = (this && this.__extends) || function (d, b) {
             }
         };
         Kanban.prototype._swipeKanban = function (e) {
-            if (this.element.hasClass('e-responsive') && this._kbnTransitionEnd && this.element.find('.e-targetclone').length == 0) {
+            if (this.element.hasClass('e-responsive') && this.element.find('.e-targetclone').length == 0) {
                 switch (e.type) {
                     case "swipeleft":
                         this.KanbanAdaptive._kbnLeftSwipe();
@@ -845,7 +853,7 @@ var __extends = (this && this.__extends) || function (d, b) {
                 CancelButton: "Cancel",
                 EditFormTitle: "Details of ",
                 AddFormTitle: "Add New Card",
-                SwimlaneCaptionFormat: "- {{:count}}{{if count == 1 }} item {{else}} items {{/if}}",
+                SwimlaneCaptionFormat: "- {{:count}}{{if count == 1 || count == 0 }} item {{else}} items {{/if}}",
                 FilterSettings: "Filters:",
                 FilterOfText: "of",
                 Max: "Max",
@@ -1348,6 +1356,7 @@ var __extends = (this && this.__extends) || function (d, b) {
                 this._checkDataBinding();
             else if ($header.length != 0 && this.model.columns.length != 0) {
                 this.element[0].replaceChild(this._renderHeader()[0], $header[0]);
+                this._headerTextWidth();
                 if (isString) {
                     this._keyValue.push(keyValue);
                     this.keyPredicates.push(new ej.Predicate(this.model.keyField, ej.FilterOperators.equal, keyValue, true));
@@ -1368,6 +1377,22 @@ var __extends = (this && this.__extends) || function (d, b) {
                 this.element.children().remove();
             }
         };
+        Kanban.prototype._headerTextWidth = function () {
+            if (this.model.enableRTL && this.model.allowToggleColumn) {
+                this._headerWidth = [];
+                for (var i = 0; i < this.model.columns.length; i++) {
+                    var headerDiv = this.element.find(".e-headerdiv").eq(i);
+                    var headerCellDiv = this.element.find(".e-headercelldiv").eq(i);
+                    if (headerCellDiv.hasClass('e-hide')) {
+                        headerCellDiv.removeClass('e-hide');
+                        this._headerWidth.push(headerDiv.width());
+                        headerCellDiv.addClass('e-hide');
+                    }
+                    else
+                        this._headerWidth.push(headerDiv.width());
+                }
+            }
+        };
         Kanban.prototype._checkDataBinding = function () {
             if (!this.model.columns.length && (((this._dataSource() == null || !this._dataSource().length) && !(this._dataSource() instanceof ej.DataManager)) || ((this._dataSource() instanceof ej.DataManager) && this._dataManager.dataSource.url == undefined && !this._dataSource().dataSource.json.length))) {
                 return;
@@ -1383,6 +1408,7 @@ var __extends = (this && this.__extends) || function (d, b) {
             if (columns && columns.length) {
                 this.element.append(this._renderHeader());
                 this.KanbanCommon._stackedHeadervisible();
+                this._headerTextWidth();
             }
             if ($.isFunction($.fn.ejWaitingPopup)) {
                 this.element.ejWaitingPopup({ showOnInit: false });
@@ -1501,8 +1527,11 @@ var __extends = (this && this.__extends) || function (d, b) {
             if (this._dataSource() == null && !(this._dataSource() instanceof ej.DataManager)) {
                 if (!ej.isNullOrUndefined(args) && args.requestType == "add")
                     this.dataSource([], false);
-                else
+                else {
+                    if (ej.isNullOrUndefined(this._dataSource()))
+                        this._currentJsonData = this.currentViewData = [];
                     return;
+                }
             }
             this.model.query.requiresCount();
             var queryManagar = this.model.query, cloned = queryManagar.clone(), predicate;
@@ -1648,6 +1677,38 @@ var __extends = (this && this.__extends) || function (d, b) {
                                 }
                                 if (!this.currentViewData.GROUPGUID)
                                     this.currentViewData = new ej.DataManager(this.currentViewData).executeLocal(queryManagar)["result"];
+                                if (this.model.swimlaneSettings.headers.length > 0) {
+                                    $.map(proxy.currentViewData, function (obj, index) {
+                                        var swimHeader = proxy.model.swimlaneSettings.headers;
+                                        var data = new ej.DataManager(swimHeader).executeLocal(new ej.Query().where("key", ej.FilterOperators.equal, obj.key));
+                                        if (data.length == 0)
+                                            var newData = { slHeader: obj.key };
+                                        else {
+                                            if (!ej.isNullOrUndefined(data[0].text))
+                                                var newData = { slHeader: data[0].text };
+                                            else
+                                                var newData = { slHeader: data[0].key };
+                                        }
+                                        $.extend(obj, newData);
+                                    });
+                                    if (this.model.swimlaneSettings.showEmptySwimlane) {
+                                        $.map(proxy.model.swimlaneSettings.headers, function (obj, index) {
+                                            var data = new ej.DataManager(proxy.currentViewData).executeLocal(new ej.Query().where("key", ej.FilterOperators.equal, obj.key));
+                                            if (data.length == 0 && proxy.model.swimlaneSettings.showEmptySwimlane && (typeof obj.key == 'string' && obj.key.length != 0)) {
+                                                var header = !ej.isNullOrUndefined(obj.text) ? obj.text : obj.key;
+                                                var data = [{ key: obj.key, slHeader: header, count: 0, items: [] }];
+                                                proxy.currentViewData.push(data[0]);
+                                            }
+                                        });
+                                    }
+                                    var sortedData = new ej.DataManager(this.currentViewData).executeLocal(new ej.Query().sortBy("slHeader"));
+                                    this.currentViewData.splice(0, this.currentViewData.length);
+                                    for (var i = 0; i < sortedData.length; i++) {
+                                        this.currentViewData.push(sortedData[i]);
+                                    }
+                                    this._slText = new ej.DataManager(this.currentViewData).executeLocal(new ej.Query().select('slHeader'));
+                                    this._slKey = new ej.DataManager(this.currentViewData).executeLocal(new ej.Query().select('key'));
+                                }
                             }
                         }
                         this._renderAllCard();
@@ -1794,16 +1855,21 @@ var __extends = (this && this.__extends) || function (d, b) {
             helpers["_" + proxy._id + "colorMaps"] = this._getColorMaps;
             helpers["_" + proxy._id + "getId"] = this.KanbanCommon._removeIdSymbols;
             helpers["_" + proxy._id + "getData"] = this._columnData;
+            helpers["_" + proxy._id + "getWidth"] = this._getHeaderWidth;
             helpers["_" + proxy._id + "getCardCount"] = this._columnCardcount;
             helpers["_" + proxy._id + "getStatus"] = this._columnStatus;
             helpers["_" + proxy._id + "getKey"] = this._columnKey;
             $.views.helpers(helpers);
-            if (isSwimlane && (!isEmptyDataSource || proxy.currentViewData.length != 0)) {
+            if (isSwimlane && (!isEmptyDataSource || proxy.currentViewData.length != 0 || proxy.model.swimlaneSettings.showEmptySwimlane)) {
                 this._slTemplate += "{{for dataSource ~columns=columns ~ds=dataSource}}";
                 this._slTemplate += "<tr id='{{: ~_" + proxy._id + "getId(key)}}' class='e-swimlanerow' data-role='kanbanrow'>" +
                     "<td class='e-rowcell' data-role='kanbancell'  colspan='" + (proxy.getVisibleColumnNames().length) + "'>" +
                     "<div class='e-slexpandcollapse'><div class='e-icon e-slexpand'></div></div>" +
-                    "<div class='e-slkey'>{{:key}}</div>" +
+                    "{{if slHeader }}" +
+                    "<div class='e-slkey e-slHeader' data-ej-slmappingkey='{{:key}}'>{{:slHeader}}</div>" +
+                    "{{else}}" +
+                    "<div class='e-slkey' data-ej-slmappingkey='{{:key}}'>{{:key}}</div>" +
+                    "{{/if}}" +
                     "{{if " + this.model.swimlaneSettings.showCount + "}}" +
                     "<div class='e-slcount'>" + proxy.localizedLabels.SwimlaneCaptionFormat + "</div>" +
                     "{{/if}}" +
@@ -1811,7 +1877,7 @@ var __extends = (this && this.__extends) || function (d, b) {
                     "</tr>";
             }
             this._slTemplate += "<tr class='e-columnrow' data-role='kanbanrow'>";
-            if (isSwimlane && (!isEmptyDataSource || proxy.currentViewData.length != 0))
+            if (isSwimlane && (!isEmptyDataSource || proxy.currentViewData.length != 0 || proxy.model.swimlaneSettings.showEmptySwimlane))
                 this._slTemplate += "{{for ~columns ~items=#data.items}}";
             else
                 this._slTemplate += "{{for columns}}";
@@ -1849,7 +1915,10 @@ var __extends = (this && this.__extends) || function (d, b) {
                 "{{if " + this.model.allowToggleColumn + "}}" +
                 "<div class='e-shrinkheader" +
                 "{{if " + isIe8 + "}} IE{{/if}}" +
-                "{{if !#data.isCollapsed}}  e-hide {{/if}}" + "'>" +
+                "{{if !#data.isCollapsed}}  e-hide {{/if}}" + "'" +
+                "{{if " + this.model.enableRTL + "}}" +
+                "style=transform:rotate(90deg)translate(" + "{{:~_" + proxy._id + "getWidth('" + proxy._id + "Object') }}" + "px)" +
+                "{{/if}}" + ">" +
                 "{{:headerText}}<div class='e-shrinklabel'>[<div class='e-shrinkcount'>" +
                 "{{:~_" + proxy._id + "getCardCount(" + "~root.dataSource" + ",key,#parent.parent.getIndex(),'" + proxy._id + "Object') }}" +
                 "</div>]</div></div>" +
@@ -1864,7 +1933,7 @@ var __extends = (this && this.__extends) || function (d, b) {
                 "{{/if}}" +
                 "{{/if}}" +
                 "</td>{{/for}}</tr>";
-            if (isSwimlane && (!isEmptyDataSource || proxy.currentViewData.length != 0))
+            if (isSwimlane && (!isEmptyDataSource || proxy.currentViewData.length != 0 || proxy.model.swimlaneSettings.showEmptySwimlane))
                 this._slTemplate += "{{/for}}";
             this.templates[this._id + "_JSONTemplate"] = $.templates(this._createTemplate(this._slTemplate, "_swinlaneContent"));
             this.templates[this._id + "_cardTemplate"] = $.templates(this._createTemplate(this._cardTemplate, "_cardTemplate"));
@@ -1930,6 +1999,11 @@ var __extends = (this && this.__extends) || function (d, b) {
                     "{{/if}}" +
                     "</div>";
             return this._cardTemplate;
+        };
+        Kanban.prototype._getHeaderWidth = function (proxy) {
+            var obj = this["getRsc"]("helpers", proxy);
+            var index = $.inArray(this.parent.data, obj.model.columns);
+            return obj._headerWidth[index];
         };
         Kanban.prototype._columnKey = function (togglekey, objectId) {
             var keyStatus = false, kanbanObject = this["getRsc"]("helpers", objectId), ds = this["ctx"].root.dataSource, showhide = kanbanObject.model.fields.collapsibleCards;
@@ -2126,9 +2200,14 @@ var __extends = (this && this.__extends) || function (d, b) {
         Kanban.prototype._getSwimlaneCount = function () {
             var swimRow = this.getContentTable().find('.e-swimlanerow .e-slcount');
             var data = [], proxy = this;
-            $.map(proxy.currentViewData, function (obj, index) {
-                data.push(obj.key);
-            });
+            if (this.model.swimlaneSettings.headers.length > 0) {
+                data = kObj._slText;
+            }
+            else {
+                $.map(proxy.currentViewData, function (obj, index) {
+                    data.push(obj.key);
+                });
+            }
             for (var i = 0; i < swimRow.length; i++) {
                 var swimkey = this.getContentTable().find('.e-swimlanerow .e-slkey').eq(i).html();
                 var index = data.indexOf(swimkey);
@@ -2155,6 +2234,8 @@ var __extends = (this && this.__extends) || function (d, b) {
                     if ($.inArray($swimRow.eq(i).attr("id"), this._collapsedSwimlane) != -1)
                         this.KanbanSwimlane._toggleSwimlaneRow($($swimRow.eq(i)).find(".e-rowcell .e-slexpandcollapse"));
                 }
+                if (this.model.allowScrolling)
+                    this.KanbanScroll._refreshSwimlaneToggleScroller();
             }
         };
         Kanban.prototype.updateCard = function (primaryKey, data) {

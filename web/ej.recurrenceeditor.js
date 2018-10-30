@@ -630,8 +630,8 @@ var __extends = (this && this.__extends) || function (d, b) {
                             recurEndDate = new Date(new Date(day_start).setDate(day_start.getDate() + this._rRule.count * (_interval)));
                             break;
                         case "WEEKLY":
-                            var dayCount = day_start.getDate() + (((this._rRule.count / byDay.length) * 7)) * (_interval);
-                            recurEndDate = new Date(new Date(day_start).setDate(Math.round(dayCount) < dayCount ? dayCount + 1 : dayCount));
+                            var dayCount = Math.round(day_start.getDate() + (((this._rRule.count / byDay.length) * 7)) * (_interval));
+                            recurEndDate = new Date(new Date(day_start).setDate(dayCount + 1));
                             break;
                         case "MONTHLY":
                             recurEndDate = new Date(new Date(day_start).setMonth(day_start.getMonth() + this._rRule.count * (_interval)));

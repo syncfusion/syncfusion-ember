@@ -177,13 +177,15 @@
                     this["border-top-width"] = this["border-left-width"] = 0;
                 }
                 
-                var pos= dragTargetElmnt.offsetParent().offset();
-                $(document).off(ej.eventType.mouseMove, this._dragStartHandler).off(ej.eventType.mouseUp, this._destroyHandler)
-                    .on(ej.eventType.mouseMove, this._dragHandler).on(ej.eventType.mouseUp, this._dragStopHandler).on("mouseleave", this._dragMouseOutHandler).on("selectstart", false);
-                ej.widgetBase.droppables[this.model.scope] = {
-                    draggable: this.element,
-                    helper: dragTargetElmnt.css({ position: 'absolute',  left: (this.position.left-pos.left), top: (this.position.top-pos.top) }),
-                    destroy: this._destroyHandler
+                if (!ej.isNullOrUndefined(dragTargetElmnt) && dragTargetElmnt.length > 0) {
+                    var pos = dragTargetElmnt.offsetParent().offset();
+                    $(document).off(ej.eventType.mouseMove, this._dragStartHandler).off(ej.eventType.mouseUp, this._destroyHandler)
+                        .on(ej.eventType.mouseMove, this._dragHandler).on(ej.eventType.mouseUp, this._dragStopHandler).on("mouseleave", this._dragMouseOutHandler).on("selectstart", false);
+                    ej.widgetBase.droppables[this.model.scope] = {
+                        draggable: this.element,
+                        helper: dragTargetElmnt.css({ position: 'absolute', left: (this.position.left - pos.left), top: (this.position.top - pos.top) }),
+                        destroy: this._destroyHandler
+                    }
                 }
             }
             }
@@ -224,8 +226,8 @@
             }
             var helperElement = ej.widgetBase.droppables[this.model.scope].helper;
 			var pos= helperElement.offsetParent().offset();			 
-            pageX = ej.isNullOrUndefined(e.pageX) ? e.originalEvent.changedTouches[0].pageX : e.pageX;
-            pageY = ej.isNullOrUndefined(e.pageY) ? e.originalEvent.changedTouches[0].pageY : e.pageY;
+            pageX = ej.isNullOrUndefined(e.pageX) || e.pageX === 0 ? e.originalEvent.changedTouches[0].pageX : e.pageX;
+            pageY = ej.isNullOrUndefined(e.pageY) || e.pageY === 0 ? e.originalEvent.changedTouches[0].pageY : e.pageY;
             if (this.model.dragArea) {
                 if (this._pageX != pageX) {
                     if (this._left > this.position.left) left = this._left;

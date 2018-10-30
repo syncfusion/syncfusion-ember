@@ -362,6 +362,8 @@
             if (!self.element.hasClass("e-disable")) {
                 // here aregument 'e' used in serverside events 
                 var args = { target: e.currentTarget, e : e , status:self.model.enabled};
+				//Trigger _click function to apply scope changes
+                self._trigger("_click", args);
                 self._trigger("click", args);
             } 
         },

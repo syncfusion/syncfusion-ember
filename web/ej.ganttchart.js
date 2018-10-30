@@ -227,22 +227,42 @@
             taskbarClick: null,
             predecessorTooltipTemplate:""
         },
-
+        updateHighlightNonWorkingTime: function (boolValue) {
+            var proxy = this;
+            proxy.model.highlightNonWorkingTime = boolValue;
+            if (proxy.model.scheduleHeaderSettings.scheduleHeaderType == ej.Gantt.ScheduleHeaderType.Day)
+                proxy._renderDayWorkColor();
+        },
+        updateNonWorkingBackground: function (value) {
+            var proxy = this;
+            proxy.model.nonWorkingBackground = value;
+            if (!proxy.model.nonWorkingBackground) return;
+            proxy._renderDayWorkColor();
+        },
         updateHighlightWeekends: function (boolValue) {
             var proxy = this;
             proxy.model.highlightWeekends = boolValue;
-
-            if (proxy.model.highlightWeekends == true)
-                proxy._renderWeekends();
-            else
-                proxy._$weekendsContainer.remove();
+            if (proxy.model.scheduleHeaderSettings.scheduleHeaderType == ej.Gantt.ScheduleHeaderType.Day) {
+                proxy._renderDayWorkColor();
+            }
+            else {
+                if (proxy.model.highlightWeekends == true)
+                    proxy._renderWeekends();
+                else
+                    proxy._$weekendsContainer.remove();
+            }
         },
 
         updateWeekendBackground: function (bgcolor) {
             var proxy = this;
             proxy.model.weekendBackground = bgcolor;
-            proxy._$weekendsContainer.remove();
-            proxy._renderWeekends();
+            if (proxy.model.scheduleHeaderSettings.scheduleHeaderType == ej.Gantt.ScheduleHeaderType.Day) {
+                proxy._renderDayWorkColor();
+            }
+            else {
+                proxy._$weekendsContainer.remove();
+                proxy._renderWeekends();
+            }
         },
 
         showTooltip: function (boolValue) {
@@ -269,15 +289,6 @@
             var proxy = this;
             proxy.model.connectorlineWidth = parseInt(lineWidth);
             proxy._createConnectorLineTemplate();
-        },
-        updateEditedRecordEndDate: function (endDate) {
-            var proxy = this;
-            proxy._currentEditedRecord.endDate = endDate;
-        },
-
-        updateEditedRecordDuration: function (duration) {
-            var proxy = this;
-            proxy._currentEditedRecord.duration = duration;
         },
 
         updateTaskbarBackground: function (bgcolor) {
@@ -650,6 +661,7 @@
             proxy._$dependencyViewContainer = null,
             proxy._$secondaryCanvas = null,
             proxy._$ganttViewTable = null,
+            proxy._nonWorkingTimeRanges = [];
             proxy._$ganttViewTablebody = null,
             proxy._weekdays = [],
             proxy._rowMargin = 0,
@@ -704,43 +716,6 @@
             proxy._rightResizerGripper = null,
             proxy._progressHandle = null,
             proxy._progressHandleChild = null,
-            proxy._currentEditedRecord = {
-                taskId: null,
-                taskName: null,
-                startDate: null,
-                endDate: null,
-                duration: null,
-                isMilestone: false,
-                status: null,
-                predecessor: null,
-                resourceInfo: null,
-                parentItem: null,
-                isSelected: false,
-                childRecords: null,
-                hasChildRecords: false,
-                expanded: false,
-                level: 0,
-                left: 0,
-                width: 0,
-                progressWidth: 0,
-                item: null,
-                baselineLeft: 0,
-                baselineWidth: 0,
-                baselineStartDate: null,
-                baselineEndDate: null,
-                isReadOnly: false,
-                hasFilteredChildRecords: true,
-                serialNumber: null,
-                taskbarBackground: null,
-                progressbarBackground: null,
-                parentProgressbarBackground: null,
-                parentTaskbarBackground: null,
-                cellBackgroundColor: null,
-                rowBackgroundColor: null,
-                treeMappingName: [],
-                dragState: true,
-                durationUnit: "",
-            },
             proxy._mouseHoverTooltip = document.getElementById(this.model.tooltipTemplate),
             proxy._progressBarTooltipID = document.getElementById(this.model.progressbarTooltipTemplateId),
             proxy._taskbarEditingTooltipID = document.getElementById(this.model.taskbarEditingTooltipTemplateId),
@@ -752,6 +727,7 @@
             proxy.tooltipState = null,
             proxy._visibleRecordsCount = 0,
             proxy._tooltipTimer,
+            proxy._isCalendarExist = null,
             proxy._$gridLinesTablebody = null,
 
             //Properties for connector line mouse
@@ -837,8 +813,25 @@
         _createChartTaskbarTemplate: function () {
             if (this.model.viewType == "resourceView")
                 this._createResourceTaskbarTemplate();
+            else if (this.model.viewType == "histogramView") {
+               this._createHistogramTaskbarTemplate();
+            }
             else
                 this._createTaskbarTemplate();
+        },
+        _renderDayWorkColor: function () {
+            var proxy = this, model = proxy.model,
+                 isWorkingColor = false;
+            for (var j = 0; j < model._nonWorkingTimeRange.length; j++) {
+                if (model._nonWorkingTimeRange[j].color) {
+                    isWorkingColor = true;
+                    break;
+                }
+            }
+            if (model.highlightNonWorkingTime || isWorkingColor || model.highlightWeekends)
+                proxy._renderCustomDaySchedule();
+            else
+                proxy._$weekendsContainer.children('.e-secondary_canvas').remove();
         },
         //Rendering GanttChart
         _renderGanttChart: function () {
@@ -873,7 +866,8 @@
             if (proxy.model.highlightWeekends == true
                 && model.scheduleHeaderSettings.scheduleHeaderType == ej.Gantt.ScheduleHeaderType.Week)
                 proxy._renderWeekends();
-
+            if (model.scheduleHeaderSettings.scheduleHeaderType == ej.Gantt.ScheduleHeaderType.Day)
+                proxy._renderDayWorkColor();
             proxy._$stripLineContainer.empty();
             //Display striplines
             if (proxy.model.stripLines != null) {
@@ -1073,6 +1067,7 @@
                 else
                     $($parentDiv).find(".e-connectorline-leftarrow").addClass("e-connectorline-leftarrow-hover");
                 proxy._hoverConnectorLineElement = $parentDiv;
+                proxy._predecessorInfo = proxy._getPredecessorTooltipData($parentDiv);
                 proxy._renderConnectorDialog(e);
                 return;
             }
@@ -2836,10 +2831,11 @@
                         };
                     } else if (proxy._allowDragging == true) {
                         proxy._$ganttChartContainer[0].style.cursor = "move";
-
+                        var startDate = model.ganttInstance._getValidStartDate(item),
+                            endDate = model.ganttInstance._getValidEndDate(item);
                         tooltipElement = {
-                            ttipstartDate: this._getFormatedDate(item.startDate, model.dateFormat, model.locale),
-                            ttipendDate: this._getFormatedDate(item.endDate, model.dateFormat, model.locale),
+                            ttipstartDate: this._getFormatedDate(startDate, model.dateFormat, model.locale),
+                            ttipendDate: this._getFormatedDate(endDate, model.dateFormat, model.locale),
                         };
                     }
 
@@ -3237,10 +3233,11 @@
                 }
                 item.left = item.left < 0 ? 0 : item.left;
 
-                $(div).css({ "left": (item.left) + "px" });
+                var radius = Math.floor((this.model.taskbarHeight) / 2);
+                $(div).css({ "left": (item.left - radius) + "px" });
 
-                $(proxy._leftConnectorPoint).css({ "left": (item.left - proxy._connectorPointWidth) + "px" });
-                $(proxy._rightConnectorPoint).css({ "left": (item.left + proxy._milesStoneWidth) + "px" });
+                $(proxy._leftConnectorPoint).css({ "left": (item.left - proxy._connectorPointWidth - radius) + "px" });
+                $(proxy._rightConnectorPoint).css({ "left": (item.left + proxy._milesStoneWidth - radius) + "px" });
 
                 proxy._updateEditedItem(item, "dragging");
                 proxy._appendTooltip($target, item);
@@ -3255,24 +3252,25 @@
                 model = proxy.model,
                 projectStartDate = ganttRecord._getFormatedDate(model.projectStartDate, model.dateFormat, model.locale),
                 projectStartDate = ganttRecord._getDateFromFormat(projectStartDate, model.dateFormat, model.locale),
-                startDate, endDate, left;
+                startDate, endDate, left, ganttInstance = this.model.ganttInstance;
 
             switch (reason) {
 
                 case 'dragging':
 
-                    left = this.model.ganttInstance._getRoundOffStartLeft(ganttRecord, proxy._roundOffDuration);
+                    left = ganttInstance._getRoundOffStartLeft(ganttRecord, proxy._roundOffDuration);
                     projectStartDate = this.model.ganttInstance._getDateByLeft(left);
-                    startDate = this.model.ganttInstance._checkStartDate(projectStartDate, ganttRecord, null, reason);
-                    ganttRecord.startDate = new Date(startDate);
-                    var editArgs = {};
-                    editArgs.startDate = ganttRecord.startDate;
-                    editArgs.duration = ganttRecord.duration;
-                    editArgs.durationUnit = ganttRecord.durationUnit;
-                    editArgs.record = ganttRecord;
 
-                    proxy._calculateEndDate(editArgs);
-                    ganttRecord.endDate = proxy._currentEditedRecord.endDate;
+                    if (!ej.isNullOrUndefined(ganttRecord.endDate) && ej.isNullOrUndefined(ganttRecord.startDate)) {
+                        endDate = ganttInstance._checkStartDate(projectStartDate, ganttRecord, null);                                               
+                        ganttRecord.endDate = ganttInstance._checkEndDate(endDate, ganttRecord);
+                    }
+                    else {
+                        ganttRecord.startDate = ganttInstance._checkStartDate(projectStartDate, ganttRecord, null);
+                        if (!ej.isNullOrUndefined(ganttRecord.duration)) {
+                            ganttRecord._calculateEndDate(ganttInstance);
+                        }
+                    }
                     //update on dataSource
                     if (model.startDateMapping)
                         ganttRecord.item[model.startDateMapping] = ganttRecord.startDate;
@@ -3283,49 +3281,51 @@
 
                 case 'leftResizing':
                     var editMode = "Resizing";
-                    left = this.model.ganttInstance._getRoundOffStartLeft(ganttRecord, proxy._roundOffDuration);
-                    projectStartDate = this.model.ganttInstance._getDateByLeft(left);
-                    startDate = this.model.ganttInstance._checkStartDate(projectStartDate, ganttRecord, null, reason);
+                    left = ganttInstance._getRoundOffStartLeft(ganttRecord, proxy._roundOffDuration);
+                    projectStartDate = ganttInstance._getDateByLeft(left);
+
+                    if (ej.isNullOrUndefined(ganttRecord.endDate)) {
+                        endDate = ganttInstance._getValidEndDate(ganttRecord);
+                        ganttRecord.endDate = endDate;
+                        if (model.endDateMapping)
+                            ganttRecord.item[model.endDateMapping] = ganttRecord.endDateMapping;
+                    }
+
+                    startDate = ganttInstance._checkStartDate(projectStartDate, ganttRecord, null);
                     ganttRecord.startDate = new Date(startDate);
-                    if (ganttRecord.startDate.getTime() == ganttRecord.endDate.getTime()
+
+
+                    if (ganttInstance._compareDates(ganttRecord.startDate, ganttRecord.endDate) == 0
                         && ej.isNullOrUndefined(ganttRecord.isMilestone) && ganttRecord.isMilestone == false && ganttRecord.duration == 0) {
                         ganttRecord.duration = 1;
                     }
-                    var editArgs = {};
-                    editArgs.startDate = ganttRecord.startDate;
-                    editArgs.endDate = ganttRecord.endDate;
-                    editArgs.durationUnit = ganttRecord.durationUnit;
-                    editArgs.record = ganttRecord;
 
-                    proxy._calculateDuration(editArgs);
-                    ganttRecord.duration = proxy._currentEditedRecord.duration;
+                    ganttRecord._calculateDuration(ganttInstance);
+
                     //update on dataSource
                     if (model.startDateMapping)
                         ganttRecord.item[model.startDateMapping] = ganttRecord.startDate;
-                    if (model.durationMapping)
-                        ganttRecord.item[model.durationMapping] = ganttRecord.duration;
                     break;
 
                 case 'rightResizing':
                     var editMode = "Resizing";
                     left = this.model.ganttInstance._getRoundOffEndLeft(ganttRecord, proxy._roundOffDuration);
                     var tempEndDate = this.model.ganttInstance._getDateByLeft(left);
+
+                    if (ej.isNullOrUndefined(ganttRecord.startDate)) {
+                        startDate = ganttInstance._getValidStartDate(ganttRecord);
+                        ganttRecord.startDate = startDate;
+                        if (model.startDateMapping)
+                            ganttRecord.item[model.startDateMapping] = ganttRecord.startDateMapping;
+                    }
                     endDate = this.model.ganttInstance._checkEndDate(tempEndDate, ganttRecord);
                     ganttRecord.endDate = new Date(endDate);
-                    var editArgs = {};
-                    editArgs.startDate = ganttRecord.startDate;
-                        editArgs.endDate = endDate;
-                        editArgs.durationUnit = ganttRecord.durationUnit;
-                        editArgs.record = ganttRecord;
- 
-                        proxy._calculateDuration(editArgs);
-                        ganttRecord.duration = proxy._currentEditedRecord.duration;
+
+                    ganttRecord._calculateDuration(ganttInstance);
 
                     //update on datasource
                     if (model.endDateMapping)
                         ganttRecord.item[model.endDateMapping] = ganttRecord.endDate;
-                    if (model.durationMapping)
-                        ganttRecord.item[model.durationMapping] = ganttRecord.duration;
                     break;
 
                 case 'progressResizing':
@@ -3334,15 +3334,6 @@
                         ganttRecord.item[model.progressMapping] = ganttRecord.status;
                     break;
             }
-        },
-
-        _calculateEndDate: function (args) {
-            var proxy = this;
-            return proxy._trigger("calculateEndDate", args);
-        },
-        _calculateDuration: function (args) {
-            var proxy = this;
-            return proxy._trigger("calculateDuration", args);
         },
 
         //false line implementation 
@@ -3506,7 +3497,10 @@
                         pos = posy - tooltip.height() - 30;//while tooltip rendered outdide of Gantt chart
                     else
                         pos = posy - tooltip.height() - rowHeight;
-
+					var scrollTop = $(window).scrollTop();
+                    if (pos < scrollTop) {
+                        pos = scrollTop;
+                      }
                     tooltip.css('top', ((pos) + 'px'));
                 } else {
                     tooltip.css('top', (posy + 10) + 'px');
@@ -3521,7 +3515,11 @@
                 row = $target.closest('tr.e-ganttrowcell'),
                 recordIndexr = rows.index(row),
                 item = this.model.currentViewData[recordIndexr];
-            if (item && item.eResourceTaskType == "resourceTask" && this.model.viewType == "resourceView" && $target.closest(".e-childContainer").length == 1) {
+            if (this.model.viewType == "histogramView" && row.length != 0 && item.workTimelineRanges.length != 0) {
+                var rIndex = row.find(".e-gantthistobar").index($target.closest(".e-gantthistobar"));
+                item = item.workTimelineRanges[rIndex];
+            }
+            else if (item && item.eResourceTaskType == "resourceTask" && this.model.viewType == "resourceView" && $target.closest(".e-childContainer").length == 1) {
                 var rIndex = row.find(".e-childContainer").index($target.closest(".e-childContainer"));
                 item = item.eResourceChildTasks[rIndex];
                 if (isSelectTaskbar) {
@@ -3531,6 +3529,36 @@
             } 
             return item;
         },
+
+        _getPredecessorTooltipData: function($element){
+            var proxy = this, model = proxy.model,
+                connectLineId = $($element).parent()[0].id,
+                taskIds = connectLineId.match(/\d+/g),
+                fromTask = model.flatRecords[model.ids.indexOf(taskIds[0])],
+                toTask = model.flatRecords[model.ids.indexOf(taskIds[1])],
+                fromTaskPredecessors = fromTask.predecessor,
+                predecessorType, predecessor;
+
+            predecessor = fromTaskPredecessors.filter(function (pdc) { return pdc.to == taskIds[1]; });
+            predecessorType = model.predecessorCollectionText.filter(function (pType) { return pType.id == predecessor[0].predecessorsType; });
+
+            var predecessorTooltipElement = {
+                linkType: predecessor[0].predecessorsType,
+                linkText: predecessorType[0].text,
+                offset: predecessor[0].offset,
+                offsetUnit: predecessor[0].offsetDurationUnit,
+                fromId: predecessor[0].from,
+                toId: predecessor[0].to,
+                fromName: fromTask.taskName,
+                toName: toTask.taskName
+            };
+            if (model.enableSerialNumber) {
+                predecessorTooltipElement.fromSno = fromTask.serialNumber;
+                predecessorTooltipElement.toSno = toTask.serialNumber;
+            }
+            return predecessorTooltipElement;
+        },
+
         _mouseHover: function (e) {
             
             var $target = $(e.target), proxy = this,
@@ -3686,31 +3714,7 @@
                             $($parentDiv).find(".e-connectorline-leftarrow").addClass("e-connectorline-leftarrow-hover");
 
                         proxy._hoverConnectorLineElement = $parentDiv;
-                        var connectLineId = $($parentDiv).parent()[0].id,
-                            taskIds = connectLineId.match(/\d+/g),
-                            fromTask = model.flatRecords[model.ids.indexOf(taskIds[0])],
-                            toTask = model.flatRecords[model.ids.indexOf(taskIds[1])],
-                            fromTaskPredecessors = fromTask.predecessor,
-                            predecessorType, predecessor;
-                        
-                        predecessor = fromTaskPredecessors.filter(function (pdc) { return pdc.to == taskIds[1]; });                        
-                        predecessorType = model.predecessorCollectionText.filter(function (pType) { return pType.id == predecessor[0].predecessorsType; });                       
-
-                        predecessorTooltipElement = {
-                            linkType: predecessor[0].predecessorsType,
-                            linkText: predecessorType[0].text,
-                            offset: predecessor[0].offset,
-                            offsetUnit: predecessor[0].offsetDurationUnit,
-                            fromId: predecessor[0].from,
-                            toId: predecessor[0].to,
-                            fromName: fromTask.taskName,
-                            toName: toTask.taskName
-                        };
-                        if (model.enableSerialNumber) {
-                            predecessorTooltipElement.fromSno = fromTask.serialNumber;
-                            predecessorTooltipElement.toSno = toTask.serialNumber;
-                        }
-                        proxy._predecessorInfo = predecessorTooltipElement;
+                        predecessorTooltipElement = proxy._getPredecessorTooltipData($parentDiv);                        
                     }
 
 
@@ -4116,7 +4120,7 @@
                 proxy._trigger("getCtrlRequestValue", args);
                 e.ctrlKey = args.ctrlKey;
             }
-            if (model.viewType == "resourceView")
+            if (model.viewType == "resourceView" || model.viewType == "histogramView")
                 taskItem = this.getRecordByTarget(e);
             if (($(div).hasClass("e-parentTask") || $(div).closest(".e-parentTask").length > 0) && !$target.hasClass("e-connectorpoint-left") && !$target.hasClass("e-connectorpoint-right") && (!e.ctrlKey && !e.shiftKey)) { // here check drag point class
 
@@ -4173,11 +4177,11 @@
             }
             if (model.taskbarClick) {
                 if (!$target.is(".e-childContainer,.e-gantt-milestone-container,.e-parentContainer")) {
-                    var taskElement = $target.closest(".e-childContainer,.e-gantt-milestone-container,.e-parentContainer");
+                    var taskElement = $target.closest(".e-childContainer,.e-gantt-milestone-container,.e-parentContainer,.e-gantthistobar");
                     if (taskElement.length) {
                         var args = {}, data;
-                        data = model.viewType == "resourceView" ? taskItem : model.currentViewData[rowIndex];
-                        rowIndex = model.updatedRecords.indexOf(data);
+                        data = model.viewType == "projectView" ? model.currentViewData[rowIndex] : taskItem;
+                        rowIndex = model.viewType == "histogramView" ? model.updatedRecords.indexOf(model.currentViewData[rowIndex]) : model.updatedRecords.indexOf(data);
                         args.data = data;
                         args.index = rowIndex;
                         args.taskbarElement = taskElement[0];
@@ -4368,6 +4372,7 @@
             }
             $(".e-secondary_canvas").css({ height: height + "px" });
             $(proxy.element).find(".e-weekends").css({ height: height + "px" });
+            $(proxy.element).find(".e-ganttworkingtime").css({ height: height + "px" });
 
             var holidayLableSelector = ".e-holiday-label";
             /* for rotate holiday lable in ie8 */
@@ -4542,7 +4547,7 @@
                         taskbarLabel = progressbar && progressbar.querySelector(".e-tasklabel"),
                         taskbarText = taskbarLabel && taskbarLabel.style;
 
-                    if (taskbarStyle.backgroundColor != args.taskbarBackground) {
+                    if (taskbarStyle.backgroundColor != args.taskbarBackground && (!ej.isNullOrUndefined(args.data.duration))) {
                         taskbarStyle.backgroundColor = args.taskbarBackground;
                     }
                     if (progressbar && progressbarStyle.backgroundColor != args.progressbarBackground) {
@@ -4682,7 +4687,9 @@
 
             var proxy = this,
                 args =args|| {},
-                headerdiv = proxy._$headerContainer;
+                headerdiv = proxy._$headerContainer,
+                prevTop = proxy._prevScrollTop,
+                prevLeft = proxy._prevLeft;
 
             
             if (args.scrollTop !== undefined) {
@@ -4712,16 +4719,34 @@
                     proxy._prevScrollTop = proxy._scrollTop;
                 }
             }
-            args.requestType = "scroll";
-            args.delta = proxy._scrollTop;
             proxy._prevLeft = proxy._scrollLeft;
             proxy._prevScrollTop = proxy._scrollTop;
+            args.requestType = "scroll";
             if (diff === 0 && vDiff !== 0) {
+                args.prevScrollTop = prevTop;
+                args.scrollDirection = "vertical";
+                args.delta = proxy._scrollTop;
+                proxy._completeAction(args);
+            } else if (diff !== 0 && vDiff === 0) {
+                args.prevScrollLeft = prevLeft;
+                args.isScrollByMethod = this._isScrollByMethod;
+                args.scrollDirection = "horizontal";
                 proxy._completeAction(args);
             }
         },
-
-
+        _getMaxScrollWidth: function () {
+            return this._$bodyContainer.children(".e-content").find(".e-ganttviewerbodyContent").width() - this._$bodyContainer.children(".e-content").width();
+        },
+        setScrollLeft: function (left) {
+            var maxLeft = this._getMaxScrollWidth();
+            if (left > maxLeft)
+                left = maxLeft;
+            if (left != this._prevLeft) {
+                this._isScrollByMethod = true;
+                this._$bodyContainer.ejScroller("scrollX", left, true);
+            }
+            this._isScrollByMethod = false;
+        },
         //helper method to refresh the ganttchart content from gantt
         refreshHelper: function (currentviewdata, records,collapseRecordsCount) {
 
@@ -4844,16 +4869,38 @@
 
             args.taskbar = taskbarContainer;
             if ($(taskbarContainer).hasClass("e-ganttrowcell")) {
-                allTaskElement = $(taskbarContainer).find("div.e-childContainer,div.e-parentContainer,div.e-gantt-milestone");
-                if ($(allTaskElement).length > 0 && currentTask.eResourceTaskType == "resourceTask") {
+                if (this.model.viewType == "histogramView") {
+                    allTaskElement = $(taskbarContainer).find("div.e-gantthistobar");
                     for (var count = 0; count < $(allTaskElement).length; count++) {
+                        var hargs = {}, workElement;
                         taskElement = $(allTaskElement)[count];
-                        args.data = currentTask.eResourceChildTasks[count];
-                        this._prepareQueryTaskbar(taskElement, args)
+                        workElement = taskElement.querySelector(".e-gantthistoworklabel");
+                        hargs.taskbar = taskElement;
+                        hargs.data = currentTask.workTimelineRanges[count];
+                        hargs.taskbarBackground = taskElement.style.backgroundColor;
+                        hargs.labelColor = workElement.style.color;
+                        this._trigger("queryTaskbarInfo", hargs);
+                        if (taskElement.style.backgroundColor != hargs.taskbarBackground) {
+                            taskElement.style.backgroundColor = hargs.taskbarBackground;
+                        }
+                        if (workElement.style.color != hargs.labelColor) {
+                            workElement.style.color = hargs.labelColor;
+                        }
                     }
-                } else {
-                    args.data = currentTask;
-                    this._prepareQueryTaskbar(allTaskElement, args)
+                }
+                else {
+                    allTaskElement = $(taskbarContainer).find("div.e-childContainer,div.e-parentContainer,div.e-gantt-milestone-container");
+                    if ($(allTaskElement).length > 0 && currentTask.eResourceTaskType == "resourceTask") {
+                        for (var count = 0; count < $(allTaskElement).length; count++) {
+                            taskElement = $(allTaskElement)[count];
+                            args.taskbar = taskElement;
+                            args.data = currentTask.eResourceChildTasks[count];
+                            this._prepareQueryTaskbar(taskElement, args)
+                        }
+                    } else {
+                        args.data = currentTask;
+                        this._prepareQueryTaskbar(allTaskElement, args)
+                    }
                 }
             }
         },
@@ -4947,7 +4994,10 @@
             var $gridLineContainerTable=$("#ganttgridLinesTable" + proxy._id);
 
             proxy._$bodyContent.width(width);//main body container
-            proxy.refreshWeekEndContainer();//weekENd Container
+            if (scheduleMode == ej.Gantt.ScheduleHeaderType.Day)
+                proxy._renderDayWorkColor();
+            else
+                proxy.refreshWeekEndContainer();//weekENd Container
             $gridLineContainerTable.width(width);
             $gridLineContainerTable.children("col").width(width);
             proxy._$ganttViewTable.width(width);
@@ -5101,16 +5151,38 @@
                     currentTask= this.model.currentViewData[row];
                     args.taskbar = taskbarContainer;
                     if ($(taskbarContainer).hasClass("e-ganttrowcell")) {
-                        allTaskElement = $(taskbarContainer).find("div.e-childContainer,div.e-parentContainer,div.e-gantt-milestone-container");
-                        if ($(allTaskElement).length > 0 && currentTask.eResourceTaskType == "resourceTask") {
+                        if (this.model.viewType == "histogramView") {
+                            allTaskElement = $(taskbarContainer).find("div.e-gantthistobar");
                             for (var count = 0; count < $(allTaskElement).length; count++) {
+                                var hargs = {},workElement;
                                 taskElement = $(allTaskElement)[count];
-                                args.data = currentTask.eResourceChildTasks[count];
-                                this._prepareQueryTaskbar(taskElement, args)
+                                workElement = taskElement.querySelector(".e-gantthistoworklabel");
+                                hargs.taskbar = taskElement;
+                                hargs.data = currentTask.workTimelineRanges[count];
+                                hargs.taskbarBackground = taskElement.style.backgroundColor;
+                                hargs.labelColor = workElement.style.color;
+                                this._trigger("queryTaskbarInfo", hargs);
+                                if (taskElement.style.backgroundColor != hargs.taskbarBackground) {
+                                    taskElement.style.backgroundColor = hargs.taskbarBackground;
+                                }
+                                if (workElement.style.color != hargs.labelColor) {
+                                    workElement.style.color = hargs.labelColor;
+                                }
                             }
-                        } else {
-                            args.data = currentTask;
-                            this._prepareQueryTaskbar(allTaskElement, args)
+                        }
+                        else {
+                            allTaskElement = $(taskbarContainer).find("div.e-childContainer,div.e-parentContainer,div.e-gantt-milestone-container");
+                            if ($(allTaskElement).length > 0 && currentTask.eResourceTaskType == "resourceTask") {
+                                for (var count = 0; count < $(allTaskElement).length; count++) {
+                                    taskElement = $(allTaskElement)[count];
+                                    args.taskbar = taskElement;
+                                    args.data = currentTask.eResourceChildTasks[count];
+                                    this._prepareQueryTaskbar(taskElement, args)
+                                }
+                            } else {
+                                args.data = currentTask;
+                                this._prepareQueryTaskbar(allTaskElement, args)
+                            }
                         }
                     }
                 }
@@ -5568,6 +5640,305 @@
                 templateString = template;
             return templateString;
         },
+        _sortHolidays: function (holiday) {
+            var sortedRecords = [],
+            query = ej.Query().sortBy("day", ej.sortOrder.Ascending);
+            sortedRecords = ej.DataManager(holiday).executeLocal(query);
+            return sortedRecords;
+        },
+        _rendercalendar: function (left1, left2, width, rightVerticalDiv, leftVerticalDiv, horiDiv) {
+            var proxy = this,
+             model = proxy.model,
+             height = model.rowHeight - 6,
+             divData = {};
+            rightVerticalDiv = ej.buildTag("div.e-gantthistocalender.e-rverticalline");
+            leftVerticalDiv = ej.buildTag("div.e-gantthistocalender.e-lverticalline");
+            horiDiv = ej.buildTag("div.e-gantthistocalender.e-horizontalline");
+            //for left vertical line
+            leftVerticalDiv.css({
+                "left": left1 + 'px',
+                "width": '1px',
+                "height": height + 'px',
+                "border-left-width": '1px',
+                "border-left-style": 'solid',
+                "position": 'absolute',
+                "margin-top": '6px'
+            });
+            divData.leftVerticalDiv = leftVerticalDiv;
+            //for right vertical line
+            rightVerticalDiv.css({
+                "left": left2 + 'px',
+                "width": '1px',
+                "height": height + 'px',
+                "border-left-width": '1px',
+                "border-left-style": 'solid',
+                "position": 'absolute',
+                "margin-top": '6px'
+            });
+            divData.rightVerticalDiv = rightVerticalDiv;
+            horiDiv.css({
+                "left": left1 + 'px',
+                "width": width + 'px',
+                "top": '6px',
+                'border-top-style': 'solid',
+                "border-top-width": '1px',
+                "position": 'absolute'
+            });
+            divData.horiDiv = horiDiv;
+            return divData;
+        },
+        _processWeekHistoMode: function (histoTemplate) {
+            var proxy = this,
+               model = proxy.model,
+               left = 0, left2,
+               ganttObj = this.model.ganttInstance,
+               width = model.perDayWidth,
+               height = model.rowHeight, divElements = [],
+               count = proxy.model.scheduleWeeks.length,
+               nonWorkIndex = $.extend(true, [], proxy._nonWorkingDayIndex),
+               scheduleStart = new Date(model.projectStartDate),
+               containerDiv = $("<div></div>"),
+               rightVerticalDiv, leftVerticalDiv, horiDiv,
+               scheduleEnd = new Date(model.projectEndDate);
+            if (model.scheduleHeaderSettings.scheduleHeaderType == "week")
+                scheduleEnd.setDate(scheduleEnd.getDate() + 6);
+            if (ej.isNullOrUndefined(proxy._isCalendarExist)) {
+                do {
+                    if (model.includeWeekend == true) nonWorkIndex = [];
+                    var index = nonWorkIndex.indexOf(scheduleStart.getDay());
+                    if (index != -1 || ganttObj._getHolidayByDay(scheduleStart)) {
+                        if (rightVerticalDiv != null && leftVerticalDiv != null && horiDiv != null) {
+                            containerDiv.append(leftVerticalDiv);
+                            containerDiv.append(horiDiv);
+                            containerDiv.append(rightVerticalDiv);
+                            rightVerticalDiv = leftVerticalDiv = horiDiv = null;
+                            left += width;
+                            width = model.perDayWidth;
+                        }
+                        left += model.perDayWidth;
+                    } else {
+                        if (width == model.perDayWidth && horiDiv == null && rightVerticalDiv == null && leftVerticalDiv == null) {
+                            left2 = left + width;
+                            divElements = proxy._rendercalendar(left, left2, width, rightVerticalDiv, leftVerticalDiv, horiDiv);
+                            rightVerticalDiv = divElements.rightVerticalDiv;
+                            leftVerticalDiv = divElements.leftVerticalDiv;
+                            horiDiv = divElements.horiDiv;
+                            containerDiv.append(leftVerticalDiv);
+                            containerDiv.append(horiDiv);
+                            containerDiv.append(rightVerticalDiv);
+                        }
+                        else {
+                            width += model.perDayWidth;
+                            left2 = left + width;
+                            rightVerticalDiv.css("left", left2);
+                            horiDiv.css("width", width);
+                        }
+                    }
+                    scheduleStart.setDate(scheduleStart.getDate() + 1);
+                } while (scheduleStart.getTime() <= scheduleEnd.getTime());
+                containerDiv.append(leftVerticalDiv);
+                containerDiv.append(horiDiv);
+                containerDiv.append(rightVerticalDiv);
+                proxy._isCalendarExist = containerDiv.html();
+                histoTemplate += containerDiv.html();
+            }
+            else {
+                histoTemplate += proxy._isCalendarExist;
+            }
+            return histoTemplate;
+        },
+        _processYearHistoMode: function (histoTemplate) {
+            var proxy = this,
+               model = proxy.model,
+               left1, left2, width,
+               ganttObj = proxy.model.ganttInstance,
+               holiday = model.holidays,
+               holidayLeft = [], divElements = [],
+               rightVerticalDiv, leftVerticalDiv, horiDiv,
+               containerDiv = $("<div></div>");
+            holiday = proxy._sortHolidays(holiday);
+            if (ej.isNullOrUndefined(proxy._isCalendarExist)) {
+                for (var i = 0 ; i < holiday.length; i++) {
+                    holidayLeft.push(ganttObj._getTaskLeft(holiday[i].day, false))
+                }
+                holidayLeft.push(proxy._scheduleYearWidth);
+                for (var i = 0; i < holidayLeft.length; i++) {
+                    left1 = i == 0 ? 0 : holidayLeft[i - 1] + model.perDayWidth;
+                    left2 = holidayLeft[i] - 1 // 1 subtract for border;                                 
+                    width = left2 - left1;
+                    divElements = proxy._rendercalendar(left1, left2, width, rightVerticalDiv, leftVerticalDiv, horiDiv);
+                    rightVerticalDiv = divElements.rightVerticalDiv;
+                    leftVerticalDiv = divElements.leftVerticalDiv;
+                    horiDiv = divElements.horiDiv;
+                    containerDiv.append(leftVerticalDiv);
+                    containerDiv.append(horiDiv);
+                    containerDiv.append(rightVerticalDiv);
+                }
+                proxy._isCalendarExist = containerDiv.html();
+                histoTemplate += containerDiv.html();
+            }
+            else {
+                histoTemplate += proxy._isCalendarExist;
+            }
+            return histoTemplate;
+        },
+        _processHourHistoMode: function (histoTemplate) {
+            var model = this.model,
+                left = 0,
+                height = model.rowHeight - 6, width,
+                rightDivLeft,
+                containerDiv = $("<div></div>"), divElements = [],
+                rightVerticalDiv, leftVerticalDiv, horiDiv,
+                horiDivWidth = 0,
+                ganttObj = model.ganttInstance,
+                scheduleHours = model.scheduleHours, timelineString = "",
+                hourWidth = model.perMinuteWidth * this._totalInterval,
+            nonWorkIndex = $.extend(true, [], this._nonWorkingDayIndex);
+            if (this._isCalendarExist)
+                return histoTemplate + this._isCalendarExist;
+            if (model.includeWeekend == true) nonWorkIndex = [];
+            for (var i = 0 ; i < scheduleHours.length; i++) {
+                var index = nonWorkIndex.indexOf(scheduleHours[i].getDay());
+                if (index != -1 || ganttObj._getHolidayByDay(scheduleHours[i]) || !this._checkIsWorkingHour(scheduleHours[i])) {
+                    if (rightVerticalDiv && leftVerticalDiv && horiDiv) {
+                        containerDiv.append(leftVerticalDiv);
+                        containerDiv.append(horiDiv);
+                        containerDiv.append(rightVerticalDiv);
+                        timelineString += containerDiv.html();
+                        rightVerticalDiv = leftVerticalDiv = horiDiv = null;
+                        horiDivWidth = rightDivLeft = 0;
+                    }
+                    left += hourWidth;
+                    continue;
+                } else {
+                    if (rightVerticalDiv && leftVerticalDiv && horiDiv) {
+                        rightDivLeft += hourWidth;
+                        horiDivWidth += hourWidth;
+                        rightVerticalDiv.css("left", rightDivLeft);
+                        horiDiv.css("width", horiDivWidth);
+                    } else {
+                        rightDivLeft = left + hourWidth;
+                        horiDivWidth += hourWidth;
+                        divElements = this._rendercalendar(left, rightDivLeft, horiDivWidth, rightVerticalDiv, leftVerticalDiv, horiDiv);
+                        rightVerticalDiv = divElements.rightVerticalDiv;
+                        leftVerticalDiv = divElements.leftVerticalDiv;
+                        horiDiv = divElements.horiDiv;
+                    }
+                    left += hourWidth;
+                }
+            }
+            this._isCalendarExist = timelineString;
+            histoTemplate += timelineString;
+            return histoTemplate;
+        },
+        _processDayHistoMode: function (histoTemplate) {
+            var proxy = this,
+               model = proxy.model,
+               left = 0,
+               ganttObj = model.ganttInstance,
+               height = model.rowHeight - 6, rightLineLeft,
+               containerDiv = $("<div></div>"),
+               rightVerticalDiv, leftVerticalDiv, horiDiv,
+               scheduleDays = proxy.model.scheduleDays, width,
+               nonWorkingRange = model._nonWorkingTimeRange,
+               timelineString = "", divElements = [],
+               nonWorkIndex = $.extend(true, [], proxy._nonWorkingDayIndex);
+            if (this._isCalendarExist)
+                return histoTemplate + this._isCalendarExist;
+            if (model.includeWeekend == true) nonWorkIndex = [];
+            for (var i = 0 ; i < scheduleDays.length; i++) {
+                var index = nonWorkIndex.indexOf(scheduleDays[i].getDay());
+                if (index != -1 || ganttObj._getHolidayByDay(scheduleDays[i])) {
+                    width = model.perDayWidth;
+                    left += width;
+                    continue;
+                }
+                for (var j = 0; j < nonWorkingRange.length; j++) {
+                    width = (nonWorkingRange[j].to - nonWorkingRange[j].from) * model.perHourWidth;
+                    if (nonWorkingRange[j].isWorking == false) {
+                        left += width;
+                        continue;
+                    }
+                    rightLineLeft = left + width;
+                    divElements = proxy._rendercalendar(left, rightLineLeft, width, rightVerticalDiv, leftVerticalDiv, horiDiv);
+                    rightVerticalDiv = divElements.rightVerticalDiv;
+                    leftVerticalDiv = divElements.leftVerticalDiv;
+                    horiDiv = divElements.horiDiv;
+                    containerDiv.append(leftVerticalDiv);
+                    containerDiv.append(horiDiv);
+                    containerDiv.append(rightVerticalDiv);                   
+                    timelineString += containerDiv.html();
+                    left += width;
+                }
+            }
+            this._isCalendarExist = timelineString;
+            histoTemplate += timelineString;
+            return histoTemplate;
+        },
+        _checkIsWorkingHour: function (date) {
+            var ganttObj = this.model.ganttInstance,
+                workingRanges = ganttObj._workingTimeRanges,
+                sHour = ganttObj._getSecondsInDecimal(date),
+                isWorking = false;
+            for (var i = 0; i < workingRanges.length; i++) {
+                var val = workingRanges[i];
+                if (sHour >= val.from && sHour < val.to) {
+                    isWorking = true;
+                    break;
+                }
+            }
+            return isWorking;
+        },
+        /*Method to get inner template for histogram element*/
+        _processHistoTemplate: function (data) {
+            var proxy = this,
+                model = proxy.model, className,
+                eRange = data.workTimelineRanges, top, height,
+                scheduleMode = model.scheduleHeaderSettings.scheduleHeaderType,
+                histoTemplate = "";
+            for (var i = 0; i < eRange.length; i++) {
+                height = model.rowHeight <= eRange[i].height ? model.rowHeight - 1 : eRange[i].height;
+                top = model.rowHeight - height - 1;// for border at row bottom          
+                className = eRange[i].isOverAllocated ? "e-ganttoverallocate" : "e-ganttnonoverallocate";
+                histoTemplate += "<div  class='e-gantthistobar " + className + "' style='left:" + eRange[i].left + "px;width: " + eRange[i].width + "px;height: " + height + "px;"
+                      + "top:" + top + "px'><span class='e-gantthistoworklabel'>" + eRange[i].workPerDay + model._durationUnitEditText.hour[0]
+                      + "</span></div>";
+            }
+            if (scheduleMode == "week" || scheduleMode == "month") {
+                histoTemplate = proxy._processWeekHistoMode(histoTemplate);
+            }
+            else if (scheduleMode == "year") {
+                histoTemplate = proxy._processYearHistoMode(histoTemplate);
+            }
+            else if (scheduleMode == "day") {
+                histoTemplate = proxy._processDayHistoMode(histoTemplate);
+            }
+            else if (scheduleMode == "hour") {
+                histoTemplate = proxy._processHourHistoMode(histoTemplate);
+            }
+            return histoTemplate;
+        },
+        /*Method to create taskbar template for resource view Gantt*/
+        _createHistogramTaskbarTemplate: function () {
+            var proxy = this,
+                  model = proxy.model, tr,
+                  helpers = {};
+            helpers["_" + proxy._id + "SelectState"] = $.proxy(proxy._SelectState, proxy);
+            helpers["_" + proxy._id + "histoTemplate"] = $.proxy(proxy._processHistoTemplate, proxy);
+            helpers["_" + proxy._id + "rowClassName"] = ej.TreeGrid._getrowClassName;//proxy._getrowClassName,
+            helpers["_" + proxy._id + "expandStatus"] = $.proxy(proxy._getExpandStatusRecord, proxy);
+            $.views.helpers(helpers);
+            var parentTr = "<tr class='{{:~_" + proxy._id + "rowClassName()}} e-ganttrowcell'"
+                 + "style='display:{{:~_" + proxy._id + "expandStatus(#data)}};background-color:{{if rowBGColor }}{{:rowBGColor}}{{else}} none{{/if}};height:" + model.rowHeight + "px;'>";
+            tr = "<td class='e-gantthistocell'>{{:~_" + proxy._id + "histoTemplate(#data)}}</td>";
+
+            parentTr += tr;
+            parentTr += "</tr>";
+            var templates = {};
+            templates[this._id + "_CustomTemplate2"] = parentTr;
+            $.templates(templates);
+        },
+
         //Template to render taskbar and milestone items
         _createTaskbarTemplate: function () {
 
@@ -5780,14 +6151,15 @@
                 "{{else " + this.model.showTaskNames + " && left > 0 && !" + leftLabelFlag + " }}<span style='line-height:" + (labelHeight) + "px;'>{{:taskName}}</span>"
                 + "{{else " + leftLabelFlag + "}}<span style='line-height:" + (labelHeight) + "px;'>" + leftField + "</span>{{/if}}</div></div></td>" +
 
-               "<td class='e-chartcell' style='width:" + tdWidth + "px;'>" +
+                "<td class='e-chartcell' style='width:" + tdWidth + "px;'>" +
+
                 "<div class='e-gantt-milestone-container' style=height:" + (this.model.taskbarHeight - 1) + "px;>" +
                 "<div class='e-connectorpoint-left' style='left:{{:left-" + (connectorPointWidth + milesStoneRadius) + "}}px;width:" + connectorPointWidth + "px;margin-top:" + connectorPointMargin + "px;height:" + (taskbarHeight / 2) + "px;border-radius:" +
                 connectorPointRadius + "px;'>" + touchLeftConnectorpoint + "</div>" +
                 "{{if " + isMilestoneTemplate + "}}" + milestoneTemplateString + "{{else}}" +
                 "<div class='e-gantt-milestone' style='position:absolute;left:{{:left-" + milesStoneRadius + "}}px;'>" +
-                "<div class='e-gantt-milestone e-milestone-top'  style='border-right-width:" + milesStoneRadius + "px;border-left-width:" + milesStoneRadius + "px;border-bottom-width:" + milesStoneRadius + "px; border-right-color:transparent;border-left-color:transparent;border-style:none solid solid;border-top: none;'></div>" +
-                "<div class='e-gantt-milestone e-milestone-bottom'  style='top:" + (milesStoneRadius) + "px;border-right-width:" + milesStoneRadius + "px; border-left-width:" + milesStoneRadius + "px; border-top-width:" + milesStoneRadius + "px; border-right-color:transparent;border-left-color:transparent;border-style:solid solid none; border-bottom: none;'></div>" +
+                "<div class='e-gantt-milestone e-milestone-top{{if startDate == null && endDate == null}} e-unscheduletaskbar{{/if}}'  style='border-right-width:" + milesStoneRadius + "px;border-left-width:" + milesStoneRadius + "px;border-bottom-width:" + milesStoneRadius + "px; border-right-color:transparent;border-left-color:transparent;border-style:none solid solid;border-top: none;'></div>" +
+                "<div class='e-gantt-milestone e-milestone-bottom{{if startDate == null && endDate == null}} e-unscheduletaskbar{{/if}}'  style='top:" + (milesStoneRadius) + "px;border-right-width:" + milesStoneRadius + "px; border-left-width:" + milesStoneRadius + "px; border-top-width:" + milesStoneRadius + "px; border-right-color:transparent;border-left-color:transparent;border-style:solid solid none; border-bottom: none;'></div>" +
                 "</div>" + "{{/if}}" +
                  "<div class='e-connectorpoint-right' style='left:{{:(left+" + (milesStoneRadius) + ")}}px;width:" + connectorPointWidth + "px;margin-top:" + connectorPointMargin + "px;height:" + (taskbarHeight / 2) + "px;border-radius:"
                  + connectorPointRadius + "px;'>" + touchRightConnectorpoint + "</div>" +
@@ -5824,6 +6196,7 @@
 
                 //taskbar
                "<td class='e-chartcell' style='width:" + tdWidth + "px;'>" +
+               "{{if (startDate != null || endDate != null || duration != null)}}" +
 
                
 
@@ -5831,6 +6204,20 @@
 
                "<div class='e-connectorpoint-left' style='left:{{:left-" + connectorPointWidth + "}}px;width:" + connectorPointWidth + "px;margin-top:" + connectorPointMargin + "px;height:" + (taskbarHeight / 2) + "px;" +
                "border-radius:" + connectorPointRadius + "px'>" + touchLeftConnectorpoint + "</div>" +
+
+               "{{if (endDate == null && duration == null)}}" +
+               "<div  class='e-gantt-childtaskbar {{if !isAutoSchedule}} e-manualchildtaskbar{{/if}} e-gantt-unscheduletaskbar-left' style='left:{{:left}}px;height:" + (taskbarHeight) + "px;'></div>{{/if}}" +
+
+               "{{if (startDate == null && duration == null)}}" +
+               "<div  class='e-gantt-childtaskbar {{if !isAutoSchedule}} e-manualchildtaskbar{{/if}} e-gantt-unscheduletaskbar-right' style='left:{{:left}}px;height:" + (taskbarHeight) + "px;'></div>{{/if}}" +
+
+               "{{if (startDate == null && endDate == null)}}" +
+                "<div class='e-taskbarresizer-left e-icon' style='left:{{:left+2-" + proxy._resizerLeftAdjust + "}}px;width:10px;margin-top:" + proxy._resizerMargin + "px;height:" + (taskbarHeight) + "px;font-size:" + proxy._fontSize + "px;'></div>" +
+                "<div  class='e-gantt-childtaskbar {{if !isAutoSchedule}} e-manualchildtaskbar{{/if}} e-gantt-unscheduletaskbar' style='left:{{:left}}px;height:" + (taskbarHeight) + "px;width:{{:width}}px;'></div>" +
+                "<div class='e-taskbarresizer-right e-icon' style='left:{{:left+width-" + proxy._resizerRightAdjust + "}}px;width:10px;" +
+                "height:" + (taskbarHeight) + "px;font-size:" + proxy._fontSize + "px;position:absolute;z-index:2;margin-top:" + proxy._resizerMargin + "px;'></div>{{/if}}" +
+               
+               "{{if (startDate != null && endDate != null && duration != null)}}" +                
 
                "<div class='e-taskbarresizer-left e-icon' style='left:{{:left+2-" + proxy._resizerLeftAdjust + "}}px;width:10px;margin-top:" + proxy._resizerMargin + "px;height:" + (taskbarHeight) + "px;font-size:" + proxy._fontSize + "px;'></div>" +
                "{{if " + isTaskbarTemplate + "}}" + taskbarTemplateString + "{{else}}" +
@@ -5853,11 +6240,11 @@
 
                "<div class='e-taskbarresizer-right e-icon' style='left:{{:left+width-" + proxy._resizerRightAdjust + "}}px;width:10px;" +
                 "height:" + (taskbarHeight) + "px;font-size:" + proxy._fontSize + "px;position:absolute;z-index:2;margin-top:" + proxy._resizerMargin + "px;'></div>" +
-
-                "<div class='e-connectorpoint-right' style='left:{{:left+width}}px;width:" + connectorPointWidth + "px;margin-top:" + connectorPointMargin + "px;height:" + (taskbarHeight / 2) + "px;"
-                + "border-radius:" + connectorPointRadius + "px'>" + touchRightConnectorpoint + "</div>" +
-                //"<div class='e-connectorpoint-right' style='left:{{:left-20}}px;width:20px;margin-top:10px;background-color:black;height:" + (taskbarHeight) + "px;'></div>"+
-                 "</div>" +
+                 "{{/if}}" +
+                 "<div class='e-connectorpoint-right' style='left:{{:left+width}}px;width:" + connectorPointWidth + "px;margin-top:" + connectorPointMargin + "px;height:" + (taskbarHeight / 2) + "px;"+
+                 "border-radius:" + connectorPointRadius + "px'>" + touchRightConnectorpoint + "</div>{{/if}}" +
+                //"<div class='e-connectorpoint-right' style='left:{{:left-20}}px;width:20px;margin-top:10px;background-color:black;height:" + (taskbarHeight) + "px;'></div>"+                 
+                "</div>" +
 
                 "{{if " + this.model.renderBaseline + " && baselineStartDate && baselineEndDate }}" +
                 "<div  class='e-baselinebar' style='margin-top:"+ baseLineTop + "px;left:{{:baselineLeft}}px;" +
@@ -6428,6 +6815,61 @@
                 this.data.ParentWidth : (this.data.ChildWidth + this.data.ParentWidth);
         },
 
+        _renderCustomDaySchedule: function () {
+            var proxy = this,
+               model = proxy.model,
+               left = 0, $day,
+               isWeekend,
+               height = this.getRecordsHeight(),
+               count = proxy.model.scheduleDays.length,
+               isDayModeExist = proxy._$weekendsContainer.children('.e-secondary_canvas').length == 0 ? false : true,
+               $dayContainer = !isDayModeExist ? ej.buildTag("div.e-secondary_canvas", "", { 'height': height + 'px' }, {}) : proxy._$weekendsContainer.children('.e-secondary_canvas'),
+               nonWorkingRange = model._nonWorkingTimeRange,
+               nonWorkDay = proxy._nonWorkingDayIndex;
+            if (isDayModeExist)
+                $dayContainer.empty();
+            for (var i = 0; i < count; i++) {
+                if (model.highlightWeekends) {
+                    isWeekend = false;
+                    for (var k = 0; k <= nonWorkDay.length; k++) {
+                        if (proxy.model.scheduleDays[i].getDay() == nonWorkDay[k]) {
+                            var width = proxy.model.perDayWidth;
+                            $day = ej.buildTag("div.e-ganttworkingtime e-ganttdayweekend", "", {
+                                'left': left + 'px',
+                                'width': width + 'px',
+                                'background': this.model.weekendBackground,
+                                'height': height + 'px'
+                            }, {});
+                            $dayContainer.append($day);
+                            left += width;
+                            isWeekend = true;
+                        }
+                    }
+                    if (isWeekend) continue;
+                }
+                for (var j = 0; j < nonWorkingRange.length; j++) {
+                    var backColor = nonWorkingRange[j].isWorking ? nonWorkingRange[j].color : model.highlightNonWorkingTime ? model.nonWorkingBackground : null,
+                        className = nonWorkingRange[j].isWorking ? "e-ganttworkingrange" : model.highlightNonWorkingTime ? "e-ganttnonworkingrange" : '',
+                        width = (nonWorkingRange[j].to - nonWorkingRange[j].from) * model.perHourWidth;
+                    $day = ej.buildTag("div.e-ganttworkingtime " + className, "", {
+                        'left': left + 'px',
+                        'width': width + 'px',
+                        'background': backColor,
+                        'height': height + 'px'
+                    }, {});
+                    if (!ej.isNullOrUndefined(backColor))
+                        $dayContainer.append($day);
+                    left += width;
+                }
+            }
+            if (!isDayModeExist) {
+                proxy._$weekendsContainer.html($dayContainer);
+                proxy._$bodyContent.append(proxy._$weekendsContainer);
+            }
+            else {
+                proxy._$weekendsContainer.append($dayContainer);
+            }           
+        },
 
         //renders Weekends in chart
         _renderWeekends: function () {
@@ -6650,7 +7092,6 @@
             proxy.element.off();
             $(document.body).unbind("touchmove", $.proxy(proxy.handleMouseMove, proxy));
             $(document).unbind("mouseup", $.proxy(proxy._tooltipMouseup, proxy));
-            $(document.body).bind("touchmove", $.proxy(proxy.handleMouseMove, proxy));
             proxy.element.empty().removeClass("e-ganttchart-core e-ganttchart" + proxy.model.cssClass);
 
             $("#" + this._id + "_connectorLineEdit_wrapper").clearQueue();

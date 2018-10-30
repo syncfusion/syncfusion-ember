@@ -224,8 +224,9 @@
             var element = diagram.element[0];
             var bRect = diagram.element[0].getBoundingClientRect();
             var eWidth = bRect.width;
-            var vScrollHeight = diagram._vScrollbar && diagram._vScrollbar.model.height ? diagram._vScrollbar.model.height : null;
-            var eHeight = vScrollHeight ? (bRect.height === vScrollHeight) ? vScrollHeight + 18 : bRect.height : bRect.height;
+            //var vScrollHeight = diagram._vScrollbar && diagram._vScrollbar.model.height ? diagram._vScrollbar.model.height : null;
+            //var eHeight = vScrollHeight ? (bRect.height === vScrollHeight) ? vScrollHeight + 18 : bRect.height : bRect.height;
+            var eHeight = bRect.height;
             var screenX = (window.screenX < 0) ? window.screenX * -1 : window.screenX;
             if (eWidth === 0) {
                 eWidth = Math.floor(((window.innerWidth - screenX) - Math.floor(bRect.left)));
@@ -364,8 +365,8 @@
             var diagramArea = ej.datavisualization.Diagram.Rectangle(0, 0, 0, 0);
             diagramArea = this._union(diagramArea, ej.datavisualization.Diagram.Rectangle(0, 0, viewPort.width, viewPort.height));
             diagramArea = this._union(diagramArea, ej.datavisualization.Diagram.Geometry.rect([{ x: left, y: top }, { x: right, y: bottom }]));
-            diagramArea.width -= viewPort.width;
-            diagramArea.height -= viewPort.height;
+            diagramArea.width -= (viewPort.width - 18);
+            diagramArea.height -= (viewPort.height - 18);
 
             if (diagramArea.x > diagram._hScrollOffset) {
                 var diff = diagramArea.x - diagram._hScrollOffset;
@@ -390,8 +391,8 @@
             var minimumY = diagramArea.y;
             var maximumY = Math.max(0, diagramArea.y + diagramArea.height);
 
-            diagramArea.width = diagramArea.width < viewPort.width ? viewPort.width : diagramArea.width;
-            diagramArea.height = diagramArea.height < viewPort.height ? viewPort.height : diagramArea.height;
+            diagramArea.width = viewPort.width;
+            diagramArea.height = viewPort.height;
 
             if (diagram._scrollLimit() === ej.datavisualization.Diagram.ScrollLimit.Limited) {
                 var scrollableArea = diagram.model.pageSettings.scrollableArea;
@@ -405,16 +406,29 @@
                 left = scrollableArea.x * scale;
             }
 
+            var executeHorizontal = true, executeVertical = true;
             if (left >= diagram._hScrollOffset && right <= viewPort.width + diagram._hScrollOffset) {
+                executeHorizontal = false;
                 diagram._hScrollbar._remove();
                 diagram._hScrollbar.model.width = 0;
                 if (diagram._scrollLimit() === ej.datavisualization.Diagram.ScrollLimit.Limited) diagram._hScrollbar.model.minimum = Math.min(0, minimumX);
                 else diagram._hScrollbar.model.minimum = 0;
                 diagram._hScrollbar.model.maximum = 0;
-            }
-            else {
+            }  
+            if (top >= diagram._vScrollOffset && bottom <= viewPort.height + diagram._vScrollOffset) {
+                executeVertical = false;
+                diagram._vScrollbar._remove();
+                diagram._vScrollbar.model.height = 0;
+                if (diagram._scrollLimit() === ej.datavisualization.Diagram.ScrollLimit.Limited) diagram._vScrollbar.model.minimum = Math.min(0, minimumY);
+                else diagram._vScrollbar.model.minimum = 0;
+                diagram._vScrollbar.model.maximum = 0;
+            }  
+
+            if (executeHorizontal) {
+                var viewPortWidth = executeVertical ? viewPort.width - 18 : viewPort.width;
+                maximumX = !executeVertical ? maximumX - 18 : maximumX;
                 if (!diagram._preventScrollerUpdate) {
-                    $("#" + diagram._canvas.id + "_hScrollbar").ejScrollBar({ width: viewPort.width - 18, viewportSize: viewPort.width - 18, maximum: maximumX, minimum: minimumX });
+                    $("#" + diagram._canvas.id + "_hScrollbar").ejScrollBar({ width: viewPortWidth, viewportSize: viewPortWidth, maximum: maximumX, minimum: minimumX });
                     $("#" + diagram._canvas.id + "_hScrollbar").ejScrollBar("scroll", diagram._hScrollOffset);
                 }
                 else {
@@ -425,20 +439,18 @@
                 hScroll.style.marginTop = viewPort.height - 18 + "px";
                 if (Math.round(left1 * scale) >= Math.round(diagram._hScrollOffset) && Math.round(right) <= Math.round(viewPort.width + diagram._hScrollOffset))
                     hScroll.style.visibility = "hidden";
-                else
+                else {
                     hScroll.style.visibility = "visible";
+                    if (diagramArea.height >= 18)
+                        diagramArea.height -= 18;
+                }
             }
 
-            if (top >= diagram._vScrollOffset && bottom <= viewPort.height + diagram._vScrollOffset) {
-                diagram._vScrollbar._remove();
-                diagram._vScrollbar.model.height = 0;
-                if (diagram._scrollLimit() === ej.datavisualization.Diagram.ScrollLimit.Limited) diagram._vScrollbar.model.minimum = Math.min(0, minimumY);
-                else diagram._vScrollbar.model.minimum = 0;
-                diagram._vScrollbar.model.maximum = 0;
-            }
-            else {
+            if (executeVertical) {
+                var viewPortHeight = executeHorizontal ? viewPort.height - 18 : viewPort.height;
+                maximumY = !executeHorizontal ? maximumY - 18 : maximumY;
                 if (!diagram._preventScrollerUpdate) {
-                    $("#" + diagram._canvas.id + "_vScrollbar").ejScrollBar({ height: viewPort.height - 18, viewportSize: viewPort.height - 18, maximum: maximumY, minimum: minimumY });
+                    $("#" + diagram._canvas.id + "_vScrollbar").ejScrollBar({ height: viewPortHeight, viewportSize: viewPortHeight, maximum: maximumY, minimum: minimumY });
                     $("#" + diagram._canvas.id + "_vScrollbar").ejScrollBar("scroll", diagram._vScrollOffset);
                 }
                 else {
@@ -446,10 +458,14 @@
                     diagram._vScrollbar.model.maximum = maximumY;
                 }
                 var vScroll = document.getElementById(diagram._canvas.id + "_vScrollbar");
-                if (Math.round(top1 * scale) >= Math.round(diagram._vScrollOffset) && Math.round(bottom) <= Math.round(viewPort.height + diagram._vScrollOffset))
+                if (Math.round(top1 * scale) >= Math.round(diagram._vScrollOffset) && Math.round(bottom) <= Math.round(viewPort.height + diagram._vScrollOffset)) {
                     vScroll.style.visibility = "hidden";
-                else
+                }
+                else {
                     vScroll.style.visibility = "visible";
+                    if (diagramArea.width >= 18)
+                        diagramArea.width -= 18;
+                }
             }
             if (diagram._isMobile) diagram._disableScrollbar();
             ej.datavisualization.Diagram.SvgContext.setSize(diagram, diagramArea.width, diagramArea.height);
@@ -574,6 +590,23 @@
             //return this._contains(nameTable, node, child);
             return false;
         },
+        _getSnapIntervals:function(diagram, isVertical){
+            var snapInterval = [];
+            if (diagram.model.rulerSettings.showRulers) {
+                var ruler = isVertical ? diagram.model.rulerSettings.horizontalRuler : diagram.model.rulerSettings.verticalRuler;
+                var interval = (ruler.segmentWidth / ruler.interval);
+                snapInterval.push(Math.round(interval * 100) / 100);
+            }
+            else
+            {
+                var snapSettings = diagram.model.snapSettings;
+                if (isVertical)
+                    snapInterval = snapSettings.verticalGridLines.snapInterval;
+                else
+                    snapInterval = snapSettings.horizontalGridLines.snapInterval;
+            }
+            return snapInterval;
+        },
         _round: function (value, snapintervals, scale) {
             if (scale > 1) scale = Math.pow(2, Math.floor(Math.log(scale) / Math.log(2)));
             else scale = Math.pow(2, Math.ceil(Math.log(scale) / Math.log(2)));
@@ -661,10 +694,10 @@
             var right = bounds.x + bounds.width + del.x;
             var bottom = bounds.y + bounds.height + del.y;
             //snapped positions
-            var roundedRight = this._round(right, snapSettings.verticalGridLines.snapInterval, zoomFactor);
-            var roundedLeft = this._round(left, snapSettings.verticalGridLines.snapInterval, zoomFactor);
-            var roundedTop = this._round(top, snapSettings.horizontalGridLines.snapInterval, zoomFactor);
-            var roundedBottom = this._round(bottom, snapSettings.horizontalGridLines.snapInterval, zoomFactor);
+            var roundedRight = this._round(right, this._getSnapIntervals(diagram,true), zoomFactor);
+            var roundedLeft = this._round(left, this._getSnapIntervals(diagram, true), zoomFactor);
+            var roundedTop = this._round(top, this._getSnapIntervals(diagram, false), zoomFactor);
+            var roundedBottom = this._round(bottom, this._getSnapIntervals(diagram, false), zoomFactor);
             //currentposition
             var currentright = bounds.x + bounds.width;
             var currentbottom = bounds.y + bounds.height;
@@ -1455,7 +1488,9 @@
         _getQuad: function (spatialSearch, quad) {
             var halfWidth = quad.width / 2;
             var halfHeight = quad.height / 2;
-            if (halfWidth >= 100 && halfHeight >= 100) {
+            var height = spatialSearch._isRouting && spatialSearch._viewPortHeight > 0 ? spatialSearch._viewPortHeight : 100;
+            var width = spatialSearch._isRouting && spatialSearch._viewPortWidth > 0 ? spatialSearch._viewPortWidth : 100;
+            if (halfWidth >= width && halfHeight >= height) {
                 var xCenter = quad.left + halfWidth;
                 var yCenter = quad.top + halfHeight;
                 if (spatialSearch.childRight <= xCenter) {
@@ -1780,12 +1815,22 @@
             first: null, second: null, third: null, fourth: null, objects: []
         };
     }
-    ej.datavisualization.Diagram.SpatialSearch = function () {
+    ej.datavisualization.Diagram.SpatialSearch = function (diagram) {       
+        var viewPort = ej.datavisualization.Diagram.ScrollUtil._viewPort(diagram);
+        var x = 0;
+        var y = 0;
+        var height = 200;
+        var width = 200;
+        if (ej.datavisualization.Diagram.Util.canRouteDiagram(diagram)) {
+            x = -100; y = -100;
+            height = viewPort.height > 0 ? viewPort.height : 1000;
+            width = viewPort.width > 0 ? viewPort.width : 1000;
+        }
         return {
             pageLeft: null, pageRight: null, pageTop: null, pageBottom: null,
             topElement: null, bottomElement: null, rightElement: null, leftElement: null,
             childLeft: null, childTop: null, childRight: null, childBottom: null, childNode: null,
-            quads: null, parentQuad: ej.datavisualization.Diagram.Quad(0, 0, 200, 200), quadTable: {}
+            quads: null, parentQuad: ej.datavisualization.Diagram.Quad(x, y, width, height), quadTable: {}
         };
     };
     //#endregion
@@ -5393,7 +5438,7 @@
                 if (args && args.node && args.node.isSwimlane) {
                     var lanes = ej.datavisualization.Diagram.SwimLaneContainerHelper.getLanes(diagram, args.node);
                     if (lanes.length > 0) {
-                        var lastLane = diagram.nameTable[lanes[lanes.length - 1]];
+                        var lastLane = diagram.nameTable[diagram._getChild(lanes[lanes.length - 1])];
                         if (lastLane) {
                             if (args.undo) {
                                 object = (args.undoObject && args.undoObject.node) ? args.undoObject.node : lastLane;

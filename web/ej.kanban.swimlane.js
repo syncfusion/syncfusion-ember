@@ -49,6 +49,8 @@ var InternalSwimlane = (function () {
         }
         else
             this._toggleSwimlaneRow($target);
+        if (kObj.model.allowScrolling)
+            kObj.KanbanScroll._refreshSwimlaneToggleScroller();
     };
     InternalSwimlane.prototype._toggleSwimlaneRow = function ($target) {
         var kObj = this.kanbanObj, args, idx = kObj._swimlaneRows.index($target.parents('.e-swimlanerow')), action;
@@ -87,14 +89,6 @@ var InternalSwimlane = (function () {
             var index = $.inArray(swim, kObj._collapsedSwimlane);
             if (index != -1)
                 kObj._collapsedSwimlane.splice(index, 1);
-        }
-        if (kObj.model.allowScrolling) {
-            var vScrollArea = kObj.headerContent.find('.e-hscrollcss');
-            kObj.KanbanScroll._refreshScroller({ requestType: "refresh" });
-            if (kObj.getContent().find('.e-vscrollbar').length > 0)
-                vScrollArea.removeClass('e-vscroll-area');
-            else
-                vScrollArea.addClass('e-vscroll-area');
         }
     };
     InternalSwimlane.prototype._freezeRow = function (e, kObj) {

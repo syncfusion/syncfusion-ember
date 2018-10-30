@@ -310,7 +310,8 @@
             this._setPanesProperty();
             this._insertSplitBar();
             this._setDimentions();
-			this.element.find(".e-splitter-" + this.model.orientation.substr(0, 1) +"-template").css("z-index",ej.getMaxZindex()+1);
+			if (!ej.isNullOrUndefined(this.model.expanderTemplate))
+			    this.element.find(".e-splitter-" + this.model.orientation.substr(0, 1) +"-template").css("z-index",ej.getMaxZindex()+1);
             this._setPanesSize();
             this._getPanesPercent();
             this._addAttr(this.model.htmlAttributes);
@@ -718,7 +719,7 @@
             var proxy = this, collapsed, expanded;
             collapsed = { item: prevPane, index: prevPaneIndex, size: prevPaneSize };
             expanded = { item: nextPane, index: nextPaneIndex, size: nextPaneSize };
-            if (this._raiseEvent("beforeExpandCollapse", collapsed, expanded, currBarNo))
+            if (this._raiseEvent("beforeExpandCollapse", collapsed, expanded, currBarNo, 'beforeCollapse'))
                 return false;
             if (!nextPane.hasClass("collapsed")) {
                 this.oldPaneSize[prevPaneIndex] = prevPaneSize;
@@ -740,7 +741,7 @@
                 prevPane.animate(properties, this.model.enableAnimation ? this.model.animationSpeed : 0);
                 properties[this.containerCss] = prevPaneSize + nextPaneSize;
                 nextPane.animate(properties, this.model.enableAnimation ? this.model.animationSpeed : 0, function () {
-                    proxy._raiseEvent("expandCollapse", collapsed, expanded, currBarNo);
+                    proxy._raiseEvent("expandCollapse", collapsed, expanded, currBarNo, 'collapsed');
                 });
             }
             else {
@@ -772,7 +773,7 @@
                     nextPane.animate(properties, this.model.enableAnimation ? this.model.animationSpeed : 0);
                     properties[this.containerCss] = prevPaneSize - this.oldPaneSize[nextPaneIndex];
                     prevPane.animate(properties, this.model.enableAnimation ? this.model.animationSpeed : 0, function () {
-                        proxy._raiseEvent("expandCollapse", collapsed, expanded, currBarNo);
+                        proxy._raiseEvent("expandCollapse", collapsed, expanded, currBarNo, 'collapsed');
                     });
                 }
             }
@@ -796,7 +797,7 @@
             collapsed = { item: nextPane, index: nextPaneIndex, size: nextPaneSize };
             expanded = { item: prevPane, index: prevPaneIndex, size: prevPaneSize };
 
-            if (this._raiseEvent("beforeExpandCollapse", collapsed, expanded, currBarNo))
+            if (this._raiseEvent("beforeExpandCollapse", collapsed, expanded, currBarNo, 'beforeExpand'))
                 return false;
             if (!prevPane.hasClass("collapsed")) {
                 this.oldPaneSize[nextPaneIndex] = nextPaneSize;
@@ -818,7 +819,7 @@
                 prevPane.animate(properties, this.model.enableAnimation ? this.model.animationSpeed : 0);
                 properties[this.containerCss] = 0;
                 nextPane.animate(properties, this.model.enableAnimation ? this.model.animationSpeed : 0, function () {
-                    proxy._raiseEvent("expandCollapse", collapsed, expanded, currBarNo);
+                    proxy._raiseEvent("expandCollapse", collapsed, expanded, currBarNo, 'expanded');
                 });
             }
             else {
@@ -848,13 +849,13 @@
                     prevPane.animate(properties, this.model.enableAnimation ? this.model.animationSpeed : 0);
                     properties[this.containerCss] = nextPaneSize - this.oldPaneSize[prevPaneIndex];
                     nextPane.animate(properties, this.model.enableAnimation ? this.model.animationSpeed : 0, function () {
-                        proxy._raiseEvent("expandCollapse", collapsed, expanded, currBarNo);
+                        proxy._raiseEvent("expandCollapse", collapsed, expanded, currBarNo, 'expanded');
                     });
                 }
             }
         },
 
-        _raiseEvent: function (evtName, collapsed, expanded, index) {
+        _raiseEvent: function (evtName, collapsed, expanded, index, type) {
             if (evtName == "expandCollapse") {
                 this._inMovement = false;
                 this._updateModelValue(collapsed, expanded);
@@ -862,7 +863,8 @@
             return this._trigger(evtName, {
                 collapsed: collapsed,
                 expanded: expanded,
-                splitbarIndex: index
+                splitbarIndex: index,
+				action: type
             });
 
         },
@@ -994,7 +996,9 @@
             }
             for (i = 0; i < this.oldPaneSize.length; i++)
                 this.oldPaneSize[i] = this._convertToPixel(outerSize, this.oldPanePercent[i]);
-            this._checkPaneSize();
+			var last = $(this.panes[this.panes.length - 1])[this.containerCss]();
+            if (last == 0)
+                this._checkPaneSize();
         },
 
         _convertToPercent: function (outer, pane) {

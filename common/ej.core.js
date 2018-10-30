@@ -809,11 +809,8 @@ window.ej = window.Syncfusion = window.Syncfusion || {};
 
                     args = ej.event(eventName, this.model, eventProp);
 
-                    var scopeFn = this.model["_applyScope"];
-
+                    
                     returnValue = fn.call(this, args);
-
-                    scopeFn && scopeFn.call();
 
                     // sending changes back - deep copy option should not be enabled for this $.extend 
                     if (eventProp) $.extend(eventProp, args);
@@ -1103,12 +1100,12 @@ window.ej = window.Syncfusion = window.Syncfusion || {};
                     }
             }
             if (!ej.isNullOrUndefined(model) && !ej.isNullOrUndefined(this._ignoreOnPersist)) {
-                for (var i in this._ignoreOnPersist) {
-                    if (this._ignoreOnPersist[i].indexOf('.') !== -1)
+                for(var i = 0, len =  this._ignoreOnPersist.length; i < len; i++) {
+					if (this._ignoreOnPersist[i].indexOf('.') !== -1)
                         ej.createObject(this._ignoreOnPersist[i], ej.getObject(this._ignoreOnPersist[i], this.model), model);
                     else
                         model[this._ignoreOnPersist[i]] = this.model[this._ignoreOnPersist[i]];
-                }
+				}
                 this.model = model;
             }
             else
@@ -1204,12 +1201,23 @@ window.ej = window.Syncfusion = window.Syncfusion || {};
     }
 
     var iterateAndRemoveProps = function (source, target) {
-        for (var prop in source) {
-            if (source[prop] === target[prop])
-                delete target[prop];
-            if ($.isPlainObject(target[prop]) && $.isPlainObject(source[prop]))
-                iterateAndRemoveProps(source[prop], target[prop]);
-        }
+		if(source instanceof Array) {
+			for (var i = 0, len = source.length; i < len; i++) {
+				prop = source[i];
+				if(prop === target[prop])
+					delete target[prop];
+				if ($.isPlainObject(target[prop]) && $.isPlainObject(prop))
+					iterateAndRemoveProps(prop, target[prop]);
+			}
+		}
+		else {
+			for (var prop in source) {
+				if (source[prop] === target[prop])
+					delete target[prop];
+				if ($.isPlainObject(target[prop]) && $.isPlainObject(source[prop]))
+					iterateAndRemoveProps(source[prop], target[prop]);
+			}
+		}
     }
 
     ej.widget = function (pluginName, className, proto) {
@@ -1664,8 +1672,8 @@ window.ej = window.Syncfusion = window.Syncfusion || {};
                     continue;
                 if (source instanceof Array) {
                     if (i === 0 && isDeepCopy) {
-						if(prop === "dataSource")
-						  target[prop] = source.slice();
+                        if (prop === "dataSource" || prop === "data" || prop === "predicates")
+                            target[prop] = source.slice();
 					  else  {
                         target[prop] = new Array();
                         for (var j = 0; j < source.length; j++) {

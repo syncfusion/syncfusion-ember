@@ -37,6 +37,8 @@
             groupColorMapping:[],			
             enableDrillDown: false,
             drillDownHeaderColor: null,
+			drillDownValue:null,
+			drillDownLevel:0,
             drillDownSelectionColor: '#000000',          			
             colorValuePath: null,
             weightValuePath: null,			
@@ -188,6 +190,8 @@
         highlightGroupOnSelection: ej.util.valueFunction("highlightGroupOnSelection"),
 		groupSelectionMode:ej.util.valueFunction("groupSelectionMode"),
         enableDrillDown: ej.util.valueFunction("enableDrillDown"),
+		drillDownValue: ej.util.valueFunction("drillDownValue"),
+		drillDownLevel: ej.util.valueFunction("drillDownLevel"),
         drillDownHeaderColor: ej.util.valueFunction("drillDownHeaderColor"),
         drillDownSelectionColor: ej.util.valueFunction("drillDownSelectionColor"),
         showTooltip: ej.util.valueFunction("showTooltip"),
@@ -440,7 +444,7 @@
                             this._drillHeaderDiv[0].innerHTML = "";
                             this._templateDiv[0].innerHTML = "";
                             this._drillHoverDiv[0].innerHTML = "";
-                            this._drillDownHeader(true,this.model.levels[0],this.model.dataSource);
+                            this._drillDownHeader(true,this.model.levels[0],this.dataSource());
                             this._groupdrillDownLevels(this._drilldownItems[this._drilldownItems.length - 1], this._drilldownItems.length);
                         }
                         if (this.showLegend()) {
@@ -468,17 +472,63 @@
             
         },
 		
+		_renderDrilledState: function(data, value, drilledLevel){
+			if(drilledLevel == 0 || this.model.drillDownLevel == null || this._initialLevel){
+				this._groupLevels(data);
+				this._renderWithDrilledLevel = false;
+			}
+			else{
+				var dataItem = this._getPreRenderEventData(data,drilledLevel-1);
+				this._drillCurrentItem = dataItem;
+				if (this.enableDrillDown()) {
+					for(var i= 0;i<dataItem.length;i++){
+						this._originalHeaders = [];
+						this.renderHeader = true;
+						if(dataItem[i].header == value){
+							if (this.model.levels.length > 0) {
+								this.model.levels[drilledLevel].groupingLevel = 0;
+								this._drilldownHeaders.push(this.model.header || this.model.levels[0].groupPath);
+								this._originalHeaders.push(this.model.header || this.model.levels[0].groupPath);
+								if(drilledLevel > 1){
+									var previousItem = this._getPreRenderEventData(this.dataSource(),drilledLevel-2);
+									this._drillPreviousItem = previousItem;
+									var item = dataItem[i].Data[0];
+									for(var k=2;k<=drilledLevel;k++){
+										var path = this.model.levels[k-2].groupPath;
+										var itemValue = this._reflection(item, path);
+										dataItem[i]._previousHeader = itemValue;
+										this._drilldownHeaders.push(dataItem[i]._previousHeader);
+										this._originalHeaders.push(dataItem[i]._previousHeader);
+									}
+								}
+								this._drilldownHeaders.push(value);	
+								this._originalHeaders.push(value);
+								this._drillDownHeader(true, this.model.levels[drilledLevel-1], dataItem[i]);
+							}
+							else {
+								this._drilldownHeaders.push("");
+								this._drillDownHeader(false);
+							}
+							this._groupdrillDownLevels(dataItem[i], drilledLevel);
+							this._renderWithDrilledLevel = true;
+							this._initialLevel = true;
+						}
+					}
+				}
+			}
+		},
+		
        _renderTreeMap: function (data) {
             this.model.browserInfo = this.browserInfo();            
             if (this.showLegend() && this.model.legendSettings.mode == "interactive")
                 this._generateLegend();
-            this._groupLevels(data);
+            this._renderDrilledState(data, this.model.drillDownValue, this.model.drillDownLevel);
             this.renderHeader = false;
             this._generateToolTip();
             this._renderLabels();
             if (this.showLegend() && this.model.legendSettings.mode != "interactive") {
-                this._generateLegend();
-            }
+                this._generateLegend();				
+            }			
         },
 		
    _renderLegend: function () {
@@ -718,7 +768,15 @@
             this.renderHeader = false;
             this._trigger("drillDownItemSelected", { level: actualindex, header: this.getDrillDownHeader(this._drilldownHeaders), prevLevel: actualindex - 1 });
         },
-
+		
+		drillDown: function(value, drilledLevel){
+			$('#'+ this._id).find('.e-_templateDiv').parent().children().empty();
+			this._drilldownHeaders = [];
+			var data = this.model.dataSource;
+			this._initialLevel = this.model.drillDownLevel != 0 ? false : this._initialLevel;
+			this._renderDrilledState(data, value, drilledLevel);			
+			
+		},
         _getTopLevels: function (rootItems, level) {
             var gap = (level.groupGap != null) ? level.groupGap : (level.gap!=null?level.gap:0);
             var layout = this.itemsLayoutMode();
@@ -1042,6 +1100,16 @@
                     treemapLevel.groupingLevel = data.GroupingLevel; 
                     treeMap._drillDownHeader(true, treemapLevel, data.Data);
                      treeMap._drilldownItem = data;
+					if(treeMap._renderWithDrilledLevel){
+						var previousData = treeMap._drillCurrentItem;
+						for(j=0;j<previousData.length;j++){
+							if(previousData[j].header == treeMap.model.drillDownValue){
+								if(treeMap._drilldownItems.length == 0){
+									treeMap._drilldownItems.push(previousData[j]);
+								}
+							}
+						}
+					}
                     treeMap._drilldownItems.push(data);
                     treeMap._groupdrillDownLevels(data, treeMap._drilldownItems.length);
                     return false;
@@ -1959,6 +2027,25 @@
             return headerString;
             
         },
+		
+		_getPreRenderEventData: function (data, level) {
+            var rootItems1, rootItems, currentLevel, 
+            level = level >= this.model.levels.length - 1? this.model.levels.length -1 : level;
+            if(level === undefined)
+                currentLevel = this.model.levels[this._drilldownItems.length];
+            else
+                currentLevel = this.model.levels[level];
+            rootItems1 = this._getGroupitem(currentLevel.groupPath, data, currentLevel.headerHeight);
+            var totalWeight = this._getTotalWeight(rootItems1);
+            for (var i = rootItems1.length - 1; i >= 0; i--) {
+                var item = rootItems1[i];
+                item["AreaByWeight"] = item.weight / totalWeight;
+
+            }
+            var OrderedItems = rootItems1.sort(this._orderByAreaWight);
+
+            return OrderedItems;
+        },
 	
         _drillDownHeader: function (enableNavigation, levelItem, childItems) {
 
@@ -2002,7 +2089,7 @@
             }			
             this._drillHeaderDiv.append(item_templateDiv);
             $(item_templateDiv).mousedown({ treemap: this }, this._drilldownfunction);
-            $(".e-drilldownlabel").mousedown({ treemap: this }, this._drilldownLabel);
+            $(item_templateDiv).find(".e-drilldownlabel").mousedown({ treemap: this }, this._drilldownLabel);
             
         },
 
@@ -2031,13 +2118,28 @@
                         treeMap._drilldownHeaders.splice(i+1);
                     }
                 }
+				
+				if(treeMap._drilldownItems.length == 0 && treeMap._initialLevel){				
+					var headerValue = treeMap._drilldownHeaders.length;					
+					for(var a=0;a<headerValue;a++){
+						var previousDataItem = treeMap._getPreRenderEventData(this.dataSource(),a);
+						for(var b=0;b<previousDataItem.length;b++){
+							if(previousDataItem[b].header == treeMap._drilldownHeaders[a + 1]){
+								var prevData = previousDataItem[b];
+								treeMap._drilldownItems.push(prevData);	
+								treeMap._drilldownItem = prevData;
+								data = treeMap._drilldownItems[0];
+							}	
+						}
+					}
+				}
                 
                 treeMap._labelTemplateElements = [];
                 var treemapLevel = treeMap.model.levels[treeMap._drilldownHeaders.length - 1];
-                var length = treeMap._drilldownHeaders.length - event.data.treemap._drilldownItems.length,
-                    drilldownLength = event.data.treemap._drilldownItems.length;
-                var data = event.data.treemap._drilldownItems.length == 1 ? event.data.treemap._drilldownItems[0].Data
-                             : event.data.treemap._drilldownItems[length < 0 ? drilldownLength + length : length ].Data;
+                var length = treeMap._drilldownHeaders.length - treeMap._drilldownItems.length,
+                    drilldownLength = treeMap._drilldownItems.length;
+                var data = treeMap._drilldownItems.length == 1 ? treeMap._drilldownItems[0].Data
+                             : treeMap._drilldownItems[length < 0 ? drilldownLength + length : length ].Data;
                 treeMap._drillDownHeader(true, treemapLevel, data);
                 if(pos) {               
                 	treeMap._drilldownItem = treeMap._drilldownItems[pos - 2];
@@ -2050,11 +2152,30 @@
             }
         },
 
-
+        _drilledStateDrillDownFunction: function(treeMap){
+			if(treeMap._drilldownItems.length == 0 && treeMap._initialLevel){				
+				treeMap._originalHeaders = treeMap._drilldownHeaders;
+				var headerValue = treeMap._drilldownHeaders.length - 1;				
+				for(var a=0;a<headerValue;a++){
+					var previousDataItem = treeMap._getPreRenderEventData(this.dataSource(),a);
+					for(var b=0;b<previousDataItem.length;b++){
+						var headerString = treeMap._drilldownHeaders[a + 1];
+						var originalHeader = headerString.indexOf(treeMap.model.drillDownValue) != -1;
+						var originalString = previousDataItem[b].header.indexOf(treeMap.model.drillDownValue) != -1;
+						if(previousDataItem[b].header == headerString || (originalString && originalHeader) ){
+							var prevData = previousDataItem[b];
+							treeMap._drilldownItems.push(prevData);	
+							treeMap._drilldownItem = prevData;							
+						}	
+					}
+				}
+			}
+		},
 		
         _drilldownfunction: function (event) {
             var treeMap = event.data.treemap;                       
             treeMap._trigger("drillStarted", event);
+			treeMap._drilledStateDrillDownFunction(treeMap);
             if (treeMap._drilldownItems.length > 0) {                
                 if (treeMap._drilldownItems.length == 1) {
                     treeMap._drilldownItems = [];
@@ -2076,8 +2197,8 @@
                     }                    
                     treeMap._labelTemplateElements = [];
                     var treemapLevel = treeMap.model.levels[treeMap._drilldownHeaders.length - 1];
-                    treemapLevel.groupingLevel = event.data.treemap._drilldownItem.GroupingLevel; 
-                    treeMap._drillDownHeader(true, treemapLevel, event.data.treemap._drilldownItem.Data);
+                    treemapLevel.groupingLevel = event.data.treemap._drilldownItem.GroupingLevel ? event.data.treemap._drilldownItem.GroupingLevel : treeMap.model.drillDownLevel; 
+                    treeMap._drillDownHeader(true, treemapLevel, treeMap._drilldownItem.Data);
                     treeMap._drilldownItem = treeMap._drilldownItems[treeMap._drilldownItems.length - 2];
                     treeMap._drilldownItems.pop(treeMap._drilldownItems[treeMap._drilldownItems.length - 1]);
                     treeMap._templateDiv[0].innerHTML = "";

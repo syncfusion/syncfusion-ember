@@ -58,7 +58,7 @@
                 if (snapSettings.snapConstraints & ej.datavisualization.Diagram.SnapConstraints.SnapToHorizontalLines) {
                     var top = this.initialBounds.y - this.initialBounds.height * shape.pivot.y;
                     var actualTop = top + dely;
-                    var roundedTop = ej.datavisualization.Diagram.SnapUtil._round(actualTop, snapSettings.horizontalGridLines.snapInterval, zoomFactor);
+                    var roundedTop = ej.datavisualization.Diagram.SnapUtil._round(actualTop, ej.datavisualization.Diagram.SnapUtil._getSnapIntervals(this.diagram, false), zoomFactor);
                     dify = roundedTop - top;
                 }
             }
@@ -139,7 +139,7 @@
                 if (snapSettings.snapConstraints & ej.datavisualization.Diagram.SnapConstraints.SnapToVerticalLines) {
                     var left = this.initialBounds.x - this.initialBounds.width * shape.pivot.x;
                     var actualLeft = left + delx;
-                    var roundedLeft = ej.datavisualization.Diagram.SnapUtil._round(actualLeft, snapSettings.horizontalGridLines.snapInterval, zoomFactor);
+                    var roundedLeft = ej.datavisualization.Diagram.SnapUtil._round(actualLeft, ej.datavisualization.Diagram.SnapUtil._getSnapIntervals(this.diagram, false), zoomFactor);
                     difx = roundedLeft - left;
                 }
             }
@@ -165,7 +165,7 @@
                     if (snapSettings.snapConstraints & ej.datavisualization.Diagram.SnapConstraints.SnapToHorizontalLines) {
                         var bottom = this.initialBounds.y + this.initialBounds.height * (1 - shape.pivot.y);
                         var actualBottom = bottom + dely;
-                        var roundedBottom = ej.datavisualization.Diagram.SnapUtil._round(actualBottom, snapSettings.horizontalGridLines.snapInterval, zoomFactor);
+                        var roundedBottom = ej.datavisualization.Diagram.SnapUtil._round(actualBottom, ej.datavisualization.Diagram.SnapUtil._getSnapIntervals(this.diagram, false), zoomFactor);
                         dify = roundedBottom - bottom;
                     }
                 }
@@ -192,7 +192,7 @@
                     if (snapSettings.snapConstraints & ej.datavisualization.Diagram.SnapConstraints.SnapToVerticalLines) {
                         var right = this.initialBounds.x + this.initialBounds.width * (1 - shape.pivot.x);
                         var actualRight = right + delx;
-                        var roundedRight = ej.datavisualization.Diagram.SnapUtil._round(actualRight, snapSettings.verticalGridLines.snapInterval, zoomFactor);
+                        var roundedRight = ej.datavisualization.Diagram.SnapUtil._round(actualRight, ej.datavisualization.Diagram.SnapUtil._getSnapIntervals(this.diagram, true), zoomFactor);
                         difx = roundedRight - right;
                     }
                 }
@@ -301,7 +301,7 @@
 
 
         ToolBase.prototype._containsSwimlane = function (list) {
-            for (var i in list) {
+            for (var i = 0; i < list.length; i++) {
                 var child = this.diagram.nameTable[this.diagram._getChild(list[i])];
                 if (child.isSwimlane || child.isLane)
                     return true;
@@ -1705,9 +1705,9 @@
             var snapSettings = this.diagram.model.snapSettings;
             var zoomFactor = this.diagram._currZoom;
             if (snapSettings.snapConstraints & ej.datavisualization.Diagram.SnapConstraints.SnapToVerticalLines)
-                point.x = ej.datavisualization.Diagram.SnapUtil._round(point.x, snapSettings.verticalGridLines.snapInterval, zoomFactor);
+                point.x = ej.datavisualization.Diagram.SnapUtil._round(point.x, ej.datavisualization.Diagram.SnapUtil._getSnapIntervals(this.diagram, true), zoomFactor);
             if (snapSettings.snapConstraints & ej.datavisualization.Diagram.SnapConstraints.SnapToHorizontalLines)
-                point.y = ej.datavisualization.Diagram.SnapUtil._round(point.y, snapSettings.horizontalGridLines.snapInterval, zoomFactor);
+                point.y = ej.datavisualization.Diagram.SnapUtil._round(point.y, ej.datavisualization.Diagram.SnapUtil._getSnapIntervals(this.diagram, false), zoomFactor);
             return point;
 
         };
@@ -2147,8 +2147,8 @@
                         minDist = distance;
                         if (ej.datavisualization.Diagram.Geometry.containsPoint(rect, portPoint)) {
                             nearestPort = port;
+                            nearestNode = node;
                         }
-                        nearestNode = node;
                     }
                 }
             }
@@ -2208,8 +2208,12 @@
                                 ej.datavisualization.Diagram.Util.removeItem(node.inEdges, connector.name);
                         }
                     }
+                    var node = this.diagram.nameTable[connector.targetNode];
                     this.diagram._comparePropertyValues(connector, "targetNode", { targetNode: this._currentPossibleConnection ? this._currentPossibleConnection.name : null }, true);
                     connector.targetNode = this._currentPossibleConnection ? this._currentPossibleConnection.name : null;
+                    if (node && node._ports) {
+                        this._updateInternalPorts(node, connector, true);
+                    }
                     this.diagram._comparePropertyValues(connector, "targetPort", { targetPort: this._possibleConnectionPort ? this._possibleConnectionPort.name : null }, true);
                     connector.targetPort = this._possibleConnectionPort ? this._possibleConnectionPort.name : null;
                 }
@@ -2223,13 +2227,39 @@
                                 ej.datavisualization.Diagram.Util.removeItem(node.outEdges, connector.name);
                         }
                     }
+                    var node = this.diagram.nameTable[connector.sourceNode];
                     this.diagram._comparePropertyValues(connector, "sourceNode", { sourceNode: this._currentPossibleConnection ? this._currentPossibleConnection.name : null }, true);
                     connector.sourceNode = this._currentPossibleConnection ? this._currentPossibleConnection.name : null;
+                    if (node && node._ports) {
+                        this._updateInternalPorts(node, connector, false);
+                    }
                     this.diagram._comparePropertyValues(connector, "sourcePort", { sourcePort: this._possibleConnectionPort ? this._possibleConnectionPort.name : null }, true);
                     connector.sourcePort = this._possibleConnectionPort ? this._possibleConnectionPort.name : null;
                 }
 
                 return true;
+            }
+        }
+
+        ToolBase.prototype._updateInternalPorts = function (node, connector, isTarget) {
+            var port = ej.datavisualization.Diagram.Util.findPortByName(node, isTarget ? connector.targetPort : connector.sourcePort);
+            if (port && port.type === "internal" && port.name === (isTarget ? connector.targetPort : connector.sourcePort)) {
+                var idx = node._ports.indexOf(port);
+                node._ports.splice(idx, 1);
+                if (isTarget) {
+                    connector._removeTargetPort = port;
+                    connector.targetPort = null;
+                }
+                else {
+                    connector._removeSourcePort = port;
+                    connector.sourcePort = null;
+                }
+                var points = ej.datavisualization.Diagram.Util.getPoints(connector);
+                var segments = [];
+                segments.push({ points: points, type: "orthogonal" });
+                this.diagram._isUndo = true;
+                this.diagram.updateConnector(connector.name, { segments: segments });
+                delete this.diagram._isUndo;
             }
         }
         return ToolBase;
@@ -3042,6 +3072,11 @@
                             this.dragState = "";
 
                         }
+                        if (ej.datavisualization.Diagram.Util.canRouteDiagram(this.diagram)) {
+                            this.undoObject.connectors = {};
+                            this._redoConnectors = {};
+                            this.diagram._updateAllEdges(this.selectedObject);
+                        }
                     }
                     //#region for Container
                     if (!doc) this._updateNodeState(evt, newObj);
@@ -3053,6 +3088,9 @@
                         childTable = this.diagram._getChildTable(this.selectedObject, childTable);
                     if (!this.diagram._selectedSymbol && !this.selectedObject.isPhase && !this.selectedObject.isLane && !this._isLane && !this.diagram._isDragg) {
                         var temp = { "childTable": childTable, "node": this.selectedObject };
+                        if (ej.datavisualization.Diagram.Util.canRouteDiagram(this.diagram) && this._redoConnectors) {
+                            temp.connectors = this._redoConnectors;
+                        }
                         data = $.extend(true, {}, temp);
                         var entry = { type: "positionchanged", undoObject: jQuery.extend(true, {}, this.undoObject), redoObject: jQuery.extend(true, {}, data), isMultipleNode: (this.selectedObject._type === "group") ? true : false, category: "internal", activeLabel: this.activeLabel };
                         if (!this._multipleUndo)
@@ -3366,7 +3404,7 @@
                 imgLine.push(ej.datavisualization.Diagram.Geometry.transform(currenPosition, tarAngle + angleAdd, maxLength));
 
                 var intercept = this._intersect(segemnt, imgLine, false);
-                for (var m in intercept) {
+                for (var m = 0; m < intercept.length; m++) {
                     intercepts.push(intercept[m]);
                 }
             }
@@ -3624,6 +3662,13 @@
                 if (this.selectedObject.parent) {
                     ej.datavisualization.Diagram.Util._updateGroupBounds(this.diagram.nameTable[this.selectedObject.parent], this.diagram);
                 }
+                if (!this.diagram.nameTable[this.selectedObject.name].container) {
+                    if (ej.datavisualization.Diagram.Util.canRouteDiagram(this.diagram)) {
+                        this.undoObject.connectors = {};
+                        this._redoConnectors = {};
+                        this.diagram._updateAllEdges(this.selectedObject);
+                    }
+                }
                 if (needDOMupdate)
                     ej.datavisualization.Diagram.DiagramContext.update(this.selectedObject, this.diagram);
                 this.diagram._updateSelectionHandle();
@@ -3633,6 +3678,9 @@
                 if (this.selectedObject._type === "group" || this.selectedObject.type === "pseudoGroup")
                     childTable = this.diagram._getChildTable(this.selectedObject, childTable);
                 var temp = { "childTable": childTable, "node": this.selectedObject };
+                if (ej.datavisualization.Diagram.Util.canRouteDiagram(this.diagram) && this._redoConnectors) {
+                    temp.connectors = this._redoConnectors;
+                }
                 data = $.extend(true, {}, temp);
 
                 var entry = { type: "sizechanged", undoObject: undoObj ? undoObj : this.undoObject, redoObject: jQuery.extend(true, {}, data), isMultipleNode: (this.selectedObject._type === "group") ? true : false, category: "internal" };
@@ -4305,7 +4353,20 @@
                     }
                 }
             if (this.selectedObject) {
-                var entry = { type: "endpointchanged", undoObject: this.undoObject, redoObject: this._getClonedObject(this.selectedObject), isMultipleNode: (this.selectedObject._type === "group") ? true : false, category: "internal" };
+                var removedPort = null;
+                var removePortType = "";
+                if (this.selectedObject._removeTargetPort && this.selectedObject._removeTargetPort.type && this.selectedObject._removeTargetPort.type == "internal") {
+                    var removedPort = this.selectedObject._removeTargetPort;
+                    removePortType = "targetpoint";
+                    delete this.selectedObject._removeTargetPort;
+                }
+                if (this.selectedObject._removeSourcePort && this.selectedObject._removeSourcePort.type && this.selectedObject._removeSourcePort.type == "internal") {
+                    var removedPort = this.selectedObject._removeSourcePort;
+                    removePortType = "sourcepoint";
+                    delete this.selectedObject._removeSourcePort;
+                }
+                var entry = { type: "endpointchanged", undoObject: this.undoObject, redoObject: this._getClonedObject(this.selectedObject), removedPort: removePortType == "" ? null : removedPort, removePortType: removePortType, isMultipleNode: (this.selectedObject._type === "group") ? true : false, category: "internal" };
+
                 this.diagram.addHistoryEntry(entry);
                 for (var i = 0; i < this._nearestNodes.length; i++)
                     this._showPort(this._nearestNodes[i], true);
@@ -5215,6 +5276,18 @@
                             this.diagram._updateConnectorBridging(connector);
                         }
                     }
+                    else {
+                        if (this._sourcePossibleConnection) {
+                            if ((this._sourcePort && ej.datavisualization.Diagram.Util.canConnect(this._sourcePort, true)) || (ej.datavisualization.Diagram.Util.canConnect(this._sourcePossibleConnection))) {
+                                ej.datavisualization.Diagram.Util.removeItem(this._sourcePossibleConnection.outEdges, this.helper.name);
+                            }
+                        }
+                        if (this._targetPossibleConnection) {
+                            if ((this._targetPort && ej.datavisualization.Diagram.Util.canConnect(this._targetPort, true)) ||  (ej.datavisualization.Diagram.Util.canConnect(this._targetPossibleConnection))) {
+                                ej.datavisualization.Diagram.Util.removeItem(this._targetPossibleConnection.inEdges, this.helper.name);
+                            }
+                        }
+                    }
                 }
             }
             if (this.singleAction)
@@ -5457,6 +5530,7 @@
                             }
                             this._rotate(this.helper);
                             ej.datavisualization.Diagram.SvgContext._drawContainerHelper(this.diagram);
+                            this.diagram._renderTooltip(this.selectedObject, start);
                         }
                     }
 
@@ -5469,7 +5543,7 @@
                                 }
                                 ej.datavisualization.Diagram.DiagramContext.update(this.selectedObject, this.diagram);
                                 this.diagram._updateSelectionHandle(true);
-                                this.diagram._renderTooltip(this.selectedObject, start);
+                                this.diagram._renderTooltip(this.selectedObject, start);                          
                             }
                         }
                         else {
@@ -5481,7 +5555,7 @@
                             }
                             ej.datavisualization.Diagram.DiagramContext.update(this.selectedObject, this.diagram);
                             this.diagram._updateSelectionHandle(true);
-                            this.diagram._renderTooltip(this.selectedObject, start);
+                            this.diagram._renderTooltip(this.selectedObject, start);                           
                         }
                     }
                 }
@@ -5552,12 +5626,19 @@
                         this._rotate(this.selectedObject);
                 }
                 ej.datavisualization.Diagram.DiagramContext.update(this.selectedObject, this.diagram);
-
+                if (ej.datavisualization.Diagram.Util.canRouteDiagram(this.diagram)) {
+                    this.undoObject.connectors = {};
+                    this._redoConnectors = {};
+                    this.diagram._updateAllEdges(this.selectedObject);
+                }
                 var data;
                 var childTable = {};
                 if (this.selectedObject._type === "group" || this.selectedObject.type === "pseudoGroup")
                     childTable = this.diagram._getChildTable(this.selectedObject, childTable);
                 var temp = { "childTable": childTable, "node": this.selectedObject };
+                if (ej.datavisualization.Diagram.Util.canRouteDiagram(this.diagram) && this._redoConnectors) {
+                    temp.connectors = this._redoConnectors;
+                }
                 data = $.extend(true, {}, temp);
                 var entry = { type: "rotationchanged", undoObject: this.undoObject, redoObject: jQuery.extend(true, {}, data), isMultipleNode: (this.selectedObject._type === "group") ? true : false, category: "internal" };
                 if (!this._multipleUndo)
@@ -6198,7 +6279,7 @@
                         newOffset = intersectingOffset;
                     if (newOffset) {
                         var p, bounds, offset;
-                        for (p in conPoints) {
+                        for (p = 0; p < conPoints.length; p++) {
                             if (prev != null) {
                                 bounds = ej.datavisualization.Diagram.Geometry.rect([prev, conPoints[p]]);
                                 if (ej.datavisualization.Diagram.Geometry.containsPoint(bounds, newOffset)) {
@@ -6251,7 +6332,7 @@
                         var line1, lineIntersects, i;
                         line1 = [point, tempPt];
                         lineIntersects = this._boundsInterSects(line1, draggableBounds, false);
-                        for (i in lineIntersects) {
+                        for (i = 0; i < lineIntersects.length; i++) {
                             var ptt = lineIntersects[i]
                             tempPt = ptt;
                         }
@@ -6283,7 +6364,7 @@
                 imgLine.push(ej.datavisualization.Diagram.Geometry.transform(currenPosition, tarAngle + angleAdd, maxLength));
 
                 var intercept = this._intersect(segemnt, imgLine, false);
-                for (var m in intercept) {
+                for (var m = 0; m < intercept.length; m++) {
                     intercepts.push(intercept[m]);
                 }
             }
@@ -6304,7 +6385,7 @@
         LabelMoveTool.prototype._getLengthFromListOfPoints = function (list) {
             var length = 0, start, i;
             start = list[0];
-            for (i in list) {
+            for (i = 0; i < list.length; i++) {
                 length += ej.datavisualization.Diagram.Util.findLength(start, list[i]);
                 start = list[i];
             }
@@ -6313,7 +6394,7 @@
         LabelMoveTool.prototype._getPointAtLength = function (length, pts, angle) {
             angle.angle = 0;
             var run = 0, pre = null, found = ej.datavisualization.Diagram.Point(0, 0), i, pt;
-            for (i in pts) {
+            for (i = 0 ; i < pts.length; i++) {
                 pt = pts[i]
                 if (!pre) {
                     pre = pt;

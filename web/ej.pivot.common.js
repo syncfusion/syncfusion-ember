@@ -8,7 +8,7 @@ ej.Pivot = ej.Pivot || {};
         addReportItem: function (dataSource, args) {
             if (!args.isMeasuresDropped) {
                 var reportItem = this.removeReportItem(dataSource, args.droppedFieldName, args.isMeasuresDropped);
-                if (ej.isNullOrUndefined(reportItem)) reportItem = { fieldName: args.droppedFieldName, fieldCaption: args.droppedFieldCaption, format: args.droppedFieldFormat, formatString: args.droppedFieldFormatString, showSubTotal: args.droppedFieldShowSubTotal };
+                if (ej.isNullOrUndefined(reportItem)) reportItem = { fieldName: args.droppedFieldName, fieldCaption: args.droppedFieldCaption, format: args.droppedFieldFormat, formatString: args.droppedFieldFormatString, showSubTotal: args.droppedFieldShowSubTotal, expression: args.droppedExpression, hierarchyUniqueName: args.droppedHierarchyUniqueName};
                 for (var itm in reportItem) { if ((itm == "format" || itm == "formatString") && (ej.isNullOrUndefined(reportItem[itm]) || reportItem[itm] == "")) delete reportItem[itm]; }
                 switch (args.droppedClass) {
                     case "row":
@@ -198,6 +198,67 @@ ej.Pivot = ej.Pivot || {};
             }
         },
 
+        
+            _memberSortBtnClick: function (args) {
+                var isClientServer = (this.element.hasClass("e-pivotclient") && this.model.operationalMode == "servermode" && this.model.analysisMode == "olap");
+                var modelObject = this.pluginName == "ejPivotSchemaDesigner" ? this.model.pivotControl : this;
+                var isGridServer = this.pluginName == "ejPivotGrid" && modelObject.model.analysisMode == ej.Pivot.AnalysisMode.Olap && modelObject.model.operationalMode == ej.Pivot.OperationalMode.ServerMode;
+                var treeView = $(args.target).parents(".e-memberEditorDiv").find(".e-editorTreeView");
+                var sortType = this._sortType = $(args.target).hasClass("e-memberAscendingIcon") ? "ascending" : "descending";
+                var drilledData = [];
+                var drillDatasource = jQuery.extend(true, [], this._memberTreeObj._dataSource);
+                if (this.element.find(".e-memberDrillPager").is(":visible")) {
+                    var memberPageSize = this.model.memberEditorPageSize == undefined ? this.model.pivotControl.model.memberEditorPageSize : this.model.memberEditorPageSize;
+                    drilledData = ej.Pivot._getParentsTreeList(this, this._drilledNode, this._editorTreeData).concat(ej.DataManager(this._editorDrillTreeData[this._drilledNode]).executeLocal(ej.Query().sortBy("name", this._sortType).page(this._memberDrillPageSettings.currentMemberDrillPage, memberPageSize)));
+                }
+                if (!ej.isNullOrUndefined(treeView) && treeView.length > 0) {
+                    ej.Pivot.updateTreeView(this);
+                    var dataSource = ((this.model.enableMemberEditorPaging || (!ej.isNullOrUndefined(this.model.pivotControl) && this.model.pivotControl.model.enableMemberEditorPaging)) && !this._isSearchApplied) ? this._editorTreeData : treeView.data("ejTreeView").model.fields.dataSource;// 
+                    var newDataSource = (!isClientServer && (dataSource[0].id == "All" || dataSource[0].id == "(All)_0")) ? dataSource.slice(1) : dataSource;
+                    if (drilledData.length > 0) {
+                        newDataSource = drilledData;
+                    }
+                    if (newDataSource.length > 1 && newDataSource[0].id == "SearchFilterSelection")
+                        newDataSource = newDataSource.slice(1);
+                    var allMember = isClientServer ? [] : ((dataSource.length > 1 && (dataSource[0].id == "All" || dataSource[0].id == "(All)_0")) ? dataSource.splice(0, 1) : []);
+                    var sortAll = ej.DataManager(newDataSource).executeLocal(ej.Query().sortBy("name", sortType));
+                    if (!ej.isNullOrUndefined(allMember) && allMember.length > 0) {
+                        sortAll.splice(0, 0, allMember[0]);
+                        dataSource.splice(0, 0, allMember[0]);
+                    }
+                    if ((this.model.enableMemberEditorPaging || (!ej.isNullOrUndefined(this.model.pivotControl) && this.model.pivotControl.model.enableMemberEditorPaging))) {
+                        if (drilledData.length == 0)
+                            sortAll = ej.DataManager(sortAll).executeLocal(ej.Query().page(this._memberPageSettings.currentMemeberPage, (this.model.memberEditorPageSize || this.model.pivotControl.model.memberEditorPageSize)));
+                    }
+                   
+                    if (modelObject.model.analysisMode == ej.Pivot.AnalysisMode.Pivot && sortAll.length > 0 && (sortAll[0].id != "All" && sortAll[0].id != "(All)_0") && !ej.isNullOrUndefined(allMember) && allMember.length > 0)
+                        sortAll.splice(0, 0, allMember[0]);
+                    allMember = {};
+                    if ((treeView.data("ejTreeView").model.fields.dataSource.length > 1 && treeView.data("ejTreeView").model.fields.dataSource[1].id == "SearchFilterSelection" && sortAll[1].id != "SearchFilterSelection"))
+                        sortAll.splice(1, 0, { id: "SearchFilterSelection", name: this._getLocalizedLabels("AddCurrentSelectionToFilter"), checkedStatus: this._isSelectSearchFilter, tag: "SearchFilterSelection", spriteCssClass: "e-searchfilterselection", uniqueName: "Add current selection to filter" });
+                    if (isClientServer && this._isSearchApplied)
+                        sortAll.splice(0, 0, { id: "SearchFilterSelection", name: this._getLocalizedLabels("AddCurrentSelectionToFilter"), checkedStatus: this._isSelectSearchFilter, tag: "SearchFilterSelection", spriteCssClass: "e-searchfilterselection", uniqueName: "Add current selection to filter" });
+                    if (!ej.isNullOrUndefined(treeView))
+                        treeView.ejTreeView({
+                            fields: {
+                                dataSource: jQuery.extend(true, [], sortAll)
+                            },
+                     });
+
+                    if (drilledData.length > 0 && !ej.isNullOrUndefined(drillDatasource)) {
+                        this._memberTreeObj._dataSource = drillDatasource;
+                    }
+                    if (isGridServer) {
+                        var treeViewElements = this.element.find(".e-editorTreeView").find("li");
+                        for (var i = 0; i < treeViewElements.length; i++) {
+                            if (!ej.isNullOrUndefined($(treeViewElements[i]).attr("id")))
+                                $(treeViewElements[i]).attr("data-tag", ej.DataManager(treeView.data("ejTreeView").model.fields.dataSource).executeLocal(ej.Query().where("id", "equal", $(treeViewElements[i]).attr("id")))[0].tag);
+                        }
+                    }
+                    ej.Pivot._separateAllMember(this);
+                }
+           },
+
         _contextMenuOpen: function (args, ctrlObj) {
             ej.Pivot.openPreventPanel(ctrlObj);
             ctrlObj._selectedMember = $(args.target);
@@ -210,7 +271,7 @@ ej.Pivot = ej.Pivot || {};
             else {
                 if (!ej.isNullOrUndefined(ctrlObj.model.pivotControl))
                 mode = ctrlObj.model.pivotControl.model.analysisMode == ej.Pivot.AnalysisMode.Olap ? "olap" : "pivot";
-                menuObj = $("#pivotTreeContextMenu").data('ejMenu');
+                menuObj = $("#" + ctrlObj._id + "_pivotTreeContextMenu").data('ejMenu');
             }
             if (mode == ej.Pivot.AnalysisMode.Olap) {
                 if (ej.isNullOrUndefined($(args.target).parent().attr('data-tag'))) {
@@ -464,6 +525,8 @@ ej.Pivot = ej.Pivot || {};
                     }
                     me._waitingPopup.show();
                     if (me.element.hasClass("e-pivotclient") && me.model.analysisMode == ej.Pivot.AnalysisMode.Olap && me.model.operationalMode == ej.Pivot.OperationalMode.ServerMode) {
+                        if (me.model.enableMemberEditorSorting)
+                            me._editorTreeData = ej.DataManager(me._editorTreeData).executeLocal(ej.Query().sortBy("name", me._sortType));
                         this.editorTreePageInfoSuccess(me._editorTreeData, me);
                     }
                     else {
@@ -472,7 +535,8 @@ ej.Pivot = ej.Pivot || {};
                         else
                             me.model.pivotControl._isMemberPageFilter = true;
                         var memberTreeObj = ej.Pivot.updateTreeView(me);
-                        var treeData = ej.DataManager(me._editorTreeData).executeLocal(ej.Query().where(ej.Predicate("pid", "equal", null).and("id", "notequal", "All").and("id", "notequal", "(All)_0")).page(me._memberPageSettings.currentMemeberPage, me.pluginName == "ejPivotSchemaDesigner" ? me.model.pivotControl.model.memberEditorPageSize : me.model.memberEditorPageSize));
+                        
+                        var treeData = ej.DataManager(me._editorTreeData).executeLocal(ej.Query().sortBy("name", !ej.isNullOrUndefined(me._sortType) ? me._sortType : "").where(ej.Predicate("pid", "equal", null).and("id", "notequal", "All").and("id", "notequal", "(All)_0")).page(me._memberPageSettings.currentMemeberPage, me.pluginName == "ejPivotSchemaDesigner" ? me.model.pivotControl.model.memberEditorPageSize : me.model.memberEditorPageSize));
                         me._memberPageSettings.currentMemeberPage > 1 ? me.element.find(".e-prevPage, .e-firstPage").removeClass("e-pageDisabled").addClass("e-pageEnabled") : me.element.find(".e-prevPage, .e-firstPage").removeClass("e-pageEnabled").addClass("e-pageDisabled");
                         me._memberPageSettings.currentMemeberPage == parseInt($.trim(me.element.find(".e-memberPageCount").text().split("/")[1])) ? me.element.find(".e-nextPage, .e-lastPage").removeClass("e-pageEnabled").addClass("e-pageDisabled") : me.element.find(".e-nextPage, .e-lastPage").removeClass("e-pageDisabled").addClass("e-pageEnabled");
                         me.element.find(".e-memberCurrentPage").val(me._memberPageSettings.currentMemeberPage);
@@ -600,7 +664,15 @@ ej.Pivot = ej.Pivot || {};
                 var lastParentIndex = 0;
                 if (editorTree.length > 0 && editorTree[0].length > 0 && editorTree[0][0].id == "All") editorTree[0].splice(0, 1);
                 $.each(editorTree, function (index, value) { if (value.length == 1 && value[0].expanded) lastParentIndex = index; else return false; });
-                var DrillResultNodes = ej.DataManager(ej.DataManager(me._editorTreeData).executeLocal(ej.Query().where("pid", "equal", editorTree[lastParentIndex][0].id))).executeLocal(ej.Query().where("pid", "notequal", null || undefined).page(me._memberDrillPageSettings.currentMemberDrillPage, me.pluginName == "ejPivotSchemaDesigner" ? me.model.pivotControl.model.memberEditorPageSize : me.model.memberEditorPageSize));
+                var DrillResultNodes = [];
+                if (me.model.enableMemberEditorSorting && me._sortType) {
+                    //me._editorTreeData = ej.DataManager(me._editorTreeData).executeLocal(ej.Query().sortBy("name", me._sortType));
+                    DrillResultNodes = ej.DataManager(ej.DataManager(me._editorTreeData).executeLocal(ej.Query().where("pid", "equal", editorTree[lastParentIndex][0].id).sortBy("name", me._sortType))).executeLocal(ej.Query().where("pid", "notequal", null || undefined).page(me._memberDrillPageSettings.currentMemberDrillPage, me.pluginName == "ejPivotSchemaDesigner" ? me.model.pivotControl.model.memberEditorPageSize : me.model.memberEditorPageSize));
+                }
+                else
+                    DrillResultNodes = ej.DataManager(ej.DataManager(me._editorTreeData).executeLocal(ej.Query().where("pid", "equal", editorTree[lastParentIndex][0].id))).executeLocal(ej.Query().where("pid", "notequal", null || undefined).page(me._memberDrillPageSettings.currentMemberDrillPage, me.pluginName == "ejPivotSchemaDesigner" ? me.model.pivotControl.model.memberEditorPageSize : me.model.memberEditorPageSize));
+                //if (me.model.enableMemberEditorSorting)
+                //    DrillResultNodes = ej.DataManager(DrillResultNodes).executeLocal(ej.Query().sortBy("name", me._sortType));
                 me._editorDrillTreePageSettings[editorTree[lastParentIndex][0].id] = $.extend(true, {}, me._memberDrillPageSettings);
                 if (me.element.find(".e-memberDrillPager").find(".e-nextPageDiv").length > 0) {
                     treeViewData = ej.Pivot._getParentsTreeList(me, editorTree[lastParentIndex][0].id, me._editorTreeData).concat(DrillResultNodes);
@@ -657,6 +729,7 @@ ej.Pivot = ej.Pivot || {};
                 this._refreshDrillEditorPager(editorDrillParams, ctrlObj, memberEditorPageSize);
             }
             var treeViewData = [];;
+            ctrlObj._drilledNode = (editorDrillParams['parentNode'].id);
             treeViewData = !ej.isNullOrUndefined(editorDrillParams['parentNode'].id) ? this._getParentsTreeList(ctrlObj, editorDrillParams.parentNode.id, ctrlObj._editorTreeData).concat(ej.DataManager(treeData).executeLocal(ej.Query().where("pid", "notequal", null || undefined).page(ctrlObj._memberDrillPageSettings.currentMemberDrillPage, memberEditorPageSize))) : editorDrillParams.parentNode.concat(editorDrillParams.childNodes);;
             if (ctrlObj.pluginName == "ejPivotClient" && ctrlObj.model.analysisMode == ej.Pivot.AnalysisMode.Olap && ctrlObj.model.operationalMode == ej.Pivot.OperationalMode.ServerMode)
                 ctrlObj._appendTreeViewData(treeViewData, ctrlObj.element.find(".pvtBtn").parent("[data-tag='Slicers:" + ctrlObj._selectedFieldName.replace(/\[/g, "").replace(/\]/g, "") + "']").length > 0);
@@ -737,6 +810,8 @@ ej.Pivot = ej.Pivot || {};
                     ej.Pivot._drillEditorTreeNode(editorDrillParams, controlObj, pageSettings.memberEditorPageSize);
                 }
                 else {
+                    if (controlObj.model.enableMemberEditorSorting)
+                        controlObj._editorTreeData = ej.DataManager(controlObj._editorTreeData).executeLocal(ej.Query().sortBy("name", controlObj._sortType));
                     if (ancestors.length == 0)
                         ancestors.push(new ej.Predicate("pid", 'equal', null || undefined));
                     if (controlObj.element.find(".e-memberPager").length > 0)
@@ -767,7 +842,7 @@ ej.Pivot = ej.Pivot || {};
                 }
 
                 if (searchVal != "") {
-                    var searchTreeNodes = jQuery.extend(true, [], ej.DataManager(ctrlObj._editorTreeData).executeLocal(ej.Query().where("name", "contains", searchVal, true)));
+                    var searchTreeNodes = jQuery.extend(true, [], ej.DataManager(ctrlObj._editorTreeData).executeLocal(ej.Query().where("name", "contains", searchVal, true).sortBy("name", !ej.isNullOrUndefined(ctrlObj._sortType) ? ctrlObj._sortType :"")));
                     var searchPagedTreeNodes = $.extend(true, [], searchTreeNodes.slice(0, pageSettings.memberEditorPageSize + 1));
                     var searchTreeSlicedItems = pageSettings.enableMemberEditorPaging ? searchPagedTreeNodes : searchTreeNodes;
                     //searchTreeNodes = [];
@@ -830,9 +905,9 @@ ej.Pivot = ej.Pivot || {};
                     }
                     if (isExpanded && ctrlObj.element.find(".e-memberDrillPageCount").text() != "") { ctrlObj.element.find(".e-memberDrillPager").css("display", "block"); ctrlObj.element.find(".e-memberPager").css("display", "none") };
                     if (ctrlObj.pluginName == "ejPivotClient" && ctrlObj.model.analysisMode == ej.Pivot.AnalysisMode.Olap && ctrlObj.model.operationalMode == ej.Pivot.OperationalMode.ServerMode)
-                        ctrlObj._appendTreeViewData(pageSettings.enableMemberEditorPaging ? (isExpanded ? ctrlObj._lastSavedTree : ej.DataManager(ctrlObj._editorTreeData).executeLocal(ej.Query().where("pid", "equal", null || undefined).page(ctrlObj._memberPageSettings.currentMemeberPage, pageSettings.memberEditorPageSize))) : ctrlObj._editorTreeData, ctrlObj.element.find(".pvtBtn").parent("[data-tag='Slicers:" + ctrlObj._selectedFieldName.replace(/\[/g, "").replace(/\]/g, "") + "']").length > 0);
+                        ctrlObj._appendTreeViewData(pageSettings.enableMemberEditorPaging ? (isExpanded ? ej.DataManager(ctrlObj._lastSavedTree).executeLocal(ej.Query().sortBy("name", !ej.isNullOrUndefined(ctrlObj._sortType) ? ctrlObj._sortType : "")) : ej.DataManager(ctrlObj._editorTreeData).executeLocal(ej.Query().where("pid", "equal", null || undefined).page(ctrlObj._memberPageSettings.currentMemeberPage, pageSettings.memberEditorPageSize).sortBy("name", !ej.isNullOrUndefined(ctrlObj._sortType) ? ctrlObj._sortType : ""))) : ctrlObj._editorTreeData, ctrlObj.element.find(".pvtBtn").parent("[data-tag='Slicers:" + ctrlObj._selectedFieldName.replace(/\[/g, "").replace(/\]/g, "") + "']").length > 0);
                     else
-                        _this._createSearchTreeview(pageSettings.enableMemberEditorPaging ? (isExpanded ? ctrlObj._lastSavedTree : ej.DataManager(ctrlObj._editorTreeData).executeLocal(ej.Query().where(ej.Predicate("pid", "equal", null).and("id", "notequal", "All").and("id", "notequal", "(All)_0")).page(ctrlObj._memberPageSettings.currentMemeberPage, pageSettings.memberEditorPageSize))) : ctrlObj._editorTreeData, ctrlObj);
+                        _this._createSearchTreeview(pageSettings.enableMemberEditorPaging ? (isExpanded ? ej.DataManager(ctrlObj._lastSavedTree).executeLocal(ej.Query().sortBy("name", !ej.isNullOrUndefined(ctrlObj._sortType) ? ctrlObj._sortType : "")) : ej.DataManager(ctrlObj._editorTreeData).executeLocal(ej.Query().where(ej.Predicate("pid", "equal", null).and("id", "notequal", "All").and("id", "notequal", "(All)_0")).page(ctrlObj._memberPageSettings.currentMemeberPage, pageSettings.memberEditorPageSize).sortBy("name", !ej.isNullOrUndefined(ctrlObj._sortType) ? ctrlObj._sortType : ""))) : ctrlObj._editorTreeData, ctrlObj);
                 }
                 ctrlObj._waitingPopup.hide();
                 ctrlObj._parentNodeCollection = {};
@@ -842,6 +917,7 @@ ej.Pivot = ej.Pivot || {};
         _createSearchTreeview: function (searchTreeNodes, ctrlObj) {
             var isMemEditPaging = ctrlObj.pluginName == "ejPivotSchemaDesigner" ? ctrlObj.model.pivotControl.model.enableMemberEditorPaging : ctrlObj.model.enableMemberEditorPaging;
             var isAdvancedFilter = ctrlObj.pluginName == "ejPivotSchemaDesigner" ? ctrlObj.model.pivotControl.model.enableAdvancedFilter : ctrlObj.model.enableAdvancedFilter;
+            var isMemberSorting = ctrlObj.pluginName == "ejPivotSchemaDesigner" ? ctrlObj.model.pivotControl.model.enableMemberEditorSorting : ctrlObj.model.enableMemberEditorSorting;
             var isSlicer = ctrlObj.element.find(".e-pvtBtn").parent("[data-tag='Slicers:" + (ctrlObj._selectedFieldName || ctrlObj._dialogHead) + "']").length > 0;
             var mode = {
                 analysisMode: ctrlObj.pluginName == "ejPivotSchemaDesigner" ? ctrlObj.model.pivotControl.model.analysisMode : ctrlObj.model.analysisMode,
@@ -861,7 +937,7 @@ ej.Pivot = ej.Pivot || {};
                     if (!ej.isNullOrUndefined(args.event))
                         if (args.event.type == "keydown" && args.event.originalEvent.key.toLowerCase() == "delete") return false;
                 },
-                height: ctrlObj.element.find(".e-memberEditorDiv").height(),
+                height: isMemberSorting ? "200px" : "245px",
                 fields: { id: "id", text: "name", isChecked: "checkedStatus", parentId: "pid", expanded: "expanded", hasChild: "hasChildren", dataSource: ej.Pivot._showEditorLinkPanel(searchTreeNodes, ctrlObj, ctrlObj.pluginName == "ejPivotSchemaDesigner" ? ctrlObj.model.pivotControl : ctrlObj) },
             });
             var treeViewElements = ctrlObj.element.find(".e-editorTreeView").find("li");
@@ -890,7 +966,58 @@ ej.Pivot = ej.Pivot || {};
             if (ctrlObj._memberTreeObj.element.find(".e-plus").length == 0 && ctrlObj._memberTreeObj.element.find(".e-minus").length == 0) {
                 ctrlObj._memberTreeObj.element.find(".e-item").css("padding", "0px");
             }
+            if (ctrlObj.model.enableMemberEditorSorting) {
+                this._separateAllMember(ctrlObj);
+            }
         },
+
+        _separateAllMember: function (ctrlObj) {
+            var isClientServer = (ctrlObj.element.hasClass("e-pivotclient") && ctrlObj.model.operationalMode == "servermode" && ctrlObj.model.analysisMode == "olap");
+            var isAdvancedFilter = ctrlObj.pluginName == "ejPivotSchemaDesigner" ? ctrlObj.model.pivotControl.model.enableAdvancedFilter : ctrlObj.model.enableAdvancedFilter;
+            var isRTL = ctrlObj.pluginName == "ejPivotSchemaDesigner" ? ctrlObj.model.pivotControl.model.enableRTL : ctrlObj.model.enableRTL;
+            var isPivot = ctrlObj.pluginName == "ejPivotSchemaDesigner" ? ctrlObj.model.pivotControl.model.analysisMode : ctrlObj.model.analysisMode;
+            var allMember = !isClientServer ? ej.buildTag("div.e-checkAllBox", ej.buildTag("input#allElement.allMember", "", { "float": isRTL ? "right" : "left" }, { name: 'row', type: 'checkbox', tabindex: 0 })[0].outerHTML + " " + ej.buildTag("label.e-allElementLabel", (isAdvancedFilter) ? "(Select All)" : "All", { "margin-left": "5px" })[0].outerHTML, { width: "100px", float: isRTL ? "right" : "left" })[0].outerHTML : "";
+            var memberSortDiv = ej.buildTag("div.memberSortDiv", ej.buildTag("div.e-icon e-memberAscendingIcon", { margin: "5px" })[0].outerHTML + ej.buildTag("div.e-icon e-memberDescendingIcon")[0].outerHTML, { height: "35px", "margin-left": "5px", float: isRTL ? "left" : "right" })[0].outerHTML;
+            var memberSortingDiv = ej.buildTag("div.memberSortingDiv", allMember + memberSortDiv, { "height": "20px", margin: ctrlObj.pluginName == "ejPivotSchemaDesigner" ? (isRTL ? (isPivot == ej.Pivot.AnalysisMode.Pivot ? "10px 15px 0px 21px" : "10px 31px 0px 12px") : (isPivot == ej.Pivot.AnalysisMode.Pivot ? "10px 0px 0px 8px" : "10px 0px 0px 20px")) : (isRTL ? (isPivot == ej.Pivot.AnalysisMode.Pivot ? "10px 15px 0px 20px" : "10px 28px 0px 20px") : (isPivot == ej.Pivot.AnalysisMode.Pivot ? "10px 0px 0px 20px" : "10px 0px 0px 29px")) });
+            if (isAdvancedFilter)
+                ctrlObj.element.find(".e-editorTreeView").css("margin-top", "10px");
+            ctrlObj.element.find(".memberSortingDiv, .e-separateDiv").remove();
+
+            if (isPivot == ej.Pivot.AnalysisMode.Pivot)
+                ctrlObj.element.find(".e-editorTreeView").addClass("e-treeViewUl")
+            if (!isClientServer)
+                ctrlObj.element.find(".e-editorTreeView").before(memberSortingDiv);
+
+            if (ctrlObj.element.find(".e-editorTreeView li:first").attr("id") == "All" || ctrlObj.element.find(".e-editorTreeView li:first").attr("id") == "(All)_0")
+                ctrlObj.element.find(".e-editorTreeView li:first").css("display", "none");
+
+            if (isClientServer) {
+                ctrlObj.element.find(".memberSortDiv, .e-separateDiv").remove();
+                ctrlObj.element.find(".e-checkOptions").after(ej.buildTag("div.e-separateDiv", { margin: "0px 5px" })[0].outerHTML);
+                ctrlObj.element.find(".e-checkOptions").append(memberSortDiv);
+                if (isAdvancedFilter)
+                    ctrlObj.element.find(".e-editorTreeView").height(235);
+            }
+            else {
+                ctrlObj.element.find(".memberSortingDiv").after(ej.buildTag("div.e-separateDiv", {})[0].outerHTML);
+                ctrlObj.element.find(".allMember").ejCheckBox({ size: "small", width: "40px", checked: true, change: ej.proxy(ctrlObj._nodeCheckChanges, ctrlObj) });
+            }
+
+            if (ctrlObj._sortType == "ascending")
+                ctrlObj.element.find(".e-memberAscendingIcon").addClass("e-selectedSort");
+            else if (ctrlObj._sortType == "descending")
+                ctrlObj.element.find(".e-memberDescendingIcon").addClass("e-selectedSort");
+
+        },
+
+        _checkChanges: function (args) {
+            var controlObj = this.pluginName == "ejPivotSchemaDesigner" ? this.model.pivotControl : this;
+            if (args.isChecked)
+                controlObj._nodeCheckChanges(args);
+            else if(!args.isChecked)
+                controlObj._nodeUnCheckChanges(args);
+        },
+
         _fetchMemberPageSuccess: function (msg) {
             var currentMembers, controlObj = this.pluginName == "ejPivotSchemaDesigner" ? this.model.pivotControl : this;
             if (msg[0] != undefined && msg.length > 0) {
@@ -1377,7 +1504,8 @@ ej.Pivot = ej.Pivot || {};
             delete contObj.reportItemNames;
             delete contObj.schemaTreeView;
         },
-        _createCalcMemberDialog: function (calcMemberTree) {
+        _createCalcMemberDialog: function (calcMemberTree, pivotObj) {
+            var pivotObj = (!ej.isNullOrUndefined(pivotObj.model)) ? pivotObj : this;
             var calcMemberTreeData = "";
             if (calcMemberTree.length > 1 && calcMemberTree[0] != undefined)
                 calcMemberTreeData = JSON.parse(calcMemberTree[0].Value);
@@ -1385,206 +1513,303 @@ ej.Pivot = ej.Pivot || {};
                 calcMemberTreeData = JSON.parse(calcMemberTree.d[0].Value);
             else
                 calcMemberTreeData = JSON.parse(calcMemberTree.CubeTreeInfo);
-            if (this.model.afterServiceInvoke != null)
-                this._trigger("afterServiceInvoke", { action: "fetchCalcMemberTreeView", element: this.element, customObject: this.model.customObject });
+            if (pivotObj.model.afterServiceInvoke != null)
+                pivotObj._trigger("afterServiceInvoke", { action: "fetchCalcMemberTreeView", element: pivotObj.element, customObject: pivotObj.model.customObject });
 
-            ej.Pivot.openPreventPanel(this);
-            this.element.find(".e-calcMemberDialog", ".e-clientDialog", ".e-dialog").remove();
-            var treeviewPanel = ej.buildTag("div.e-cubeBrowserCalcMember", ej.buildTag("div#" + this._id + "_cubeTreeViewCalcMember.e-cubeTreeViewCalcMember")[0].outerHTML, {})[0].outerHTML;
-            var captionFields = ej.buildTag("label.lblCaption", this._getLocalizedLabels("Caption"), {})[0].outerHTML + ej.buildTag("input#" + this._id + "_captionFieldCM.captionFieldCM", "", {}).attr("aria-label", this._getLocalizedLabels("Caption"))[0].outerHTML;
-            var expressionFields = ej.buildTag("label.lblexpression", this._getLocalizedLabels("Expression"), {})[0].outerHTML + ej.buildTag("textarea#" + this._id + "_expressionFieldCM.e-textarea e-droppable expressionFieldCM" + (this.model.enableRTL ? " e-rtl" : ""), "", {}).attr("aria-label", this._getLocalizedLabels("Expression"))[0].outerHTML;
-            var memberFields = ej.buildTag("label.lblmemberType", this._getLocalizedLabels("MemberType"), {})[0].outerHTML + ej.buildTag("input#" + this._id + "_memberTypeFieldCM.memberTypeFieldCM", "", {}).attr("aria-label", this._getLocalizedLabels("MemberType"))[0].outerHTML + ej.buildTag("input#" + this._id + "_dimensionFieldCM.dimensionFieldCM", "", {}).attr("aria-label", "dimension")[0].outerHTML;
-            var formatFields = ej.buildTag("label.lblformat", this._getLocalizedLabels("FormatString"), {})[0].outerHTML + ej.buildTag("input#" + this._id + "_formatFieldCM.formatFieldCM", "", {}).attr("aria-label", this._getLocalizedLabels("FormatString"))[0].outerHTML + ej.buildTag("input#" + this._id + "_customFormatFieldCM.customFormatFieldCM", "", {}).attr("aria-label", "custom format")[0].outerHTML;
+            ej.Pivot.openPreventPanel(pivotObj);
+            pivotObj.element.find(".e-calcMemberDialog", ".e-clientDialog", ".e-dialog").remove();
+            var treeviewPanel = ej.buildTag("div.e-cubeBrowserCalcMember", ej.buildTag("div#" + pivotObj._id + "_cubeTreeViewCalcMember.e-cubeTreeViewCalcMember")[0].outerHTML, {})[0].outerHTML;
+            var captionFields = ej.buildTag("label.lblCaption", pivotObj._getLocalizedLabels("Caption"), {})[0].outerHTML + ej.buildTag("input#" + pivotObj._id + "_captionFieldCM.captionFieldCM", "", {}).attr("aria-label", pivotObj._getLocalizedLabels("Caption"))[0].outerHTML;
+            var expressionFields = ej.buildTag("label.lblexpression", pivotObj._getLocalizedLabels("Expression"), {})[0].outerHTML + ej.buildTag("textarea#" + pivotObj._id + "_expressionFieldCM.e-textarea e-droppable expressionFieldCM" + (pivotObj.model.enableRTL ? " e-rtl" : ""), "", {}).attr("aria-label", pivotObj._getLocalizedLabels("Expression"))[0].outerHTML;
+            var memberFields = ej.buildTag("label.lblmemberType", pivotObj._getLocalizedLabels("MemberType"), {})[0].outerHTML + ej.buildTag("input#" + pivotObj._id + "_memberTypeFieldCM.memberTypeFieldCM", "", {}).attr("aria-label", pivotObj._getLocalizedLabels("MemberType"))[0].outerHTML + ej.buildTag("input#" + pivotObj._id + "_dimensionFieldCM.dimensionFieldCM", "", {}).attr("aria-label", "dimension")[0].outerHTML;
+            var formatFields = ej.buildTag("label.lblformat", pivotObj._getLocalizedLabels("FormatString"), {})[0].outerHTML + ej.buildTag("input#" + pivotObj._id + "_formatFieldCM.formatFieldCM", "", {}).attr("aria-label", pivotObj._getLocalizedLabels("FormatString"))[0].outerHTML + ej.buildTag("input#" + pivotObj._id + "_customFormatFieldCM.customFormatFieldCM", "", {}).attr("aria-label", "custom format")[0].outerHTML;
 
             var fieldPanel = ej.buildTag("div.e-calcMemberFieldPanel", captionFields + expressionFields + memberFields + formatFields, {})[0].outerHTML;
 
-            var okBtn = ej.buildTag("button#" + this._id + "_btnOk.e-btnCalcMemberOk", this._getLocalizedLabels("OK"), {}, { name: this._getLocalizedLabels("OK") }).attr("aria-label", this._getLocalizedLabels("OK")).attr("title", this._getLocalizedLabels("OK").replace(/(<([^>]+)>)/ig, ""))[0].outerHTML;
-            var cancelBtn = ej.buildTag("button#" + this._id + "_btnCancel.btnCalcMemberCancel", this._getLocalizedLabels("Cancel"), {}, { name: this._getLocalizedLabels("Cancel") }).attr("aria-label", this._getLocalizedLabels("Cancel")).attr("title", this._getLocalizedLabels("Cancel").replace(/(<([^>]+)>)/ig, ""))[0].outerHTML;
+            var okBtn = ej.buildTag("button#" + pivotObj._id + "_btnOk.e-btnCalcMemberOk", pivotObj._getLocalizedLabels("OK"), {}, { name: pivotObj._getLocalizedLabels("OK") }).attr("aria-label", pivotObj._getLocalizedLabels("OK")).attr("title", pivotObj._getLocalizedLabels("OK").replace(/(<([^>]+)>)/ig, ""))[0].outerHTML;
+            var cancelBtn = ej.buildTag("button#" + pivotObj._id + "_btnCancel.btnCalcMemberCancel", pivotObj._getLocalizedLabels("Cancel"), {}, { name: pivotObj._getLocalizedLabels("Cancel") }).attr("aria-label", pivotObj._getLocalizedLabels("Cancel")).attr("title", pivotObj._getLocalizedLabels("Cancel").replace(/(<([^>]+)>)/ig, ""))[0].outerHTML;
             var dialogFooter = ej.buildTag("div.e-calcMemberFooter", okBtn + cancelBtn, {})[0].outerHTML;
 
-            this._calcMemberDialog = ej.buildTag("div#" + this._id + "_calcMemberDialog", treeviewPanel + fieldPanel + dialogFooter, {})[0].outerHTML;
-            $(this._calcMemberDialog).appendTo("#" + this._id);
-            $("#" + this._id + "_calcMemberDialog").ejDialog({
+            pivotObj._calcMemberDialog = ej.buildTag("div#" + pivotObj._id + "_calcMemberDialog", treeviewPanel + fieldPanel + dialogFooter, {})[0].outerHTML;
+            $(pivotObj._calcMemberDialog).appendTo("#" + pivotObj._id);
+            $("#" + pivotObj._id + "_calcMemberDialog").ejDialog({
                 width: "auto",
-                title: this._getLocalizedLabels("CalculatedMember"),
-                cssClass: this.model.cssClass + " e-calcMemberDialog",
+                title: pivotObj._getLocalizedLabels("CalculatedMember"),
+                cssClass: pivotObj.model.cssClass + " e-calcMemberDialog",
                 enableModal: false,
-                target: "#" + this._id,
-                enableRTL: this.model.enableRTL,
+                target: "#" + pivotObj._id,
+                enableRTL: pivotObj.model.enableRTL,
                 enableResize: false,
-                close: ej.proxy(function () { ej.Pivot.closePreventPanel(this) }, this),
+                close: ej.proxy(function () { ej.Pivot.closePreventPanel(pivotObj) }, pivotObj),
                 beforeOpen: ej.proxy(function () {
-                    this.element.find(".e-calcMemberDialog .e-dialog").css("display", "block");
-                }, this)
+                    pivotObj.element.find(".e-calcMemberDialog .e-dialog").css("display", "block");
+                }, pivotObj)
             });
-            this._calcMemberDialog = this.element.find("#" + this._id + "_calcMemberDialog").data("ejDialog");
-            $("#" + this._id + "_btnCancel").ejButton({
-                type: ej.ButtonType.Button, width: "80px", enableRTL: this.model.enableRTL, click: ej.proxy(function () {
-                    this._calcMemberDialog.close();
-                    this._selectedCalcMember = null;
-                    ej.Pivot.closePreventPanel(this);
-                },this)
+            pivotObj._calcMemberDialog = pivotObj.element.find("#" + pivotObj._id + "_calcMemberDialog").data("ejDialog");
+            $("#" + pivotObj._id + "_btnCancel").ejButton({
+                type: ej.ButtonType.Button, width: "80px", enableRTL: pivotObj.model.enableRTL, click: ej.proxy(function () {
+                    pivotObj._calcMemberDialog.close();
+                    pivotObj._selectedCalcMember = null;
+                    ej.Pivot.closePreventPanel(pivotObj);
+                },pivotObj)
             });
-            $("#" + this._id + "_btnOk").ejButton({
-                type: ej.ButtonType.Button, width: "80px", enableRTL: this.model.enableRTL, click: ej.proxy(function () {
-                    if ($.trim(this.element.find("#" + this._id + "_captionFieldCM").val()) == "" || $.trim(this.element.find("#" + this._id + "_expressionFieldCM").val()) == "") {
-                        ej.Pivot._createErrorDialog(this._getLocalizedLabels("EmptyField"), this._getLocalizedLabels("Warning"), this);
+            $("#" + pivotObj._id + "_btnOk").ejButton({
+                type: ej.ButtonType.Button, width: "80px", enableRTL: pivotObj.model.enableRTL, click: ej.proxy(function () {
+                    if ($.trim(pivotObj.element.find("#" + pivotObj._id + "_captionFieldCM").val()) == "" || $.trim(pivotObj.element.find("#" + pivotObj._id + "_expressionFieldCM").val()) == "") {
+                        ej.Pivot._createErrorDialog(pivotObj._getLocalizedLabels("EmptyField"), pivotObj._getLocalizedLabels("Warning"), pivotObj);
                         return;
                     }
-                    else if (this.element.find("#" + this._id + "_formatFieldCM").val() == "Custom" && $.trim(this.element.find("#" + this._id + "_customFormatFieldCM").val()) == "") {
-                        ej.Pivot._createErrorDialog(this._getLocalizedLabels("EmptyFormat"), this._getLocalizedLabels("Warning"), this);
+                    else if (pivotObj.element.find("#" + pivotObj._id + "_formatFieldCM").val() == "Custom" && $.trim(pivotObj.element.find("#" + pivotObj._id + "_customFormatFieldCM").val()) == "") {
+                        ej.Pivot._createErrorDialog(pivotObj._getLocalizedLabels("EmptyFormat"), pivotObj._getLocalizedLabels("Warning"), pivotObj);
                         return;
                     }
-                    if (ej.isNullOrUndefined(this._selectedCalcMember)) {
-                        for (var i = 0; i < this._calcMembers.length; i++) {
-                            if ($.trim(this.element.find("#" + this._id + "_captionFieldCM").val()).toLowerCase() == this._calcMembers[i].name.toLowerCase()) {
-                                if (confirm(this._getLocalizedLabels("Confirm")))
-                                    this._selectedCalcMember = $.trim(this.element.find("#" + this._id + "_captionFieldCM").val());
+                    if (ej.isNullOrUndefined(pivotObj._selectedCalcMember)) {
+                        for (var i = 0; i < pivotObj._calcMembers.length; i++) {
+                            if ($.trim(pivotObj.element.find("#" + pivotObj._id + "_captionFieldCM").val()).toLowerCase() == pivotObj._calcMembers[i].name.toLowerCase()) {
+                                if (confirm(pivotObj._getLocalizedLabels("Confirm")))
+                                    pivotObj._selectedCalcMember = $.trim(pivotObj.element.find("#" + pivotObj._id + "_captionFieldCM").val());
                                 else
                                     return;
-                                //ej.Pivot._createErrorDialog(this._getLocalizedLabels("DuplicateCalcMeasure"), this._getLocalizedLabels("Warning"), this);
+                                //ej.Pivot._createErrorDialog(pivotObj._getLocalizedLabels("DuplicateCalcMeasure"), pivotObj._getLocalizedLabels("Warning"), pivotObj);
                             }
                         }
                     }
-                    //this._calcMembers.push({ name: $.trim(this.element.find("#" + this._id + "_captionFieldCM").val()), expression: $.trim(this.element.find("#" + this._id + "_expressionFieldCM").val()) });
-                    this._calcMemberDialog.close();
-                    ej.Pivot.closePreventPanel(this);
-                    //if (!ej.isNullOrUndefined(this._selectedCalcMember)) {
-                    //    var liElement = this.element.find(".e-cubeTreeView .calcMemberCDB").parents("li").find("li");
+                    //pivotObj._calcMembers.push({ name: $.trim(pivotObj.element.find("#" + pivotObj._id + "_captionFieldCM").val()), expression: $.trim(pivotObj.element.find("#" + pivotObj._id + "_expressionFieldCM").val()) });
+                    pivotObj._calcMemberDialog.close();
+                    ej.Pivot.closePreventPanel(pivotObj);
+                    //if (!ej.isNullOrUndefined(pivotObj._selectedCalcMember)) {
+                    //    var liElement = pivotObj.element.find(".e-cubeTreeView .calcMemberCDB").parents("li").find("li");
                     //    for (var i = 0; i < liElement.length; i++) {
-                    //        if ($(liElement[i]).text().toLowerCase() == this._selectedCalcMember.toLowerCase()) {
-                    //            this._calcMemberTreeObj.updateText($(liElement[i]).attr("id"), $.trim(this.element.find("#" + this._id + "_captionFieldCM").val()));
+                    //        if ($(liElement[i]).text().toLowerCase() == pivotObj._selectedCalcMember.toLowerCase()) {
+                    //            pivotObj._calcMemberTreeObj.updateText($(liElement[i]).attr("id"), $.trim(pivotObj.element.find("#" + pivotObj._id + "_captionFieldCM").val()));
                     //            if ($(liElement[i]).children("div").find("> .e-text")[0] != null)
-                    //                $(liElement[i]).children("div").find("> .e-text")[0].lastChild.nodeValue = $.trim(this.element.find("#" + this._id + "_captionFieldCM").val());
-                    //            liElement[i].setAttribute("expression", $.trim(this.element.find("#" + this._id + "_expressionFieldCM").val()));
-                    //            liElement[i].setAttribute("formatString", this.element.find("#" + this._id + "_formatFieldCM").val() == "Custom" ? $.trim(this.element.find("#" + this._id + "_customFormatFieldCM").val()) : this.element.find("#" + this._id + "_formatFieldCM").val());
-                    //            liElement[i].setAttribute("nodeType", this.element.find("#" + this._id + "_memberTypeFieldCM").val() == "Measure" ? 0 : 1);
+                    //                $(liElement[i]).children("div").find("> .e-text")[0].lastChild.nodeValue = $.trim(pivotObj.element.find("#" + pivotObj._id + "_captionFieldCM").val());
+                    //            liElement[i].setAttribute("expression", $.trim(pivotObj.element.find("#" + pivotObj._id + "_expressionFieldCM").val()));
+                    //            liElement[i].setAttribute("formatString", pivotObj.element.find("#" + pivotObj._id + "_formatFieldCM").val() == "Custom" ? $.trim(pivotObj.element.find("#" + pivotObj._id + "_customFormatFieldCM").val()) : pivotObj.element.find("#" + pivotObj._id + "_formatFieldCM").val());
+                    //            liElement[i].setAttribute("nodeType", pivotObj.element.find("#" + pivotObj._id + "_memberTypeFieldCM").val() == "Measure" ? 0 : 1);
                     //        }
                     //    }
-                    //    for (var i = 0; i < this._calcMembers.length; i++) {
-                    //        if (this._calcMembers[i].name.toLowerCase() == this._selectedCalcMember.toLowerCase()) {
-                    //            this._calcMembers[i].name = $.trim(this.element.find("#" + this._id + "_captionFieldCM").val());
-                    //            this._calcMembers[i].expression = $.trim(this.element.find("#" + this._id + "_expressionFieldCM").val());
-                    //            this._calcMembers[i].formatString = this.element.find("#" + this._id + "_formatFieldCM").val() == "Custom" ? $.trim(this.element.find("#" + this._id + "_customFormatFieldCM").val()) : this.element.find("#" + this._id + "_formatFieldCM").val();
-                    //            this._calcMembers[i].nodeType = this.element.find("#" + this._id + "_memberTypeFieldCM").val() == "Measure" ? 0 : 1;
+                    //    for (var i = 0; i < pivotObj._calcMembers.length; i++) {
+                    //        if (pivotObj._calcMembers[i].name.toLowerCase() == pivotObj._selectedCalcMember.toLowerCase()) {
+                    //            pivotObj._calcMembers[i].name = $.trim(pivotObj.element.find("#" + pivotObj._id + "_captionFieldCM").val());
+                    //            pivotObj._calcMembers[i].expression = $.trim(pivotObj.element.find("#" + pivotObj._id + "_expressionFieldCM").val());
+                    //            pivotObj._calcMembers[i].formatString = pivotObj.element.find("#" + pivotObj._id + "_formatFieldCM").val() == "Custom" ? $.trim(pivotObj.element.find("#" + pivotObj._id + "_customFormatFieldCM").val()) : pivotObj.element.find("#" + pivotObj._id + "_formatFieldCM").val();
+                    //            pivotObj._calcMembers[i].nodeType = pivotObj.element.find("#" + pivotObj._id + "_memberTypeFieldCM").val() == "Measure" ? 0 : 1;
                     //        }
                     //    }
                     //}
                     var calcMemberTag = "";
-                    if (!ej.isNullOrUndefined(this._selectedCalcMember)) {
-                        var calcMember = ej.DataManager(this._calcMembers).executeLocal(ej.Query().where("name", "equal", this._selectedCalcMember, true));
+                    if (!ej.isNullOrUndefined(pivotObj._selectedCalcMember)) {
+                        var calcMember = ej.DataManager(pivotObj._calcMembers).executeLocal(ej.Query().where("name", "equal", pivotObj._selectedCalcMember, true));
                         if (!ej.isNullOrUndefined(calcMember) && calcMember.length > 0)
                             calcMemberTag = calcMember[0].tag;
                     }
-                    this._selectedCalcMember = null;
-                    this._waitingPopup.show();
-                    var eventArgs = JSON.stringify({ "action": "calculatedMember", "olapReport": this.currentReport, "clientReports": this.reports, "caption": this.currentCubeName + "%" + $.trim(this.element.find("#" + this._id + "_captionFieldCM").val()), expression: $.trim(this.element.find("#" + this._id + "_expressionFieldCM").val()), memberType: this.element.find("#" + this._id + "_memberTypeFieldCM").val(), dimension: this.element.find("#" + this._id + "_dimensionFieldCM").val(), formatString: this.element.find("#" + this._id + "_formatFieldCM").val() == "Custom" ? $.trim(this.element.find("#" + this._id + "_customFormatFieldCM").val()) : this.element.find("#" + this._id + "_formatFieldCM").val(), "uniqueName": calcMemberTag, "customObject": this.model.customObject });
-                    this.doAjaxPost("POST", this.model.url + "/" + this.model.serviceMethodSettings.calculatedMember, eventArgs, this._calcMemberDroppedSuccess);
-                }, this)
+                    
+                    pivotObj._waitingPopup.show();
+                    var eventArgs = ({ "action": "calculatedMember", "olapReport": pivotObj.currentReport, "clientReports": pivotObj.reports, "caption": pivotObj.currentCubeName + "%" + $.trim(pivotObj.element.find("#" + pivotObj._id + "_captionFieldCM").val()), expression: $.trim(pivotObj.element.find("#" + pivotObj._id + "_expressionFieldCM").val()), memberType: pivotObj.element.find("#" + pivotObj._id + "_memberTypeFieldCM").val(), dimension: pivotObj.element.find("#" + pivotObj._id + "_dimensionFieldCM").val(), formatString: pivotObj.element.find("#" + pivotObj._id + "_formatFieldCM").val() == "Custom" ? $.trim(pivotObj.element.find("#" + pivotObj._id + "_customFormatFieldCM").val()) : pivotObj.element.find("#" + pivotObj._id + "_formatFieldCM").val(), "uniqueName": calcMemberTag, "customObject": pivotObj.model.customObject });
+                    if (pivotObj.model.operationalMode == ej.Pivot.OperationalMode.ServerMode) {
+                        pivotObj.doAjaxPost("POST", pivotObj.model.url + "/" + pivotObj.model.serviceMethodSettings.calculatedMember, JSON.stringify(eventArgs), pivotObj._calcMemberDroppedSuccess);
+                    }
+                    else {
+                        eventArgs.caption = eventArgs.caption.replace("%", "");
+                        var uniqName = "";
+                        if (eventArgs.memberType.toLowerCase().indexOf("measure") > -1)
+                            uniqName = "[Measures].[" + $.trim(eventArgs.caption) + "]";
+                        else
+                            uniqName = $(jQuery("[id*='[" + eventArgs.dimension + "]']")[0]).attr("data-defaulthierarchy") + ".[" + $.trim(eventArgs.caption) + "]";
+                        var calcMember = {
+                            caption: eventArgs.caption, expression: eventArgs.expression, tag: uniqName,
+                            hierarchyUniqueName: "[" + $.trim(eventArgs.dimension) + "]." + "[" + $.trim(eventArgs.dimension) + "]", // $(jQuery("[id*='[" + eventArgs.dimension + "]']")[0]).attr("data-defaulthierarchy"),
+                            memberType: (eventArgs).memberType,
+                            formatString: (eventArgs.formatString ? eventArgs.formatString : (eventArgs.format ? eventArgs.format : null))
+                        };
+                        if ((eventArgs).memberType.toLowerCase().indexOf("measure") == -1 && pivotObj._selectedCalcMember != null)
+                            ej.Pivot.getReportItemByFieldName(this._schemaData._selectedFieldName, this.model.dataSource).item.hierarchyUniqueName = calcMember.hierarchyUniqueName;
+                        pivotObj._selectedCalcMember = null;
+                        var newItem = { "id": eventArgs.caption, "pid": "_0", "name": eventArgs.caption, "hasChildren": false, "spriteCssClass": "e-calcMemberCDB e-icon", "tag": uniqName, "expression": eventArgs.expression, "formatString": null, "nodeType": 0, "hierarchyUniqueName": (eventArgs).memberType == "Measure" ? "" : calcMember.hierarchyUniqueName }
+                        var isExist = false;
+                        var calcTreeItems = [{ id: "_0", name: "Calculated Members", hasChildren: true, spriteCssClass: "e-calcMemberGroupCDB e-icon", tag: "" }];
+                        var calcElement = calcMember.caption;
+                        pivotObj.model.calculatedMembers = $.grep(pivotObj.model.calculatedMembers, function (item, index) {
+                            if (item.caption == calcElement) {
+                                isExist = true;
+                                item.caption = calcMember.caption; item.expression = calcMember.expression;
+                                item.hierarchyUniqueName = calcMember.hierarchyUniqueName; item.memberType = eventArgs.memberType;
+                                item.formatString = eventArgs.formatString;
+                            }
+                            return item;
+                        });
+
+                        var fields = pivotObj.element.find(".e-schemaFieldTree").data("ejTreeView").model.fields;
+                        if (fields.dataSource[0].id != "_0")
+                            fields.dataSource.splice(0, 0, calcTreeItems[0]);
+
+                        if (!isExist)
+                            pivotObj.model.calculatedMembers.push(calcMember);
+                        else {
+                            var fName = this._schemaData._selectedFieldName;
+                            fields.dataSource =  $.grep(fields.dataSource, function (item, idx) {
+                                if (item.id == fName)
+                                {
+                                    item.expression = calcMember.expression;
+                                    item.hierarchyUniqueName = calcMember.hierarchyUniqueName;
+                                    item.expression = calcMember.expression;
+                                    item.memberType = calcMember.memberType;
+                                    item.formatString = calcMember.formatString;
+                                }
+                                return item;
+                            });
+                        }
+                        //pivotObj.element.find(".e-schemaFieldTree").data("ejTreeView").model.fields = fields;
+                        if (!isExist) 
+                            fields.dataSource.push(newItem);
+                        else
+                            pivotObj.refreshControl();
+
+                        ej.Pivot._refreshFieldList(pivotObj);
+                    }
+                }, pivotObj)
             });
           
-            this.element.find("#" + this._id + "_cubeTreeViewCalcMember").ejTreeView({
+            pivotObj.element.find("#" + pivotObj._id + "_cubeTreeViewCalcMember").ejTreeView({
                 fields: { id: "id", parentId: "pid", text: "name", spriteCssClass: "spriteCssClass", dataSource: calcMemberTreeData },
                 allowDragAndDrop: true,
-                enableRTL: this.model.enableRTL,
+                enableRTL: pivotObj.model.enableRTL,
                 allowDropChild: false,
                 allowDropSibling: false,
                 dragAndDropAcrossControl: true,
                 cssClass: 'calcMemberTreeViewDragedNode',
                 nodeDropped: ej.proxy(function (args) {
-                    if (args.target != null && args.target.attr("id") == "" + this._id + "_expressionFieldCM")
-                        this.element.find("#" + this._id + "_expressionFieldCM").val(this.element.find("#" + this._id + "_expressionFieldCM").val() + $(args.droppedElement).attr('data-tag'));
-                }, this),
-                beforeExpand: ej.proxy(ej.Pivot._getMemberChildNodes, this),
+                    if (args.target != null && args.target.attr("id") == "" + pivotObj._id + "_expressionFieldCM")
+                        pivotObj.element.find("#" + pivotObj._id + "_expressionFieldCM").val(pivotObj.element.find("#" + pivotObj._id + "_expressionFieldCM").val() + $(args.droppedElement).attr('data-tag'));
+                }, pivotObj),
+                beforeExpand: ej.proxy(ej.Pivot._getMemberChildNodes, pivotObj),
             });
-            this.element.find("#" + this._id + "_captionFieldCM").ejMaskEdit({
+            pivotObj.element.find("#" + pivotObj._id + "_captionFieldCM").ejMaskEdit({
                 name: "inputbox",
                 inputMode: ej.InputMode.Text,
                 watermarkText: "",
                 maskFormat: "",
-                textAlign: this.model.enableRTL ? "right" : "left",
+                textAlign: pivotObj.model.enableRTL ? "right" : "left",
                 width: "100%"
             });
-            this.element.find("#" + this._id + "_customFormatFieldCM").ejMaskEdit({
+            pivotObj.element.find("#" + pivotObj._id + "_customFormatFieldCM").ejMaskEdit({
                 name: "inputbox",
                 inputMode: ej.InputMode.Text,
                 watermarkText: "",
                 maskFormat: "",
-                textAlign: this.model.enableRTL ? "right" : "left",
+                textAlign: pivotObj.model.enableRTL ? "right" : "left",
                 width: "100%",
                 cssClass: "e-calcMemberCustomFormat"
             });
-            this.element.find(".e-calcMemberCustomFormat").css("visibility", "hidden");
-            this.element.find("#" + this._id + "_memberTypeFieldCM").ejDropDownList({
-                dataSource: [{ text: "Measure", value: "Measure" }, { text: "Dimension", value: "Dimension" }], enableRTL: this.model.enableRTL,
+            pivotObj.element.find(".e-calcMemberCustomFormat").css("visibility", "hidden");
+            pivotObj.element.find("#" + pivotObj._id + "_memberTypeFieldCM").ejDropDownList({
+                dataSource: [{ text: "Measure", value: "Measure" }, { text: "Dimension", value: "Dimension" }], enableRTL: pivotObj.model.enableRTL,
                 width: "100%", selectedIndex: 0, change: ej.proxy(function (args) {
                     if (args.text == "Dimension")
-                        this.element.find(".e-calcMemberDimensionField").css("visibility", "visible");
+                        pivotObj.element.find(".e-calcMemberDimensionField").css("visibility", "visible");
                     else
-                        this.element.find(".e-calcMemberDimensionField").css("visibility", "hidden");
-                }, this)
+                        pivotObj.element.find(".e-calcMemberDimensionField").css("visibility", "hidden");
+                }, pivotObj)
             });
+
             var dimensions = ej.DataManager(calcMemberTreeData).executeLocal(ej.Query().where("spriteCssClass", "contains", "e-dimensionCDB"));
             var dimensionNames = [];
             for (var i = 0; i < dimensions.length; i++) {
                 dimensionNames.push({ text: dimensions[i].name, value: dimensions[i].name })
             }
-            this.element.find("#" + this._id + "_dimensionFieldCM").ejDropDownList({
+            pivotObj.element.find("#" + pivotObj._id + "_dimensionFieldCM").ejDropDownList({
                 dataSource: dimensionNames,selectedIndex: 0,
-                width: "100%", enableRTL: this.model.enableRTL, cssClass: "e-calcMemberDimensionField"
+                width: "100%", enableRTL: pivotObj.model.enableRTL, cssClass: "e-calcMemberDimensionField"
             });
-            this.element.find(".e-calcMemberDimensionField").css("visibility", "hidden");
-            this.element.find("#" + this._id + "_formatFieldCM").ejDropDownList({
+            pivotObj.element.find(".e-calcMemberDimensionField").css("visibility", "hidden");
+            pivotObj.element.find("#" + pivotObj._id + "_formatFieldCM").ejDropDownList({
                 dataSource: [{ text: "Standard", value: "Standard" }, { text: "Currency", value: "Currency" }, { text: "Percent", value: "Percent" }, { text: "Custom", value: "Custom" }],
-                enableRTL: this.model.enableRTL, selectedIndex: 0,
-                width: "100%", enableRTL: this.model.enableRTL, change: ej.proxy(function (args) {
+                enableRTL: pivotObj.model.enableRTL, selectedIndex: 0,
+                width: "100%", enableRTL: pivotObj.model.enableRTL, change: ej.proxy(function (args) {
                     if (args.text == "Custom")
-                        this.element.find(".e-calcMemberCustomFormat").css("visibility", "visible");
+                        pivotObj.element.find(".e-calcMemberCustomFormat").css("visibility", "visible");
                     else
-                        this.element.find(".e-calcMemberCustomFormat").css("visibility", "hidden");
-                }, this)
+                        pivotObj.element.find(".e-calcMemberCustomFormat").css("visibility", "hidden");
+                }, pivotObj)
             });
-            var treeViewElements = this.element.find(".e-cubeTreeViewCalcMember").find("li");
+            var treeViewElements = pivotObj.element.find(".e-cubeTreeViewCalcMember").find("li");
             for (var i = 0; i < treeViewElements.length; i++) {
                 if (!ej.isNullOrUndefined($(treeViewElements[i]).attr("id")))
                     $(treeViewElements[i]).attr("data-tag", ej.DataManager(calcMemberTreeData).executeLocal(ej.Query().where("id", "equal", $(treeViewElements[i]).attr("id")))[0].tag);
             }
-            var folders = this.element.find(".e-cubeTreeViewCalcMember .e-folderCDB");
+            var folders = pivotObj.element.find(".e-cubeTreeViewCalcMember .e-folderCDB");
             for (var i = 0; i < folders.length; i++) {
                 $(folders[i].parentElement).removeClass("e-draggable");
             }
-            if (this.element.find(".e-cubeTreeViewCalcMember .calcMemberGroupCDB").length > 0)
-                this.element.find(".e-cubeTreeViewCalcMember .calcMemberGroupCDB").parent().removeClass("e-draggable");
-            this._calcMemberTreeObj = this.element.find('.e-cubeTreeViewCalcMember').data("ejTreeView");
-            if (!ej.isNullOrUndefined(this._selectedCalcMember)) {
-                var calcMember = ej.DataManager(this._calcMembers).executeLocal(ej.Query().where("name", "equal", this._selectedCalcMember));
+            if (pivotObj.element.find(".e-cubeTreeViewCalcMember .calcMemberGroupCDB").length > 0)
+                pivotObj.element.find(".e-cubeTreeViewCalcMember .calcMemberGroupCDB").parent().removeClass("e-draggable");
+            pivotObj._calcMemberTreeObj = pivotObj.element.find('.e-cubeTreeViewCalcMember').data("ejTreeView");
+            if (!ej.isNullOrUndefined(pivotObj._selectedCalcMember)) {
+                var calcMember = {};
+                if (pivotObj.model.operationalMode == ej.Pivot.OperationalMode.ServerMode)
+                    calcMember  = ej.DataManager(pivotObj._calcMembers).executeLocal(ej.Query().where("name", "equal", pivotObj._selectedCalcMember));
+                else
+                    calcMember = ej.DataManager(pivotObj.model.calculatedMembers).executeLocal(ej.Query().where("caption", "equal", pivotObj._selectedCalcMember));
                 if (calcMember.length > 0) {
-                    this.element.find("#" + this._id + "_captionFieldCM").val(calcMember[0].name);
-                    this.element.find("#" + this._id + "_expressionFieldCM").val(calcMember[0].expression);
-                    this.element.find("#" + this._id + "_memberTypeFieldCM").data("ejDropDownList").selectItemsByIndices(calcMember[0].nodeType);
-                    if (calcMember[0].nodeType == 1) {
-                        var dimensionName = calcMember[0].tag.split(".")[0].replace(/\[/g, "").replace(/\]/g, "");
-                        var dimensionFieldLen = this.element.find("#" + this._id + "_dimensionFieldCM").data("ejDropDownList").model.dataSource;
+
+                    var nodeType = 0;
+                    if (pivotObj.model.operationalMode == ej.Pivot.OperationalMode.ServerMode)
+                        nodeType = calcMember[0].nodeType;
+                    else {
+                        nodeType = (calcMember.length > 0 && calcMember[0].memberType && (calcMember[0].memberType == "dimension" || calcMember[0].memberType == "Dimension")) ? 1 : 0;
+                    }
+                    pivotObj.element.find("#" + pivotObj._id + "_captionFieldCM").val((calcMember[0].caption || calcMember[0].name));
+                    pivotObj.element.find("#" + pivotObj._id + "_expressionFieldCM").val(calcMember[0].expression);
+                    pivotObj.element.find("#" + pivotObj._id + "_memberTypeFieldCM").data("ejDropDownList").selectItemsByIndices(nodeType);
+                    if (nodeType == 1) {
+                        var tag =(pivotObj.model.operationalMode == ej.Pivot.OperationalMode.ServerMode) ? calcMember[0].tag : calcMember[0].hierarchyUniqueName;
+                        var dimensionName = tag.split(".")[0].replace(/\[/g, "").replace(/\]/g, "");
+                        var dimensionFieldLen = pivotObj.element.find("#" + pivotObj._id + "_dimensionFieldCM").data("ejDropDownList").model.dataSource;
                         for (var i = 0; i < dimensionFieldLen.length; i++) {
                             if (dimensionFieldLen[i].value == dimensionName)
-                                this.element.find("#" + this._id + "_dimensionFieldCM").data("ejDropDownList").selectItemsByIndices(i);
+                                pivotObj.element.find("#" + pivotObj._id + "_dimensionFieldCM").data("ejDropDownList").selectItemsByIndices(i);
                         }
                     }
                     if (!ej.isNullOrUndefined(calcMember[0].formatString)) {
-                        if (calcMember[0].formatString == "Currency")
-                            this.element.find("#" + this._id + "_formatFieldCM").data("ejDropDownList").selectItemsByIndices(1);
+                        if (calcMember[0].formatString == "Standard")
+                            pivotObj.element.find("#" + pivotObj._id + "_formatFieldCM").data("ejDropDownList").selectItemsByIndices(0);
+                        else if (calcMember[0].formatString == "Currency")
+                            pivotObj.element.find("#" + pivotObj._id + "_formatFieldCM").data("ejDropDownList").selectItemsByIndices(1);
                         else if (calcMember[0].formatString == "Percent")
-                            this.element.find("#" + this._id + "_formatFieldCM").data("ejDropDownList").selectItemsByIndices(2);
+                            pivotObj.element.find("#" + pivotObj._id + "_formatFieldCM").data("ejDropDownList").selectItemsByIndices(2);
                         else {
-                            this.element.find("#" + this._id + "_formatFieldCM").data("ejDropDownList").selectItemsByIndices(2);
-                            this.element.find("#" + this._id + "_customFormatFieldCM").val(calcMember[0].formatString);
+                            pivotObj.element.find("#" + pivotObj._id + "_formatFieldCM").data("ejDropDownList").selectItemsByIndices(3);
+                            pivotObj.element.find("#" + pivotObj._id + "_customFormatFieldCM").val(calcMember[0].formatString);
                         }
                     }
                 }
             }
             //$(".cubeBrowserHierarchy").ejScroller({ height: "300px", width: "300px" });
             //$("#calcMemberDialog").addClass("e-scheduledialog").find(".e-titlebar").addClass("e-dialogheader");
-            this._waitingPopup.hide();
+            pivotObj._waitingPopup.hide();
+        },
+
+        _refreshFieldList:function(pivotObj){
+            var schemObj = pivotObj.element.find(".e-schemaFieldTree").data("ejTreeView");
+            schemObj.refresh();
+            var treeDataSource = schemObj.model.fields.dataSource;
+            var liElements = pivotObj.element.find(".e-schemaFieldTree li");
+            for (var i = 0; i < $(liElements).length; i++) {
+                var eleID = $($(liElements)[i]).attr("id");
+                var temp = $.map(treeDataSource, function (item, index) {
+                    if (item.id == eleID) {
+                        return { tag: item.tag, expression: item.expression, defaultHierarchy: item.defaultHierarchy };
+                    };
+                });
+                if (temp.length > 0 && temp[0] != "") {
+                    $($(liElements)[i]).attr("data-tag", temp[0].tag);
+                    if (!ej.isNullOrUndefined(temp[0].expression))
+                        $($(liElements)[i]).attr("expression", temp[0].expression)
+                    if (!ej.isNullOrUndefined(temp[0].defaultHierarchy))
+                        $($(liElements)[i]).attr("data-defaultHierarchy", temp[0].defaultHierarchy)
+                }
+            }
         },
         _getMemberChildNodes: function (args) {
             if ($(args.currentElement).find("a > span")[0].className.indexOf("level") > -1 || $(args.currentElement).find("a > span")[0].className.indexOf("member") > -1) {
@@ -1594,10 +1819,30 @@ ej.Pivot = ej.Pivot || {};
                     this.pNode = args.currentElement;
                     this._waitingPopup.show();
                     var nodeType = $(args.currentElement).find("a > span")[0].className.indexOf("level") > -1 ? "level" : "member";
-                    if (this.model.beforeServiceInvoke != null)
-                        this._trigger("beforeServiceInvoke", { action: "fetchMemberChildNodes", element: this.element, customObject: this.model.customObject });
-                    var serializedCustomObject = JSON.stringify(this.model.customObject);
-                    this.doAjaxPost("POST", this.model.url + "/" + this.model.serviceMethodSettings.fetchMemberTreeNodes, JSON.stringify({ "action": "fetchMemberChildNodes", "dimensionName": $(args.currentElement).attr('data-tag') + ":" + nodeType + ":" + $(args.currentElement).attr("id"), "olapReport": this.currentReport, "customObject": serializedCustomObject }), ej.proxy(ej.Pivot._fetchMemberSuccess, this));
+                    if (this.model.operationalMode == ej.Pivot.OperationalMode.ClientMode) {
+                        var dimProp = "dimension properties CHILDREN_CARDINALITY, MEMBER_TYPE";
+                        var dataSource = this.model.dataSource;
+                        var calcMemberTreeObj = this.element.find(".e-cubeTreeViewCalcMember").data("ejTreeView");
+                        var selectedMember = $.map(calcMemberTreeObj.model.fields.dataSource, function (item, index) {
+                            if (item.id == $(args.currentElement).attr("id")) { return item; }
+                        });
+                        if (!($(args.currentElement).children("ul").children().length > 1)) {
+                            if (selectedMember.length > 0)
+                                this._calcExpanded = selectedMember[0];
+                            var mdxQuery = "select {" + $(args.currentElement).attr("data-tag") + ".members" + "}" + dimProp + " on 0 from [" + $.trim(dataSource.cube) + "]";
+                            var xmla = ej.olap._mdxParser.getSoapMsg(mdxQuery, dataSource.data, dataSource.catalog);
+                            var conStr = ej.olap.base._getConnectionInfo(dataSource.data);
+                            this.doAjaxPost("POST", conStr.url, { XMLA: xmla }, ej.proxy(this._generateCalculatedMember, this), null, { action: "fetchMembers" });
+                        }
+                        else if (this._waitingPopup)
+                            this._waitingPopup.hide();
+                    }
+                    else {
+                        if (this.model.beforeServiceInvoke != null)
+                            this._trigger("beforeServiceInvoke", { action: "fetchMemberChildNodes", element: this.element, customObject: this.model.customObject });
+                        var serializedCustomObject = JSON.stringify(this.model.customObject);
+                        this.doAjaxPost("POST", this.model.url + "/" + this.model.serviceMethodSettings.fetchMemberTreeNodes, JSON.stringify({ "action": "fetchMemberChildNodes", "dimensionName": $(args.currentElement).attr('data-tag') + ":" + nodeType + ":" + $(args.currentElement).attr("id"), "olapReport": this.currentReport, "customObject": serializedCustomObject }), ej.proxy(ej.Pivot._fetchMemberSuccess, this));
+                    }
                 }
             }
         },
@@ -1634,15 +1879,12 @@ ej.Pivot = ej.Pivot || {};
         },
         _drillThroughCellClick: function (args, gridObj) {
             gridObj._waitingPopup.show();
-            var measures, measureGrp;
+            var measures, measureGrp, controlObj;
             var cellPos = $(args.currentTarget.parentElement).attr('data-p');
-            if (gridObj.model.operationalMode == ej.PivotGrid.OperationalMode.ServerMode) {              
-                gridObj.doAjaxPost("POST", gridObj.model.url + "/" + gridObj.model.serviceMethodSettings.drillThroughDataTable, JSON.stringify({ "currentReport": JSON.parse(gridObj.getOlapReport()).Report, "layout": gridObj.model.layout, "cellPos": cellPos, "selector": "", "customObject": JSON.stringify(gridObj.model.customObject) }), function (args) {
-                    if ($(gridObj.element).parents(".e-pivotclient").length > 0) {
-                        $(gridObj.element).parents(".e-pivotclient").data("ejPivotClient")._trigger("drillThrough", { element: gridObj.element, data: args });
-                    }
-                    else
-                        gridObj._trigger("drillThrough", { element: gridObj.element, data: args });
+            if (gridObj.model.operationalMode == ej.PivotGrid.OperationalMode.ServerMode) {
+                controlObj = ($(gridObj.element).parents(".e-pivotclient").length > 0 || $(gridObj.element).parents(".e-maximumView").length > 0) ? gridObj._pivotClientObj : gridObj;
+                controlObj.doAjaxPost("POST", controlObj.model.url + "/" + controlObj.model.serviceMethodSettings.drillThroughDataTable, JSON.stringify({ "currentReport": JSON.parse(gridObj.getOlapReport()).Report, "layout": gridObj.model.layout, "cellPos": cellPos, "selector": "", "customObject": JSON.stringify(controlObj.model.customObject) }), function (args) {
+                    controlObj._trigger("drillThrough", { element: gridObj.element, data: args });
                 });
             }
             else {
@@ -1761,19 +2003,19 @@ ej.Pivot = ej.Pivot || {};
                 else
                     target = this.model.operationalMode == ej.PivotGrid.OperationalMode.ServerMode ? $(sender.droppedElement).attr('data-tag') : sender.droppedElementData.id;
                 if (!ej.isNullOrUndefined(target)) {
-                    target = target.replace("[", "[$");
-                    for (var i = 0; i < $("#hrSel").val().split(",").length; i++) {
-                        if (target == $("#hrSel").val().split(",")[i])
-                            return false;
-                    }
-                    var tex = this.element.find('#hrSel').val();
-                    if (tex.length != 0) {
-                        tex = tex + ',' + target;
-                        this.element.find('#hrSel').val(tex);
-                    }
-                    else
-                        this.element.find('#hrSel').val(target);
+                target = target.replace("[", "[$");
+                for (var i = 0; i < $("#hrSel").val().split(",").length; i++) {
+                    if (target == $("#hrSel").val().split(",")[i])
+                        return false;
                 }
+                var tex = this.element.find('#hrSel').val();
+                if (tex.length != 0) {
+                    tex = tex + ',' + target;
+                    this.element.find('#hrSel').val(tex);
+                }
+                else
+                    this.element.find('#hrSel').val(target);
+            }
             }
         },
 
@@ -1804,6 +2046,8 @@ ej.Pivot = ej.Pivot || {};
             var filterState = "";
             if (controlObj.model.operationalMode == ej.Pivot.OperationalMode.ClientMode) {
                 if (olapClientMode) {
+                    if (ej.isNullOrUndefined(ej.olap.base.olapCtrlObj))
+                        ej.olap.base.olapCtrlObj = controlObj;
                     if (controlObj._fieldSelectedMembers[item.fieldName.toLowerCase()] == "All" || ej.isNullOrUndefined(controlObj._fieldSelectedMembers[item.fieldName.toLowerCase()]))
                         ej.olap._mdxParser.getAllMember(controlObj.model.dataSource, item.fieldName, controlObj);
                     filterState = (controlObj._fieldSelectedMembers[item.fieldName.toLowerCase()] == "All" || ej.isNullOrUndefined(controlObj._fieldSelectedMembers[item.fieldName.toLowerCase()]) ? controlObj._allMember : controlObj._fieldSelectedMembers[item.fieldName.toLowerCase()]);
@@ -2146,9 +2390,9 @@ ej.Pivot = ej.Pivot || {};
                                 var collObj = ej.Pivot._generateChildWithAncestors(ctrlObj, $(selectedItem).parents("li:eq(0)"), pageSettings.enableMemberEditorPaging, pageSettings.memberEditorPageSize);
                                 if (pageSettings.enableMemberEditorPaging && (filterItems.length >= pageSettings.memberEditorPageSize || collObj.lstChildren.length >= pageSettings.memberEditorPageSize)) {
                                     ctrlObj._isEditorDrillPaging = true;
-                                    controlObj.element.find(".searchEditorTreeView").data("ejMaskEdit").clear();
-                                    controlObj._lastSavedTree = [];
-                                    ej.Pivot._makeAncestorsExpandable(controlObj, $(selectedItem).parents("li:eq(0)")[0].id);
+                                    ctrlObj.element.find(".searchEditorTreeView").data("ejMaskEdit").clear();
+                                    ctrlObj._lastSavedTree = [];
+                                    ej.Pivot._makeAncestorsExpandable(ctrlObj, $(selectedItem).parents("li:eq(0)")[0].id);
                                     var parentNodeObj = collObj.allLvlLst.length > 1 && collObj.lstChildren.length >= pageSettings.memberEditorPageSize ? ej.Pivot._getParentsTreeList(ctrlObj, collObj.lstParents[0].id, ctrlObj._editorTreeData) : $.grep(ctrlObj._editorTreeData, function (value) { return value.id == $(selectedItem).parents("li:eq(0)")["0"].id; return false; })[0];
                                     var editorDrillParams = { childNodes: collObj.allLvlLst.length > 1 && collObj.lstChildren.length >= pageSettings.memberEditorPageSize ? collObj.lstChildren : filterItems, parentNode: parentNodeObj };
                                     ej.Pivot._drillEditorTreeNode(editorDrillParams, ctrlObj, pageSettings.memberEditorPageSize);
@@ -2229,6 +2473,8 @@ ej.Pivot = ej.Pivot || {};
                 var treeNodeInfo = { hasChildren: $(data[i]).find("CHILDREN_CARDINALITY").text() != "0", checkedStatus: $($(pNode).find('input.nodecheckbox')[0]).parent().attr("aria-checked") == "true" ? true : false, id: memberUqName.replace(/\]*\]/g, '-').replace(/\[*\[/g, '-').replace(/ /g, "_"), name: memberName, tag: memberUqName, level: parseInt($(data[i]).find("LNum").text()) }
                 treeViewData.push(treeNodeInfo);
             }
+            if (treeViewData.length > 0 && controlObj.model.enableMemberEditorSorting && controlObj._sortType != null)
+                treeViewData = ej.DataManager(treeViewData).executeLocal(ej.Query().sortBy("name", controlObj._sortType));
             if ($(pNode).parents("li").length > 1)
                 parentNode = $(pNode).parents("li").first();
             else

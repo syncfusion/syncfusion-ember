@@ -27,6 +27,8 @@
             isResponsive: false,
 
             allowSnapping: false,
+			
+			allowNextValue: true,
 
 
             sizeSettings: {
@@ -236,7 +238,9 @@
 
                     visible: true,
 
-                    labelPlacement: "outside"
+                    labelPlacement: "outside",
+					
+					labelIntersectAction: "none"
                 },
 
                 lowerLevel: {
@@ -286,7 +290,9 @@
 
                     visible: true,
 
-                    labelPlacement: "outside"
+                    labelPlacement: "outside",
+					
+					labelIntersectAction: "none"
                 }
             },
 
@@ -403,7 +409,7 @@
             enableAutoResizing:"boolean",
             isResponsive: "boolean",
             allowSnapping:"boolean",
-         
+            allowNextValue:"boolean",
             dataSource: "data",
             tooltipSettings: {
                 visible:"boolean",
@@ -423,13 +429,15 @@
                     intervalType: 'string',
                     position: "string",
                     visible: "boolean",
-                    labelPlacement: "string"
+                    labelPlacement: "string",
+					labelIntersectAction: "string"
                 },
                 lowerLevel: {
                     intervalType: 'string',
                     position: "string",
                     visible: "boolean",
-                    labelPlacement:"string"
+                    labelPlacement:"string",
+					labelIntersectAction: "string"
                 }
             },
             navigatorStyleSettings: {
@@ -2288,10 +2296,13 @@
             if (leftValue != null && leftValue >= this.padding && leftValue < this.newWidth - this.padding) {
                 this.leftSliderPosition = leftValue;
                 rtlValue = this.model.enableRTL ? (this.newWidth - leftValue) : leftValue;
-                if(type=="datetime")
+                if(type=="datetime"){
                     doubledate = (rtlValue / this.eachInterval) + this.startDateTime.getTime() - (this.padding / this.eachInterval);
-                else
-                    doubledate = (rtlValue / this.eachInterval) + this.startValue - (this.padding / this.eachInterval);
+					doubledate -= this.endDateTime.getTime() == doubledate ? 0 :(this.model.enableRTL && !this.model.allowNextValue) ? 1 : 0; 
+				}
+                else{
+                    doubledate = (rtlValue / this.eachInterval) + this.startValue - (this.padding / this.eachInterval)
+				}
                 if (this.model.tooltipSettings.visible && this.svgSupport && this.leftTxt) {
                     this.leftTooltip.setAttribute('opacity', this.setopacity);
                     if(type=="datetime")
@@ -2418,6 +2429,7 @@
                 var startDateTime = new Date(this.model.rangeSettings.start);
                 rtlValue = this.model.enableRTL ? (this.newWidth - rightValue) : rightValue;
                 doubledate = (rtlValue / this.eachInterval) + this.startDateTime.getTime() - (this.padding / this.eachInterval);
+				doubledate -= this.endDateTime.getTime() == doubledate ? 0 :(!this.model.enableRTL && !this.model.allowNextValue) ? 1 : 0; 
                 if(type=="datetime")
                     doubledate = new Date(doubledate);
                     //fixed issue for end value change
@@ -3813,6 +3825,26 @@
                 this._lowerTotalValues[i] += this.padding;
             }
         },
+		isIntersect: function (naviobj, textNode, i, labelfont, txtWidth, isrtl) {
+			if(isrtl && i == 0){
+				var currentX = parseFloat(naviobj.renderer._getAttrVal(textNode[i],"x"));
+				var txtWidth = ej.EjSvgRender.utils._measureText(textNode[i].innerHTML, null, labelfont);
+				if(currentX + txtWidth.width > naviobj.newWidth)
+					textNode[i].innerHTML = '';
+			}
+			else{
+				var j = textNode.length - 1;
+				for(isrtl ? j > 1: j=1; isrtl ? j> i: j<i; isrtl? j--:j++){	
+					var prevX = parseFloat(naviobj.renderer._getAttrVal(textNode[j],"x"));
+					var prevXTextWidth = ej.EjSvgRender.utils._measureText(textNode[j].innerHTML, null, labelfont);
+					var currentX = parseFloat(naviobj.renderer._getAttrVal(textNode[i],"x"));
+					var width = (prevXTextWidth.width == 0) ? prevXTextWidth.width : txtWidth;
+					var value = prevX + (prevXTextWidth.width);
+					if(value > currentX)
+						textNode[i].innerHTML = '';
+				}
+			}
+		},
 
         insertLabels: function (naviobj, level) {
             // this._applyPadding();
@@ -3918,6 +3950,8 @@
                     naviobj.renderer._setAttr($(naviobj._higherTextNode[i]), { 'x': setleft });
                     naviobj.renderer._setAttr($(naviobj._higherTextNode[i]), { 'fill': naviobj.model.labelSettings.higherLevel.style.font.color });
                     naviobj._higherTextLeft[i] = setleft;
+					if(this.model.labelSettings.higherLevel.labelIntersectAction != "none")
+						this.isIntersect(naviobj, naviobj._higherTextNode, i, labelfont, txtwidth, isrtl);
                     
                     if (naviobj.model.labelSettings.higherLevel.position == "top" && naviobj.model.labelSettings.lowerLevel.position == "top") {
                         naviobj._higherTextNode[i].setAttribute("y", naviobj.minHighHeight - 5);
@@ -4018,11 +4052,12 @@
                 //Calculate hihger level label regions
                for (var k = 0, len=naviobj._higherLineLeft.length; k < len; k++) {
                    textOffset = ej.EjSvgRender.utils._measureText(naviobj.higherLevel.childNodes[k].textContent, null, labelfont);
-                   if (this.svgSupport)
-                       higherLevelLabels.push({ size: textOffset, x: naviobj._higherLineLeft[k], y: naviobj._higherTextNode[k].getAttribute("y") - textOffset.height / 2 + offset, lableType: "higherLevel" });
-                   else
-                       higherLevelLabels.push({ size: textOffset, x: naviobj._higherLineLeft[k], y: naviobj._higherTextNode[k].offsetTop - textOffset.height / 2 + offset, lableType: "higherLevel" });
-
+				   if(textOffset.width != 0 || textOffset.height != 0){
+						if (this.svgSupport)
+							higherLevelLabels.push({ size: textOffset, x: naviobj._higherLineLeft[k], y: naviobj._higherTextNode[k].getAttribute("y") - textOffset.height / 2 + offset, lableType: "higherLevel" });
+						else
+							higherLevelLabels.push({ size: textOffset, x: naviobj._higherLineLeft[k], y: naviobj._higherTextNode[k].offsetTop - textOffset.height / 2 + offset, lableType: "higherLevel" });
+				   }
                }
                this._addLabelsRegion(naviobj, higherLevelLabels);
                  
@@ -4119,6 +4154,8 @@
                         setleft = lineleft - txtwidth / 2;
                     naviobj.renderer._setAttr($(naviobj._lowerTextNode[i]), { 'x': setleft });
                     naviobj.renderer._setAttr($(naviobj._lowerTextNode[i]), { 'fill': naviobj.model.labelSettings.lowerLevel.style.font.color });
+					if(this.model.labelSettings.lowerLevel.labelIntersectAction != "none")
+						this.isIntersect(naviobj, naviobj._lowerTextNode, i, labelfont, txtwidth, isrtl);
 
                     naviobj._lowerTextLeft[i] = setleft;
 
@@ -4233,10 +4270,12 @@
                 //Calculate lower lavel label regions
                 for (var k = 0, len=naviobj._lowerLineLeft.length;  k < len; k++) {
                     textOffset = ej.EjSvgRender.utils._measureText(naviobj.lowerLevel.childNodes[k].textContent, null, labelfont);
-                    if (this.svgSupport)
-                        lowerLevelLabels.push({ size: textOffset, x: naviobj._lowerLineLeft[k], y: naviobj._lowerTextNode[k].getAttribute("y") - textOffset.height / 2 + offset, lableType: "lowerLevel" });
-                    else
-                        lowerLevelLabels.push({ size: textOffset, x: naviobj._lowerLineLeft[k], y: naviobj._lowerTextNode[k].offsetTop + offset, lableType: "lowerLevel" });
+					if(textOffset.width != 0 || textOffset.height != 0){
+						if (this.svgSupport)
+							lowerLevelLabels.push({ size: textOffset, x: naviobj._lowerLineLeft[k], y: naviobj._lowerTextNode[k].getAttribute("y") - textOffset.height / 2 + offset, lableType: "lowerLevel" });
+						else
+							lowerLevelLabels.push({ size: textOffset, x: naviobj._lowerLineLeft[k], y: naviobj._lowerTextNode[k].offsetTop + offset, lableType: "lowerLevel" });
+					}
                 }
                 this._addLabelsRegion(naviobj, lowerLevelLabels);
                 
@@ -5251,7 +5290,15 @@
 
          Outside: 'outside'
       
-     };    
+     }; 
+
+	ej.datavisualization.RangeNavigator.LabelIntersectAction = {
+
+         None: 'none',
+
+         Hide: 'hide'
+      
+     }; 
 
      ej.datavisualization.RangeNavigator.ValueType = {
 

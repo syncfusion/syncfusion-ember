@@ -1,5 +1,4 @@
 (function ($, ej, undefined) {
-
     ej.spreadsheetFeatures = ej.spreadsheetFeatures || {};
 
     ej.spreadsheetFeatures.resizing = function (obj) {
@@ -163,7 +162,7 @@
 
         _reSize: function (x) {
             // Function used for Resizing the column                     
-            var oldWidth, xlObj = this.XLObj, groupedColumn, sheetIdx = xlObj.getActiveSheetIndex(), i, header = xlObj._getJSSheetHeader(sheetIdx), colSelected = header.find(".e-colselected"), colLen = colSelected.length, currentCHCellIdx, currentCHCells = [];
+            var oldWidth, xlObj = this.XLObj, groupedColumn, sheetIdx = xlObj.getActiveSheetIndex(), i, header = xlObj._getJSSheetHeader(sheetIdx), colSelected = header.find(".e-colselected"), colLen = colSelected.length, currentCHCellIdx, currentCHCells = [], dimension;
             this._initialTableWidth = xlObj._getJSSheetHeader(sheetIdx).find(".e-headercontent").width();
             this._getResizableCell();
             if (this._currentHCell > -1 && this._resizeStart) {
@@ -176,8 +175,11 @@
                 }
                 (!groupedColumn) && (currentCHCells = [this._currentHCell]);
                 this._resizeColumnUsingDiff(x - this._orgX + oldWidth, oldWidth, currentCHCells);
-                if (xlObj._isAutoWHMode)
+                if (xlObj._isAutoWHMode) {
                     xlObj._autoSSWidthHeight();
+                     dimension = xlObj._getElementDimension();
+                     xlObj.element.css({ height: dimension.height, width: dimension.width });
+                }
                 if (xlObj.model.allowAutoFill) {
                     xlObj.XLDragFill.positionAutoFillElement();
                     xlObj.XLDragFill.hideAutoFillOptions();
@@ -193,7 +195,7 @@
         },
 
         _resizeColumnUsingDiff: function (newWidth, oldWidth, currentCHCells) {
-            var sparkline, span, cellObj, txtVal, txtWidth, columnCells, overflowCells, $headerCol, $ContentCol, xlObj = this.XLObj, details = {}, sheetIdx = xlObj.getActiveSheetIndex(), header = xlObj._getJSSheetHeader(sheetIdx);
+            var sparkline, span, cellObj, txtVal, txtWidth, columnCells, overflowCells, $headerCol, $ContentCol, xlObj = this.XLObj, details = {}, sheetIdx = xlObj.getActiveSheetIndex(), header = xlObj._getJSSheetHeader(sheetIdx), rowIndex;
             if (newWidth > 0) {
                 newWidth = newWidth > this._colMinWidth ? newWidth : this._colMinWidth;
                 for (var i = 0, len = currentCHCells.length; i < len; i++) {
@@ -297,20 +299,28 @@
         },
 
         _getResizableCell: function (e) {
-            var xlObj = this.XLObj, sheetIdx = xlObj.getActiveSheetIndex(), row = xlObj._getJSSheetHeader(sheetIdx).find(".e-columnheader"), cell = row.find(".e-headercell");
+           var xlObj = this.XLObj, sheetIdx = xlObj.getActiveSheetIndex(), row = xlObj._getJSSheetHeader(sheetIdx).find(".e-columnheader"), cell;
             var scrollLeft = navigator.userAgent.indexOf("WebKit") > -1 ? document.body.scrollLeft : document.documentElement.scrollLeft, xlimit, point, hdnColCnt = 0;
+			cell = this._resizeStart ? row.find(".e-headercell") : row.find(".e-headercell").not(".e-hide");
             for (var i = 0, len = cell.length; i < len; i++) {
                 point = cell[i].getBoundingClientRect();
                 xlimit = point.left + scrollLeft + 5;
                 if (xlimit > this._orgX) {
                     if (xlObj.isUndefined(e))
-                        this._currentHCell = i - 1;
+                        this._currentHCell = this._getVisibleCell(cell, i - 1);
                     else
                         e.target = xlObj._getJSSheetHeader(sheetIdx).find('th:eq(' + (i - 1) + ')')[0];
                     return;
                 }
             }
         },
+		
+		_getVisibleCell: function (cells, idx) {
+			if($(cells[idx]).is(":visible"))
+				return idx;
+			else 
+				return this._getVisibleCell(cells, idx - 1);
+		},
 
         _moveVisual: function (x) {
             /// Used to move the visual element in mouse move
@@ -695,9 +705,9 @@
         },
 
         _resizeToFitWidth: function (e) {
-            var xlObj = this.XLObj, $trgt = $(e.target), sheetIdx = xlObj.getActiveSheetIndex(), endRowIdx = xlObj.getSheet(sheetIdx).usedRange.rowIndex;
+            var xlObj = this.XLObj, sheetIdx = xlObj.getActiveSheetIndex(), endRowIdx = xlObj.getSheet(sheetIdx).usedRange.rowIndex, colIndex = e.target.cellIndex;
             this._getResizableCell(e);
-            this._fitWidth(e.target.cellIndex, 0, endRowIdx);
+            this._fitWidth(colIndex, 0, endRowIdx);
             if (xlObj.model.scrollSettings.allowScrolling) {
                 xlObj.XLScroll._getColWidths(xlObj.getActiveSheetIndex(), e.target.cellIndex + 1);
                 xlObj.XLScroll._refreshScroller(sheetIdx, "refresh", "horizontal");
@@ -750,7 +760,11 @@
         },
 
         _getContentWidth: function (colIdx, sheetIdx, stRowIdx, endRowIdx) {
-            var j, contentWidth = 0, cellObj, cellWidth, xlObj = this.XLObj, sheetData = xlObj._dataContainer.sheets[sheetIdx], tdWidth;
+            var j, contentWidth = 0, cellObj, cellWidth, xlObj = this.XLObj, sheetData = xlObj._dataContainer.sheets[sheetIdx], tdWidth, sheet = xlObj.getSheet(sheetIdx), cells = xlObj._getSelectedCells(sheetIdx, [stRowIdx,colIdx,endRowIdx,colIdx]).selCells;
+			if(cells.length) {
+				delete sheet._wrapValColl["cols"][colIdx];
+			    xlObj._wrapTextLenCln(cells, sheet,"isFitWidth", sheetIdx);
+			}
             for (j = stRowIdx; j <= endRowIdx; j++) {
                 if (!ej.isNullOrUndefined(sheetData[j]))
                     cellObj = sheetData[j][colIdx];
@@ -760,7 +774,10 @@
                     cellObj = {};
                     cellWidth = { spanWidth: 0, paddingWidth: 0 };
                 }
-                tdWidth = xlObj._detailsFromGlobalSpan(j, colIdx, "width", xlObj.XLEdit.getPropertyValue(j, colIdx, "value2"), undefined, true);
+				if(sheet._wrapValColl["cols"][colIdx] && sheet._wrapValColl["cols"][colIdx][j])
+                   tdWidth = xlObj._detailsFromGlobalSpan(j, colIdx, "width", xlObj.XLEdit.getPropertyValue(j, colIdx, "value2"), undefined, true);
+			    else
+				   tdWidth = 0;
                 tdWidth = tdWidth + cellWidth.spanWidth + cellWidth.paddingWidth + 4; // for some spacing
                 if (tdWidth > contentWidth)
                     contentWidth = tdWidth;
@@ -868,11 +885,14 @@
 
         _getContentHeight: function (rowIdx, sheetIdx, isWrapRow) {
             var xlObj = this.XLObj, contentHeight = 0, $span, tdHeight, format = "", regx = xlObj._formatRegx, $td, content, sheet = xlObj.getSheet(sheetIdx),
-                cKeys = xlObj.getObjectKeys(xlObj._dataContainer.sheets[sheetIdx][rowIdx]), rHtColl = sheet.rowsHeightCollection[rowIdx], cWtColl = sheet.columnsWidthCollection;
+                cKeys = xlObj.getObjectKeys(xlObj._dataContainer.sheets[sheetIdx][rowIdx]), rHtColl = sheet.rowsHeightCollection[rowIdx], cWtColl = sheet.columnsWidthCollection, data;
             for (var i = 0, len = cKeys.length; i < len; i++) {
-                tdHeight = xlObj._detailsFromGlobalSpan(rowIdx, cKeys[i], "height", xlObj.XLEdit.getPropertyValue(rowIdx, cKeys[i], "value2"), isWrapRow ? cWtColl[i] : undefined, true);
-                if (tdHeight > contentHeight)
-                    contentHeight = tdHeight;
+				data = xlObj.getRangeData({range: [rowIdx, cKeys[i],rowIdx, cKeys[i]], property: ["value2", "merge"]})[0];
+				if(data) {
+					tdHeight = data.merge ? rHtColl[rowIdx] :xlObj._detailsFromGlobalSpan(rowIdx, cKeys[i], "height", data.value2, isWrapRow ? colWt : undefined, true);
+					if (tdHeight > contentHeight)
+						contentHeight = tdHeight;
+				}
             }
             return contentHeight;
         },

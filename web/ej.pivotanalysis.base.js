@@ -97,7 +97,7 @@
                 var rowHeaders = model.editCellsInfo.rowHeader, colHeaders = model.editCellsInfo.columnHeader, values = model.editCellsInfo.JSONRecords;
 
                 if (!ej.isNullOrUndefined(values)) {
-                    for (uV = 0; uV < values.length; uV++) {
+                    for (var uV = 0; uV < values.length; uV++) {
                         var fields = {};
                         if (rowAxis.length > 0)
                             fields["row"] = rowHeaders[uV].toString().split('#').splice(0, rowAxis.length).join(">#>");
@@ -414,7 +414,8 @@
             return ({ json: jsonObj, pivotEngine: this._transposeEngine });
         },
 
-        _cropHeaders: function(){
+        _cropHeaders: function () {
+            var lockedName;
             var rowDrillHdrs = this._controlObj._drillHeaders.row, colDrillHdrs = this._controlObj._drillHeaders.column, tmpArray = [], hdrSec = 2, collapseByDefault = this._controlObj.model.enableCollapseByDefault, rowLen = this._controlObj.model.dataSource.rows.length, colLen = this._controlObj.model.dataSource.columns.length;
             do {
                 var hdrCalcValues = hdrSec == 2 ? $.extend(true, [], this._rowKeysCalcValues) : $.extend(true, [], this._colKeysCalcValues);
@@ -435,7 +436,7 @@
                             var isSameName = lockedName == hdrCalcValues[cnt].uniqueName, isTot = hdrCalcValues[cnt].cellType == "RGTot", isSameLevel = hdrCalcValues[cnt].level == lvl;
                             if (collapseByDefault ? (isSameName || isTot || isSameLevel || (hdrSec == 2 ? lvl > rowLen - 2 : lvl > colLen - 2)) : (lockedName == "" || ej.isNullOrUndefined(hdrCalcValues[cnt].uniqueName) || isSameName)) {
                                 if ((collapseByDefault ? (isSameLevel) : (isSameName)) && !ej.isNullOrUndefined(hdrCalcValues[cnt].keys) && hdrCalcValues[cnt].keys.length > 0 && !isTot && hdrCalcValues[cnt].uniqueName != "") {
-                                    hdrCalcValues[cnt].keys[hdrCalcValues[cnt].keys.length - 1] = hdrCalcValues[cnt].keys[hdrCalcValues[cnt].keys.length - 1].replace(" Total", "");
+                                    hdrCalcValues[cnt].keys[hdrCalcValues[cnt].keys.length - 1] = hdrCalcValues[cnt].keys[hdrCalcValues[cnt].keys.length - 1].replace(" Total", "").replace("%####%", "");
                                     hdrCalcValues[cnt].expander = 2;
                                 }
                                 tmpArray.push(hdrCalcValues[cnt]);
@@ -1002,7 +1003,7 @@
             var val = $(recSet).prop(fieldName);
             if (val == null)
                 return val;
-            else if (!jQuery.isNumeric(val))
+            else if (!jQuery.isNumeric(val) && new Date(val) == "Invalid Date")
                 format = formatString = null;
             return this._setFormat(val, format, formatString);
         },
@@ -1384,7 +1385,7 @@
         _populateColumnHeaders: function (dataSource, colHdRowCnt, colHdColCnt) {
             if (this._colKeysCalcValues.length == 0)
                 return;
-            var tempCnt, colKLen, tempRIndx, tempRSpan, tempCSpan;
+            var tempCnt, colKLen, tempRIndx, tempRSpan, tempCSpan, tmpCnt, tolerance;
             var colIndex = tempCnt = (dataSource.rows.length == 0 ? 1 : (this._isPaging ? this._rowHdrLen : dataSource.rows.length)), loopCnt = dataSource.values.length == 0 ? 1 : dataSource.values.length, prevVal = "", rowIndex = colKLen = 0;
             var lastRow = (this._colKeysCalcValues.length == 1 && this._colKeysCalcValues[0].cellType == "RGTot") ? 1 : (this._isPaging ? this._colHdrLen : dataSource.columns.length);            
             for (var cnt = 0; cnt < this._colKeysCalcValues.length; cnt++) {
@@ -1474,6 +1475,11 @@
             var colIndex = (dataSource.rows.length == 0 ? 1 : (this._isPaging ? this._rowHdrLen : dataSource.rows.length)), sTot = 0, isUniqe = false, totRIndx = 0;
             var rowIndex = (this._colKeysCalcValues.length == 1 && this._colKeysCalcValues[0].cellType == "RGTot") ? 2 : ((this._isPaging ? this._colHdrLen : dataSource.columns.length) + 1);
             var rwIndx = rowIndex, clIndx, totFlagR = false, totCIndx = 0, totFlagC = false;
+            var m_tableKeysCalcValues = {};
+            $.grep(currentObj._tableKeysCalcValues, function (item) {
+            m_tableKeysCalcValues[item.uniqueName] = item;
+            return;
+            });
             var calcValues = $.grep(this._tableKeysCalcValues, function (item) { if (ej.isNullOrUndefined(item.cellType)) return item });
             var calcTotValues = $.grep(this._tableKeysCalcValues, function (item) { if (!ej.isNullOrUndefined(item.cellType)) return item });            
             for (var rCnt = 0; rCnt < this._rowKeysCalcValues.length; rCnt++) {
@@ -1510,15 +1516,14 @@
                             });
                         }
                         else {
-                            $.grep((currentObj._isPaging && ((!ej.isNullOrUndefined(currentObj._rowKeysCalcValues[rCnt].cellType) && currentObj._rowKeysCalcValues[rCnt].cellType.indexOf("SubTot") > -1) || (!ej.isNullOrUndefined(currentObj._colKeysCalcValues[cCnt].cellType) && currentObj._colKeysCalcValues[cCnt].cellType.indexOf("SubTot") > -1))) ? calcTotValues : calcValues, function (item) {
-                                if (item.uniqueName == currentObj._rowKeysCalcValues[rCnt].uniqueName + ">#>" + currentObj._colKeysCalcValues[cCnt].uniqueName) {
-                                    for (ky = 0 ; ky < item.value.keys.length; ky++)
-                                        calValue.push(item.value.keys[ky]);
-                                    if (item.value.uniqueName != "")
-                                        calTxt = item.value.uniqueName;
-                                }
-                                return;
-                            });
+                            var uniqun = currentObj._rowKeysCalcValues[rCnt].uniqueName + ">#>" + currentObj._colKeysCalcValues[cCnt].uniqueName;
+                            var item = m_tableKeysCalcValues[uniqun];
+                            if (item) {
+                            for (ky = 0 ; ky < item.value.keys.length; ky++)
+                            calValue.push(item.value.keys[ky])
+                            if (item.value.uniqueName != "")
+                               calTxt = item.value.uniqueName;
+                           }
                         }
                     }
                     else if (dataSource.rows.length == 0) {

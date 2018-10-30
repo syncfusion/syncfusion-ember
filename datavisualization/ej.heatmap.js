@@ -674,7 +674,7 @@ var __extends = (this && this.__extends) || function (d, b) {
             var previousOffset = 0;
             var nextOffset = 0;
             ColorMapping = this._orderbyOffset(ColorMapping);
-            for (var i in ColorMapping) {
+            for (var i = 0; i < ColorMapping.length; i++) {
                 var offset = Number(ColorMapping[i].value);
                 if (offset !== undefined) {
                     if (num <= offset) {
@@ -851,7 +851,7 @@ var __extends = (this && this.__extends) || function (d, b) {
         Heatmap.prototype._convertToCellBindingData = function (data, columnBind) {
             var list = [];
             var itemsList = [];
-            for (var i in data) {
+            for (var i = 0; i < data.length; i++) {
                 var item = data[i];
                 if (item) {
                     var newData = {};
@@ -1026,10 +1026,11 @@ var __extends = (this && this.__extends) || function (d, b) {
         };
         HeatmapLegend.prototype._hideLegendMarker = function (args) {
             var triangles = $(".gradient_scale_marker");
-            for (var triangle in triangles)
+            for (var triangle = 0; triangle < triangles.length; triangle++) {
                 if (triangles[triangle] && triangles[triangle].parentNode) {
                     triangles[triangle].parentNode.removeChild(triangles[triangle]);
                 }
+            }
         };
         HeatmapLegend.prototype._scrollElement = function () {
             var triangle = $("#" + this._id + "_gradient_scale_marker")[0];
@@ -1376,25 +1377,26 @@ var __extends = (this && this.__extends) || function (d, b) {
                 var lastValue = colorMapping[colorMapping.length - 1].value;
                 var scrollValue = this._getScroll();
                 var gdiv = $("#" + this.element[0].id + "_gradient")[0];
-                var fValue = colorMapping[0].value;
-                var lValue = colorMapping[colorMapping.length - 1].value;
+                var fValue = 0;
+                var lValue = colorMapping[colorMapping.length - 1].value - colorMapping[0].value;
                 var diff = lValue - fValue;
+                var sValue = colorMapping[0].value;
                 var x = 0, y = 0;
                 if (gdiv)
                     bbox = this._getBoundingClientRect(gdiv);
                 if (ishorizontal) {
                     if (this.model.enableRTL)
-                        x = Math.round(ishorizontal ? (((lValue - colorMap.value) / diff) * bbox.width) : 0);
+                        x = Math.round(ishorizontal ? (((lValue - (colorMap.value - sValue)) / diff) * bbox.width) : 0);
                     else
-                        x = Math.round(ishorizontal ? (((colorMap.value / diff) * bbox.width)) : 0);
-                    style += "margin-left:" + (x + (sx ? sx : 0) - (prevMargin && prevMargin.x ? prevMargin.x : 0)) + "px;";
+                        x = Math.round(ishorizontal ? ((((colorMap.value - sValue) / diff) * bbox.width)) : 0);
+                    style += "position:absolute;left:" + x + "px;margin-left:" + (bbox.left - spanBBox.width / 2) + "px;";
                 }
                 else {
                     if (this.model.enableRTL)
-                        y = Math.round(((lValue - colorMap.value) / diff) * bbox.height);
+                        y = Math.round(((lValue - (colorMap.value - sValue)) / diff) * bbox.height);
                     else
-                        y = Math.round(((colorMap.value / diff) * bbox.height));
-                    style += "margin-top:" + (y + (i === 1 ? -3 : 0) + (sy ? sy : 0) - (prevMargin && prevMargin.y ? prevMargin.y : 0)) + "px;";
+                        y = Math.round(((((colorMap.value - sValue) / diff)) * bbox.height));
+                    style += "position:absolute;top:" + y + "px;margin-top:" + (bbox.top - spanBBox.height / 2) + "px;";
                 }
                 if (!ishorizontal) {
                     x = 0;
@@ -1437,14 +1439,14 @@ var __extends = (this && this.__extends) || function (d, b) {
                 if (this.model.orientation === ej.datavisualization.HeatMap.LegendOrientation.Horizontal) {
                     var preWidth = this._createValueLine(this.element[0].id + "_gradient_scale_first", true, size, "", div);
                     for (var i = 1; i < colorMapping.length; i++) {
-                        preWidth += this._createSpaceLine(this.element[0].id + i + "space", true, size, "", div, preWidth, colorMapping[i], i);
+                        preWidth += this._createSpaceLine(this.element[0].id + i + "space", true, size, "", div, preWidth, colorMapping[i], i, colorMapping[i - 1]);
                         preWidth += this._createValueLine(this.element[0].id + i + "value", true, size, "", div);
                     }
                 }
                 else {
                     var preWidth = this._createValueLine(this.element[0].id + "_gradient_scale_first", false, size, "", div);
                     for (var i = 1; i < colorMapping.length; i++) {
-                        preWidth += this._createSpaceLine(this.element[0].id + i + "space", false, size, "", div, preWidth, colorMapping[i], i);
+                        preWidth += this._createSpaceLine(this.element[0].id + i + "space", false, size, "", div, preWidth, colorMapping[i], i, colorMapping[i - 1]);
                         preWidth += this._createValueLine(this.element[0].id + i + "value", false, size, "", div);
                     }
                 }
@@ -1468,7 +1470,7 @@ var __extends = (this && this.__extends) || function (d, b) {
             return rect;
         };
         ;
-        HeatmapLegend.prototype._createSpaceLine = function (id, isHorizontal, size, cStyle, div, preWidth, colorMap, i) {
+        HeatmapLegend.prototype._createSpaceLine = function (id, isHorizontal, size, cStyle, div, preWidth, colorMap, i, prevColorMap) {
             var bbox = this._getBoundingClientRect(div);
             var childBounds = this._childElementsBounds(div);
             var line = $("#" + id)[0];
@@ -1480,19 +1482,19 @@ var __extends = (this && this.__extends) || function (d, b) {
             var style = "float:left;";
             style += "border: 1px solid gray; ";
             var colorMapping = this.model.colorMappingCollection;
-            var fValue = colorMapping[0].value;
-            var lValue = colorMapping[colorMapping.length - 1].value;
+            var fValue = 0;
+            var lValue = colorMapping[colorMapping.length - 1].value - colorMapping[0].value;
             var diff = lValue - fValue;
-            var width = isHorizontal ? ((colorMap.value / diff) * bbox.width) : 0;
+            var width = isHorizontal ? (((colorMap.value - prevColorMap.value) / diff) * bbox.width) : 0;
             if (i === 1 || i === colorMapping.length - 1)
-                width -= 5;
+                width -= 6;
             else
                 width -= 4;
-            if (isHorizontal)
-                width -= childBounds.width;
-            var height = Math.round(isHorizontal ? 0 : (((colorMap.value / diff) * bbox.height) - (i === 1 ? 6 : 4)));
-            if (!isHorizontal)
-                height -= preWidth;
+            var height = Math.round(isHorizontal ? 0 : (((colorMap.value - prevColorMap.value) / diff) * bbox.height));
+            if (i === 1 || i === colorMapping.length - 1)
+                height -= 6;
+            else
+                height -= 4;
             style += "height:" + Math.floor(height) + "px;";
             style += "width:" + Math.floor(width) + "px;";
             line.setAttribute("style", style);

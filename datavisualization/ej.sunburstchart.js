@@ -325,7 +325,7 @@ var ejSunburstChart;
                 var insideEvents = "", browserInfo = this.browserInfo(), isPointer = browserInfo.isMSPointerEnabled, isIE11Pointer = browserInfo.pointerEnabled, touchStopEvent = isPointer ? (isIE11Pointer ? "pointerup" : "MSPointerUp") : "touchend mouseup", touchMoveEvent = isPointer ? (isIE11Pointer ? "pointermove" : "MSPointerMove") : "touchmove mousemove";
                 insideEvents = touchMoveEvent;
                 insideEvents = insideEvents.split(" ");
-                for (var event_1 in insideEvents) {
+                for (var event_1 = 0; event_1 < insideEvents.length; event_1++) {
                     element.removeEventListener(insideEvents[event_1], this.sunburstMousemove);
                     element.removeEventListener(touchStopEvent, this.sunburstLeave);
                 }
@@ -448,7 +448,7 @@ var ejSunburstChart;
                     document.getElementById(datalabelEle.id).addEventListener('dblclick', this.sunburstDoubleClick, true);
                 }
                 if (legend['visible']) {
-                    this.gLegendEle = this.createGroup({ id: this._id + "SunburstLegend" });
+                    this.gLegendElement = this.createGroup({ id: this._id + "SunburstLegend" });
                     if (this.model.legendInitialize) {
                         var commonEventArgs = $.extend({}, this.common);
                         this._trigger("legendInitialize", commonEventArgs);
@@ -461,7 +461,7 @@ var ejSunburstChart;
                 totalDegree = (endAngle - startAngle) / Math.ceil(((frameCount * (endAngle - startAngle)) / totalendAngle));
                 opacityRatio = (sunburst.model.opacity / 2) / Math.ceil(((frameCount * (endAngle - startAngle)) / totalendAngle));
                 point = layer[pointInd];
-                this.layeranim = setInterval(function () {
+                this.layerAnimate = setInterval(function () {
                     layerNumber = point['layerNumber'];
                     layerIndex = point['layerIndex'];
                     pointIndex = point['pointIndex'];
@@ -471,7 +471,7 @@ var ejSunburstChart;
                     end = start;
                     point['endAngle'] = end > endAngle ? endAngle : end;
                     if (sunburst.isNullOrUndefined(sunburst.model))
-                        clearInterval(sunburst.layeranim);
+                        clearInterval(sunburst.layerAnimate);
                     else {
                         result = sunburst.calculateArcData(point, layerNumber, radius);
                         path = sunburstEle.querySelector('#' + elementId);
@@ -484,7 +484,7 @@ var ejSunburstChart;
                             document.getElementById(elementId).setAttribute('visibility', 'visible');
                         }
                         if (end >= endAngle) {
-                            clearInterval(sunburst.layeranim);
+                            clearInterval(sunburst.layerAnimate);
                             sunburst.fadeIn(path, opacity, sunburst, opacityRatio);
                             pointInd = pointInd + 1;
                             if (pointInd < layer.length) {
@@ -521,7 +521,7 @@ var ejSunburstChart;
                 scaleIncr = 1 / (angleDiff / 10);
                 end = (20 / 360) * angleDiff + startAngle;
                 if (length > 0) {
-                    this.rotateanim = setInterval(function () {
+                    this.rotateAnimate = setInterval(function () {
                         if (sunburst.model) {
                             existingGroup = document.getElementById(sunburst._id + "_svg_SunBurstElementGroup");
                             if (existingGroup != null)
@@ -537,8 +537,8 @@ var ejSunburstChart;
                             transY = (sunburst.height / 2) * (1 - scaleX);
                             currentGroupPath.setAttribute("transform", "translate(" + transX + "," + transY + ") scale(" + scaleX + ")");
                             if (end >= endAngle) {
-                                clearInterval(sunburst.rotateanim);
-                                sunburst.rotateanim = undefined;
+                                clearInterval(sunburst.rotateAnimate);
+                                sunburst.rotateAnimate = undefined;
                                 sunburst._enableAnimation = true;
                                 sunburst.model.startAngle = startAngle;
                                 sunburst.model.endAngle = endAngle;
@@ -550,11 +550,11 @@ var ejSunburstChart;
                                         document.getElementById(sunburst._id).appendChild(dataLabel);
                                     dataLabel.style.visibility = "visible";
                                     dataLabel.style.opacity = opacity.toString();
-                                    sunburst.datalabelanim = setInterval(function () {
+                                    sunburst.dLAnimate = setInterval(function () {
                                         dataLabel.style.opacity = opacity.toString();
                                         opacity = opacity + 0.05;
                                         if (opacity > 1)
-                                            clearInterval(sunburst.datalabelanim);
+                                            clearInterval(sunburst.dLAnimate);
                                     }, 10);
                                 }
                             }
@@ -563,7 +563,7 @@ var ejSunburstChart;
                             scaleIncr = 1 / (angleDiff / 10 - increaseAngle);
                         }
                         else
-                            clearInterval(sunburst.rotateanim);
+                            clearInterval(sunburst.rotateAnimate);
                     }, 25);
                 }
             };
@@ -671,7 +671,7 @@ var ejSunburstChart;
                 this.sunburstChartRightClick = this.sunburstChartRightClick.bind(this);
                 element.addEventListener('click', this.sunburstClick, true);
                 this.sunburstLeave = this.sunburstLeave.bind(this);
-                for (var event_2 in insideEvents) {
+                for (var event_2 = 0; event_2 < insideEvents.length; event_2++) {
                     element.addEventListener(touchStopEvent, this.sunburstLeave);
                     mouseMove = insideEvents[event_2];
                     if (isDevice && mouseMove == "mousemove")
@@ -1088,7 +1088,7 @@ var ejSunburstChart;
                 var element = document.getElementById(this._id + "_svg");
                 if (!this.isNullOrUndefined(element)) {
                     element.parentNode.removeChild(element);
-                    if (this.rotateanim || this.model.enableAnimation) {
+                    if (this.rotateAnimate || this.model.enableAnimation) {
                         this.stopAnimation();
                     }
                     this.parentElement = undefined;
@@ -1097,17 +1097,17 @@ var ejSunburstChart;
                 }
             };
             SunburstChart.prototype.stopAnimation = function () {
-                if (this.rotateanim) {
-                    clearInterval(this.rotateanim);
+                if (this.rotateAnimate) {
+                    clearInterval(this.rotateAnimate);
                     if (!this.isResize)
                         this._enableAnimation = this.model.enableAnimation;
                     this.model.startAngle = this._startAngle;
                     this.model.endAngle = this._endAngle;
-                    if (this.datalabelanim)
-                        clearInterval(this.datalabelanim);
+                    if (this.dLAnimate)
+                        clearInterval(this.dLAnimate);
                 }
-                if (this.layeranim)
-                    clearInterval(this.layeranim);
+                if (this.layerAnimate)
+                    clearInterval(this.layerAnimate);
             };
             SunburstChart.prototype.sunburstMousemove = function (event) {
                 var elementId = event.target.id, element, data, commonPointRegionMouseMoveEventArgs, transToolTipOptions, location, layerPoint, layer;
@@ -1160,7 +1160,7 @@ var ejSunburstChart;
                 }
                 if (!this.isNullOrUndefined(data) && this.model.tooltip.visible) {
                     transToolTipOptions = { 'id': this._id + '_ToolTip' };
-                    this.gTransToolEle = this.createGroup(transToolTipOptions);
+                    this.gTransToolElement = this.createGroup(transToolTipOptions);
                     location = { X: (data['location'].x), Y: Math.abs(data['location'].y) };
                     for (var i = 0; i < this.layerData.length; i++) {
                         if (this.layerData[i]['layerNumber'] == data['pointData'][0].layerNumber) {
@@ -1488,15 +1488,15 @@ var ejSunburstChart;
             SunburstChart.prototype.highlightParent = function (data) {
                 var element, style, baseid, highlightSettings = this.model.highlightSettings, selected = false, pointData = data.pointData[0];
                 this.groupID = [];
-                this.parentEle = [];
-                this.parentEle.push(pointData);
+                this.baseElement = [];
+                this.baseElement.push(pointData);
                 baseid = pointData['id'];
                 if (!this.isNullOrUndefined(pointData.parentName)) {
-                    this.findSelectionparent(pointData, pointData.legendIndex);
+                    this.findSelectionParent(pointData, pointData.legendIndex);
                 }
-                for (var i = 0; i < this.parentEle.length; i++) {
+                for (var i = 0; i < this.baseElement.length; i++) {
                     if (!document.getElementById("selectionSunburst")) {
-                        element = document.getElementById(this._id + '_legendIndex' + pointData.legendIndex + '_layerNumber' + this.parentEle[i]['layerNumber'].toString() + '_layerIndex' + this.parentEle[i]['layerIndex'].toString() + '_pointIndex' + this.parentEle[i]['pointIndex']);
+                        element = document.getElementById(this._id + '_legendIndex' + pointData.legendIndex + '_layerNumber' + this.baseElement[i]['layerNumber'].toString() + '_layerIndex' + this.baseElement[i]['layerIndex'].toString() + '_pointIndex' + this.baseElement[i]['pointIndex']);
                         selected = this.isSelectedElement(element.id, this.selectedgroupID);
                         if (highlightSettings['type'] != sunburstHighlightType.opacity && !selected)
                             this.createHighlightStyle(element, highlightSettings);
@@ -1504,7 +1504,7 @@ var ejSunburstChart;
                         this.highlightgroupID.push(element.id);
                     }
                     else {
-                        element = document.getElementById(this._id + '_legendIndex' + pointData.legendIndex + '_layerNumber' + this.parentEle[i]['layerNumber'].toString() + '_layerIndex' + this.parentEle[i]['layerIndex'].toString() + '_pointIndex' + this.parentEle[i]['pointIndex']);
+                        element = document.getElementById(this._id + '_legendIndex' + pointData.legendIndex + '_layerNumber' + this.baseElement[i]['layerNumber'].toString() + '_layerIndex' + this.baseElement[i]['layerIndex'].toString() + '_pointIndex' + this.baseElement[i]['pointIndex']);
                         selected = this.isSelectedElement(element.id, this.selectedgroupID);
                         if (highlightSettings['type'] != sunburstHighlightType.opacity && !selected)
                             this.createHighlightStyle(element, highlightSettings);
@@ -1515,7 +1515,7 @@ var ejSunburstChart;
             };
             SunburstChart.prototype.highlightChild = function (data) {
                 var layer, baseid, highlightSettings = this.model.highlightSettings, layerNumber, childid, childele, selected = false;
-                this.childEle = [];
+                this.childrenElement = [];
                 this.highlightgroupID = [];
                 layer = this.layerData[data.pointData[0].layerIndex]['point'][data.pointData[0].pointIndex];
                 baseid = data.pointData[0]['id'];
@@ -1536,10 +1536,10 @@ var ejSunburstChart;
                         this.createHighlightStyle(element, highlightSettings);
                     this.highlightgroupID.push(element.id);
                     this.highlightedElementId = baseid;
-                    for (var i = 0; i < this.childEle.length; i++) {
-                        if (this.childEle[i].layerNumber > data.pointData[0].layerNumber) {
-                            for (var j = 0; j < this.childEle[i].length; j++) {
-                                childid = this._id + '_legendIndex' + data.pointData[0].legendIndex + '_layerNumber' + this.childEle[i].layerNumber.toString() + '_layerIndex' + this.childEle[i].layerIndex + '_pointIndex' + j.toString();
+                    for (var i = 0; i < this.childrenElement.length; i++) {
+                        if (this.childrenElement[i].layerNumber > data.pointData[0].layerNumber) {
+                            for (var j = 0; j < this.childrenElement[i].length; j++) {
+                                childid = this._id + '_legendIndex' + data.pointData[0].legendIndex + '_layerNumber' + this.childrenElement[i].layerNumber.toString() + '_layerIndex' + this.childrenElement[i].layerIndex + '_pointIndex' + j.toString();
                                 childele = document.getElementById(childid);
                                 selected = this.isSelectedElement(childid, this.selectedgroupID);
                                 if (highlightSettings['type'] != sunburstHighlightType.opacity && !selected)
@@ -1643,7 +1643,7 @@ var ejSunburstChart;
                 x = location['X'] + scrollleft + rect['left'] + padding;
                 y = location['Y'] + scrlltop + rect['top'];
                 if (this.isNullOrUndefined(tooltipdiv)) {
-                    this.tooltipfirst = true;
+                    this.tooltipFirst = true;
                     tooltipdiv = document.createElement("div");
                     tooltipdiv.className = "tooltipDiv";
                     tooltipdiv.style.position = 'absolute';
@@ -1660,7 +1660,7 @@ var ejSunburstChart;
                 }
                 else {
                     tooltipdiv.style.display = 'block';
-                    this.tooltipfirst = false;
+                    this.tooltipFirst = false;
                     this.clonenode['innerHTML'] = this.parseTooltipTemplate(data.pointData[0], this.clonenode['innerHTML']);
                 }
                 document.getElementById('tooltipDiv').style.left = x.toString() + 'px';
@@ -2003,7 +2003,7 @@ var ejSunburstChart;
                             this.removeSegmentSelection(path, selecttype);
                             this.removeLegendSelection();
                             this.isSelected = false;
-                            this.childEle = [];
+                            this.childrenElement = [];
                         }
                     }
                     else {
@@ -2049,7 +2049,7 @@ var ejSunburstChart;
                             this.selelectedElementId = this.baseID = '';
                             this.removeSegmentSelection(path, this.model.selectionSettings.type);
                             this.removeLegendSelection();
-                            this.parentEle = [];
+                            this.baseElement = [];
                         }
                     }
                 }
@@ -2106,11 +2106,11 @@ var ejSunburstChart;
             };
             SunburstChart.prototype.selectParent = function (data) {
                 var element, style, lgndIndx, selectionSettings = this.model.selectionSettings, selectedEle, highlightEle;
-                this.parentEle = [];
+                this.baseElement = [];
                 lgndIndx = data.pointData[0].legendIndex;
                 if (sunburstSelectionType.opacity == selectionSettings['type'])
                     this.selectedgroupID = [];
-                this.parentEle.push(data.pointData[0]);
+                this.baseElement.push(data.pointData[0]);
                 var baseid = data.pointData[0]['id'];
                 if (sunburstSelectionType.opacity != selectionSettings['type']) {
                     this.selectedgroupID = [];
@@ -2118,11 +2118,11 @@ var ejSunburstChart;
                     this.selelectedElementId = baseid;
                 }
                 if (!this.isNullOrUndefined(data.pointData[0].parentName)) {
-                    this.findSelectionparent(data.pointData[0], lgndIndx);
+                    this.findSelectionParent(data.pointData[0], lgndIndx);
                 }
-                for (var i = 0; i < this.parentEle.length; i++) {
+                for (var i = 0; i < this.baseElement.length; i++) {
                     if (!document.getElementById("selectionSunburst")) {
-                        element = document.getElementById(this._id + '_legendIndex' + lgndIndx + '_layerNumber' + this.parentEle[i]['layerNumber'].toString() + '_layerIndex' + this.parentEle[i]['layerIndex'].toString() + '_pointIndex' + this.parentEle[i]['pointIndex']);
+                        element = document.getElementById(this._id + '_legendIndex' + lgndIndx + '_layerNumber' + this.baseElement[i]['layerNumber'].toString() + '_layerIndex' + this.baseElement[i]['layerIndex'].toString() + '_pointIndex' + this.baseElement[i]['pointIndex']);
                         if (sunburstSelectionType.opacity != this.model.selectionSettings.type) {
                             style = this.createselectionStyle(element, this.model.selectionSettings);
                             document.body.appendChild(style);
@@ -2131,23 +2131,23 @@ var ejSunburstChart;
                         this.selectedgroupID.push(element.id);
                     }
                     else {
-                        element = document.getElementById(this._id + '_legendIndex' + lgndIndx + '_layerNumber' + this.parentEle[i]['layerNumber'].toString() + '_layerIndex' + this.parentEle[i]['layerIndex'].toString() + '_pointIndex' + this.parentEle[i]['pointIndex']);
+                        element = document.getElementById(this._id + '_legendIndex' + lgndIndx + '_layerNumber' + this.baseElement[i]['layerNumber'].toString() + '_layerIndex' + this.baseElement[i]['layerIndex'].toString() + '_pointIndex' + this.baseElement[i]['pointIndex']);
                         if (sunburstSelectionType.opacity != this.model.selectionSettings.type)
                             element.setAttribute('class', 'SelectionStyleSunburst');
                         this.selectedgroupID.push(element.id);
                     }
                 }
             };
-            SunburstChart.prototype.findSelectionparent = function (data, legendIndex) {
+            SunburstChart.prototype.findSelectionParent = function (data, legendIndex) {
                 var regions = this.sunburstRegions, length = regions.length, region;
                 loop1: for (var i = 0; i < length; i++) {
                     region = regions[i];
                     for (var j = 0; j < region['region'].length; j++) {
                         if (!this.isNullOrUndefined(this.model.dataSource)) {
                             if (data['parentName'] == region['region'][j]['x'] && region['region'][j]['parentChildName'] + "_" + data['x'] == data['parentChildName'] && legendIndex == region['region'][j].legendIndex) {
-                                this.parentEle.push(region['region'][j]);
+                                this.baseElement.push(region['region'][j]);
                                 if (!this.isNullOrUndefined(region['region'][j]['parentName'])) {
-                                    this.findSelectionparent(region['region'][j], region['region'][j].legendIndex);
+                                    this.findSelectionParent(region['region'][j], region['region'][j].legendIndex);
                                     break loop1;
                                 }
                                 else {
@@ -2157,9 +2157,9 @@ var ejSunburstChart;
                         }
                         else {
                             if (data['parentName'] == region['region'][j]['x'] && legendIndex == region['region'][j].legendIndex) {
-                                this.parentEle.push(region['region'][j]);
+                                this.baseElement.push(region['region'][j]);
                                 if (!this.isNullOrUndefined(region['region'][j]['parentName'])) {
-                                    this.findSelectionparent(region['region'][j], region['region'][j].legendIndex);
+                                    this.findSelectionParent(region['region'][j], region['region'][j].legendIndex);
                                     break loop1;
                                 }
                                 else {
@@ -2172,7 +2172,7 @@ var ejSunburstChart;
             };
             SunburstChart.prototype.selectchild = function (data) {
                 var layer, baseid, element, selectionSettings = this.model.selectionSettings, style, lgndIndx, childid, childele;
-                this.childEle = [];
+                this.childrenElement = [];
                 layer = this.layerData[data.pointData[0].layerIndex]['point'][data.pointData[0].pointIndex];
                 baseid = data.pointData[0]['id'];
                 element = document.getElementById(baseid);
@@ -2201,10 +2201,10 @@ var ejSunburstChart;
                     this.selectedgroupID.push(element.id);
                     this.selelectedElementId = baseid;
                     lgndIndx = data.pointData[0].legendIndex;
-                    for (var i = 0; i < this.childEle.length; i++) {
-                        if (this.childEle[i].layerNumber > data.pointData[0].layerNumber) {
-                            for (var j = 0; j < this.childEle[i].length; j++) {
-                                childid = this._id + '_legendIndex' + lgndIndx + '_layerNumber' + this.childEle[i].layerNumber.toString() + '_layerIndex' + this.childEle[i].layerIndex + '_pointIndex' + j.toString();
+                    for (var i = 0; i < this.childrenElement.length; i++) {
+                        if (this.childrenElement[i].layerNumber > data.pointData[0].layerNumber) {
+                            for (var j = 0; j < this.childrenElement[i].length; j++) {
+                                childid = this._id + '_legendIndex' + lgndIndx + '_layerNumber' + this.childrenElement[i].layerNumber.toString() + '_layerIndex' + this.childrenElement[i].layerIndex + '_pointIndex' + j.toString();
                                 childele = document.getElementById(childid);
                                 if (selectionSettings['type'] != sunburstSelectionType.opacity)
                                     childele.setAttribute('class', 'SelectionStyleSunburst');
@@ -2227,7 +2227,7 @@ var ejSunburstChart;
                 }
                 points.layerNumber = layerNumber + 1;
                 points.layerIndex = layer['point'].layerData;
-                this.childEle.push(points);
+                this.childrenElement.push(points);
             };
             SunburstChart.prototype.selectGroup = function (groupElement, data) {
                 var legendIndex, selectionSettings = this.model.selectionSettings, element, style;
@@ -2398,19 +2398,19 @@ var ejSunburstChart;
             };
             SunburstChart.prototype.drawSunburstLegend = function () {
                 var legend = this.model.legend, legendTitle = this.model.legend.title, maximumLegendSpace, translate, width, x, legendBounds, y, scrollButtons, divele, isScroll = false, legendGrp, legElegrp, elementSpacing = this.elementSpacing, legendItems, titleTransform, legendgrp, legendItemgrp;
-                this.gLegendEle = this.createGroup({ 'id': this._id + "_legend_group" });
+                this.gLegendElement = this.createGroup({ 'id': this._id + "_legend_group" });
                 if (legend['position'] == sunburstLegendPosition.top || legend['postion'] == sunburstLegendPosition.bottom) {
                     maximumLegendSpace = this.height * (20 / 100);
                 }
-                document.getElementById(this._id + '_svg').appendChild(this.gLegendEle);
+                document.getElementById(this._id + '_svg').appendChild(this.gLegendElement);
                 if (legendTitle['text'] != "" && legendTitle['visible'])
-                    this.gLegendEle.appendChild(this.drawLegendTitle(legendTitle, legend));
+                    this.gLegendElement.appendChild(this.drawLegendTitle(legendTitle, legend));
                 legendGrp = this.drawlegendItem(legend, this.legendCollection, isScroll);
                 if (this.drilldownCount == 0) {
                     this.legendClick = this.legendClick.bind(this);
                     this.legendItemGroup.addEventListener('click', this.legendClick, true);
                 }
-                this.gLegendEle.appendChild(legendGrp);
+                this.gLegendElement.appendChild(legendGrp);
                 if (this.legendPages.length > 0) {
                     this.drawScrollbuttons(legend);
                 }
@@ -2552,7 +2552,7 @@ var ejSunburstChart;
                     this.scrollClick = this.scrollClick.bind(this);
                     scrollgroup.addEventListener('click', this.scrollClick, true);
                 }
-                this.gLegendEle.appendChild(scrollgroup);
+                this.gLegendElement.appendChild(scrollgroup);
             };
             SunburstChart.prototype.scrollClick = function (event) {
                 var legend = this.model.legend, targetId = event.target['id'], legendGroupEle, transform, currentPageNumber = this.currentpageNumber, totalPageNumber = this.totalpageNumbers, pageNumber, legendGrp;
@@ -2562,8 +2562,8 @@ var ejSunburstChart;
                     this.currentpageNumber = currentPageNumber + 1;
                     legendGroupEle.parentNode.removeChild(legendGroupEle);
                     legendGrp = this.drawlegendItem(legend, this.legendPages[this.currentpageNumber - 1], true);
-                    this.gLegendEle.appendChild(legendGrp);
-                    document.getElementById(this._id + "_svg").appendChild(this.gLegendEle);
+                    this.gLegendElement.appendChild(legendGrp);
+                    document.getElementById(this._id + "_svg").appendChild(this.gLegendElement);
                     pageNumber.textContent = this.currentpageNumber.toString() + '/' + this.totalpageNumbers.toString();
                     this.legendClick = this.legendClick.bind(this);
                     legendGrp.addEventListener('click', this.legendClick, true);
@@ -2572,8 +2572,8 @@ var ejSunburstChart;
                     this.currentpageNumber = currentPageNumber - 1;
                     legendGroupEle.parentNode.removeChild(legendGroupEle);
                     legendGrp = this.drawlegendItem(legend, this.legendPages[this.currentpageNumber - 1], true);
-                    this.gLegendEle.appendChild(legendGrp);
-                    document.getElementById(this._id + "_svg").appendChild(this.gLegendEle);
+                    this.gLegendElement.appendChild(legendGrp);
+                    document.getElementById(this._id + "_svg").appendChild(this.gLegendElement);
                     pageNumber.textContent = this.currentpageNumber.toString() + '/' + this.totalpageNumbers.toString();
                     this.legendClick = this.legendClick.bind(this);
                     legendGrp.addEventListener('click', this.legendClick, true);
@@ -2683,7 +2683,7 @@ var ejSunburstChart;
             };
             SunburstChart.prototype.legendClick = function (event) {
                 var targetId, childElement, legendText, points = [], legendpoint = {}, circleElement, fill, parentElement, element;
-                if (this.rotateanim || this.model.enableAnimation) {
+                if (this.rotateAnimate || this.model.enableAnimation) {
                     this.stopAnimation();
                 }
                 if (this.model.legend.clickAction == sunburstLegendClickAction.toggleSegmentVisibility) {

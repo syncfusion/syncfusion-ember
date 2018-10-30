@@ -108,8 +108,8 @@
         * @private
         */
         _setModel: function (options) {
-            var option;
-            for (option in options) {
+            for (var i = 0; i < options.length; i++) {
+                var option = options[i];
                 switch (option) {
                     case "enabled": this._disabled(!options[option]); break;
                     case "height": this.model.height = options[option]; break;
@@ -453,26 +453,40 @@
          */
         _calculateCheckDigit: function (encodedText, symbolTable, type) {
 			var originalEncodedText = encodedText;
-            if (type == "code128b") {
+            if (type == "code128b" || type == "code128a") {
                 var checkValue = 0;
                 var char = [encodedText.split("")];
                 for (var m = 0; m < encodedText.split("").length; m++) {
                     var item = char[0][m];
                     var checkdigit = this._findCheckDigit(item, symbolTable)[1];
                     checkValue += (checkdigit * (m + 1));
-
                 }
-                //The start character value for the code128B is 104.
-                checkValue += 104;
-                //To claculate the checksum value.
-                checkValue = checkValue % 0x67;
-                var ch = [1];
-                for (var e = 0; e < symbolTable.length; e++) {
-                    if (e == checkValue) {
-                        ch[0] = symbolTable[e][0];
+                if (type == "code128b") {
+                    //The start character value for the code128B is 104.
+                    checkValue += 104;
+                    //To claculate the checksum value.
+                    checkValue = checkValue % 0x67;
+                    var ch = [1];
+                    for (var e = 0; e < symbolTable.length; e++) {
+                        if (e == checkValue) {
+                            ch[0] = symbolTable[e][0];
+                        }
                     }
+                    encodedText += ch.toString();
                 }
-                encodedText += ch.toString();
+                else {
+                    //The start character value for the code128A is 103.
+                    checkValue += 103;
+                    //To claculate the checksum value.
+                    checkValue = checkValue % 0x67;
+		            var ch = [1];
+                    for (var e = 0; e < symbolTable.length; e++) {
+                        if (checkValue == symbolTable[e][1]) {
+                            ch[0] = symbolTable[e][0];
+                        }
+                    }
+                    encodedText += ch.toString();
+		        }
             }
             else {
                 if(type=="upcbarcode")
@@ -788,7 +802,7 @@
 
             var whiteBrush = 'white';
             var blackBrush = 'black';
-            
+            var textSize = parseInt(this.textFont.size.replace('px', ''));
             var dim = parseInt(this.Model.xDimension);
             if(this.Model.height != "" && this.Model.width != "")
 			{
@@ -798,6 +812,7 @@
 			else
 			{ 
 			this.Model.height = ht;
+			this.Model.height += (textSize + this.Model.barcodeToTextGapHeight);
 			this.Model.width = w;
 			this.canvasEl[0].setAttribute("width", this.Model.width);
             this.BarcodeEl.css("width", this.Model.width);
@@ -839,7 +854,17 @@
 
                 y += dim;
             }
-
+			if (this.Model.displayText) {
+				var txtF = (this.textFont.fontStyle.toLowerCase() == "regular") ? "" : +this.textFont.fontStyle.toLowerCase() + " ";
+				txtF += this.textFont.size + " " + this.textFont.fontFamily.toLowerCase() + ",sans-serif";
+				this.contextEl.font = txtF;
+				var hei = this.Model.height ;
+				this.contextEl.beginPath();
+				this.contextEl.fillStyle = this.Model.textColor;
+				this.contextEl.textAlign = "center";
+				hei = hei - textSize + textSize / 2;
+				this.contextEl.fillText(this.Model.text, (this.Model.width/2), hei);
+            }
             this.contextEl.closePath();
             this.contextEl.stroke();
         },
@@ -2592,7 +2617,8 @@
         _drawDataMatrix: function (dmArray, w, h) {
             
             var dim = parseInt(this.Model.xDimension);
-            
+			
+            var textSize = parseInt(this.textFont.size.replace('px', ''));
             if(dmArray.length == dmArray[0].length && this.Model.height != "" && this.Model.width != "")
             {
                 this.Model.height = this._getProperValue(this.Model.height);
@@ -2605,6 +2631,7 @@
 			else
 			{
 			this.Model.height = h;
+			this.Model.height += (textSize + this.Model.barcodeToTextGapHeight);
 			this.Model.width = w;
 		    this.canvasEl[0].setAttribute("width", this.Model.width);
            this.BarcodeEl.css("width", this.Model.width);
@@ -2630,7 +2657,17 @@
                 }
                 y += dim;
             }
-
+			if (this.Model.displayText) {
+				var txtF = (this.textFont.fontStyle.toLowerCase() == "regular") ? "" : +this.textFont.fontStyle.toLowerCase() + " ";
+				txtF += this.textFont.size + " " + this.textFont.fontFamily.toLowerCase() + ",sans-serif";
+				this.contextEl.font = txtF;
+				var hei = this.Model.height ;
+				this.contextEl.beginPath();
+				this.contextEl.fillStyle = this.Model.textColor;
+				this.contextEl.textAlign = "center";
+				hei = hei - textSize + textSize / 2;
+				this.contextEl.fillText(this.Model.text, (this.Model.width/2), hei);
+            }
             this.contextEl.closePath();
             this.contextEl.stroke();
         },

@@ -948,6 +948,7 @@
                 this._anchors.addClass("e-draggable e-droppable");
                 this._enableDragDrop();
                 this._on(this.element, "mouseup touchstart pointerdown MSPointerDown", this._anchors, this._focusElement);
+                this._on(this.element, "focusout", this._anchors, this._blurElement);
             }
         },
 
@@ -1001,9 +1002,6 @@
             var liCollection = element.find('.e-item'), acollection;
             liCollection.find('>ul').hide();
             acollection = liCollection.find('.e-text');
-            acollection.focus(function () {
-                $(this).blur();
-            });
             liCollection.filter('.e-item:last-child').addClass('last');
             $(liCollection[0]).addClass('first');
             if ($(liCollection[0]).hasClass('first') && $(liCollection[0]).hasClass('last'))
@@ -1583,9 +1581,12 @@
                 var id, text, pid, level, childs, expanded, checked, selected, index;
                 id = liElement[0].getAttribute('id');
                 text = liElement.children('div').find('.e-text:first').text();
-                if(this.model.template != null){ text = this.getTreeData(id)["0"][this.model.fields.text]; }
+                if(this.model.template != null){
+                    var nodeText = this._getNodeObject(id, true);
+                    if (nodeText.length > 0) text = nodeText[0];
+				}
                 pid = liElement.closest('ul').closest('.e-item').attr('id');
-				level = liElement.parents('ul').length;
+				level = liElement.parentsUntil('.e-treeview-wrap','ul').length;
                 childs = liElement.find('.e-item').length;
                 expanded = this._isNodeExpanded(liElement);
                 checked = this._isChecked(liElement);
@@ -1613,7 +1614,8 @@
                 expandUl = parentLi.children('ul:first');
                 if (expandUl.find('> .e-item').length > 0) {
                     this.model.enableAnimation && element.addClass("e-process");
-                    nodeDetails = this._getNodeDetails(parentLi);
+                    var tempInstance = $(element).closest('.e-treeview.e-js').data('ejTreeView');
+					nodeDetails = tempInstance._getNodeDetails(parentLi);
                     isChildLoaded = this.isChildLoaded(parentLi);
                     data = { currentElement: parentLi, value: nodeDetails.text, isChildLoaded: isChildLoaded, id: nodeDetails.id, parentId: nodeDetails.parentId, async: false };
                     if (!this._isNodeExpanded(parentLi) && isChildLoaded) {
@@ -1739,7 +1741,7 @@
             if (checkedElement.firstChild == null) {
                 var hiddenElement = document.createElement('input');
                 hiddenElement.setAttribute("type", "hidden");
-                hiddenElement.setAttribute("name", this._id + "_Checkbox_" + checkedElement.value + ".Text");
+				hiddenElement.setAttribute("name", this._id + "_Checkbox_" + checkedElement.value + "_Text");
                 hiddenElement.setAttribute("value", textVal);
                 try {
                     checkedElement.appendChild(hiddenElement);
@@ -1986,7 +1988,7 @@
         },
 
         _expandAll: function (excludeHiddenNodes) {
-            var element = this.element, i, cnodes;
+            var element = this.element, i, len, cnodes;
             cnodes = element.find(excludeHiddenNodes ? '.e-item > div > .e-plus:not(:hidden)' : '.e-item > div > .e-plus').closest('.e-item');
             if (this.model.loadOnDemand) {
                 for (i = 0, len = cnodes.length; i < len; i++)
@@ -2011,7 +2013,7 @@
         },
 
         _collapseAll: function (excludeHiddenNodes) {
-            var element = this.element, i, enodes;
+            var element = this.element, i, enodes, len;
             enodes = element.find(excludeHiddenNodes ? '.e-item > div > .e-minus:not(:hidden)' : '.e-item > div > .e-minus').closest('.e-item');
             if (enodes.length > 0) {
                 for (i = 0, len = enodes.length; i < len; i++) {
@@ -2022,7 +2024,7 @@
 
         _checkAll: function () {
             this._CurrenctSelectedNodes = [];
-            var element = this.element, chkColl;
+            var element = this.element, chkColl, len;
             chkColl = element.find('.e-item > div > .e-chkbox-wrap > .nodecheckbox');
             chkColl.addClass('checked');
             for (i = 0, len = chkColl.length; i < len; i++) {
@@ -2033,7 +2035,7 @@
         },
 
         _uncheckAll: function () {
-            var element = this.element, chkColl;
+            var element = this.element, chkColl, len;
             chkColl = element.find('.e-item > div > .e-chkbox-wrap > .nodecheckbox');
             chkColl.removeClass("checked").children().remove();
             for (i = 0, len = chkColl.length; i < len; i++)
@@ -2118,7 +2120,9 @@
                     desProxy = !desProxy ? proxy : desProxy;
                     $(_clonedElement).css({ "margin-top": args.event.clientY - 20 < 0 ? "0px" : "10px" });
                     
-                    data = { draggedElement: $(args.element).closest(".e-item"), draggedElementData: proxy._getNodeDetails($(args.element).closest(".e-item")), dragTarget: target, target: trgtEle, targetElementData: proxy._getNodeDetails(trgtEle), event: args.event };
+                    if($(target).closest('.e-treeview.e-js') != null) var templateInstance = $(target).closest('.e-treeview.e-js').data('ejTreeView');
+					if(templateInstance) data = { draggedElement: $(args.element).closest(".e-item"), draggedElementData: proxy._getNodeDetails($(args.element).closest(".e-item")), dragTarget: target, target: trgtEle, targetElementData: templateInstance._getNodeDetails(trgtEle), event: args.event };
+					else data = { draggedElement: $(args.element).closest(".e-item"), draggedElementData: proxy._getNodeDetails($(args.element).closest(".e-item")), dragTarget: target, target: trgtEle, targetElementData: proxy._getNodeDetails(trgtEle), event: args.event };
                     if (($(args.element).parent().parent().has($(target)).length == 0 || (proxy.model.allowMultiSelection && proxy.model.selectedNodes.length > 1)) && ($(target).hasClass('e-droppable') || $(target).parent().hasClass('e-droppable')) && $(target).hasClass('e-dropchild') && !$(target).hasClass('e-node-disable') &&
                        (proxy.model.allowDragAndDropAcrossControl || (!proxy.model.allowDragAndDropAcrossControl && $(target).parents('.e-treeview').is(proxy.element)))) {
                         document.body.style.cursor = '';
@@ -2180,7 +2184,7 @@
                         _clonedElement && _clonedElement.remove();
                         document.body.style.cursor = '';
                     }
-                    var target = args.target, position, data;
+                    var target = args.target, position, data, trgtEle, preventTargetExpand;
                     $(target).closest('.e-treeview-wrap').removeClass('e-dragging');
                     proxy.element.closest('.e-treeview-wrap').removeClass('e-dragging');
                     if (target.className == "e-sibling")
@@ -2189,9 +2193,12 @@
                     if ($(target).hasClass('e-node-disable')) return false;
                     position = pre ? "Before" : "After", trgtEle = proxy._findTarget($(target));
                     position = target.nodeName == 'A' ? "Over" : position;
-                    data = { draggedElementData: proxy._getNodeDetails($(args.element).closest('.e-item')), draggedElement: $(args.element).closest('.e-item'), dropTarget: $(target), target: trgtEle, targetElementData: proxy._getNodeDetails(trgtEle), position: position, event: args.event };
+					if($(target).closest('.e-treeview.e-js') != null) var templateInstance = $(target).closest('.e-treeview.e-js').data('ejTreeView');
+					if(templateInstance) data = { draggedElementData: proxy._getNodeDetails($(args.element).closest('.e-item')), draggedElement: $(args.element).closest('.e-item'), dropTarget: $(target), target: trgtEle, targetElementData: templateInstance._getNodeDetails(trgtEle), position: position, event: args.event, preventTargetExpand: false  };
+					else data = { draggedElementData: proxy._getNodeDetails($(args.element).closest('.e-item')), draggedElement: $(args.element).closest('.e-item'), dropTarget: $(target), target: trgtEle, targetElementData: proxy._getNodeDetails(trgtEle), position: position, event: args.event, preventTargetExpand: false };
                     if (proxy._triggerEvent('nodeDragStop', data))
                         return false;
+					var isNodeExpand = proxy._isParentExpand(target);
                     if (proxy.model.allowMultiSelection && $(args.element).hasClass("e-active")) {
                         var sleNodes = proxy.element.find('.e-item > div > .e-active');
                         for (var l = 0, slelen = sleNodes.length; l < slelen; l++) {
@@ -2203,14 +2210,18 @@
                     }
                     else
                         position = proxy._dropNode(target, args, position, pre);
+					if (data.preventTargetExpand && !isNodeExpand){
+						proxy._preventParentNode(target);
+					}
                     $(".allowDrop").removeClass("allowDrop");
                     $(args.element).attr('aria-grabbed', false);
                     if (!$(target).hasClass('e-dropchild')) {
                         _clonedElement && _clonedElement.remove();
                     }
-                    trgtEle = proxy._findTarget($(target));
-                    data = { droppedElementData: proxy._getNodeDetails($(args.element).closest('.e-item')), droppedElement: $(args.element).closest('.e-item'), dropTarget: $(target), target: trgtEle, targetElementData: proxy._getNodeDetails(trgtEle), position: position, event: args.event };
-                    if (proxy._triggerEvent('nodeDropped', data))
+                    trgtEle = proxy._findTarget($(target)); 
+					if(templateInstance) data = { droppedElementData: templateInstance._getNodeDetails($(args.element).closest('.e-item')), droppedElement: $(args.element).closest('.e-item'), dropTarget: $(target), target: trgtEle, targetElementData: templateInstance._getNodeDetails(trgtEle), position: position, event: args.event };
+					else data = { droppedElementData: proxy._getNodeDetails($(args.element).closest('.e-item')), droppedElement: $(args.element).closest('.e-item'), dropTarget: $(target), target: trgtEle, targetElementData: proxy._getNodeDetails(trgtEle), position: position, event: args.event };
+					if (proxy._triggerEvent('nodeDropped', data))
                         return false;
                     document.body.style.cursor = '';
                 },
@@ -2237,9 +2248,28 @@
                 }
             });
         },
-
+         
+		_isParentExpand: function (target){
+			var parentExpandNode = $(target).closest('.e-item');
+			var isNodeExpand = false;
+			if(parentExpandNode.length > 0 && parentExpandNode[0].getAttribute("aria-expanded") == "true")
+				isNodeExpand = true;
+			return isNodeExpand;
+		},
+		
+		_preventParentNode : function(target){
+			var parentNode = $(target).closest('.e-item');
+			var ulNode = $(parentNode[0]).find('.e-treeview-ul');
+			$(ulNode).css("display","none");
+			if(parentNode.length > 0){
+				parentNode[0].setAttribute('aria-expanded', false);
+				var imagTag = $(parentNode).find('.e-minus');
+				$(imagTag).removeClass('e-minus').addClass('e-plus');
+			}
+		},
+		
         _dropNode: function (target, args, position, pre) {
-            proxy = $(target).closest('.e-treeview.e-js').data('ejTreeView');
+           var proxy = $(target).closest('.e-treeview.e-js').data('ejTreeView');
             if (target.nodeName == 'A' && $(target).hasClass('e-dropchild') && $(target).hasClass('e-droppable') || (target.nodeName == 'UL' && $(target).children().length == 0)) {
                 position = "Over";
                 if ($(target).is("UL") && $(target).hasClass('e-ul') && $(target).find('.e-item').length == 0 && $(target).parent('.e-treeview-wrap').length > 0 && proxy.model.allowDropChild)
@@ -2850,10 +2880,13 @@
                 values[0].lastChild.nodeValue = "";
                 if(this.model.template) {
                    var template_id = values.closest("li")["0"].id;
-                   values["0"].innerHTML = " ";
-                   if(this.getTreeData(template_id)["0"][this.model.fields.text] != undefined)textBox["0"].value = this.getTreeData(template_id)["0"][this.model.fields.text];else textBox["0"].value = "";
+                   var nodeText = this._getNodeObject(template_id, true);
+				   values["0"].innerHTML = " ";
+                   if (nodeText && nodeText.length != 0) {
+                       if (nodeText["0"] != undefined) textBox["0"].value = nodeText["0"]; else textBox["0"].value = "";
                    $(textBox).css("width", (values.outerWidth() +80) + "px");
                    $(textBox).css("height", (values.outerHeight() +10)+ "px");
+				   }
                 }
                 values.addClass('e-editable').append(textBox);
                 editTextBox = textBox;
@@ -2890,7 +2923,17 @@
                 var ele = $(e.currentTarget);
                 (ele.hasClass("e-text")) && this.selectNode(ele.closest('.e-item'));
             }
-            this.element.focus();
+            if (this.model.template) {
+                var aTag = $(e.target).closest('.e-text')[0];
+                aTag = aTag ? aTag : e.target;
+                this._focusNode(aTag);
+            } else {
+                this._focusNode(e.target);
+            }
+        },
+
+        _blurElement: function (e) {
+            ($(e.target).hasClass("e-text")) && e.target.removeAttribute("tabindex");
         },
 
         _focusout: function (e) {
@@ -2905,6 +2948,7 @@
             event.returnValue = false;
             var editTextBox = $(event.currentTarget);
             if (editTextBox[0] != null) {
+                var aTag = editTextBox.closest('.e-text')[0];
                 if (event.keyCode == 13) {
                     event.stopPropagation();
                     this._focusout(event);
@@ -2914,7 +2958,7 @@
                 if (event.keyCode == 13 || event.keyCode == 27) {
                     var browserInfo = ej.browserInfo(), _isIE8;
                     _isIE8 = (browserInfo.name == 'msie' && browserInfo.version == '8.0') ? true : false;
-                    (_isIE8) && this.element.focus();
+                    (_isIE8) && this._focusNode(aTag);
                 }
             }
         },
@@ -2924,8 +2968,12 @@
         },
 
         _onKeyDown: function (currentEle, focusEle) {
-            currentEle.find('> div > .e-text:first').removeClass('e-node-focus');
-            focusEle.find('> div > .e-text:first').addClass('e-node-focus');
+            var currentNode = currentEle.find('> div > .e-text:first');
+            var focusNode = focusEle.find('> div > .e-text:first');
+            currentNode.removeClass('e-node-focus');
+            focusNode.addClass('e-node-focus');
+            this._blurElement({ target: currentNode[0] });
+            this._focusNode(focusNode[0]);
             if (this.model.fullRowSelect) {
                 currentEle.removeClass("e-li-focus");
                 focusEle.addClass("e-li-focus");
@@ -3051,7 +3099,11 @@
                 else if (code == 46) {
                     e.preventDefault();
                     var currentEle = (activeNode.length > 0) ? activeNode : (this.model.allowMultiSelection ? element.find(".e-item > div > .e-text.e-active").closest('.e-item') : selectedItem);
-                    (currentEle.length > 0) && this._removeNode(currentEle, e);
+                    if (currentEle.length > 0) {
+                        this._removeNode(currentEle, e);
+                        var nextEle = $(liVisible[0]).find('> div > .e-text:first');
+                        this._focusNode(nextEle[0]);
+                    }
                 }
                 else if (e && e.ctrlKey == true) {
                     if (code == 88 && this.model.allowDragAndDrop && this.model.allowDropChild) {
@@ -3142,7 +3194,8 @@
                 var parentNode, currentNode, _dataObj, liVisible, childNodes, proxy = this;
                 parentNode = $(node[0]).closest('ul').closest('.e-item');
                 currentNode = $(node[0]);
-                if (this._triggerEvent('beforeDelete', { target: currentNode, nodeDetails: this._getNodeDetails(currentNode), parentElement: (parentNode[0] != null) ? parentNode : null, parentDetails: this._getNodeDetails(parentNode), event: event, removedNodes: node })) return;
+				var tempInstance = $(node).closest('.e-treeview.e-js').data('ejTreeView');
+				if (tempInstance._triggerEvent('beforeDelete', { target: currentNode, nodeDetails: tempInstance._getNodeDetails(currentNode), parentElement: (parentNode[0] != null) ? parentNode : null, parentDetails: tempInstance._getNodeDetails(parentNode), event: event, removedNodes: node })) return;
                 this._isRender = false;
                 if (this.dataSource() instanceof ej.DataManager) {
                     _dataObj = this._newDataSource;
@@ -3161,7 +3214,7 @@
                 this._updateNodes();
                 this._updateCheckState(parentNode);
                 this._isRender = true;
-                if (this._triggerEvent('nodeDelete', { parentElement: (parentNode[0] != null) ? parentNode : null, parentDetails: this._getNodeDetails(parentNode), event: event, removedNodes: node })) return;
+				if (tempInstance._triggerEvent('nodeDelete', { parentElement: (parentNode[0] != null) ? parentNode : null, parentDetails: tempInstance._getNodeDetails(parentNode), event: event, removedNodes: node })) return;
                 var proxy = this, _dataObj = this.dataSource();
                 setTimeout(function () {
                     if (proxy.dataSource() != null && !(proxy.dataSource() instanceof ej.DataManager))
@@ -3296,15 +3349,16 @@
                 aTag.lastChild.nodeValue = newText;
                 $(aTag).removeClass('e-editable');
                 this._updateField(this._newDataSource, parent.attr('id'), this.model.fields, "text", newText);
-                if(this.model.template){
-                   aTag.innerHTML = this._renderEjTemplate(this.model.template, this.getTreeData(template_id)["0"]);
+                if (this.model.template){
+                    var treeData = this._getNodeObject(template_id);
+                   if (treeData && treeData.length != 0) aTag.innerHTML = this._renderEjTemplate(this.model.template, treeData["0"]);
                 }
                 if (this._deepWatch) {
                     this._oldDataSource = JSON.parse(JSON.stringify(this._newDataSource));
 					this.dataSource(this._newDataSource);
                 }
                 this._triggerEvent('nodeEdit', { id: parent.attr('id'), oldText: this._beforeEditText, newText: newText, target: parent, nodeDetails: this._getNodeDetails(parent), event: event });
-                this.element.focus();
+                this._focusNode(aTag);
                 this._focusedNode = parent;
             }
         },
@@ -3314,7 +3368,12 @@
             values.remove();
             aTag.lastChild.nodeValue = this._beforeEditText;
             $(aTag).removeClass('e-node-hover e-editable');
-            this.element.focus();
+            this._focusNode(aTag);
+        },
+
+        _focusNode: function (aTag) {
+            ($(aTag).hasClass("e-text")) && aTag.setAttribute("tabindex", "0");
+            aTag.focus();
         },
 
         _mouseEnterEvent: function (event) {
@@ -3686,7 +3745,7 @@
 
         _preventEditable: function () {
             this.element.find('.e-item').removeClass('AllowEdit');
-            this._off($(document), 'click')
+            this._off($(document), 'click', this._documentClick)
                 ._off(this.element, (this._isDevice && $.isFunction($.fn.tap)) ? 'doubletap' : 'dblclick', "a.e-text");
         },
 
@@ -3695,6 +3754,7 @@
             this._preventDropSibling();
             this._preventDropChild();
             this._off(this.element, "mouseup touchstart pointerdown MSPointerDown", this._anchors, this._focusElement);
+            this._off(this.element, "focusout", this._anchors, this._blurElement);
         },
 
         _preventDropSibling: function () {
@@ -3705,10 +3765,36 @@
             this.element.find('.e-item > div > .e-dropchild').removeClass("e-dropchild");
         },
 
+        _getNodeObject: function (id, text) {
+            if (!ej.isNullOrUndefined(this.model.fields) && this.dataSource() != null && id != undefined) {
+                if (this._templateType === 1) {
+                    var query1 = ej.Query().where(this.model.fields.id, "equal", id, false);
+                    var data = ej.DataManager(this._newDataSource).executeLocal(query1);
+                    return (data.length > 0 && text) ? [data[0][this.model.fields.text]] : data;
+                } else {
+                    return this._getRemoteNode(this._newDataSource, this.model.fields, id, text);
+                }
+            }
+            return [];
+        },
+
+        _getChildMapper: function (mapper) {
+            return (typeof mapper.child === 'string' || ej.isNullOrUndefined(mapper.child)) ? mapper : mapper.child;
+        },
+
         _getNodeData: function (id) {
             if (!ej.isNullOrUndefined(this.model.fields) && this.dataSource() != null && id != undefined) {
                 this._updatePersistProb();
                 var newList = [], orderedData = [];
+				var length = this._newDataSource.length;
+				var treeId = null;
+				for (var i = 0; i < length; i++) {
+					if (this._newDataSource[i].id == id) {
+						treeId = id;
+						i = length;
+					}
+				}
+				if (treeId) {
                 if (this.dataSource() instanceof ej.DataManager && this._templateType == 2) {
                     newList = this._getRemoteNode(this._newDataSource, this.model.fields, id);
                     return newList;
@@ -3742,6 +3828,7 @@
                     }
                 }
                 return orderedData;
+					}
             }
         },
 
@@ -3775,16 +3862,20 @@
             return nodes;
         },
 
-        _getRemoteNode: function (obj, mapper, id) {
+        _getRemoteNode: function (obj, mapper, id, text) {
             var newList = [];
             for (var i = 0, objlen = obj.length; i < objlen; i++) {
                 var fieldId = ej.getObject(mapper.id, obj[i]);
                 if (fieldId && (fieldId.toString() == id)) {
-                    newList.push(obj[i]);
+                    if (text) {
+                        newList.push(obj[i][mapper.text]);
+                    } else {
+                        newList.push(obj[i]);
+                    }
                     return newList;
                 }
                 if (obj[i].hasOwnProperty('child')) {
-                    newList = this._getRemoteNode(obj[i].child, mapper.child ? mapper.child : mapper, id);
+                    newList = this._getRemoteNode(obj[i].child, this._getChildMapper(mapper), id, text);
                     if (newList.length > 0) return newList;
                 }
             }
@@ -3903,15 +3994,15 @@
             }
         },
 
-        addNodes: function (collection, targetNode) {
+        addNodes: function (collection, targetNode, preventTargetExpand) {
             if (collection && typeof collection == "object" && targetNode == undefined && collection.length > 0) {
                 for (var i = 0; i < collection.length; i++)
-                    this.addNode(collection[i], targetNode);
+                    this.addNode(collection[i], targetNode, preventTargetExpand);
             }
-            else this.addNode(collection, targetNode);
+            else this.addNode(collection, targetNode, preventTargetExpand);
         },
 
-        addNode: function (newNodeText, targetNode) {
+        addNode: function (newNodeText, targetNode ,preventTargetExpand) {
             if (ej.isNullOrUndefined(newNodeText)) return;
             var outerLi = null, innerUl = null, temp, activeNode, id, selectedNode, template;
             selectedNode = targetNode ? this._getNodeByID(targetNode) : (this.model.allowMultiSelection ? this.getSelectedNodes() : this.getSelectedNode());
@@ -3924,6 +4015,7 @@
                 if (id) selectedNode = this._getNodeByID(id);
             }
             selectedNode = (this._isTreeElement(selectedNode)) ? $(selectedNode[0]) : [];
+			var isNodeExpand = this._isParentExpand(selectedNode);
             if (this._triggerEvent('beforeAdd', { data: newNodeText, targetParent: (selectedNode[0] != null) ? selectedNode : null, parentDetails: this._getNodeDetails(selectedNode) })) return;
             (selectedNode.length != 0 && !selectedNode.hasClass('e-node-disable')) && this._expandNode(selectedNode);
             if (typeof newNodeText != 'object')
@@ -3944,6 +4036,9 @@
             if (this._isDevice && $.isFunction($.fn.tap)&&selectedNode[0] == null) {
                 this._on(outerLi, 'tap', this._ClickEventHandler);
             }
+			if (preventTargetExpand && !isNodeExpand){
+				this._preventParentNode(selectedNode);
+			}
             this._triggerEvent('nodeAdd', { data: newNodeText, nodes: outerLi, parentElement: (selectedNode[0] != null) ? selectedNode : null, parentDetails: this._getNodeDetails(selectedNode) });
             var proxy = this, _dataObj = this.dataSource();
             setTimeout(function () {
@@ -4187,8 +4282,10 @@
                 }
                 aTag.lastChild.nodeValue = newText;
                 this._updateField(this._newDataSource, node.attr('id'), this.model.fields, "text", newText);
-				if(this.model.template){
-				   aTag.innerHTML = this._renderEjTemplate(this.model.template, this.getTreeData(template_id)["0"]);
+                if(this.model.template){
+                    var treeData = this._getNodeObject(template_id);
+				   if (treeData && treeData.length != 0) aTag.innerHTML = this._renderEjTemplate(this.model.template, treeData["0"]);
+				   else aTag.innerText = newText;
                 }
                 if (this._deepWatch) {
                     this._oldDataSource = JSON.parse(JSON.stringify(this._newDataSource));

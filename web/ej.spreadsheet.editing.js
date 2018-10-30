@@ -27,6 +27,8 @@
         this._acPosition = { left: 0, top: 0 };
         this._isValidation = false;
 		this._cursorPosn = -1;
+        this._formulaArrayRange = "";
+		this._formatCellVal = null;
     };
 
     ej.spreadsheetFeatures.editing.prototype = {
@@ -90,7 +92,7 @@
                     args.value = xlObj._getlocaleNumVal(temp, true);
             }
             if (xlObj._trigger("cellEdit", args))
-                return;
+                return false;
             xlObj._cureditedCell = args.value;            
             if (this._isValidation) {              
                 valElem.rules("remove");               
@@ -120,7 +122,7 @@
             if (!oldData)
                 args.value = "";
             cellValue = xlObj.XLEdit.getPropertyValue(rowIdx, colIdx, "value2");
-            prevValue =  oldData ?  ej.isNullOrUndefined(cellValue)  ? args.value : (cellValue.indexOf("%") > -1 )  ? cellValue : args.value : args.value;
+            prevValue =  oldData ?  ej.isNullOrUndefined(cellValue)  ? args.value : (cellValue.toString().indexOf("%") > -1 )  ? cellValue : args.value : args.value;
             this._renderBulkEditObject(args, trgtTd, prevValue);
             if (this.getPropertyValue(sheet._activeCell.rowIndex, sheet._activeCell.colIndex, "rule", sheetIdx) && xlObj.model.allowDataValidation)
                 xlObj.XLValidate._setValidation();
@@ -195,7 +197,7 @@
                 cellObj = sheet[rowIdx][cell[0].cellIndex];                           
             elem[0].className = "";
             cellType = this.getPropertyValueByElem(cell, "type") || "";
-            if (cellType =="percentage") {
+            if (cellType == "percentage" && !xlObj.isFormula(cellvalue)) {
                 if(!(prevValue.indexOf("%") >-1))
                     elem.prepend("%");
             }
@@ -251,28 +253,36 @@
             elem.data("ejAutocomplete")._bubbleEvent(true);
         },
 
-        _refreshAutoComplete: function () {
+        _refreshAutoComplete: function (tableFormula) {
             var xlObj = this.XLObj, acElem, inptBoxElem, wgt = "ejAutocomplete", dataSrc = "dataSource";
             inptBoxElem = $("#" + xlObj._id + "_inputbox").data(wgt);
             acElem = $("#" + xlObj._id + "_AutoComplete").data(wgt);
             if (xlObj.model.allowFormulaBar)
-                inptBoxElem && inptBoxElem.option(dataSrc, xlObj._formulaCollection);
-            acElem && acElem.option(dataSrc, xlObj._formulaCollection);
+                inptBoxElem && inptBoxElem.option(dataSrc, tableFormula ? xlObj._tableFormulaCollection[tableFormula] : xlObj._formulaCollection);
+            acElem && acElem.option(dataSrc, tableFormula ? xlObj._tableFormulaCollection[tableFormula] : xlObj._formulaCollection);
         },
 
-		 _captureEditing: function () {
+		 _captureEditing: function (isTableFormula) {
             var xlObj = this.XLObj, acElem, editCell, editElem, location, actElem = document.activeElement,
-                actCell = xlObj.getActiveCell(); 
+                actCell = xlObj.getActiveCell(), suggElem =  $("#" + xlObj._id + "_AutoComplete_suggestion"), funElem; 
             if (actElem && actElem.tagName === "DIV" && xlObj._isRowViewable(null, actCell.rowIndex)) {
                 acElem = xlObj.element.find("#" + xlObj._id + "_AutoComplete");
-                acElem.val($(actElem).text());
+				if(isTableFormula)
+					acElem.val("[");
+				else
+                    acElem.val($(actElem).text());
                 acElem.data("ejAutocomplete").search();
+				funElem = suggElem.find("li span.e-ss-function");
+				if(isTableFormula)
+				    funElem.removeClass("e-ss-function");
+			    else
+					funElem && funElem.addClass("e-ss-function");
                 editCell = xlObj.getActiveCellElem();
                 editElem = xlObj.element.find("#" + xlObj._id + "_Edit")[0];
                 location = editCell[0].getBoundingClientRect();
                 this._acPosition.left = location.left + window.pageXOffset;
                 this._acPosition.top = location.top + window.pageYOffset + $(editElem).height();
-                $("#" + xlObj._id + "_AutoComplete_suggestion").css({ left: this._acPosition.left, top: this._acPosition.top });
+                suggElem.css({ left: this._acPosition.left, top: this._acPosition.top });
              }
 		 },
 		
@@ -283,7 +293,7 @@
 			 this._cursorPosn = -1;
 		     var i, j, actCell, form, autoEle, temp, formulaStr, prevFrmtObj, flen, column, cFormatStr, trgtTd, elem, obj, rHgt,
                 cFormatRule, len, rowIdx, colIdx, args, prevValue, details, sheetIdx, sheet, cellIdx, rowHgt, fRange, fObj,
-                rowIdx, isFormatChanged = false, rows, cellHeight, skipFormulaColl = ["ABS", "LEFT", "RIGHT", "TRIM", "UPPER", "VALUE"];
+                rowIdx, isFormatChanged = false, rows, cellHeight, skipFormulaColl = ["ABS", "LEFT", "RIGHT", "TRIM", "UPPER", "VALUE", "YEAR"], index;
             if (this._isEdit) {
                 sheetIdx = xlObj.getActiveSheetIndex(), sheet = xlObj.getSheet(sheetIdx), rows = xlObj.getRows(sheetIdx), form = $("#" + xlObj._id + "EditForm");
                 trgtTd = this._editCell, column = sheet.columns[this._EditCellDetails.columnIndex];
@@ -301,6 +311,12 @@
                     cell: trgtTd,
 					 isRefCells: false
                 };
+                if (this.getPropertyValue(rowIdx, colIdx, "hasMultipleFormulaArray")) {
+					xlObj.XLCellNav && (xlObj.XLCellNav._isNavigate = true);
+                    xlObj._showAlertDlg("Alert", "ArrayaFormula","multipleArrayFormula", 430);
+					xlObj.XLSelection._clearBorder(xlObj._arrayAsString(xlObj._ctrlFormulaBorder.concat(xlObj._formulaBorder)));
+                    return;
+                }
 				if (xlObj.model.allowDataValidation && this._isValidation) {
 				    elem.val(args.value);
 				    form.css("display", "block");
@@ -314,8 +330,14 @@
 				if ((args.value !== args.prevValue) && xlObj._trigger("cellSave", args))
                     return;
 				prevFrmtObj = xlObj.getRangeData({ range: [rowIdx, colIdx, rowIdx, colIdx], property: ["type", "formatStr", "decimalPlaces"] })[0];
-				if (xlObj.isFormula(args.value) && !this._formulaValidate(args.value))
-				    return;
+				if (xlObj.isFormula(args.value)) {
+					if(!this._formulaValidate(args.value))
+						return;
+					else {
+						var name = args.value.indexOf("(worksheet)") >-1 && args.value.split(" (worksheet)")[0].replace("=", "");
+						args["value"] = sheet._scopeRanges[name] ? "=" + sheet._scopeRanges[name].name : args["value"];
+					}
+				}
 				prevValue = this._EditCellDetails.value || "";
                 details = { sheetIndex: sheetIdx, rowIndex: rowIdx, colIndex: colIdx, cValue: args.value, reqType: "edit", iconName: "", pValue: prevValue };
                 details.prevHeight = sheet.rowsHeightCollection[rowIdx];
@@ -346,7 +368,11 @@
                     if (skipFormulaColl.indexOf(formulaStr[0]) === -1) {
                         for (j = 0, flen = formulaStr.length; j < flen; j++) {
                             temp = formulaStr[j];
-                            if (temp != "(" && formulaStr[j + 1] != "(")
+							if (temp.indexOf("!") > -1) {
+								index = xlObj._getSheetIndexByName(temp.split("!")[0]);
+								sheetIdx = index ? index : sheetIdx;
+						    }
+                            else if (temp != "(" && formulaStr[j + 1] != "(")
                                 break;
                         }
                         if (temp.indexOf(":") > -1)
@@ -354,7 +380,7 @@
                         if (xlObj._isCellReference(temp)) {
                             temp = temp.replace(/\$/g, "");
                             fRange = xlObj.getRangeIndices(temp);
-                            fObj = xlObj.getRangeData({ range: fRange, property: ["type", "formatStr", "decimalPlaces"] })[0];
+                            fObj = xlObj.getRangeData({ range: fRange, property: ["type", "formatStr", "decimalPlaces"] , sheetIdx: sheetIdx})[0];
                             if (xlObj.getObjectLength(fObj) && fObj.type != prevFrmtObj.type && fObj.type !== "general") {
                                 xlObj._dupDetails = true;
                                 isFormatChanged = true;
@@ -367,10 +393,10 @@
                     }
                 }
                 xlObj._setRowHdrHeight(sheetIdx, rowIdx);
-				xlObj.model.allowFormulaBar && xlObj.updateFormulaBar();
 				if(xlObj.model.scrollSettings.allowScrolling)
 					xlObj.XLScroll._getRowHeights(sheetIdx, rowIdx);
                 this._isEdit = this._isFormulaEdit = false;
+				xlObj.model.allowFormulaBar && xlObj.updateFormulaBar();
                 args.cell.removeClass("e-editedcell e-msie-edit");
                 if (xlObj.model.allowKeyboardNavigation)
                     xlObj.XLCellNav._isNavigate = true;
@@ -417,7 +443,7 @@
                         autoEle.hide();
                 }
                 this._editElem.hide();
-                xlObj.setSheetFocus();
+                xlObj._setSheetFocus();
                 if (xlObj._browserDetails.name === "mozilla")  //ff issue - https://bugzilla.mozilla.org/show_bug.cgi?id=744408
                     htmlVal = htmlVal.slice(0, -4);
                 if (htmlVal.indexOf('\n') > -1) {
@@ -450,12 +476,45 @@
             }
         },
 
+        _getCellPosition: function (rowCount, colCount) {
+            var xlObj = this.XLObj, range = this._formulaArrayRange || xlObj.getSheet(xlObj.getActiveSheetIndex()).selectedRange, pos = 0, posCln = {};
+            var rRowCnt = range[2] - range[0], rColCnt = range[3] - range[1], isTrue = false;
+            if (1 < colCount)
+                isTrue = true;
+            for (i = 0; i <= rColCnt; i++) {
+                for (j = 0; j <= rRowCnt; j++) {
+                    if (xlObj.isUndefined(posCln[range[0] + j]))
+                        posCln[range[0] + j] = {};
+                    if (rowCount <= j || (isTrue && colCount <= i))
+                        posCln[range[0] + j][range[1] + i] = -1;
+                    else {
+                        posCln[range[0] + j][range[1] + i] = pos;
+                        if (!isTrue)
+                            pos++;
+                    }
+                }
+                isTrue ? pos++ : pos = 0;
+            }
+            return posCln;
+        },
+	
         _formulaValidate: function (value) {
             var i, len, fValue, lPrnthsLen, rPrnthsLen, formulaLen, subStr, formulaCln, leftPos, rightPos, splitStr, formulaValue = value, xlObj = this.XLObj,
-            customFormulas = xlObj.model.customFormulas, argsFormula = ["TODAY", "NOW", "TRUE", "FALSE", "ROW", "COLUMN", "SHEET", "SHEETS"];
-            for (i = 0; i < customFormulas.length; i++)
+            customFormulas = xlObj.model.customFormulas, argsFormula = ["TODAY", "NOW", "TRUE", "FALSE", "ROW", "COLUMN", "SHEET", "SHEETS"], str = value.split("[")[0];
+			for (i = 0; i < customFormulas.length; i++)
                 argsFormula.push(customFormulas[i]["formulaName"].toUpperCase());
-			if (!this._isNamedRange(value)) {
+			if(xlObj._tableRangesFormula[str.slice(1)]) {
+				lPrnthsLen = formulaValue.split("[").length;
+                rPrnthsLen = formulaValue.split("]").length;
+				   if (lPrnthsLen !== rPrnthsLen) {
+                        xlObj._showAlertDlg("Alert", "MissingParenthesisAlert", "FormulaAlert", 440); // To check the parenthesis
+                        return;
+                    }
+			}
+			else if (!this._isNamedRange(value) ) {
+				value = value.startsWith("=") && value.replace("=","");
+				if(xlObj.getCalcEngine().getNameRangeValues().contains(value.toUpperCase()))
+					return true;
                 formulaLen = formulaValue.length;
                 lPrnthsLen = formulaValue.split("(").length;
                 rPrnthsLen = formulaValue.split(")").length;
@@ -546,9 +605,10 @@
 		    var xlObj = this.XLObj;
 		    if (!cellIdx || xlObj.model.isReadOnly)
 		        return;
-            var colIdx = cellIdx.colIndex, rowIdx = cellIdx.rowIndex, sheetIdx = xlObj._getSheetIndex(sheetIdx), actCell = xlObj.getActiveCell();
+            var colIdx = cellIdx.colIndex, rowIdx = cellIdx.rowIndex, sheetIdx = xlObj._getSheetIndex(sheetIdx), actCell = xlObj.getActiveCell(), preVal = this.getPropertyValue(rowIdx, colIdx, "value2", sheetIdx);
             if (xlObj.isFormula(val) && this.getPropertyValue(rowIdx, colIdx, "type", sheetIdx) !== "text") {
-                this._updateDataContainer({ rowIndex: rowIdx, colIndex: colIdx }, { dataObj: { value: val }, sheetIdx: sheetIdx });
+				var name = val.startsWith("=") && val.replace("=",""), sheet = xlObj.getSheet(sheetIdx);
+                this._updateDataContainer({ rowIndex: rowIdx, colIndex: colIdx }, { dataObj: { value: val , hasFormulaArray: xlObj._hasFormulaArray, hasMultipleFormulaArray: xlObj._hasMultipleFormulaArray}, sheetIdx: sheetIdx });
 		        this._refreshCalcEngine(rowIdx, colIdx, true, val, sheetIdx);
 		        xlObj._isFormulaSuggestion = false;
 		    }
@@ -569,14 +629,8 @@
 		            xlObj.model.showRibbon && xlObj.XLRibbon._updateRibbonIcons();
 		            xlObj.model.allowFormulaBar && xlObj.updateFormulaBar();
 		        }
-				if(this.getPropertyValue(rowIdx, colIdx, "wrap", sheetIdx)){
-				   var sheet = xlObj.getSheet(sheetIdx);
-			       xlObj._updateWrapCol("updatecellvalue", [cellIdx], sheet, sheetIdx);
-				   if (xlObj._isRowViewable(sheetIdx, rowIdx))
-                       xlObj.getRows(sheetIdx)[1][xlObj._getRowIdx(rowIdx)].style.height = sheet.rowsHeightCollection[rowIdx] + "px";
-				   xlObj.model.allowSelection && xlObj.XLSelection._refreshBorder();
-				   xlObj.model.allowAutoFill && xlObj.XLDragFill.positionAutoFillElement();
-			    }
+				if(this.getPropertyValue(rowIdx, colIdx, "wrap", sheetIdx))
+					xlObj._updateWrapCol("updatecellvalue", [cellIdx], xlObj.getSheet(sheetIdx), sheetIdx, rowIdx);
 		        if (!ej.isNullOrUndefined(formatclass))
 		            xlObj.XLFormat._updateRowHeight([rowIdx, colIdx,rowIdx,colIdx], sheetIdx);
 		    }
@@ -596,7 +650,7 @@
 		     sheetIdx = xlObj._getSheetIndex(sheetIdx);
 		     var cHght, isUpdtDtcnr = true, sheet = xlObj.getSheet(sheetIdx), rIdx = cell.rowIndex, cIdx = cell.colIndex, ctype = ej.Spreadsheet.CellType, details, pValue = this.getPropertyValue(rIdx, cIdx, 'value2') || "", height = sheet.rowsHeightCollection[rIdx], cellElem = xlObj.getCell(rIdx, cIdx),
             // parse value
-            valObj = this._parseValue(val, cell),
+            valObj = this._parseValue(val, cell), pType = valObj.type,
            cellInfo = xlObj.getRangeData({ range: [rIdx, cIdx, rIdx, cIdx], property: ["formatStr", "type", "thousandSeparator", "decimalPlaces", "cellType"], sheetIdx: sheetIdx })[0], container = xlObj._dataContainer;
 			if(xlObj.model.isReadOnly)
 				return;
@@ -613,12 +667,23 @@
             if (cellInfo.formatStr || cellInfo.type === ctype.Scientific || cellInfo.type === ctype.Fraction) {
                 if(valObj.value2.indexOf("%") > -1)
                     valObj.value = xlObj.isNumber(valObj.value) ? valObj.value/100 : valObj.value;
-                valObj.value2 = xlObj.XLFormat._format(valObj.value, { formatStr: cellInfo.formatStr, type: cellInfo.type, thousandSeparator: cellInfo.thousandSeparator, decimalPlaces: cellInfo.decimalPlaces }, cell);
+				valObj.value2 = xlObj.XLFormat._format(valObj.value, { formatStr: cellInfo.formatStr, type: cellInfo.type, thousandSeparator: cellInfo.thousandSeparator, decimalPlaces: cellInfo.decimalPlaces, isTime: pType === ej.Spreadsheet.CellType.Time }, cell);
+				this._formatCellVal && (valObj["value"] = this._formatCellVal);
             }
+			this._formatCellVal = null;
 			if (xlObj.model.allowCellType && !xlObj.isUndefined(cellInfo.cellType))
-				isUpdtDtcnr = xlObj.XLCellType._rfrshCtrlText(cellInfo, valObj.value);
-			if (isUpdtDtcnr)// data updation
+		        isUpdtDtcnr = xlObj.XLCellType._rfrshCtrlText(cellInfo, valObj.value);
+			if (isUpdtDtcnr) {// data updation
+			    if(!xlObj._isInitLoad && !(xlObj.isImport || xlObj.model.isImport)) {
+					  isTable = this.getPropertyValue(rIdx, cIdx, "tableName", sheetIdx);
+					  if(!xlObj.XLFormat._isFAT && isTable) {
+						  var prevVal = this.getPropertyValue(rIdx, cIdx, "value2", sheetIdx);
+			              valObj.value2 =  xlObj.XLFormat._updateTableColName(rIdx, cIdx, prevVal, valObj.value2, sheetIdx, isTable);
+						  (valObj.type === "general") && (valObj.value = valObj.value2) ; 
+					  }
+				}
 			    this._updateDataContainer(cell, { dataObj: valObj, sheetIdx: sheetIdx });
+			}
 			else {
 			    if (!xlObj.isUndefined(cellInfo.cellType) && ej.isNullOrUndefined(isCellType)) {
 			        $("#" + container.sheetCellType[cellInfo.cellType]["id"]).data("ej" + container.sheetCellType[cellInfo.cellType]["type"]).destroy()
@@ -642,14 +707,8 @@
                     }
                 }
             }
-			if(this.getPropertyValue(rIdx, cIdx, "wrap", sheetIdx)){
-				   var sheet = xlObj.getSheet(sheetIdx);
-			       xlObj._updateWrapCol("updatecellvalue", [cell], sheet, sheetIdx);
-				   if (xlObj._isRowViewable(sheetIdx, rIdx))
-                       xlObj.getRows(sheetIdx)[1][xlObj._getRowIdx(rIdx)].style.height = sheet.rowsHeightCollection[rIdx] + "px";
-				   xlObj.model.allowSelection && xlObj.XLSelection._refreshBorder();
-				   xlObj.model.allowAutoFill && xlObj.XLDragFill.positionAutoFillElement();
-			    }
+			if(this.getPropertyValue(rIdx, cIdx, "wrap", sheetIdx))
+				xlObj._updateWrapCol("updatecellvalue", [cell], xlObj.getSheet(sheetIdx), sheetIdx, rIdx);
 			details = { sheetIndex: sheetIdx ? sheetIdx : xlObj.getActiveSheetIndex(), rowIndex: rIdx, colIndex: cIdx, reqType: 'edit', cValue: val, pValue: pValue ? pValue: "", prevHeight: height, newHeight: sheet.rowsHeightCollection[rIdx] };
 			if (!xlObj._dupDetails) {
 			    xlObj._completeAction(details);
@@ -657,8 +716,8 @@
 			}
         },
 
-        _parseValue: function (value, cell) {
-            var localeNum, decimalplcs, isThouSep, cellType, prefCul, tSep, regExp, dSep, locale = this.XLObj.model.locale;
+         _parseValue: function (value, cell) {
+            var localeNum, decimalplcs, isThouSep, cellType, prefCul, tSep, regExp, dSep, locale = this.XLObj.model.locale, tempValue = value, floatVal, tempVal, isValueNull = ej.isNullOrUndefined(value),index, spltStr, i, len;
             if (cell) {
                 decimalplcs = this.getPropertyValue(cell.rowIndex, cell.colIndex, "decimalPlaces");
                 isThouSep = this.getPropertyValue(cell.rowIndex, cell.colIndex, "thousandSeparator");
@@ -667,10 +726,14 @@
             prefCul = ej.preferredCulture(locale);
             tSep = prefCul.numberFormat[","] || ",";
             dSep = prefCul.numberFormat["."] || ".";
-            regExp = new RegExp("^\\d+(\\" + tSep + "\\d{3})+$|\\d(\\" + tSep + "\\d{3})+\\" + dSep + "\\d+$");
-            if (!cell || (cellType != "text" && cellType != "shortdate" && cellType != "date" && cellType != "time" && cellType != "longdate")) {
-                localeNum = regExp.test(value) ? this.XLObj._getlocaleNumVal(value) : null;
-                value = this.XLObj.isNumber(value) ? Number(value) : (ej.isNullOrUndefined(value) ? "" : ((typeof value === "object" && !this.XLObj._isDateTime(value)) ? JSON.stringify(value) : value));
+            regExp = new RegExp("^\\d+(\\" + tSep + "\\d{3,})+$|^\\d+(\\" + tSep + "\\d{3,})+\\" + dSep + "\\d+$|^\\d+(\\" + dSep + "\\d+)+$");
+			floatVal =  !isValueNull && ej.parseFloat(value.toString(), 10, locale);
+			if(floatVal)
+			   tempValue = floatVal;
+            if (!cell || (cellType != "text")) {
+                if(!isValueNull)
+				   localeNum = this.XLObj._getlocaleNumVal(tempValue);
+                value = ej.isNullOrUndefined(value) ? "" : ((typeof value === "object" && !this.XLObj._isDateTime(value)) ? JSON.stringify(value) : value);
             }
             var prop, temp, patrns, isRExp, formatStr, decPlaces, xlObj = this.XLObj, ctype = ej.Spreadsheet.CellType, rAlign = ej.Spreadsheet.Align.Right,
                 value2 = (typeof value === "object" && !this.XLObj._isDateTime(value)) ? JSON.stringify(value) : value + "", type = ctype.General, idx = value2.indexOf(xlObj._currencySymbol);
@@ -686,16 +749,18 @@
             }
             if (value2.indexOf(xlObj._percentSymbol) > -1) {
                 temp = $.trim(value2).replace(xlObj._percentSymbol, "");
-                if (xlObj.isNumber(temp)) {
+				tempVal = ej.parseFloat(temp, 10, locale);
+                if (xlObj.isNumber(tempVal)) {
                     decPlaces = value2.indexOf(xlObj._decimalSeparator) > -1 ? xlObj._decimalCnt(temp) : 0;
                     decPlaces = decimalplcs > -1 ? decimalplcs : decPlaces;
-                    return { type: ctype.Percentage, value: Number(temp), value2: value2, formatStr: xlObj._getFormatString(ctype.Percentage, decPlaces), decimalPlaces: decPlaces, align: rAlign };
+                    return { type: ctype.Percentage, value: tempVal, value2: value2, formatStr: xlObj._getFormatString(ctype.Percentage, decPlaces), decimalPlaces: decPlaces, align: rAlign };
                 }
             }
-            if (value2.indexOf(xlObj._decimalSeparator) > -1 && regExp.test(value2)) {
+            if (value2.indexOf(xlObj._decimalSeparator) > -1 && cellType && cellType != "general" ) {
                 temp = ej.parseFloat(value2, 10, locale);
                 if (temp) {
-                    decPlaces = value2.substr(value2.indexOf(xlObj._decimalSeparator) + 1).length;
+				var str = temp.toString();
+                    decPlaces = str.substr(value2.indexOf(xlObj._decimalSeparator) + 1).length;
                     if (decPlaces > 2)
                         decPlaces = 2;
                     value2 = ej.format(temp, "N" + decPlaces, locale);
@@ -704,7 +769,7 @@
                 }
             }
             if (value2.indexOf(tSep) > -1 && (cellType != "shortdate" && cellType != "date" && cellType != "time" && cellType != "longdate")) {
-                if (regExp.test(value2)) {
+			    if (regExp.test(value2)) {
                     temp = ej.parseInt(value2, 10, locale);
                     if (temp) {
                         decPlaces = 0;
@@ -712,7 +777,7 @@
                         decPlaces = decimalplcs > -1 ? decimalplcs : decPlaces;
                         return { type: ctype.Number, value: temp, value2: value2, formatStr: xlObj._getFormatString(ctype.Number, decPlaces), decimalPlaces: decPlaces, thousandSeparator: this.XLObj.isUndefined(isThouSep) ? true : isThouSep };
                     }
-                }
+				}	
             }
             patrns = prefCul.calendar.patterns
             isRExp = true, regExp = prefCul.calendar._parseRegExp;
@@ -727,7 +792,14 @@
                     if (!isRExp)
                         isRExp = true;
                     if (prop == "d") {
-                        if (parseInt(temp[1]) > 12) {
+						spltStr = patrns["d"].split(prefCul.calendar["/"]);
+						for(i = 0, len = spltStr.length;i<len;i++) {
+							if(spltStr[i].toLowerCase() === "m"){
+								index = i+1;
+								break;
+							}
+						}
+                        if (parseInt(temp[index]) > 12) {
                             temp = null;
                             continue;
                         }
@@ -753,7 +825,7 @@
                         type = ctype.Date;
                     formatStr = "{0:" + patrns[prop] + "}";
                     value2 = xlObj.XLFormat._format(temp, { type: type, formatStr: formatStr });
-                    return { type: type, value: temp, value2: value2, formatStr: formatStr, align: rAlign };  
+                    return { type: type, value: temp, value2: value2, formatStr: formatStr, align: rAlign };
                 }
             }
             if (value2.toLowerCase() === "true" || value2.toLowerCase() === "false")
@@ -802,13 +874,17 @@
 
         _refreshCellAlignment: function (options) {
             options = options || {};
-            var prop, skipCell, align = ej.Spreadsheet.Align, xlObj = this.XLObj, rowIdx = options.cellIdx.rowIndex, colIdx = options.cellIdx.colIndex, isMergeCell = this.getPropertyValue(rowIdx, colIdx, "merge");
+            var prop, skipCell, align = ej.Spreadsheet.Align, xlObj = this.XLObj, rowIdx = options.cellIdx.rowIndex, colIdx = options.cellIdx.colIndex, isMergeCell = this.getPropertyValue(rowIdx, colIdx, "merge"), value = this.XLObj._getlocaleNumVal(options.value), type=["currency", "accounting", "number", "scientific", "fraction"];
             if (!(align in options)) {
                 options.value = ej.isNullOrUndefined(options.value) ? this.getPropertyValue(rowIdx, colIdx, "value") : options.value;
+				options.type = options.type ? options.type : this.getPropertyValue(rowIdx, colIdx, "type");
+				if (xlObj.model.locale !== "en-US") {
+                    if (!isNaN(value) && type.indexOf(options.type) > -1)
+                        options.value = value;
+                }
                 if (xlObj.isFormula(options.value))
                     options.value = xlObj.XLEdit.getPropertyValue(rowIdx, colIdx, "calcValue");
-                options.type = options.type ? options.type : this.getPropertyValue(rowIdx, colIdx, "type");
-                if ((xlObj.isNumber(options.value) || typeof options.value === "object" || options.type === "shortdate") && options.type !== ej.Spreadsheet.CellType.Text && !(isMergeCell && isMergeCell.isCenterAlign))
+                if ((xlObj.isNumber(options.value) || typeof options.value === "object" || ((options.type === "shortdate" || options.type === "longdate" || options.type === "time") && xlObj._isDateTime(new Date(options.value && options.value.toString()))) ) && options.type !== ej.Spreadsheet.CellType.Text && !(isMergeCell && isMergeCell.isCenterAlign))
                     options.align = align.Right;
                 else if (xlObj._isBool(options.value) || (isMergeCell && isMergeCell.isCenterAlign))
                     options.align = align.Center;
@@ -816,7 +892,7 @@
                     options.align = align.Left;
             }
             prop = this.getPropertyValue(rowIdx, colIdx, "align");
-            if (xlObj._isInitLoad && !xlObj.isImport)
+            if (xlObj._isInitLoad && !(xlObj.isImport || xlObj.model.isImport))
                 skipCell = true;
             if (!options.align || (prop && prop != options.align))
                 xlObj.clearRangeData([rowIdx, colIdx, rowIdx, colIdx], ["align"], "", "", "", skipCell);
@@ -828,7 +904,7 @@
 			if($(e.target).parents(".e-backstagecontent").length)
 				return;
 			var text, isRowVisible, xlObj = this.XLObj, sheetIdx, sheet, $trgt, readOnlyCells, sheetDt, cellObj, rIdx, cIdx, selRowIdx, rowIdx, colIdx,
-                cName, i, j, len, m, n, rLen, cFormatStr, aRange, regxFormat, cFormatRule, selected, details, cell, mergeWrap, cellobjval, hasMergeIdx;
+                cName, i, j, len, m, n, rLen, cFormatStr, aRange, regxFormat, cFormatRule, selected, details, cell, mergeWrap, cellobjval, hasMergeIdx, formulaRange, rng;
             if(e.keyCode === 53 && e.shiftKey) {
 				text = this._editElem.text();
 				percentCount = text.split("%");
@@ -845,7 +921,7 @@
                 sheetIdx = xlObj.getActiveSheetIndex(), sheet = xlObj.getSheet(sheetIdx), $trgt = xlObj.getCell(sheet._activeCell.rowIndex, sheet._activeCell.colIndex);
                 if (!this._isEdit && (!xlObj._hasClass($trgt, "e-readonly") && !xlObj._hasClass($trgt, "e-cellreadonly"))) {
                     xlObj.element.find(".e-cdata").length && xlObj.element.find(".e-cutright, .e-cutbottom").removeClass("e-cutright e-cutbottom");                    
-                    xlObj.XLCellNav._navToCell(sheet._activeCell.rowIndex, sheet._activeCell.colIndex);
+                    xlObj.model.allowKeyboardNavigation && xlObj.XLCellNav._navToCell(sheet._activeCell.rowIndex, sheet._activeCell.colIndex);
                     hasMergeIdx = xlObj.XLEdit.getPropertyValue(sheet._activeCell.rowIndex, sheet._activeCell.colIndex, "mergeIdx");
                     xlObj._intrnlReq = true;
                     this.editCell(hasMergeIdx ? hasMergeIdx.rowIndex : sheet._activeCell.rowIndex, hasMergeIdx ? hasMergeIdx.colIndex : sheet._activeCell.colIndex, false);
@@ -857,7 +933,7 @@
                 sheetIdx = xlObj.getActiveSheetIndex(), sheet = xlObj.getSheet(sheetIdx), $trgt = xlObj.getCell(sheet._activeCell.rowIndex, sheet._activeCell.colIndex), this._isFEdit = true;
                 if (!this._isEdit && (!xlObj._hasClass($trgt, "e-readonly") && !xlObj._hasClass($trgt, "e-cellreadonly"))) {
                     xlObj.element.find(".e-cdata").length && xlObj.element.find(".e-cutright, .e-cutbottom").removeClass("e-cutright e-cutbottom");
-                    xlObj.XLCellNav._navToCell(sheet._activeCell.rowIndex, sheet._activeCell.colIndex);
+                    xlObj.model.allowKeyboardNavigation && xlObj.XLCellNav._navToCell(sheet._activeCell.rowIndex, sheet._activeCell.colIndex);
                     hasMergeIdx = xlObj.XLEdit.getPropertyValue(sheet._activeCell.rowIndex, sheet._activeCell.colIndex, "mergeIdx");
                     xlObj._intrnlReq = true;
                     this.editCell(hasMergeIdx ? hasMergeIdx.rowIndex : sheet._activeCell.rowIndex, hasMergeIdx ? hasMergeIdx.colIndex : sheet._activeCell.colIndex, true);
@@ -865,7 +941,7 @@
                 }
 				this._cursorPosn++;
             }
-            else if (e.keyCode === 27 && this._isEdit) { //escape                
+            else if (e.keyCode === 27 && this._isEdit && xlObj.model.allowKeyboardNavigation) { //escape 
                 sheetIdx = xlObj.getActiveSheetIndex(), sheet = xlObj.getSheet(sheetIdx), rIdx = sheet._activeCell.rowIndex, cIdx = sheet._activeCell.colIndex, $trgt = xlObj.getCell(rIdx, cIdx), sheetDt = xlObj._dataContainer.sheets[sheetIdx];
                 if (xlObj.XLEdit.getPropertyValue(rIdx, cIdx, 'wrap') && xlObj.XLEdit.getPropertyValue(rIdx, cIdx, 'merge')) {
                     cell = xlObj.getCell(rIdx, cIdx, sheetIdx);
@@ -878,7 +954,7 @@
                 isRowVisible=xlObj._isRowViewable(sheetIdx,rIdx);
                 if (isRowVisible) {
                     mergeWrap ? (mergeWrap.innerHTML = cellobjval) : this._refreshTextNode($trgt[0], cellobjval);
-                    xlObj.setSheetFocus();
+                    xlObj._setSheetFocus();
                     xlObj._setRowHdrHeight(sheetIdx, sheet._selectedCells[0].rowIndex);
                 }
                 if (xlObj.model.allowFormulaBar)
@@ -898,13 +974,18 @@
 				xlObj._getContent(xlObj.getActiveSheetIndex()).find(".e-error").remove();
                 if(!ej.isNullOrUndefined(xlObj.XLCellNav)) xlObj.XLCellNav._isNavigate = true;
             }
-            else if (e.keyCode === 46) { //delete   
+            else if (e.keyCode === 46 && xlObj.model.allowKeyboardNavigation) { //delete  
                 if (!this._isEdit) {
 					if (xlObj._preventctrlkey) {
 						xlObj._showAlertDlg("Alert", "CtrlKeyErrorAlert", "CtrlKeyErrorAction", 450);
 						return;
 					}
-                    sheetIdx = xlObj.getActiveSheetIndex(), sheet = xlObj.getSheet(sheetIdx), $trgt = xlObj.getCell(sheet._activeCell.rowIndex, sheet._activeCell.colIndex);
+					var sheetIdx = xlObj.getActiveSheetIndex(), sheet = xlObj.getSheet(sheetIdx), bRange = xlObj._getRangeArgs(sheet.selectedRange, "string"), args = { range: bRange, sheetIndex: sheetIdx, reqType: "clear-content", type: "actionBegin", action: "clearContent" };
+					if (xlObj._trigActionBegin(args))
+					    return;
+					if (bRange != args.range)
+					    xlObj.XLSelection.selectRange(args.range);
+					var $trgt = xlObj.getCell(sheet._activeCell.rowIndex, sheet._activeCell.colIndex),
                     regxFormat = new RegExp("\\b" + "e-format" + ".*?\\b", "g"), cFormatRule;
                     selected = sheet._selectedCells, text = xlObj.getRangeData({ range: [selected[0].rowIndex, selected[0].colIndex, selected[selected.length - 1].rowIndex, selected[selected.length - 1].colIndex] });
                     if (xlObj.model.allowLockCell && sheet.isSheetProtected) {
@@ -912,7 +993,15 @@
                             return;
                     }
                     if (xlObj._isPropExists([sheet.selectedRange], "isReadOnly", sheetIdx))
-                        return;          
+                        return; 
+                    formulaRange = this.getPropertyValue(selected[0].rowIndex,selected[0].colIndex,"formulaRange");
+					if(formulaRange) {
+						rng = xlObj.getRangeIndices(formulaRange);
+						if(rng && !((rng[2] == selected[selected.length - 1].rowIndex && rng[0] == selected[0].rowIndex) && (rng[3] == selected[selected.length - 1].colIndex && rng[1] == selected[0].colIndex))) {
+							xlObj._showAlertDlg("Alert", "ArrayaFormula", 430);
+							return;
+						}
+					}
                     if (!this._isEdit) {
                         xlObj.element.find(".e-cdata").length && xlObj.element.find(".e-cutright, .e-cutbottom").removeClass("e-cutright e-cutbottom");
                         var tblMgr = xlObj.model.sheets[sheetIdx].tableManager, tblObj, tblRange, tblCells, objKeys = xlObj.getObjectKeys(tblMgr);
@@ -925,7 +1014,7 @@
                             }
                         }
                         if (!xlObj._hasClass($trgt, "e-readonly")) // need to remove e-readonly
-                            xlObj.clearRangeData(null, ["value", "value2", "hyperlink"]);
+                            xlObj.clearRangeData(null, ["value", "value2", "hyperlink", "hasFormulaArray", "hasMultipleFormulaArray"]);
                             selRowIdx = selected[0].rowIndex;
                         for (i = 0, len = selected.length; i < len; i++) {
                             rowIdx = selected[i].rowIndex;
@@ -1002,7 +1091,7 @@
         _updateDataContainer: function (cellIdx, options) {
             var i, j, k, $cell, cell, mergeWrap, mergeWrapval, newText, ctype, atype, colObj, index, data, arr, cellData, colIdx, rowIdx, isDate, isBool, cellObj, id,
                 innerTag, container, sheetData, rowData, prefix, regx, prevVal, textNode, bool, hcode, child, format = "e-format", cellInfo,
-                canRefresh = false, border = "e-border", dataObj = options.dataObj, xlObj = this.XLObj, sheetIdx = xlObj._getSheetIndex(options.sheetIdx), sheet = xlObj.getSheet(sheetIdx), sparklineId, sparklineProp;
+                canRefresh = false, border = "e-border", dataObj = options.dataObj, xlObj = this.XLObj, sheetIdx = xlObj._getSheetIndex(options.sheetIdx), sheet = xlObj.getSheet(sheetIdx), sparklineId, sparklineProp, isTable, mDiv;
             if (!options.skipCell && xlObj._isRowViewable(sheetIdx, cellIdx.rowIndex)) {
                 $cell = xlObj.getCell(cellIdx.rowIndex, cellIdx.colIndex, sheetIdx);
                 cell = $cell[0];
@@ -1022,10 +1111,6 @@
 					rowData[colIdx] = colObj = {};
                 }
                 if (cell) {
-                    if (xlObj._hasClass(cell, 'e-sswraptext')) {
-						xlObj._removeClass(cell, 'e-sswraptext');
-						xlObj.addClass(cell, 'e-sswraptext');
-					}
                     if (this.getPropertyValue(cellIdx.rowIndex, cellIdx.colIndex, 'merge', sheetIdx)) {
                         mergeWrap = $cell.find('#' + xlObj._id + '_Merge')[0];
                         if (mergeWrap) {
@@ -1233,9 +1318,9 @@
                     if (xlObj._isRowViewable(sheetIdx, cellIdx.rowIndex)) {
                         newText = this.getPropertyValue(cellIdx.rowIndex, cellIdx.colIndex, 'value2', sheetIdx);
 						newText = newText || "";
-				        this._refreshTextNode(cell);
-				        mergeWrapval = (mergeWrapval) ? mergeWrapval.concat(dataObj.value2 || newText) : (dataObj.value2 || newText);
-				        mergeWrap = $cell.find('#' + xlObj._id + '_Merge')[0];
+                        mergeWrap = $cell.find('#' + xlObj._id + '_Merge')[0];
+                        !mergeWrap && this._refreshTextNode(cell);
+				        mergeWrapval = (mergeWrapval) ? mergeWrapval.concat(dataObj.value2 || newText) : (dataObj.value2 || newText);				        
 				        if (!mergeWrap) {
 							sparklineId = this.getPropertyValue(cellIdx.rowIndex, cellIdx.colIndex, 'sparkline', sheetIdx);
 							if(!xlObj._isCopyPaste && xlObj.model.allowSparkline && sparklineId) {
@@ -1261,8 +1346,14 @@
 									}
 								}
 							}
-							else
+							else {
 								cell.innerHTML = "<div id =" + xlObj._id + "_Merge style = 'border :0px;overflow: hidden;max-height:" + (cellHeight - 1) + "px'>" + cell.innerHTML.concat(ej.isNullOrUndefined(mergeWrapval) ? "" : mergeWrapval) + "</div>"; //-1 to set the height less than cell height to avoid misalignment
+                                if (xlObj._hasClass(cell, 'e-rightalign')) {
+                                    xlObj._removeClass(cell, 'e-rightalign');
+                                    mDiv = $cell.find('#' + this.XLObj._id + '_Merge');
+                                    mDiv[0].classList.add('e-rightalign');
+                                }
+                            }
 				            mergeWrap = $cell.find('#' + xlObj._id + '_Merge')[0];
 				        }
 				        child = mergeWrap.children;
@@ -1283,7 +1374,7 @@
                     if (cellData.value === "" && cellData.value2 === "" && cellData.type === ej.Spreadsheet.CellType.General)
                         xlObj.clearRangeData([rowIdx, colIdx, rowIdx, colIdx], arr.slice(0, 3));
                 }
-                if (sheet._isLoaded && !xlObj.isDirty && !xlObj._intrnlReq && !xlObj.isImport)
+                if (sheet._isLoaded && !xlObj.isDirty && !xlObj._intrnlReq && !(xlObj.isImport || xlObj.model.isImport))
                     xlObj.isDirty = true;
             }
             else if (cell)
@@ -1405,11 +1496,11 @@
 					}
                 }
 				if(canClip)
-					xlObj._textClip(rowIdx, colIdx, 'delete');
+				    xlObj._textClip(rowIdx, colIdx, 'delete');
+				if (!xlObj._overFlowRowIdx && !xlObj.getObjectLength(sheetData[rowIdx]))
+				    delete sheetData[rowIdx];
                 if(sheetData[rowIdx] && !xlObj.getObjectLength(sheetData[rowIdx][colIdx]))
                     delete sheetData[rowIdx][colIdx];
-                if (!xlObj.getObjectLength(sheetData[rowIdx]))
-                    delete sheetData[rowIdx];
             }
         },
 
@@ -1621,7 +1712,7 @@
             if (isFormula) {
                 val = this._parseSheetRef(val);
                 cellArgs = new ValueChangedArgs(rowIdx + 1, colIdx + 1, val);
-                calcEngine.valueChanged(sheet.sheetInfo.value, cellArgs, xlObj._computeFormula ? true : (xlObj._impData ? sheet._isLoaded : true));
+                 calcEngine.valueChanged(sheet.sheetInfo.value, cellArgs, xlObj._computeFormula ? true : (xlObj._impData ? sheet._isLoaded : true));
                 xlObj._applyFormula(sheetIdx, rowIdx, colIdx);
             }
             else {
@@ -1634,9 +1725,9 @@
                     if (calcEngine.getDependentCells().contains(cellRef))
                         calcEngine.clearFormulaDependentCells(cellRef);
                 }
-				calcEngine.getComputedValue().clear();
+                calcEngine.getComputedValue().clear();
                 calcEngine.refresh(cellRef);
-				calcEngine.getComputedValue().clear();
+                calcEngine.getComputedValue().clear();
                 var currCell = calcEngine.getDependentCells(), idx = currCell.keys().indexOf(cellRef), depCell, range, depCellsColl;
                 if (idx > -1) {
                     depCellsColl = calcEngine.getDependentCells().values()[idx];
@@ -1698,9 +1789,15 @@
         },
 
         _formulaSelect: function (args) {
-            var value, text = value = args.text;
-            if (!this.XLEdit._isNamedRange(value) && !(text.slice(1) == "TRUE" || text.slice(1) == "FALSE"))
-                text += "(";
+            var value, text = value = args.text, editText = this.XLEdit._editElem.text().slice(1);
+			if(text.indexOf("(worksheet)") >-1)
+				value = value.split(" (worksheet)")[0];
+			if (editText.endsWith("[") && this._tableRangesFormula[editText.split("[")[0]]) {
+			    text = value = "=" + editText + args.text.slice(1);
+			    this.XLEdit._processFormulaEditRange(text);
+			}
+			else if (!this.XLEdit._isNamedRange(value) && !(text.slice(1) == "TRUE" || text.slice(1) == "FALSE"))
+			    text += "(";
             this.XLEdit._editElem.text(text);
             if (this.model.allowFormulaBar)
                 this._getInputBox().val(text);
@@ -1720,6 +1817,18 @@
             }
             return false;
         },
+		
+		_getTableRange: function(value) {
+			var xlObj = this.XLObj, range;
+			if(value.startsWith("="))
+				value = value.slice(1);
+			value = value.split(/[\[\]]+/);
+			if(value.length >=2 && value[1].length)
+				range = xlObj._tableRangesFormula[value[0]][value[1]];
+			else
+			   range = xlObj._tableRangesFormula[value[0]]["#Data"];
+			 return range;
+		},
 
         _formulaBoxInputChange: function (e) {
             var sheetIdx = this.getActiveSheetIndex(), acell = this.getSheet(sheetIdx)._activeCell, hasMergeIdx;
@@ -1727,7 +1836,7 @@
             this.XLEdit._isFormulaEdit = !e.target.value.indexOf("=");
             this.XLEdit._isFormulaEdit && this.XLEdit._processFormulaEditRange(e.target.value, true);
             if (!this.XLEdit._isEdit) {
-                this.XLCellNav._navToCell(acell.rowIndex, acell.colIndex);
+                this.model.allowKeyboardNavigation && this.XLCellNav._navToCell(acell.rowIndex, acell.colIndex);
                 hasMergeIdx = this.XLEdit.getPropertyValue(acell.rowIndex, acell.colIndex, "mergeIdx");
                 this._intrnlReq = true;
                 this.XLEdit.editCell(hasMergeIdx ? hasMergeIdx.rowIndex : acell.rowIndex, hasMergeIdx ? hasMergeIdx.colIndex : acell.colIndex, true);
@@ -1792,9 +1901,19 @@
                             i++;
                         }
                     }
-                    this._updateFormulaEditRange(str, xlObj._ctrlKeyCount)
+                    this._updateFormulaEditRange(str, xlObj._ctrlKeyCount);
                     xlObj._ctrlKeyCount++;
                 }
+				else if(xlObj._tableRangesFormula[str.split(/[\[\]]+/)[0]]) {
+					var cellAddr = this._getTableRange(str),splitStr, sheetIdx;
+					if(cellAddr) {
+					 splitStr = cellAddr.split("!");
+					 sheetIdx = xlObj._getSheetIndexByName(splitStr[0]);
+					 cellAddr = splitStr[1].split("$").join("");
+					 if(sheetIdx === xlObj.getActiveSheetIndex())
+					   this._updateFormulaEditRange(cellAddr, xlObj._ctrlKeyCount);
+					}
+				}
                 i++;
             }
             lastChar = val.charAt(val.length - 1);
@@ -1940,7 +2059,7 @@
             var sel, node, offset, text, textBefore, textAfter, range;
             sel = window.getSelection();
             node = sel.anchorNode;
-			offset = (node.nodeType === 3) ? sel.anchorOffset : node.textContent.length - 1;
+			offset = (node.nodeType === 3) ? sel.anchorOffset : node.textContent.length;
             text = node.textContent;
             textBefore = text.slice(0, offset);
             textAfter = text.slice(offset) || ' ';
@@ -1950,8 +2069,12 @@
 				range.setStart(node, offset + 1);
 				range.setEnd(node, offset + 1);
 			}
-			else 
-				$(node).setInputPos(offset);
+			else if(node.nodeType === 1) {
+				range.setStart(node.firstChild, offset + 1);
+				range.setEnd(node.firstChild, offset + 1);
+			}
+			else
+				$(node).setInputPos(offset + 1);
             sel.removeAllRanges();
             sel.addRange(range);               
     }

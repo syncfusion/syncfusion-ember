@@ -313,7 +313,7 @@
                 item: this._currentItem,
                 text: this._currentItem.text(),
                 index: this._currentItem.index(),
-                isChecked: this._currentItem.find("input.e-lv-check").closest('.e-chkbox-wrap').attr('aria-checked') == "true" ? true : false,
+                isChecked: (!ej.isNullOrUndefined(this._eventtrigger)) ? ((this._eventtrigger.hasClass("e-chk-image e-icon") || this.model.mouseDown) ? (this._currentItem.find('input.' + this._prefixClass + 'lv-check').prop('checked') == true ? false : true) : (this._currentItem.find('input.' + this._prefixClass + 'lv-check').prop('checked') == true ? true : false)) : false,
                 checkedItems: checkedItem.length ? checkedItem : null,
                 checkedItemsText: $(checkedItem).map(function () { return $(this).text(); }).get(),
                 itemData: this._generateData(items, elementId),
@@ -340,8 +340,11 @@
         _triggerStartEvent: function (data) {
 			if (ej.browserInfo().name == "msie" && ej.browserInfo().version == 8)
 				this.model.mouseDown = this._touchStart;
-            else this.model.mouseDown = ej.getAttrVal(this._currentItem, 'data-mousedown', this._touchStart);
-                this._trigger("mouseDown", data);
+			else this.model.mouseDown = ej.getAttrVal(this._currentItem, 'data-mousedown', this._touchStart);
+			var lbCheck = this._currentItem.find('.' + this._prefixClass + 'lv-check');
+			$(lbCheck).closest('.e-chkbox-wrap').attr('aria-checked', data.isChecked);
+			lbCheck.ejCheckBox({ checked: data.isChecked });
+            this._trigger("mouseDown", data);
         },
 
         _triggerEndEvent: function (data, evt) {
@@ -377,7 +380,7 @@
             return ej.buildTag("input.e-lv-check", "", {}, { "type": "checkbox", });
         },
         _toggleCheckboxValue: function (lbCheck) {
-            lbCheck.ejCheckBox({ checked: $(lbCheck.closest('.e-chkbox-wrap')).attr('aria-checked') == "true" ? false : true });
+            lbCheck.ejCheckBox({ checked: ($(lbCheck).closest('.e-chkbox-wrap')).attr('aria-checked') == "true" ? false : true });
         },
         _setCheckboxValue: function (element, val) {
             element.ejCheckBox({ checked: val });

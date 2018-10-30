@@ -1101,7 +1101,7 @@
 
         _showHideColumns: function (action, col, colCollection1, colCollection2) {
             var i, count = 0, args = {}, index, column,colHeaderText=[];
-			$.map(this.model.columns, function (val, i) {
+			 $.map(this.model.columns, function (val, i) {
                 colHeaderText.push(val.headerText)
             });
 			var duparr = this._isDuplicate(colHeaderText);

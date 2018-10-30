@@ -3,7 +3,7 @@
     ej.gridFeatures.sort = {
         _addSortElementToColumn: function (field, direction) {
             var duplicateColumn = ej.DataManager(this.model.columns).executeLocal(ej.Query().where("field", "equal", field)), imageDirection;
-            if (duplicateColumn.length > 1)
+            if (duplicateColumn.length > 1 && !ej.isNullOrUndefined(this._$curSElementTarget))
                 var column = this.getColumnByHeaderText(this._$curSElementTarget.text());
             else
                 var column = this.getColumnByField(field);
@@ -120,7 +120,7 @@
                 }
             }
             this.multiSortRequest = false;
-            if ((!this.model.allowScrolling && !this.model.allowResizeToFit) || !this.initialRender || this.model.scrollSettings.frozenRows > 0 || this.model.scrollSettings.frozenColumns > 0)
+            if (((!this.model.allowScrolling || !this.initialRender || this.model.scrollSettings.frozenRows > 0 || this.model.scrollSettings.frozenColumns > 0) && !this.model.allowResizeToFit))
                 this.setWidthToColumns();
         },
         

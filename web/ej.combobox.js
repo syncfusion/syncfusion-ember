@@ -93,7 +93,6 @@ var __extends = (this && this.__extends) || function (d, b) {
                 valueTemplate: 'string',
                 readonly: 'boolean',
                 text: 'string',
-                value: 'data',
                 index: 'number',
                 headerTemplate: 'string',
                 footerTemplate: 'string',
@@ -1368,9 +1367,9 @@ var __extends = (this && this.__extends) || function (d, b) {
             var dataItem = {};
             dataItem = this.itemData;
             var value = (!ej.isNullOrUndefined(dataItem) &&
-                (dataItem[valueField] === null || dataItem[valueField]) ? dataItem[valueField] : dataItem);
+                (!ej.isNullOrUndefined(dataItem[valueField])) ? dataItem[valueField] : dataItem);
             var text = (!ej.isNullOrUndefined(dataItem) &&
-                (dataItem[textField] === null || dataItem[textField]) ? dataItem[textField] : dataItem);
+                (!ej.isNullOrUndefined(dataItem[textField])) ? dataItem[textField] : dataItem);
             return { value: value, text: text };
         };
         ejComboBox.prototype.isValidLI = function (li) {

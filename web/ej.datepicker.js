@@ -521,6 +521,14 @@
                 }
             }
         },
+
+        setValue: function (date){
+            if(typeof(date) === "string") date = new Date(date);
+            var prevValue = this.model.value;
+            this._setDateValue(date);
+            this._checkErrorClass();
+            if(prevValue != this.model.value)this._triggerChangeEvent();
+        },
         _checkAttribute: function () {
             var attr = ["min", "max", "readonly", "disabled"], propName = ["minDate", "maxDate", "readOnly", "enabled"], value, propValue;
             for (var i = 0; i < attr.length; i++) {
@@ -617,7 +625,11 @@
                 if (keyName == "class") proxy.wrapper.addClass(value);
                 else if (keyName == "disabled") proxy.disable();
                 else if (keyName == "readOnly") proxy.model.readOnly = true;
-                else if (keyName == "style" || keyName == "id") proxy.wrapper.attr(key, value);
+                else if (keyName == "style") proxy.wrapper.attr(key, value);
+                else if (keyName == "id") {
+                    proxy.wrapper.attr(key, value + "_wrapper");
+                    proxy.element.attr(key, value);
+                }
                 else if (ej.isValidAttr(proxy.element[0], key)) proxy.element.attr(key, value);
                 else proxy.wrapper.attr(key, value);
 

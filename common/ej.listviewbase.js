@@ -191,11 +191,12 @@
                 else if (!ej.isNullOrUndefined(this._dataUrl) && !(this._dataUrl instanceof ej.DataManager) && !ej.isNullOrUndefined(this._totalitemscount)) {
                     this._dataUrl = ej.DataManager(this._dataUrl);
                     this._rawList = ej.DataManager(this._dataUrl.dataSource.json).executeLocal(ej.Query().take(this.model.totalItemsCount).clone());
-                    this.model.dataSource = this._dataUrl;
-                    this._queryPromise(0, this, this.model.totalItemsCount, null);
+                    this.model.dataSource = this._rawList;
+					this._renderControl();
                 }
-            }
-            this._renderControl();
+				else
+					this._renderControl();
+            }           
         },
        
         _loadVirtualData: function (args) {
@@ -850,8 +851,9 @@
             if (!ej.getBooleanVal(this._currentItem, 'data-preventSelection', this.model.preventSelection))
                 this._addSelection();
 			 if (this.model.renderMode == "windows" &&!this.model.windows.preventSkew)
-                 this._currentItem.addClass(this._prefixClass + "m-skew-center");
-            this._triggerStartEvent(this._returnData());
+			     this._currentItem.addClass(this._prefixClass + "m-skew-center");
+			if (!ej.isNullOrUndefined(evt)) this._eventtrigger = $(evt.target);
+            if(this.model.mouseDown) this._triggerStartEvent(this._returnData());
 			ej.listenEvents([this._liEl, this._liEl],
                            [ej.endEvent(), ej.moveEvent(), ej.cancelEvent()],
                            [this._touchEndDelegate, this._touchMoveDelegate, this._touchMoveDelegate], false, this);
@@ -928,6 +930,7 @@
                         var close = this._nearestND.model.contentId ? (!this._currentItem.attr("data-childid") || this._currentItem.attr("data-href")) : !(this._currentItem.attr("data-childid") || this._currentItem.attr("data-href"));
                     if (this._isInsideNavigation && close)
                         this._closeNavigation();
+                    if (!ej.isNullOrUndefined(evt)) this._eventtrigger = $(evt.target);
                     this._touchEndEventHandler(evt);
                 }
                 else
@@ -1292,7 +1295,8 @@
         },
 
         unCheckAllItem: function (childId) {
-            this.model.checkedIndices=[];
+            this.model.checkedIndices = [];
+            this._checkedValues = [];
             var proxy = this;
             this._getElement(childId).find('.' + this._prefixClass + 'lv-check').each(function (index, check) {
                 if (proxy._isEnable($(proxy._getElement(childId).find('li.' + proxy._prefixClass + 'list')[index])))

@@ -179,12 +179,12 @@
         _createFontStyleList: function () {
             var xlObj = this.XLObj, fontTabId = xlObj._id + "_fdlg_fonttab", $drpdiv = ej.buildTag("div.e-ss-drpfontdiv"),
                 $familyDiv = ej.buildTag("div .e-ss-stylediv"), $styleDiv = ej.buildTag("div .e-ss-stylediv"), $sizeDiv = ej.buildTag("div .e-ss-stylediv"), $effectsDiv = ej.buildTag("div .e-ss-stylediv"),
-            $listFamily = ej.buildTag("input#" + fontTabId + "_family"), $previewLabel = ej.buildTag("label", xlObj._getLocStr("Preview"), "", { id: fontTabId + "_previewlabel" });
+            $listFamily = ej.buildTag("input#" + fontTabId + "_family"), $previewLabel = ej.buildTag("label", xlObj._getLocStr("Preview"), "", { id: fontTabId + "_previewlabel" }),
             $inputelem = ej.buildTag("input#" + fontTabId + "_sinput2.ejinputtext", "", { height: "75px","text-align":"center" }, { disabled: "disabled", value: "AaBbCcYyZz" }),
             $listStyle = ej.buildTag("input#" + fontTabId + "_style"), $NormalFont = ej.buildTag("div#" + fontTabId + "_normalfont2", "", { "padding-left": "10px" }), $bottomRight = ej.buildTag("div .e-ss-colordiv", "", { "padding-right": "0px"}),
-            $listSize = ej.buildTag("input#" + fontTabId + "_size"), $bottom = ej.buildTag("div .e-ss-stylediv"), $bottom2 = ej.buildTag("div .e-ss-fontcntdiv"), $bottomleft = ej.buildTag("div .e-ss-colordiv"), $bottomMid = ej.buildTag("div .e-ss-colordiv"), $colorLabel = ej.buildTag("label", xlObj._getLocStr("Color"), "", { id: fontTabId + "_colorlabel" });
-            $fillLabel = ej.buildTag("label", xlObj._getLocStr("BackgroundColor"), "", { id: fontTabId + "_filllabel" }), $colorBox = ej.buildTag("input#" + fontTabId + "_color");
-            $fillColorBox = ej.buildTag("input#" + fontTabId + "_fillcolor");
+            $listSize = ej.buildTag("input#" + fontTabId + "_size"), $bottom = ej.buildTag("div .e-ss-stylediv"), $bottom2 = ej.buildTag("div .e-ss-fontcntdiv"), $bottomleft = ej.buildTag("div .e-ss-colordiv"), $bottomMid = ej.buildTag("div .e-ss-colordiv"), $colorLabel = ej.buildTag("label", xlObj._getLocStr("Color"), "", { id: fontTabId + "_colorlabel" }),
+            $fillLabel = ej.buildTag("label", xlObj._getLocStr("BackgroundColor"), "", { id: fontTabId + "_filllabel" }), $colorBox = ej.buildTag("input#" + fontTabId + "_color"),
+            $fillColorBox = ej.buildTag("input#" + fontTabId + "_fillcolor"),
             $listEffects = ej.buildTag("input#" + fontTabId + "_effects");
             $familyDiv.append($listFamily);
             $styleDiv.append($listStyle);
@@ -224,9 +224,9 @@
         _renderFontTab: function () {
             var xlObj = this.XLObj, fontTabId = xlObj._id + "_fdlg_fonttab", $maindiv = ej.buildTag("div.e-ss-fontmaindiv"),
             $top = ej.buildTag("div .e-ss-fontcntdiv"), $leftTop = ej.buildTag("div .e-ss-fontstylediv"), $rightTop = ej.buildTag("div .e-ss-fontstylediv"),
-            $middleTop = ej.buildTag("div .e-ss-fontstylediv");
-            $familyLabel = ej.buildTag("label", xlObj._getLocStr("FontFamily"), "", { id: fontTabId + "_familylabel" });
-            $styleLabel = ej.buildTag("label", xlObj._getLocStr("FontStyle"), "", { id: fontTabId + "_stylelabel" });
+            $middleTop = ej.buildTag("div .e-ss-fontstylediv"),
+            $familyLabel = ej.buildTag("label", xlObj._getLocStr("FontFamily"), "", { id: fontTabId + "_familylabel" }),
+            $styleLabel = ej.buildTag("label", xlObj._getLocStr("FontStyle"), "", { id: fontTabId + "_stylelabel" }),
             $sizeLabel = ej.buildTag("label", xlObj._getLocStr("FontSize"), "", { id: fontTabId + "_sizelabel" });
             $leftTop.append($familyLabel);
             $middleTop.append($styleLabel);
@@ -234,12 +234,12 @@
             $top.append($leftTop, $middleTop, $rightTop);
             // middle contents
             var $center = ej.buildTag("div .e-ss-fontcntdiv", "", { width: "103%" }), $centerLeft = ej.buildTag("div .e-ss-fontstylediv"), $centerRight = ej.buildTag("div .e-ss-fontstylediv", "", { "margin-right": "0px" }),
-            $centerMid = ej.buildTag("div .e-ss-fontstylediv");
-            $listFamilyUl = ej.buildTag("ul#" + fontTabId + "_familylist");
-            $listStyleUl = ej.buildTag("ul#" + fontTabId + "_stylelist");
-            $listSizeUl = ej.buildTag("ul#" + fontTabId + "_sizelist");
-            $listFamilyBox = ej.buildTag("input#" + fontTabId + "_familytext .ejinputtext", "", { width: "150px" }, { value: "Calibri" });
-            $listStyleBox = ej.buildTag("input#" + fontTabId + "_styletext .ejinputtext", "", { width: "150px" }, { value: "Normal" });
+            $centerMid = ej.buildTag("div .e-ss-fontstylediv"),
+            $listFamilyUl = ej.buildTag("ul#" + fontTabId + "_familylist"),
+            $listStyleUl = ej.buildTag("ul#" + fontTabId + "_stylelist"),
+            $listSizeUl = ej.buildTag("ul#" + fontTabId + "_sizelist"),
+            $listFamilyBox = ej.buildTag("input#" + fontTabId + "_familytext .ejinputtext", "", { width: "150px" }, { value: "Calibri" }),
+            $listStyleBox = ej.buildTag("input#" + fontTabId + "_styletext .ejinputtext", "", { width: "150px" }, { value: "Normal" }),
             $listSizeBox = ej.buildTag("input#" + fontTabId + "_sizetext .ejinputtext", "", { width: "150px" }, { value: 11 });
             $centerLeft.append($listFamilyBox,$listFamilyUl);
             $centerMid.append($listStyleBox,$listStyleUl);
@@ -262,14 +262,14 @@
             $center.append($centerLeft, $centerMid, $centerRight);
             /// color effects
             var $bottom1 = ej.buildTag("div .e-ss-fontcntdiv"), $bottomLeft = ej.buildTag("div .e-ss-fontstylediv"), $bottomRight = ej.buildTag("div .e-ss-fontnrmldiv"),
-            $bottomMid = ej.buildTag("div .e-ss-fontcdiv");
-            $bottomMid1 = ej.buildTag("div .e-ss-fontcdiv");
-            $effectsLabel = ej.buildTag("label", xlObj._getLocStr("Effects"), "", { id: fontTabId + "_effectslabel" });
-            $colorLabel = ej.buildTag("label", xlObj._getLocStr("Color"), "", { id: fontTabId + "_colorlabel" });
-            $fillLabel = ej.buildTag("label", xlObj._getLocStr("BackgroundColor"), "", { id: fontTabId + "_filllabel" });
-            $listEffectsBox = ej.buildTag("input#" + fontTabId + "_effectstext .ejinputtext");
-            $colorBox = ej.buildTag("input#" + fontTabId + "_colortext .ejinputtext", "");
-            $fillColorBox = ej.buildTag("input#" + fontTabId + "_fillcolortext .ejinputtext", "");
+            $bottomMid = ej.buildTag("div .e-ss-fontcdiv"),
+            $bottomMid1 = ej.buildTag("div .e-ss-fontcdiv"),
+            $effectsLabel = ej.buildTag("label", xlObj._getLocStr("Effects"), "", { id: fontTabId + "_effectslabel" }),
+            $colorLabel = ej.buildTag("label", xlObj._getLocStr("Color"), "", { id: fontTabId + "_colorlabel" }),
+            $fillLabel = ej.buildTag("label", xlObj._getLocStr("BackgroundColor"), "", { id: fontTabId + "_filllabel" }),
+            $listEffectsBox = ej.buildTag("input#" + fontTabId + "_effectstext .ejinputtext"),
+            $colorBox = ej.buildTag("input#" + fontTabId + "_colortext .ejinputtext", ""),
+            $fillColorBox = ej.buildTag("input#" + fontTabId + "_fillcolortext .ejinputtext", ""),
             $NormalFont = ej.buildTag("label#" + fontTabId + "_normalfont", "", { "padding-left": "10px" });
             $bottomLeft.append($effectsLabel, $listEffectsBox);
             $bottomMid.append($colorLabel, $colorBox);
@@ -285,7 +285,7 @@
             $NormalFont.ejCheckBox({ size: "small" , change: $.proxy(this._changeNormalFont, this)});
             $colorBox.ejColorPicker({ value: "#333333", modelType: "palette", showSwitcher: false, cssClass: "e-ss-colorpicker", open: $.proxy(this._ChangeCPHandler, this, "fdlg_fonttab_colortext"), change: $.proxy(this._ChangeCPHandler, this, "fdlg_fonttab_colortext")});
             $fillColorBox.ejColorPicker({ value: "#FFFFFF", modelType: "palette", showSwitcher: false, cssClass: "e-ss-colorpicker", open: $.proxy(this._ChangeCPHandler, this, "fdlg_fonttab_fillcolortext"), change: $.proxy(this._ChangeCPHandler, this, "fdlg_fonttab_fillcolortext")});
-            var $bottom2 = ej.buildTag("div .e-ss-fontcntdiv", "", {width:"20px"}), $previewLabel = ej.buildTag("label", xlObj._getLocStr("Preview"), "", { id: fontTabId + "_previewlabel" });
+            var $bottom2 = ej.buildTag("div .e-ss-fontcntdiv", "", {width:"20px"}), $previewLabel = ej.buildTag("label", xlObj._getLocStr("Preview"), "", { id: fontTabId + "_previewlabel" }),
             $inputelem = ej.buildTag("input#" + fontTabId + "_sinput.ejinputtext", "", { height: "80px",width:"480px", "padding-top": "10px","text-align":"center" }, { disabled: "disabled", value: "AaBbCcYyZz" });
                 $bottom2.append($previewLabel,$inputelem);
                 $("#" + xlObj._id + "_formatdlg_font").append($maindiv.append($top, $center, $bottom1, $bottom2));
@@ -478,14 +478,14 @@
             var xlObj = this.XLObj;
             $("#" + xlObj._id + "_formatdlg").ejDialog("close");
             xlObj.model.showRibbon && xlObj.XLRibbon._updateRibbonIcons();
-            xlObj.setSheetFocus();
+            xlObj._setSheetFocus();
         },
 
         _dlgCFOk: function (args) {
             var xlObj = this.XLObj
             if (xlObj.XLFormat._styleDlgClick) {
                 $("#" + xlObj._id + "_formatdlg").ejDialog("close");
-                xlObj.setSheetFocus();
+                xlObj._setSheetFocus();
                 return;
             }
             var dataMngr = $("#" + xlObj._id + "_formatdlg_format_dataMnger").data();
@@ -501,7 +501,7 @@
             }
             xlObj.model.showRibbon && xlObj.XLRibbon._updateRibbonIcons();
             $("#" + xlObj._id + "_formatdlg").ejDialog("close");
-            xlObj.setSheetFocus();
+            xlObj._setSheetFocus();
         },
 
         _customFormatDelete: function (args) {

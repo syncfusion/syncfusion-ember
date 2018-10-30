@@ -455,18 +455,38 @@
 
         _unMask: function () {
             var tempModel = "";
+			var indexValue = 0;
             var valueIndex = -1, maskIndex = 0, i = 0, chr, prompt = "_", rule;
-            var replacestring = this.model.value.toString();
-            var tempValue = replacestring.replace(/[\(\)-]/g, "");
+            var newValue = this.model.value.toString();
+            var tempValue = "";
+            var rules = this._rules.slice();
+            for (var k = 0; k < this._rules.length; k++) {
+                for (var j = 0;j < newValue.length; j++) {
+                    if (rules[k].rule && newValue[j].match(rules[k].rule) || rules[k].rule === undefined) {
+                        tempValue += rules[k].rule ? newValue.charAt(j) : rules[k];
+                        newValue = rules[k].rule ? newValue.slice(j + 1, newValue.length) : ((rules[k] === newValue[j]) ? newValue.slice(j + 1, newValue.length) : newValue);
+						indexValue = 1;
+                        break;
+                    }
+                }
+                if (indexValue === 0 && newValue.length > 0) {
+                    tempValue += (rules[k].rule === undefined) ? rules[k] : "";
+                }
+				indexValue = 0;
+            }
             while (maskIndex < this._rules.length) {
                 chr = tempValue[i];
                 rule = this._rules[maskIndex];
                 if (chr == undefined) break;
                 if (chr === rule || chr === prompt) {
-                    tempModel += chr === prompt ? prompt : "";
+                    tempModel += chr === prompt ? prompt : chr;
                     i += 1;
                     maskIndex += 1;
                 }
+				else if (rule.rule === undefined) {
+					tempModel += rule;
+					maskIndex += 1;
+				}
                 else if (this._rules[maskIndex].rule != undefined && chr.match(this._rules[maskIndex].rule)) {
                     var charCode = tempValue.charCodeAt(i);
 					var temp = maskIndex;
@@ -509,7 +529,7 @@
             else {
                 var replacestring = this.model.value.toString();
                 if (!((this.model.maskFormat.indexOf("\\") >= 0)) && this.model.customCharacter == null)
-                    tempValue = this.model.value = replacestring.replace(/[\(\)-]/g, "");
+                    tempValue = this.model.value = replacestring;
                 else
                     tempValue = this.model.value;
             }
@@ -558,11 +578,11 @@
                         maskIndex++;
                     }
                 } else maskIndex++;
-                if (i > tempValue.length) break;
             }
             if (this.model.value) {
                 this._textbox.value = tempModel;
                 this.model.value = this.get_UnstrippedValue();
+				if (this.model.value === null) this.model.value = tempModel;
                 if (!(this.model.maskFormat.indexOf("\\") >= 0)) {
                     if (!this.model.hidePromptOnLeave) this._textbox.value = tempModel;
                     else { this._unStrippedMask = tempModel.replace(/[ ]/g, '_'); this._textbox.value = tempModel; }
@@ -938,6 +958,7 @@
             if (!ej.isNullOrUndefined(this.model.maskFormat) && this.model.maskFormat != "") {
                 this._validateValue();
                 if (ej.isNullOrUndefined(this.model.value)) { 
+				    this._textbox.value = ej.isNullOrUndefined(value) ? "" : value; 
                     this._unStrippedMask = this._maskModel; 
                 }
             }
@@ -1381,6 +1402,8 @@
             var val = ej.browserInfo().name;
             var iOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream && !this._keyFlag;
             var isIE = (this._keyupFlag && (val == "edge" || val == "msie"));
+			if (this._maskLength == 0)
+                return true;
             if ((ej.isDevice() && ej.isTouchDevice()) && (iOS || isIE)) {
                 var diffLen = this._textbox.value.length - this._prevValue.length;
                 var pos = (diffLen == 1) ? this._seekNext(true) : this._seekNext(true, diffLen - 1), keyCode;

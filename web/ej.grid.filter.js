@@ -49,8 +49,7 @@
                     predicate = $.makeArray(predicate);
                 var firstLoop = false;
                 var filterCol = this._filterCollection;
-                if (ej.util.isNullOrUndefined(this._currentFilterColumn))
-                    this._currentFilterColumn = this.getColumnByField(fieldName);
+                this._currentFilterColumn =(!ej.isNullOrUndefined(column) && !ej.isNullOrUndefined(column.foreignKeyValue) && (this._$curFilterValue != column.foreignKeyValue) && ej.isNullOrUndefined(column.filterBarTemplate))? this._currentFilterColumn :this.getColumnByField(fieldName);
                 for (var index = 0; index < filterOperator.length; index++) {
                     var filterObject = {
                         field: fieldName,
@@ -101,12 +100,22 @@
                     this.model.filterSettings.filteredColumns.reverse();
                 }
                 if (this.model.filterSettings.filterType == "filterbar") {
-                    var filterBarCell = this.getHeaderTable().find("#" + fieldName.replace(/[^a-z0-9|s\_.]/gi, '') + "_filterBarcell");
-                    if (filterBarCell.val() == "" || (filterBarCell.val() != filterValue) && !this._fltrBarcell) {
+					var filterbaroperator = null, operSymbols = ej.data.operatorSymbols;
+					for(var oper in operSymbols){
+						if(operSymbols[oper] == filterOperator[0]){
+							filterbaroperator=oper; 
+							break;
+						}
+					}
+				    var col = this._currentFilterColumn;
+			        var fltrId = !ej.isNullOrUndefined(col) && ej.isNullOrUndefined(col["foreignKeyValue"]) ? fieldName : fieldName  + "_" + col["foreignKeyValue"] ;
+					var filterBarCell = this.getHeaderTable().find("#" + fltrId.replace(/[^a-z0-9|s\_]/gi, '') + "_filterBarcell"), reg = /[<=|>=|<|>]+/;
+                    var checkOper = !ej.isNullOrUndefined(operSymbols[filterBarCell.val().match(reg)]) && operSymbols[filterBarCell.val().match(reg)][0] == filterbaroperator;
+                    if (filterBarCell.val() == "" || ((filterBarCell.val() != filterValue) || !checkOper) && !this._fltrBarcell) {
                         if (filterValue[0] instanceof Date)
-                            filterBarCell.val(ej.format(filterValue[0], _format, this.model.locale));
+                            this._setFilterbarValues(filterBarCell,ej.format(filterValue[0], _format, this.model.locale),filterOperator[0]);
                         else
-                            filterBarCell.val(filterValue[0]);
+                            this._setFilterbarValues(filterBarCell,filterValue[0],filterOperator[0]);
                         this._currentFilterbarValue = filterValue;
                         this.filterStatusMsg = "";
                         this._showFilterMsg();
@@ -152,7 +161,7 @@
                         break;
                     }
                     else
-                        if (this.model.columns[k].field.replace(/[^a-z0-9|s\_.]/gi, '') == fieldName) {
+                        if (this.model.columns[k].field.replace(/[^a-z0-9|s\_]/gi, '') == fieldName) {
                             column = this.model.columns[k];
                             break;
                         }
@@ -161,6 +170,7 @@
                     return;
                 this._currentFilterColumn = column;
                 this._$curFieldName = column.field;
+				this._$curFilterValue = column.foreignKeyValue; 
                 if (this._currentFilterColumn != this._oldFilterColumn)
                     this.filterValueOldLength = 0;
                 this._currentFilterbarValue = $target.val().toLowerCase() == this.localizedLabels.True.toLowerCase() ? "true" : $target.val().toLowerCase() == this.localizedLabels.False.toLowerCase() ? "false" : $target.val();
@@ -330,7 +340,9 @@
             for (var column = 0; column < this.model.columns.length; column++) {
                 var $th = ej.buildTag('th.e-filterbarcell'), $div = ej.buildTag('div.e-filterdiv'), $span = ej.buildTag('span.e-cancel e-icon e-hide');
                 var fltrField = ej.isNullOrUndefined(this.model.columns[column]["field"]) ? this.model.columns[column]["field"] : this.model.columns[column].field.replace(/[^a-z0-9|s_]/gi, ''), fltrId = ej.isNullOrUndefined(this.model.columns[column]["foreignKeyValue"]) ? fltrField + "_filterBarcell" : fltrField + "_" + this.model.columns[column]["foreignKeyValue"] + "_filterBarcell";
-                if (this.model.columns[column]["allowFiltering"] != false && !ej.isNullOrUndefined(this.model.columns[column].filterBarTemplate) && !ej.isNullOrUndefined(this.model.columns[column]["field"])) {
+                if(!ej.isNullOrUndefined(this.model.columns[column]["priority"]))
+					$($th).addClass("e-table-priority-" + this.model.columns[column]["priority"]);
+				if (this.model.columns[column]["allowFiltering"] != false && !ej.isNullOrUndefined(this.model.columns[column].filterBarTemplate) && !ej.isNullOrUndefined(this.model.columns[column]["field"])) {
                     $th.addClass('e-fltrtemp');
                     $div.addClass('e-fltrtempdiv');
                     if (ej.isNullOrUndefined(this.model.columns[column].filterBarTemplate.create)) {
@@ -348,19 +360,12 @@
                 else {
                     $div.addClass('e-fltrinputdiv');
                     var fltrField = this.model.columns[column]["field"], fltrId = ej.isNullOrUndefined(this.model.columns[column]["foreignKeyValue"]) ? fltrField + "_filterBarcell" : fltrField + "_" + this.model.columns[column]["foreignKeyValue"] + "_filterBarcell";
-                    $input = ej.buildTag('input.e-ejinputtext e-filtertext', "", {}, { title: this.model.columns[column]["headerText"] + this.localizedLabels.FilterbarTitle, type: "search", id: fltrId.replace(/[^a-z0-9|s\_.]/gi, '') });
+                    $input = ej.buildTag('input.e-ejinputtext e-filtertext', "", {}, { title: this.model.columns[column]["headerText"] + this.localizedLabels.FilterbarTitle, type: "search", id: fltrId.replace(/[^a-z0-9|s\_]/gi, '') });
                 }
                 if (this.model.filterSettings.filteredColumns.length > 0 && this.model.filterSettings.filterType == "filterbar" && $.inArray(this.model.columns[column].field, filteredFields) == -1) {
                     for (var fColumn = 0; fColumn < this.model.filterSettings.filteredColumns.length; fColumn++) {
                         if (this.getColumnIndexByField(this.model.filterSettings.filteredColumns[fColumn].field) == column) {
-                            if (this.model.filterSettings.filteredColumns[fColumn].operator == "greaterthan")
-                                $input.val(">" + this.model.filterSettings.filteredColumns[fColumn].value);
-                            else if (this.model.filterSettings.filteredColumns[fColumn].operator == "lessthan")
-                                $input.val("<" + this.model.filterSettings.filteredColumns[fColumn].value);
-                            else if (this.model.filterSettings.filteredColumns[fColumn].operator == "notequal")
-                                $input.val("!=" + this.model.filterSettings.filteredColumns[fColumn].value);
-                            else
-                                $input.val(this.model.filterSettings.filteredColumns[fColumn].value);
+                            this._setFilterbarValues($input,this.model.filterSettings.filteredColumns[fColumn].value,this.model.filterSettings.filteredColumns[fColumn].operator);
                             if ($.inArray(this.model.filterSettings.filteredColumns[fColumn].field, filteredFields) == -1) filteredFields.push(this.model.filterSettings.filteredColumns[fColumn].field);
                         }
                     }
@@ -556,6 +561,8 @@
                         if (i != 0)
                             this._currentFilterbarValue = _value.substring(0, i);
                     }
+					else if(!ej.isNullOrUndefined(this._currentFilterColumn.filterOperator))
+						this._operator = this._currentFilterColumn.filterOperator;	
                     if (this._currentFilterbarValue != "" && _value.length >= 1)
                         this._currentFilterbarValue = ej.parseFloat(this._currentFilterbarValue, this.model.locale);
                     else
@@ -595,6 +602,8 @@
                         this._currentFilterbarValue = this._currentFilterbarValue.slice(1);
                         this._operator = ej.FilterOperators.endsWith;
                     }
+					else if(!ej.isNullOrUndefined(this._currentFilterColumn.filterOperator))
+						this._operator = this._currentFilterColumn.filterOperator;	
                     else
                         this._operator = ej.FilterOperators.startsWith;
                     break;
@@ -649,8 +658,22 @@
             }
             return isSkip;
         },
+		_setFilterbarValues: function(elem,val,operator){
+			if (operator == "greaterthan")
+				elem.val(">" + val);
+			else if (operator == "greaterthanorequal")
+				elem.val(">=" + val);
+			else if (operator == "lessthan")
+				elem.val("<" + val);
+			else if (operator == "lessthanorequal")
+				elem.val("<=" + val);
+			else if (operator == "notequal")
+				elem.val("!=" + val);
+			else
+				elem.val(val);
+		},
         _showFilterMsg: function () {
-            var index = $.inArray(this._currentFilterColumn, this.filterColumnCollection);
+            var index = !ej.isNullOrUndefined(this._currentFilterColumn) && $.inArray(this._currentFilterColumn, this.filterColumnCollection);
             if (this._currentFilterbarValue !== "" && index == -1)
                 this.filterColumnCollection.push(this._currentFilterColumn);
             if (this._currentFilterbarValue === "" && index != -1) {
@@ -663,13 +686,13 @@
                         if (this.filterColumnCollection[index].disableHtmlEncode)
                             hTxt = this._htmlEscape(hTxt);
                         if (this.filterColumnCollection[index].field.indexOf('.') != -1) {
-                            var spltClmn = (this.filterColumnCollection[index].field.replace(/[^a-z0-9|s\_.]/gi, '')).split(".");
-                            filterColumnName = spltClmn.join("\\.");
+                              filterColumnName = (this.filterColumnCollection[index].field.replace(/[^a-z0-9|s\_]/gi, ''));
                             val = $("#" + filterColumnName + "_filterBarcell").val();
                         }
                         else {
                             var fltrId = ej.isNullOrUndefined(this.filterColumnCollection[index]["foreignKeyValue"]) ? this.filterColumnCollection[index].field.replace(/[^a-z0-9|s\_.]/gi, '') + "_filterBarcell" : this.filterColumnCollection[index].field.replace(/[^a-z0-9|s\_.]/gi, '') + "_" + this.filterColumnCollection[index]["foreignKeyValue"] + "_filterBarcell";
-                            if (this._currentFilterColumn.type == "boolean" && !ej.isNullOrUndefined(this._currentFilterColumn.filterBarTemplate) && this.element.find("#" + fltrId).hasClass('e-checkbox e-js'))
+                            var column = this._currentFilterColumn || this.getColumnByField(this.filterColumnCollection[index].field);
+							if (column.type == "boolean" && !ej.isNullOrUndefined(column.filterBarTemplate) && this.element.find("#" + fltrId).hasClass('e-checkbox e-js'))
                                 val = this.element.find("#" + fltrId).parent().attr('aria-checked');
                             else
                                 val = this.element.find("#" + fltrId).val();
@@ -891,8 +914,10 @@
                 var DateDlgstyle = { "cssClass": this.model.cssClass, "enableRTL": this.model.enableRTL, enableStrictMode: true, width: "100%", locale: this.model.locale }
                 if (type == "date")
                     DateDlgstyle["watermarkText"] = this.localizedLabels.DatePickerWaterMark;
-                if (!ej.isNullOrUndefined(col.format))
-                    DateDlgstyle["dateFormat"] = col.format.replace(/{0:|}/g, function () { return "" })
+                if (!ej.isNullOrUndefined(col.format)){
+                    var fmt = type == "date" ? "dateFormat" : "dateTimeFormat";
+                    DateDlgstyle[fmt] = col.format.replace(/{0:|}/g, function () { return "" })
+                }                    
                 $tBox["ej" + cnt + "Picker"](DateDlgstyle);
                 $tBox1["ej" + cnt + "Picker"](DateDlgstyle);
             }
@@ -1106,7 +1131,13 @@
                     }
                 }
             }
-            this.filterColumn(this._$curFieldName, $operator, value, $par.find(".e-predicate input[type='radio']:checked").attr("value"), matchcase, actualOperator);
+			var predicate = [],pred = $par.find(".e-predicate input[type='radio']:checked").attr("value");
+			if(!ej.isNullOrUndefined(actualOperator) && actualOperator.operator == "between")
+				predicate.push(pred,"and");
+			else
+				predicate.push(pred);
+			if (!(this._$colForeignKeyValue && this._$colDropdownData))
+            this.filterColumn(this._$curFieldName, $operator, value, predicate, matchcase, actualOperator);
             if (this.model.isResponsive) {
                 $par.css('display', 'none');
                 this._setResponsiveFilterIcon();

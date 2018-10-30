@@ -109,6 +109,7 @@
                         break;
                     case "width":
                         this._setDimension("width", val);
+                        this._setWidth();
                         break;
                     case "enabled":
                         this._setControlStatus(val);
@@ -135,6 +136,8 @@
                         this._setOrientation(val);
                         this._setDimension("width", this.model.width);
                         this._setDimension("height", this.model.height);
+                        if (this.model.width && this.model.width != "")
+                            this._setWidth();
                         break;
                     case "selectedItemIndex":
                         var temp = JSON.parse(JSON.stringify(this.model.selectedItemIndex));
@@ -148,7 +151,68 @@
                 }
             }
         },
-        
+
+        _setWidth: function () {
+            $(this.element.find('div.e-btn-content')).children(".e-btntxt").removeClass("e-grp-responsive");
+            this.element.find('div.e-btn-content').children('.e-btntxt').removeAttr('style title');
+            if (this.model.orientation != "vertical") {
+                this.element.find('div.e-btn-content').css({
+                    'width': (this.element.width() / this.items.length - 15) - (((2 * parseInt(this.element.css("border-width"))) == "" || (isNaN(parseInt(this.element.css("border-width"))))) ? 0 : this.element.css("border-width") + this.items.length),
+                    //here we use 15(constant) to set the padding because in this style we use white-space nowrap
+                });
+            }
+            else if (this.model.orientation == "vertical") {
+                this.element.find('div.e-btn-content').css({
+                    'width': this.element.width() - 20,
+                    //here we use 15(constant) to set the padding because in this style we use white-space nowrap
+                });
+            }
+            if (this.element.find('div.e-btn-content').width() < 25 || this.element.find('div.e-btn-content').height() < 25) {
+                this._minWidth = "25px", this._minHeight = "25px";
+
+                if (this.model.orientation == "vertical" && this.element.find('div.e-btn-content').height() < 25)
+                    this.element.css("min-height", parseInt(this._minHeight) * this.items.length);
+                if (this.model.orientation == "horizontal" && this.element.find('div.e-btn-content').height() < 25)
+                    this.element.css("min-height", this._minHeight);
+
+                if (this.model.orientation != "vertical" && this.element.find('div.e-btn-content').width() < 25) {
+                    this.element.css("min-width", this.items.length * parseInt(this._minWidth));
+                    this._minHLI = parseInt(this._minWidth) - (2 * parseInt(this.element.css("border-width")) + this.items.length);
+                    this.element.find('div.e-btn-content').css({ 'min-width': this._minHLI, 'padding': '0px' });
+                }
+                else if (this.model.orientation == "vertical" && this.element.find('div.e-btn-content').width() < 25) {
+                    this.element.css("min-width", parseInt(this._minWidth));
+                    this._minVLI = parseInt(this._minWidth) - (2 * parseInt(this.element.css("border-width")));
+                    this.element.find('div.e-btn-content').css({ 'min-width': this._minVLI, 'padding': '0px' });
+                }
+
+            }
+            else {
+                this._minWidth = undefined;
+                this._minHeight = undefined;
+            }
+            for (var i = 0, len = this.items.length; i < len; i++) {
+                var btnElement = $(this.items[i]).children('div.e-btn-content'); //variable that defines the current individual groupbutton element                
+                if (btnElement.children('.e-btntxt').width() > btnElement.width()) {
+                    !this._minWidth && btnElement.css('padding', "");
+                    $(btnElement.children(".e-btntxt").addClass("e-grp-responsive"));
+                    btnElement.attr("title", btnElement.text());
+                    $(btnElement.children('.e-btntxt')).css('line-height',(btnElement.children('.e-btntxt').height()+'px'));
+                } else {
+                    btnElement.children().removeAttr('style');
+                    btnElement.removeAttr('title');
+                }
+
+                this.element.find('div.e-btn-content').width() < 25 && $(this.items[i]).find(".e-btn-content").children().length > 1 && $(this.items[i]).find('.e-btntxt').hasClass('e-grp-responsive') ?
+                    $(btnElement).find(".e-btntxt").css("display", "none") : $(btnElement).find(".e-btntxt").css("display", "block");
+            }
+        },
+
+        resize: function () {
+            this._setWidth();
+            this._setDimension('height',this.model.height);
+        },
+
         _destroy: function () {
             this.element.html("");
             this._cloneElement.removeClass('e-groupbutton e-js e-widget e-box');
@@ -159,6 +223,8 @@
             this._cloneElement = $(this.element).clone(), this._isRender = false;
             this._initialize();
             this._isRender = true;
+            this._setWidth();
+            this.resize();
         },
 
         _initialize: function () {
@@ -391,14 +457,31 @@
             if(val == "auto") {
                 add = this.element[method]() - this.element[prop]();
                 for (var i = 0, len = this.items.length; i < len; i++)
-                   value += $(this.items[i])[method]();
-                this.element.css(prop, value + add);                
-            } else
+                    value += $(this.items[i])[method]();
+                this.element.css(prop, value + add);
+            } else {
+                add =  (2 * parseInt(this.element.find('.e-grp-btn-item').css("border-width")));
                 this.element.css(prop, val);
+                if(prop == 'height' && val !== ''){
+                for (var i = 0, len = this.items.length; i < len; i++) {
+                    $(this.items[i]).find('.e-btn-content').css(prop, (parseInt(val) - add+'px'));
+                    $(this.items[i]).find('.e-btn-content').css('padding', '0px');
+                    $(this.items[i]).find('.e-btn-content .e-btntxt').css('padding','0px');
+                    $(this.items[i]).find('.e-btn-content .e-btntxt').css('line-height',(parseInt(val) - add+'px'));
+                }
+                for (var i = 0, len = this.items.length; i < len; i++) {
+                    var btnElement = $(this.items[i]).children('div.e-btn-content'); //variable that defines the current individual groupbutton element                
+                    if (btnElement.children('.e-btntxt').height() > btnElement.height()) {
+                        $(btnElement.children(".e-btntxt").addClass("e-grp-responsive"));
+                        btnElement.attr("title", btnElement.text());                        
+                    }
+                }
+            }
+            }
 
             if (prop == "height" && !this._vertical) {
                 this.element.css("min-height", "").find("div.e-btn-content").removeClass("e-groupBtn-padding");
-                this.element.find('.e-grp-btn-item').css("height", "").find("div.e-btn-content").css("margin-top", "").find(".e-btntxt").css("line-height", "");
+                this.element.find('.e-grp-btn-item').css("height", "").find("div.e-btn-content").css("margin-top", "");
                 if (prop == "height" && parseInt(this.element.height()) < minHeight) {
                     this.element.addClass("e-groupbutton-hSmall").find("div.e-btn-content").addClass("e-groupBtn-padding");
                 }
@@ -409,14 +492,16 @@
             }
             else if (prop == "height") {
                 this.element.css("min-height", "").find("div.e-btn-content").removeClass("e-groupBtn-padding");
-                this.element.find('.e-grp-btn-item').css("height", "").find("div.e-btn-content").css("margin-top", "").find(".e-btntxt").css("line-height", "");
+                this.element.find('.e-grp-btn-item').css("height", "").find("div.e-btn-content").css("margin-top", "").find(".e-btntxt");
                 var tempHeight = this.element.height() / this.items.length; /* tempHeight- the individual height of the groupButton content for min-height */
                 if (tempHeight < minHeight) { 
                     this.element.css("min-height", (this.items.length * minHeight)).find("div.e-btn-content").addClass("e-groupBtn-padding");
                     this.element.find('.e-grp-btn-item').css({
-                        'height': Math.ceil(this.element.height() / this.items.length),
+                        'height': Math.ceil(this.element.height() / this.items.length)+'px',
                     });
-                    
+                    for (var i = 0, len = this.items.length; i < len; i++) {
+                    $(this.items[i]).find('.e-btn-content .e-btntxt').css('line-height',Math.ceil(this.element.height() / this.items.length)+'px');
+                    }
                 }
                 else {
                     var btnContentHeight = (this.element.height() / this.items.length); /* btnContentHeight- the individual height of the groupButton content without min-height */
@@ -441,7 +526,15 @@
         },
 
         _setOrientation: function (val) {
-            (val != ej.Orientation.Vertical) ? this.itemsContainer.removeClass("e-vertical").addClass("e-horizontal") && (this._vertical = false) : this.itemsContainer.removeClass("e-horizontal").addClass("e-vertical") && (this._vertical = true);
+            if (val != ej.Orientation.Vertical) {
+                this.itemsContainer.removeClass("e-vertical").addClass("e-horizontal");
+                this._vertical = false;
+                this.model.orientation = ej.Orientation.Horizontal;
+            } else {
+                this.itemsContainer.removeClass("e-horizontal").addClass("e-vertical");
+                this._vertical = true;
+                this.model.orientation = ej.Orientation.Vertical;
+            }
         },
 
         _setRoundedCorner: function (val) {

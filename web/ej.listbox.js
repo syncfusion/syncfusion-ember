@@ -657,7 +657,11 @@
             }
             else if (this.dataSource()){
 				if(this.model.sortOrder != "none" && !(this.mapCateg && this.mapCateg != ""))
-					 return this._newList;
+				{
+                    var sortQuery = ej.Query().sortBy(this.model.fields.text, this.model.sortOrder, true);
+                    sublist = ej.DataManager(this.dataSource()).executeLocal(sortQuery);              
+				    return sublist;
+				}
 			
 			     return this.dataSource();
 		}
@@ -890,6 +894,7 @@
                         this.model.checkedIndices.push(num + 1);
                 }
                 this.refresh(true);
+				this.listItemsElement=this.element.find("li:not('.e-ghead')");
             }
         },
         enableItemByIndex: function (index) {
@@ -1027,6 +1032,7 @@
                         break;
                     case "sortOrder":
                         this.model.sortOrder = options[option];
+						this.display = true;
                         if (this.dataSource() != null)
                             this._showFullList();
                         else
@@ -1568,7 +1574,10 @@
             });
             this.scrollerObj = this.listContainer.ejScroller("instance");
             this._setDimensions();
-            this.listContainer.css({ 'display': 'none', 'visibility': 'visible' });
+            if(ej.isNullOrUndefined(this.display)){ 
+			this.listContainer.css({ 'display': 'none', 'visibility': 'visible' }); }
+			else
+			this.display = null;	
             this._checkboxHideShow(this.model.showCheckbox)._checkitems()._showResult();
             //if (this.model.totalItemsCount)
             //    this._setTotalItemsCount();
@@ -1748,7 +1757,6 @@
                     this.checkedStatus = true;
                     var checkData = this._getItemObject($(this._listitems[i]), null);
                     checkData["isInteraction"] = true;
-                    if (!this._initValue) this._trigger('checkChange', checkData);
                     $(this._listitems[i]).removeClass('checkItem');
                 }
             }
@@ -1884,7 +1892,7 @@
                     $(".allowDrop").removeClass("allowDrop");
                     if (args.target != proxy.element[0] && (args.element.parent().length && $(args.element.parent()[0]).data().ejWidgets[0] == "ejListBox")) {
                         proxy = $("#" + args.element.parent()[0].id).data($(args.element.parent()[0]).data().ejWidgets[0]);
-                        if (dragEle.length > 1 ? proxy._onDropped(dragEle, target) : proxy._onDropped([proxy._getItemObject(args.element), args], args.target)) return false;
+                        if (dragEle.length > 1 ? proxy._onDropped(dragEle, target, args) : proxy._onDropped(proxy._getItemObject(args.element), args.target, args)) return false;
 					}}
                     if( !proxy.model.allowDrag && !proxy.model.allowDragAndDrop ) proxy.element.children().removeClass("e-draggable");
                 },
@@ -1913,6 +1921,9 @@
             var data = this._getDropObject(target, element, event);
             dataIndex = data.dataIndex;
             dataObj = data.dataObj;
+			var dataItems  = droppedobj.element.find("li");
+			var indexpos = dataItems.index(target);
+			if( indexpos == 0) pre = true;
             pre ? $(this.li).insertBefore(target) : $(this.li).insertAfter(target);
             this._refreshItems();
             var ulElements =$(this.li.parent()[0]).find("li:not('.e-ghead')");
@@ -2013,6 +2024,7 @@
         },
         refresh: function (value) {
 		    if (!ej.isNullOrUndefined(this.model.query)) this._savedQueries = this.model.query; 
+			this.display = true;
             if (this.model.dataSource) {
                 if (this.model.template)
                     this.element.empty();
@@ -2208,6 +2220,7 @@
                 if (!e.shiftKey || isNaN(this.prevselectedItem)) {
                     this._shiftkey = true;
                     this.prevselectedItem = this._lastEleSelect ? this._lastEleSelect : this._activeItem;                    
+                     if(this._lastEleSelect == 0 )  this.prevselectedItem = this._lastEleSelect;                
                 }
                 if (!this.model.showCheckbox) {
                     var activeitem = $(this.element.children("li:not('.e-ghead')")[this._hoverItem]);
@@ -2467,6 +2480,7 @@
             if (previtem != selecteditem) {
                 var selectData = this._getItemObject($(this.element.find("li:not('.e-ghead')")[selecteditem]), e);
                 selectData["isInteraction"] = true;
+				if(!ej.isNullOrUndefined(selectData.event))
                 this._trigger('change', selectData);
             }
         },
@@ -2956,8 +2970,11 @@
         _onDragStop: function (data, target) {
             return this._trigger("itemDragStop", { items: data, target: target });
         },
-        _onDropped: function (data, target) {
-            data = { droppedItemText: data[0].text, droppedItemValue: data[0].value, droppedItemIsChecked: data[0].isChecked, droppedElementData: data[0], dropTarget:[data[1].target],event:data[1].event};
+        _onDropped: function (data, target, args) {
+            if(data.length > 1)
+				data = { items: data, droppedElementData: data, dropTarget:[args.target], event:args.event};
+            else
+				data = { items: [data], droppedItemText: data.text, droppedItemValue: data.value, droppedItemIsChecked: data.isChecked, droppedElementData: data, dropTarget:[args.target], event:args.event};
             return this._trigger("itemDrop",data);
         },
         _OnKeyPress: function (e) {

@@ -16,6 +16,7 @@
         model: null,
         validTags: ["div", "span"],
         _setFirst: false,
+        _requiresID: true,
         _rootCSS: "e-waitingpopup",
 
 

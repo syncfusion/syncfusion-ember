@@ -484,13 +484,22 @@
         findPortByName: function (node, portName) {
             var port;
             if (node) {
-                if (node.ports)
+                if (node.ports) {
                     for (var i = 0, len = node.ports.length; i < len; i++) {
                         port = node.ports[i];
                         if (port.name === portName) {
                             return port;
                         }
                     }
+                }
+                if (node._ports) {
+                    for (var i = 0, len = node._ports.length; i < len; i++) {
+                        port = node._ports[i];
+                        if (port.name === portName) {
+                            return port;
+                        }
+                    }
+                }
             }
             return null;
         },
@@ -502,7 +511,7 @@
         removeChildFromGroup: function (array, item) {
             var index = array.indexOf(item);
             if (index < 0) {
-                for (var i in array) {
+                for (var i = 0 ; i < array.length; i++) { 
                     if (typeof (array[i]) === "object" && typeof (item) === "string") {
                         if (array[i].name === item) {
                             index = i;
@@ -517,7 +526,7 @@
         removeFromCollection: function (diagram, array, item) {
             if (diagram) {
                 var item = diagram.nameTable[diagram._getChild(item)];
-                for (var i in array) {
+                for (var i = 0 ; i < array.length; i++) {
                     var child = diagram.nameTable[diagram._getChild(array[i])];
                     if (child.name === item.name) {
                         array.splice(i, 1);
@@ -568,6 +577,20 @@
                     return node.constraints & ej.datavisualization.Diagram.NodeConstraints.Drag;
             }
         },
+
+        canRouteDiagram: function (diagram) {
+            return diagram.model.constraints & ej.datavisualization.Diagram.DiagramConstraints.Routing;
+        },
+
+        canRouteConnector: function (connector, diagram) {
+            if (connector.constraints & ej.datavisualization.Diagram.ConnectorConstraints.Routing) {
+                return connector.constraints & ej.datavisualization.Diagram.ConnectorConstraints.Routing;
+            }
+            else if (connector.constraints & ej.datavisualization.Diagram.ConnectorConstraints.InheritRouting) {
+                return diagram.model.constraints & ej.datavisualization.Diagram.DiagramConstraints.Routing;
+            }
+        },
+
         canMoveLabel: function (node) {
             if (node.segments) {
                 return node.constraints & ej.datavisualization.Diagram.ConnectorConstraints.DragLabel;
@@ -629,7 +652,7 @@
             } else {
                 if (count === 1) {
                     return (option !== "lock") ? visible : !visible;
-            }
+                }
                 else if (count > 1 && objectCount > 0)
                     return true;
                 else
@@ -1113,10 +1136,10 @@
             if (connector.targetPadding) connector._tarDecoratorSize += connector.targetPadding
             targetNode = nameTable[connector.targetNode];
             if (targetNode)
-                targetPort = this.findPortByName(targetNode, connector.targetPort);
+                targetPort = connector._targetPortLocation || this.findPortByName(targetNode, connector.targetPort);
             sourceNode = nameTable[connector.sourceNode];
             if (sourceNode)
-                sourcePort = this.findPortByName(sourceNode, connector.sourcePort);
+                sourcePort = connector._sourcePortLocation || this.findPortByName(sourceNode, connector.sourcePort);
             var sourceConnected = this.isSourceConnected(connector);
             var targetConnected = this.isTargetConnected(connector);
             if (!sourcePort) {
@@ -1214,8 +1237,8 @@
                     if (segment.type === "bezier")
                         this._updateBezierPoints(segment, targetNode, targetPort, targetBounds, sourceNode, sourcePort, sourceBounds);
                 } else {
-                    var targetPortLocation = this._getPortPosition(targetPort, targetBounds);
-                    var sourcePortLocation = this._getPortPosition(sourcePort, sourceBounds);
+                    var targetPortLocation = connector._targetPortLocation || this._getPortPosition(targetPort, targetBounds);
+                    var sourcePortLocation = connector._sourcePortLocation || this._getPortPosition(sourcePort, sourceBounds);
                     var targetDirection = this._swapDirection(targetNode.rotateAngle, this._getDirection(targetBounds, targetPortLocation));
                     var sourceDirection = this._swapDirection(sourceNode.rotateAngle, this._getDirection(sourceBounds, sourcePortLocation));
                     if (sourceNode.rotateAngle) {
@@ -1258,7 +1281,7 @@
                 this._setLineEndPoint(connector, portLocation, isTarget);
             }
             else {
-                var targetPortLocation = this._getPortPosition(targetPort, targetBounds);
+                var targetPortLocation = (isTarget ? connector._targetPortLocation : connector._sourcePortLocation) || this._getPortPosition(targetPort, targetBounds);
                 var targetDirection = this._swapDirection(targetNode.rotateAngle, this._getDirection(targetBounds, targetPortLocation));
                 matrix = ej.Matrix.identity();
                 ej.Matrix.rotate(matrix, targetNode.rotateAngle, targetNode.offsetX, targetNode.offsetY);
@@ -1300,13 +1323,13 @@
             }
             else {
                 var targetBounds = this.bounds(targetNode, true);
-                var targetPortLocation = this._getPortPosition(targetPort, targetBounds);
+                var targetPortLocation = (isTarget ? connector._targetPortLocation : connector._sourcePortLocation) || this._getPortPosition(targetPort, targetBounds);
                 var targetDirection = this._swapDirection(targetNode.rotateAngle, this._getDirection(targetBounds, targetPortLocation));
                 var matrix = ej.Matrix.identity();
                 ej.Matrix.rotate(matrix, targetNode.rotateAngle, targetNode.offsetX, targetNode.offsetY);
                 targetPortLocation = ej.Matrix.transform(matrix, targetPortLocation);
                 var sourcePortLocation;
-                var sourcePortLocation;
+
                 if (!isTarget) {
                     sourcePortLocation = first._endPoint;
                 }
@@ -1330,7 +1353,7 @@
             var state = false;
             if (diagram && diagram.minSpaceBetweenNode && sourceNode && targetNode) {
                 if (diagram.minSpaceBetweenNode && diagram.minSpaceBetweenNode.length > 0) {
-                    for (var i in diagram.minSpaceBetweenNode) {
+                    for (var i = 0; i < diagram.minSpaceBetweenNode; i++) {
                         if (diagram.minSpaceBetweenNode[i] === sourceNode.name)
                             return true;
                         if (diagram.minSpaceBetweenNode[i] === targetNode.name)
@@ -4021,7 +4044,7 @@
                         for (var i = 0; i < nodes.length; i++) {
                             child = nameTable[nodes[i]];
                             if (child) {
-                                this.scale(child, sw, sh, pivot, nameTable);
+                                this.scale(child, sw, sh, pivot, nameTable, undefined, undefined, undefined, diagram);
                                 if (child.parent && (child.parent != node.name && node.type != "pseudoGroup"))
                                     ej.datavisualization.Diagram.Util._updateGroupBounds(nameTable[child.parent], diagram);
                             }
@@ -4229,14 +4252,14 @@
                         }
                         //update the initial size of the group
                         if (exWidth && exWidth != node.width)
-                            diagram.scale(node, exWidth / node.width, 1, new ej.datavisualization.Diagram.Point(node.offsetX, node.offsetY), diagram.nameTable);
+                            diagram.scale(node, exWidth / node.width, 1, new ej.datavisualization.Diagram.Point(node.offsetX, node.offsetY), diagram.nameTable, undefined, undefined, undefined, diagram);
                         if (exHeight && exHeight != node.height)
-                            diagram.scale(node, 1, exHeight / node.height, new ej.datavisualization.Diagram.Point(node.offsetX, node.offsetY), diagram.nameTable);
+                            diagram.scale(node, 1, exHeight / node.height, new ej.datavisualization.Diagram.Point(node.offsetX, node.offsetY), diagram.nameTable, undefined, undefined, undefined, diagram);
                         //update the initial offset of the group
                         if (exOffX && exOffX != node.offsetX)
-                            diagram._translate(node, exOffX - node.offsetX, 1, diagram.nameTable);
+                            diagram._translate(node, exOffX - node.offsetX, 1, diagram.nameTable, undefined);
                         if (exOffX && exOffY != node.offsetY)
-                            diagram._translate(node, 1, exOffY - node.offsetY, diagram.nameTable);
+                            diagram._translate(node, 1, exOffY - node.offsetY, diagram.nameTable, undefined);
                     }
                 }
             }
@@ -5095,23 +5118,23 @@
             if (label) {
                 if (diagram.model.labelRenderingMode === "svg") {
                     if (diagram._svg) {
-                    var bounds, layerBounds, elementBounds;
-                    element = diagram._svg.document.getElementById(node.name + "_" + label.name);
-                    layerBounds = diagram._svg.document.getBoundingClientRect();
-                    if (element) {
-                        elementBounds = element.getBoundingClientRect();
-                        bounds = { x: elementBounds.left, y: elementBounds.top, width: elementBounds.width, height: elementBounds.height };
-                        var labelCenter = diagram.tools["labelMove"].getCenterOfLabel(label, label.segmentOffset, bounds);
-                        return {
-                            x: elementBounds.left - layerBounds.left,
-                            y: elementBounds.top - layerBounds.top,
-                            width: elementBounds.right - elementBounds.left,
-                            height: elementBounds.bottom - elementBounds.top,
-                            centerX: labelCenter.x,
-                            centerY: labelCenter.y
-                        };
+                        var bounds, layerBounds, elementBounds;
+                        element = diagram._svg.document.getElementById(node.name + "_" + label.name);
+                        layerBounds = diagram._svg.document.getBoundingClientRect();
+                        if (element) {
+                            elementBounds = element.getBoundingClientRect();
+                            bounds = { x: elementBounds.left, y: elementBounds.top, width: elementBounds.width, height: elementBounds.height };
+                            var labelCenter = diagram.tools["labelMove"].getCenterOfLabel(label, label.segmentOffset, bounds);
+                            return {
+                                x: elementBounds.left - layerBounds.left,
+                                y: elementBounds.top - layerBounds.top,
+                                width: elementBounds.right - elementBounds.left,
+                                height: elementBounds.bottom - elementBounds.top,
+                                centerX: labelCenter.x,
+                                centerY: labelCenter.y
+                            };
+                        }
                     }
-                }
                 }
                 else {
                     if (diagram._svg) {
@@ -5206,7 +5229,7 @@
                         }
                         if (isScaling && ej.datavisualization.Diagram.Util.canResize(child)) continue;
                         var addInfo = child.addInfo;
-                        if (addInfo.offset) {
+                        if (addInfo && addInfo.offset) {
                             var offset = ej.datavisualization.Diagram.Point(bounds.x + bounds.width * addInfo.offset.x, bounds.y + bounds.height * addInfo.offset.y);
                             addInfo.margin = ej.datavisualization.Diagram.Margin(addInfo.margin ? addInfo.margin : {});
                             if (addInfo.hAlign) {
@@ -5951,8 +5974,10 @@
         InheritCrispEdges: 1 << 14,
         DragLimit: 1 << 15,
         BridgeObstacle: 1 << 16,
+        Routing: 1 << 17,
+        InheritRouting: 1 << 18,
         Interaction: 1 << 1 | 1 << 3 | 1 << 4 | 1 << 5 | 1 << 6 || 1 << 12,
-        Default: 1 << 1 | 1 << 2 | 1 << 3 | 1 << 4 | 1 << 5 | 1 << 6 | 1 << 9 | 1 << 11 | 1 << 12 | 1 << 14 | 1 << 16
+        Default: 1 << 1 | 1 << 2 | 1 << 3 | 1 << 4 | 1 << 5 | 1 << 6 | 1 << 9 | 1 << 11 | 1 << 12 | 1 << 14 | 1 << 16 | 1 << 18
     };
     ej.datavisualization.Diagram.PortConstraints = {
         None: 1 << 0,
@@ -6141,6 +6166,16 @@
         options = options || {};
         return $.extend(false, {}, ej.datavisualization.Diagram.MarginDefaults, options);
     };
+    ej.datavisualization.Diagram.PaddingDefaults = {
+        top: 0,
+        left: 0,
+        right: 0,
+        bottom: 0
+    };
+    ej.datavisualization.Diagram.Padding = function (options) {
+        options = options || {};
+        return $.extend(false, {}, ej.datavisualization.Diagram.PaddingDefaults, options);
+    };
 
     ej.datavisualization.Diagram.EndPointHitPaddingDefaults = {
         top: 0,
@@ -6298,6 +6333,7 @@
         verticalAlignment: ej.datavisualization.Diagram.VerticalAlignment.Center,
         wrapping: ej.datavisualization.Diagram.TextWrapping.WrapWithOverflow,
         margin: ej.datavisualization.Diagram.Margin(),
+        padding: ej.datavisualization.Diagram.Padding(),
         textOverflow: false,
         overflowType: ej.datavisualization.Diagram.OverflowType.Ellipsis,
         mode: ej.datavisualization.Diagram.LabelEditMode.Edit,
@@ -6335,6 +6371,7 @@
         options.offset = ej.datavisualization.Diagram.Point(options.offset.x !== undefined ? options.offset.x : 0.5, options.offset.y !== undefined ? options.offset.y : 0.5);
         options.dragLimit = ej.datavisualization.Diagram.DragLimit(options.dragLimit);
         options.margin = ej.datavisualization.Diagram.Margin(options.margin);
+        options.padding = ej.datavisualization.Diagram.Margin(options.padding);
         var label = $.extend(false, {}, ej.datavisualization.Diagram.LabelDefaults, options);
         if (!label.name)
             label.name = "label_" + ej.datavisualization.Diagram.Util.randomId();
@@ -6591,6 +6628,7 @@
         borderDashArray: "",
         opacity: 1,
         gradient: null,
+        borderGradient: null,
         type: ej.datavisualization.Diagram.Shapes.Basic,
         isExpanded: true,
         shadow: ej.datavisualization.Diagram.Shadow(),
@@ -6610,6 +6648,14 @@
             }
             else if (options.gradient.type === "radial") {
                 options.gradient = ej.datavisualization.Diagram.RadialGradient(options.gradient);
+            }
+        }
+        if (options.borderGradient) {
+            if (options.borderGradient.type === "linear") {
+                options.borderGradient = ej.datavisualization.Diagram.LinearGradient(options.borderGradient);
+            }
+            else if (options.borderGradient.type === "radial") {
+                options.borderGradient = ej.datavisualization.Diagram.RadialGradient(options.borderGradient);
             }
         }
         if (options.shadow) {
@@ -6813,6 +6859,7 @@
         ZoomTextEditor: 1 << 9,
         FloatElements: 1 << 10,
         CrispEdges: 1 << 11,
+        Routing: 1 << 12,
         Default: 1 << 1 | 1 << 2 | 1 << 4 | 1 << 5 | 1 << 6 | 1 << 7 | 1 << 8
     };
     ej.datavisualization.Diagram.BridgeDirection = {

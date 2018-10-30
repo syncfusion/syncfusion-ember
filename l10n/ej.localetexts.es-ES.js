@@ -101,21 +101,21 @@
                     watermarkText: " ",
                 };
                 break;
-			case "ejComboBox":
+            case "ejComboBox":
                 ej.ComboBox.Locale["es-ES"] = {
                     noRecordsTemplate: "No se encontrarón archivos",
-					actionFailureTemplate: "La solicitud falló"
+                    actionFailureTemplate: "La solicitud falló"
                 };
                 break;
-			case "ejMenu":
+            case "ejMenu":
                 ej.Menu.Locale["es-ES"] = {
                     titleText: "menú"
                 };
                 break;
-			case "ejCaptcha":
+            case "ejCaptcha":
                 ej.Captcha.Locale["es-ES"] = {
-					placeHolderText: "Escribe el código mostrado",
-					CustomErrorMessage: "Captcha inválido"
+                    placeHolderText: "Escribe el código mostrado",
+                    CustomErrorMessage: "Captcha inválido"
                 };
                 break;
             case "ejExcelFilter":
@@ -476,7 +476,8 @@
                         cancelButtonText: "Cancelar",
                         deleteButtonText: "Borrar",
                         title: "Dependencia de tareas"
-                    }
+                    },
+                    nullText: "Nulo"
                 };
                 break;
             case "ejGrid":
@@ -568,7 +569,7 @@
                     };
                 }
                 if (ej.mobile.DatePicker) {
-                    ej.mobile.DatePicker.Locale =  ej.mobile.DatePicker.Locale || {};
+                    ej.mobile.DatePicker.Locale = ej.mobile.DatePicker.Locale || {};
                     ej.mobile.DatePicker.Locale["es-ES"] = {
                         confirmText: "Hecho",
                         Windows: {
@@ -648,7 +649,26 @@
                     EMF: "EMF",
                     GIF: "GIF",
                     JPG: "JPG",
-                    BMF: "BMF"
+                    BMP: "BMP",
+                    ZoomIn: "acercarse",
+                    ZoomOut: "Disminuir el zoom",
+                    Legend: "Leyenda",
+                    SmartLabels: "Etiquetas inteligentes",
+                    Interactions: "Interacciones",
+                    Zooming: "Zoom",
+                    Rotate45: "Girar45",
+                    Rotate90: "Girar90",
+                    Trim: "Recortar",
+                    MultipleRows: "Múltiples filas",
+                    Wrap: "Envolver",
+                    Hide: "Esconder",
+                    WrapByWord: "Ajustar por palabra",
+                    CrossHair: "Cruz de pelo",
+                    TrackBall: "Track Ball",
+                    DisableTD: "Deshabilitar Gráficos 3D",
+                    None: "Ninguna",
+                    Exception: "Excepción",
+                    OK: "DE ACUERDO"
                 };
                 break;
             case "ejPivotClient":
@@ -705,11 +725,11 @@
                     ReportList: "Lista de informes",
                     Alert: "Alerta",
                     MDXAlertMsg: "Por favor, agregue una medida, dimensión o jerarquía en un eje apropiado para ver la consulta MDX.",
-                    FilterSortRowAlertMsg: "No se ha encontrado la dimensión en el eje de filas. Por favor agregar elemento de dimensión en el eje de filas para la ordenación y el filtrado.",
-                    FilterSortColumnAlertMsg: "No se ha encontrado la dimensión en el eje de columnas. Por favor agregar elemento de dimensión en el eje de columna para ordenar y filtrar.",
+                    FilterSortRowAlertMsg: "La dimensión no se encuentra en el eje de la fila. Agregue el elemento Dimensión en el eje de la fila para ordenar / filtrar.",
+                    FilterSortColumnAlertMsg: "La dimensión no se encuentra en el eje de la columna. Agregue el elemento Dimensión en el eje de la columna para clasificar / filtrar.",
                     FilterSortcolMeasureAlertMsg: "Agregue la medida en el eje de columna",
                     FilterSortrowMeasureAlertMsg: "Agregue medir al eje de filas",
-                    FilterSortElementAlertMsg: "Elemento no encontrado en el eje de columna. Agregue un elemento en la columna para ordenar/filtrado de eje.",
+                    FilterSortElementAlertMsg: "El elemento no se encuentra en el eje de la columna. Agregue un elemento en el eje de la columna para ordenar / filtrar.",
                     FilterMeasureSelectionAlertMsg: "Por favor seleccione una medida válida.",
                     FilterConditionAlertMsg: "Por favor, establezca una condición válida.",
                     FilterStartValueAlertMsg: "Por favor, establezca un valor inicial.",
@@ -797,14 +817,14 @@
                     MemberType: "Tipo de socio:",
                     FormatString: "Cadena de formato:",
                     MultipleMeasure: "Más que una medida no puede ser en rodajas.",
-                    DuplicateCalcMeasure: "Miembro calculado con el mismo nombre ya existe.",
-                    EmptyField: "Nombre del miembro calculado o expresión no puede estar vacío.",
+                    DuplicateCalcMeasure: "El miembro calculado con el mismo nombre ya existe.",
+                    EmptyField: "El nombre de miembro calculado o Expresión no debería estar vacío.",
                     EmptyFormat: "Cadena de formato para miembro calculado está vacía.",
                     Warning: "Advertencia",
-                    Confirm: "Miembro calculado con el mismo nombre ya existe. Debido a que desea reemplazar ?",
+                    Confirm: "El miembro calculado con el mismo nombre ya existe. ¿Quieres reemplazar?",
                     KPIs: "KPI",
-					Collection: "Colección",
-					Report: "informe",
+                    Collection: "Colección",
+                    Report: "informe",
                     AddCurrentSelectionToFilter: "Añadir la selección actual al filtro",
                     SaveMsg: "Informe guardado correctamente!!!",
                     RenameMsg: "Se ha cambiado el nombre de informe!!!",
@@ -813,7 +833,8 @@
                     KpiAlertMsg: "El campo que está moviendo no se puede colocar en esa área del informe",
                     NotAllItemsShowing: "No todos los nodos secundarios se muestran",
                     EditorLinkPanelAlert: "Los miembros tiene más de 1000 elementos en virtud de uno o más padres. Sólo los primeros 1000 elementos se muestran debajo de cada progenitor.",
-                    NamedSetAlert: "Un conjunto con nombre no se puede agregar a un informe de tabla dinámica al mismo tiempo que otro conjunto con nombre se basa en el mismo campo. Haga clic en Aceptar para eliminar ' <Set 1> ' conjunto con nombre y agregar ' <Set 2> ' conjunto con nombre."
+                    NamedSetAlert: "Un conjunto con nombre no se puede agregar a un informe de tabla dinámica al mismo tiempo que otro conjunto con nombre se basa en el mismo campo. Haga clic en Aceptar para eliminar ' <Set 1> ' conjunto con nombre y agregar ' <Set 2> ' conjunto con nombre.",
+                    Exception: "Excepción"
                 };
                 break;
             case "ejPivotGauge":
@@ -821,6 +842,7 @@
                 ej.PivotGauge.Locale["es-ES"] = {
                     RevenueGoal: "ingresos Meta",
                     RevenueValue: "Valor de ingresos",
+                    Exception: "Excepción"
                 };
                 break;
             case "ejPager":
@@ -997,11 +1019,11 @@
                             contentText: "Claro"
                         },
                     },
-					waitingPopup: {
-						print: {
-							contentText: "Preparación del documento para imprimir ..."
-						}
-					}
+                    waitingPopup: {
+                        print: {
+                            contentText: "Preparación del documento para imprimir ..."
+                        }
+                    }
                 };
                 break;
             case "ejPercentageTextbox":
@@ -1142,20 +1164,6 @@
                     Fontstyle: "Estilo de fuente",
                     Bordercolor: "Color del borde",
                     NoMeasure: "Por favor agregue cualquier medida",
-                    AliceBlue: "AliceBlue",
-                    Black: "Black",
-                    Blue: "Blue",
-                    Brown: "Brown",
-                    Gold: "Gold",
-                    Green: "Green",
-                    Lime: "Lime",
-                    Maroon: "Maroon",
-                    Orange: "Orange",
-                    Pink: "Pink",
-                    Red: "Red",
-                    Violet: "Violet",
-                    White: "White",
-                    Yellow: "Yellow",
                     Solid: "Solid",
                     Dashed: "Dashed",
                     Dotted: "Salpicada",
@@ -1193,7 +1201,7 @@
                     EmptyField: "Introduzca el nombre del campo calculado o fórmula",
                     NotValid: "Fórmula dada no es válido",
                     NotPresent: "Campo Valor utilizado en ninguna de las fórmulas de campo calculado no está presente en el PivotGrid",
-                    Confirm: "Campo calculado con el mismo nombre ya existe. Debido a que desea reemplazar ?",
+                    Confirm: "El miembro calculado con el mismo nombre ya existe. ¿Quieres reemplazar?",
                     CalcValue: "Campo calculado sólo puede insertarse en el valor de área de campo",
                     MultipleItems: "Varios elementos",
                     All: "Todos",
@@ -1213,7 +1221,8 @@
                     Edit: "Editar",
                     DuplicateFormatName: "Nombre de formato duplicado",
                     NotAllItemsShowing: "No todos los nodos secundarios se muestran",
-                    EditorLinkPanelAlert: "Los miembros tiene más de 1000 elementos en virtud de uno o más padres. Sólo los primeros 1000 elementos se muestran debajo de cada progenitor."
+                    EditorLinkPanelAlert: "Los miembros tiene más de 1000 elementos en virtud de uno o más padres. Sólo los primeros 1000 elementos se muestran debajo de cada progenitor.",
+                    Exception: "Excepción"
                 };
                 break;
             case "ejPivotPager":
@@ -1290,6 +1299,7 @@
                     Cancel: "Cancelar",
                     Close: "Cerrar",
                     Search: "Buscar",
+                    Remove: "Retirar",
                     AddCurrentSelectionToFilter: "Añadir la selección actual al filtro",
                     NotAllItemsShowing: "No todos los nodos secundarios se muestran",
                     EditorLinkPanelAlert: "Los miembros tiene más de 1000 elementos en virtud de uno o más padres. Sólo los primeros 1000 elementos se muestran debajo de cada progenitor.",
@@ -1434,6 +1444,7 @@
                         }
                     },
                     pagesetupDialog: {
+                        close: "Cerca",
                         paperSize: "Tamaño de papel",
                         height: "Altura",
                         width: "Anchura",
@@ -1449,6 +1460,41 @@
                         doneButton: "Hecho",
                         cancelButton: "Cancelar"
                     },
+                    credential: {
+                        userName: "Nombre de usuario",
+                        password: "Contraseña"
+                    },
+                    waterMark: {
+                        selectOption: "Seleccionar opción",
+                        selectValue: "Seleccione un valor"
+                    },
+                    errorMessage: {
+                        startMessage: "Report Viewer encontró algunos problemas al cargar este informe. Por favor",
+                        middleMessage: " haga clic aquí",
+                        endMessage: "para ver los detalles del error",
+                        closeMessage: "Cerrar este mensaje"
+                    },
+                    alertMessage: {
+                        close: "Cerca",
+                        title: "ReportViewer",
+                        done: "DE ACUERDO",
+                        showDetails: "Mostrar detalles",
+                        hideDetails: "Ocultar detalles",
+                        reportLoad: "Informe cargado:",
+                        RVERR0001: "ReportViewer no pudo cargar el Informe",
+                        RVERR0002: "ReportViewer no pudo procesar el Informe",
+                        RVERR0003: "Se produjo un error en la devolución de datos de ajax",
+                        RVERR0004: "Seleccione un valor para el parámetro",
+                        RVERR0005: "Al parámetro {nombre de parámetro} le falta un valor",
+                        RVERR0006: "Por favor ingrese la entrada del tipo de datos float",
+                        RVERR0007: "Ingrese la entrada de tipo de datos enteros",
+                        RVERR0008: "ReportViewer no pudo validar las credenciales de Datasource",
+                        RVERR0009: "Los márgenes están superpuestos o están fuera del papel. Ingrese un tamaño de margen diferente.",
+                        RVERR0010: "Ingrese un valor para el parámetro",
+                        RVERR0011: "El parámetro no puede estar en blanco",
+                        RVERR0012: "El valor proporcionado para el parámetro de informe {parameterprompt} no es válido para su tipo."
+                    },
+                    selectAll: "Seleccionar todo",
                     viewButton: "Vista del informe"
                 };
                 break;
@@ -2217,7 +2263,7 @@
                     MergeAndCenter: "Combinar y Centro",
                     MergeAndCenterContent: "Combinar y centrar el contenido de las celdas seleccionadas en una nueva célula más grande.",
                     MergeCellsAlert: "La fusión de células mantiene valor de celda única parte superior izquierda y descarta los demás valores.",
-                    MergeInsertAlert: "Esta operación hará que algunas celdas combinadas de desinstalar. Desea continuar ?",
+                    MergeInsertAlert: "Esta operación hará que algunas celdas combinadas de desinstalar. Desea continuar?",
                     Axes: "ejes",
                     PHAxis: "Horizontal primaria",
                     PVAxis: "Vertical primaria",
@@ -2557,6 +2603,16 @@
                     CreateSparkline: "Crear Sparkline",
                     SelectDataSource: "Seleccione un rango de datos fuente para el sparkline",
                     SPARKLINEDESIGN: "Diseño Sparkline",
+                    CancellationRequested: "No se pudo abrir dentro del tiempo de espera especificado",
+                    ImportPreventedOnUnknownFormula: "Este archivo no se puede cargar ya que contiene fórmulas no compatibles.",
+                    PivotTableName: "Nombre de tabla dinámica",
+                    ArrayaFormula: "No puedes cambiar parte de una matriz",
+                    ArrayaFormulaTableAlert: "Las fórmulas de matriz multicelda no están permitidas en las tablas",
+                    ValueFieldSettings: "Configuración de campo de valor",
+                    FieldTab: "Resumir valores por",
+                    SummarizeValue: "Resumir el valor del campo por",
+                    SummarizeChooseType: "Elija el tipo de cálculo que desea usar para resumir los datos del campo seleccionado",
+                    FieldValue: "Nombre de la fuente:",
                 };
                 break;
             case "ejTimePicker":
@@ -2677,6 +2733,9 @@
                     okButtonText: "DE ACUERDO",
                     cancelButtonText: "Cancelar",
                     confirmDeleteText: "Confirmar eliminación",
+                    batchSaveConfirmText: "¿Está seguro de que desea guardar los cambios?",
+                    batchSaveLostChangesText: "Se perderán los cambios no guardados. ¿Estás seguro de que quieres continuar?",
+                    cancelEditText: "¿Está seguro de que desea cancelar los cambios?",
                     dropDownListBlanksText: "(Espacios en blanco)",
                     dropDownListClearText: "(Borrar filtro)",
                     trueText: "Cierto",

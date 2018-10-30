@@ -133,7 +133,9 @@
 
             disableDateTimeRanges: null,
 
-           
+            timeZone: true
+
+
         },
 
 
@@ -560,7 +562,11 @@
                 if (keyName == "class") proxy.wrapper.addClass(value);
                 else if (keyName == "disabled") proxy._enabled(false);
                 else if (keyName == "readOnly") proxy._readOnly(true);
-                else if (keyName == "style" || keyName == "id") proxy.wrapper.attr(key, value);
+                else if (keyName == "style") proxy.wrapper.attr(key, value);
+                else if (keyName == "id") {
+                    proxy.wrapper.attr(key, value + "_wrapper");
+                    proxy.element.attr(key, value);
+                }
                 else if (ej.isValidAttr(proxy.element[0], keyName)) proxy.element.attr(keyName, value);
                 else proxy.wrapper.attr(keyName, value);
             });
@@ -614,7 +620,15 @@
                 if ((dateTimeObj.toJSON() === this.model.value) || (dateTimeObj.toGMTString() === this.model.value) ||
                     (dateTimeObj.toISOString() === this.model.value) || (dateTimeObj.toLocaleString() === this.model.value) ||
                     (dateTimeObj.toString() === this.model.value) || (dateTimeObj.toUTCString() === this.model.value))
-                    return dateTimeObj;
+                    if (this.model.timeZone) {
+                        return new Date(new Date(dateTimeObj).getTime() + (ej.serverTimezoneOffset * 60 * 60 * 1000));
+                    } else {
+                        if (dateTimeString.match(/^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d(\.\d+)?(([+-]\d\d:\d\d)|Z)?$/i) && dateTimeString.match(/^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d(\.\d+)?(([+-]\d\d:\d\d)|Z)?$/i).length > 0) {
+                            var date = dateTimeString.split('Z')
+                            date = date[0];
+                            return new Date(date);
+                        }
+                    }
                 else if (typeof dateTimeString == "string") return this._dateFromISO(dateTimeString);
             } else if (this._extISORegex.exec(dateTimeString) || this._basicISORegex.exec(dateTimeString)) return this._dateFromISO(dateTimeString);
         },
@@ -1248,8 +1262,8 @@
         },
 
         _updateInput: function (e) {
-            var minVal = new Date().setHours(0, 0, 0, 0);
-            var date = this._getDate() || new Date(), time = this._getTime() || this.timePicker._createObject(minVal);
+            var minVal =  ((+new Date() < +this.model.minDateTime) || (+new Date() > +this.model.maxDateTime)) ? this.model.minDateTime : new Date().setHours(0, 0, 0, 0);
+            var date = this._getDate() || new Date(minVal), time = this._getTime() || this.timePicker._createObject(minVal);
             this.model.value = new Date(date.getFullYear(), date.getMonth(), date.getDate(),
                 time.getHours(), time.getMinutes(), time.getSeconds());
             this._updateDateTime();
@@ -1329,7 +1343,7 @@
             this._checkErrorClass();
         },
         _specificFormat: function () {
-            var parseInfo = ej.globalize._getDateParseRegExp(ej.globalize.findCulture(this.model.locale).calendar, this.model.dateFormat);
+            var parseInfo = ej.globalize._getDateParseRegExp(ej.globalize.findCulture(this.model.locale).calendar, this.model.dateTimeFormat);
             return ($.inArray("dddd", parseInfo.groups) > -1 || $.inArray("ddd", parseInfo.groups) > -1)
         },
         _changeEditable: function (bool) {
@@ -1930,8 +1944,7 @@
                 if (dateObj) {
                     this.model.value = dateObj;
                     this.isValidState = true;
-                    if (!stopUpdateModel)
-                        this._refreshPopup();
+                    this._refreshPopup(stopUpdateModel);
                     if (this._specificFormat() && this._prevDateTimeVal != this.element.val())
                         this.element.val(this._objectToString(this.model.value));
                 }
@@ -1944,12 +1957,12 @@
                 }
             }
         },
-        _refreshPopup: function () {
+        _refreshPopup: function (stopUpdateModel) {
             if (this.isValidState && this.isPopupOpen) {
                 var date = this._setEmptyTime(this.model.value), time = this._setEmptyDate(this.model.value);
                 var getDate = this._getDate(), getTime = this._getTime();
                 if (!getDate || !this._compare(getDate, date)) this.datePicker.option("value", date);
-                if (!getTime || !this._compare(getTime, time)) this.timePicker.option("value", time);
+				if ((!getTime || !this._compare(getTime, time)) && !stopUpdateModel) this.timePicker.option("value", time);
             }
         },
 

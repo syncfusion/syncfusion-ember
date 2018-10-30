@@ -471,7 +471,8 @@
                         cancelButtonText: "Zrušiť",
                         deleteButtonText: "vymazať",
                         title: "Závislosť úloh"
-                    }
+                    },
+                    nullText:"Nulový"
                 };
                 break;
             case "ejGrid":
@@ -521,6 +522,7 @@
                     ResponsiveFilter: "filter",
                     ResponsiveSorting: "druh",
                     Search: "Vyhľadanie",
+					NumericTextBoxWaterMark: "zadajte hodnotu",
                     DatePickerWaterMark: "vyberte dátum",
                     EmptyDataSource: "DataSource nesmie byť prázdne pri počiatočnom zaťažení, pretože stĺpce sú generované zo zdrojov dát v stĺpci mriežky vytvorené automaticky",
                     ForeignKeyAlert: "Aktualizovaná hodnota by mala byť platná cudzí kľúč hodnota",
@@ -643,7 +645,26 @@
                     EMF: "EMF",
                     GIF: "GIF",
                     JPG: "JPG",
-                    BMF: "BMF"
+                    BMP: "BMP",
+                    ZoomIn: "Priblížiť",
+                    ZoomOut: "Oddialiť",
+                    Legend: "Legenda",
+                    SmartLabels: "Smart štítky",
+                    Interactions: "Interakcie",
+                    Zooming: "Priblíženie",
+                    Rotate45: "Otáčajte45",
+                    Rotate90: "Otáčajte90",
+                    Trim: "Obloženia",
+                    MultipleRows: "Viacnásobné riadky",
+                    Wrap: "Obal",
+                    Hide: "Skryť",
+                    WrapByWord: "Zabaľte do programu Word",
+                    CrossHair: "Nitkovým",
+                    TrackBall: "Guľový ovládač",
+                    DisableTD: "Zakázať 3D grafy",
+                    None: "Žiadne",
+                    Exception: "Výnimkou",
+                    OK: "OK"
                 };
                 break;
             case "ejPivotClient":
@@ -750,11 +771,11 @@
                     TreeMap: "Strom mapa",
                     Alert: "Upozornenie",
                     MDXAlertMsg: "Pridajte, prosím, rozmer alebo hierarchiu vo vhodnej os zobraziť MDX dotaz.",
-                    FilterSortRowAlertMsg: "Vzdialenosť v riadku os. Pridajte prosím rozmer prvku v riadku os pre triedenie a filtrovanie.",
-                    FilterSortColumnAlertMsg: "Rozmery nájdete v stĺpci os. Pridajte prosím rozmer prvok v stĺpci os pre triedenie a filtrovanie.",
+                    FilterSortRowAlertMsg: "Dimenzia sa nenachádza v osi riadka. Pri triedení / filtrovaní pridajte prvok Dimension v osi riadku.",
+                    FilterSortColumnAlertMsg: "Dimenzia sa nenachádza v osi stĺpca. Pri triedení / filtrovaní pridajte prvok dimenzie v osi stĺpca.",
                     FilterSortcolMeasureAlertMsg: "Ak chcete pridať merania do stĺpca os",
                     FilterSortrowMeasureAlertMsg: "Ak chcete pridať merania do riadku os",
-                    FilterSortElementAlertMsg: "Prvok v stĺpci os. Prosím pridať prvok v stĺpci os pre triedenie a filtrovanie.",
+                    FilterSortElementAlertMsg: "Element sa nenachádza v osi stĺpca. Pri triedení / filtrovaní pridajte prvok do osi stĺpca.",
                     FilterMeasureSelectionAlertMsg: "Zadajte platné opatrenie.",
                     FilterConditionAlertMsg: "Nastavte platný stav.",
                     FilterStartValueAlertMsg: "Prosím, nastavte na hodnotu.",
@@ -786,10 +807,10 @@
                     FormatString: "Formát reťazec:",
                     MultipleMeasure: "Viac ako jedno opatrenie nemôže byť plátky.",
                     DuplicateCalcMeasure: "Počíta s rovnakým názvom už existuje.",
-                    EmptyField: "Vypočítajú členské výraz alebo názov nesmie byť prázdny.",
+                    EmptyField: "Vypočítané meno člena alebo výraz by nemal byť prázdny.",
                     EmptyFormat: "Formát pre výpočet je prázdna.",
                     Warning: "Varovanie",
-                    Confirm: "Počíta s rovnakým názvom už existuje. Z dôvodu chcete nahradiť?",
+                    Confirm: "Vypočítaný člen s rovnakým názvom už existuje. Chcete nahradiť?",
                     KPIs: "KPI",
 					Collection: "Zber",
 					Report: "správu",
@@ -800,8 +821,9 @@
                     Success: "Úspech",
                     KpiAlertMsg: "Pole, na ktoré sa nemôžu byť umiestnené v oblasti správy",
                     NotAllItemsShowing: "Nie všetky detské uzly sú znázornené",
-                    EditorLinkPanelAlert: "Členmi je viac ako 1000 položiek v rámci jedného alebo viacerých rodičov. Len prvých 1000 položky sa zobrazia v rámci každého rodiča.",
-                    NamedSetAlert:"Pomenovaný súbor nie je možné pridať do zostavy kontingenčnej tabuľky v rovnakom čase ako ďalší s názvom vychádzajú z rovnakej oblasti. Kliknite na tlačidlo OK a vyberte ' <Set 1'> s názvom súboru a ' <Set 2> ' pod názvom."
+                    EditorLinkPanelAlert: "Členovia majú viac ako 1000 položiek pod jedným alebo viacerými rodičmi. Pri každom nadradenom zariadení sa zobrazia len prvé 1000 položiek.",
+                    NamedSetAlert: "Pomenované súbory rovnakého poľa nie je možné pridať do prehľadu kontingenčnej tabuľky súčasne. Kliknutím na tlačidlo OK odstráňte súbor s názvom <Set 1> a pridajte názov sady <Set 2>.",
+                    Exception: "Výnimkou"
                 };
                 break;
             case "ejPivotGauge":
@@ -809,6 +831,7 @@
                 ej.PivotGauge.Locale["sk-SK"] = {
                     RevenueGoal: "výnosy Cieľ",
                     RevenueValue: "hodnota tržieb",
+                    Exception: "Výnimkou"
                 };
                 break;
             case "ejPager":
@@ -1131,20 +1154,6 @@
                     AddNew: "Pridať nový",
                     Format: "Formát",
                     NoMeasure: "Prosím, pridajte akékoľvek opatrenie",
-                    AliceBlue: "AliceBlue",
-                    Black: "Black",
-                    Blue: "Blue",
-                    Brown: "Brown",
-                    Gold: "Gold",
-                    Green: "Green",
-                    Lime: "Lime",
-                    Maroon: "Maroon",
-                    Orange: "Orange",
-                    Pink: "Pink",
-                    Red: "Red",
-                    Violet: "Violet",
-                    White: "White",
-                    Yellow: "Yellow",
                     Solid: "Tuhé",
                     Dashed: "Prerušovaná",
                     Dotted: "Bodovým zápisom",
@@ -1182,7 +1191,7 @@
                     EmptyField: "Zadajte vypočítavané pole názov alebo vzorec",
                     NotValid: "Uvedený vzorec nie je platná",
                     NotPresent: "Hodnota poľa v každom vypočítavaného poľa vzorec nie je prítomný v PivotGrid",
-                    Confirm: "Vypočítavané polia s rovnakým názvom už existuje. Z dôvodu, že chceme nahradiť ?",
+                    Confirm: "Vypočítaný člen s rovnakým názvom už existuje. Chcete nahradiť?",
                     CalcValue: "Vypočítavané polia môžu byť zaradené iba hodnota plochy poľa",
                     MultipleItems: "Viaceré položky",
                     All: "Všetky",
@@ -1207,7 +1216,8 @@
 					Edit: "Úprava",
 					DuplicateFormatName: "Kopírovať formát Mena",
 					NotAllItemsShowing: "Nie všetky detské uzly sú znázornené",
-					EditorLinkPanelAlert: "Členmi je viac ako 1000 položiek v rámci jedného alebo viacerých rodičov. Len prvých 1000 položky sa zobrazia v rámci každého rodiča."
+					EditorLinkPanelAlert: "Členovia majú viac ako 1000 položiek pod jedným alebo viacerými rodičmi. Pri každom nadradenom zariadení sa zobrazia len prvé 1000 položiek.",
+					Exception: "Výnimkou"
                 };
                 break;
             case "ejPivotPager":
@@ -1282,10 +1292,11 @@
                     OK: "Tlačidlo OK",
                     Cancel: "Zrušenie",
                     Search: "Vyhľadávanie",
+                    Remove: "Odmontujte",
                     AddCurrentSelectionToFilter: "Pridajte aktuálny výber na filtrovanie",
                     NotAllItemsShowing: "Nie všetky detské uzly sú znázornené",
-                    EditorLinkPanelAlert: "Členmi je viac ako 1000 položiek v rámci jedného alebo viacerých rodičov. Len prvých 1000 položky sa zobrazia v rámci každého rodiča.",
-                    NamedSetAlert: "Pomenovaný súbor nie je možné pridať do zostavy kontingenčnej tabuľky v rovnakom čase ako ďalší s názvom vychádzajú z rovnakej oblasti. Kliknite na tlačidlo OK a vyberte ' <Set 1'> s názvom súboru a ' <Set 2> ' pod názvom."
+                    EditorLinkPanelAlert: "Členovia majú viac ako 1000 položiek pod jedným alebo viacerými rodičmi. Pri každom nadradenom zariadení sa zobrazia len prvé 1000 položiek.",
+                    NamedSetAlert: "Pomenované súbory rovnakého poľa nie je možné pridať do prehľadu kontingenčnej tabuľky súčasne. Kliknutím na tlačidlo OK odstráňte súbor s názvom <Set 1> a pridajte názov sady <Set 2>."
                 };
                 break;
             case "ejDiagram":
@@ -1404,6 +1415,7 @@
                         },
                     },
                     pagesetupDialog: {
+                        close: 'Zavrieť',
                         paperSize: 'veľkosť papiera',
                         height: 'výška',
                         width: 'šírka',
@@ -1419,7 +1431,42 @@
                         doneButton: 'hotový',
                         cancelButton: 'Zrušiť'
                     },
-                    viewButton: "view Report",
+                    credential: {
+                        userName: 'užívateľské meno',
+                        password: 'heslo'
+                    },
+                    waterMark: {
+                        selectOption: 'Vyberte možnosť',
+                        selectValue: 'Vyberte hodnotu'
+                    },
+                    errorMessage: {
+                        startMessage: 'Program Report Viewer narazil na niektoré problémy s načítaním tohto prehľadu. prosím',
+                        middleMessage: ' Kliknite tu',
+                        endMessage: 'zobrazíte detaily chýb',
+                        closeMessage: 'Zatvorte túto správu'
+                    },
+                    alertMessage: {
+                        close: 'Zavrieť',
+                        title: 'ReportViewer',
+                        done: 'OK',
+                        showDetails: 'Zobraziť podrobnosti',
+                        hideDetails: 'Skryť detaily',
+                        reportLoad: 'Nahlásiť prehľad:',
+                        RVERR0001: 'Služba ReportViewer sa nepodarilo načítať hlásenie',
+                        RVERR0002: 'ReportViewer sa nepodarilo zobraziť prehľad',
+                        RVERR0003: 'Vyskytla sa chyba ajax postback',
+                        RVERR0004: 'Vyberte parameter pre parameter',
+                        RVERR0005: 'Parameter {paramettername} chýba hodnota',
+                        RVERR0006: 'Zadajte dátový typ typu float',
+                        RVERR0007: 'Zadajte celý typ dátového vstupu',
+                        RVERR0008: 'Služba ReportViewer zlyhala pri overovaní údajov poverenia Datasource',
+                        RVERR0009: 'Okraje sa prekrývajú alebo sú mimo papiera. Zadajte inú veľkosť marže.',
+                        RVERR0010: 'Zadajte hodnotu parametra',
+                        RVERR0011: 'Parameter nemôže byť prázdny',
+                        RVERR0012: 'Hodnota poskytnutá pre parameter parametra {parameterprompt} nie je platná pre jeho typ.'
+                    },
+                    selectAll: 'Vybrať všetko',
+                    viewButton: "pozrieť si správu",
                 };
                 break;
             case "ejRibbon":
@@ -1644,6 +1691,7 @@
                     Done: "hotový",
                     Cancel: "Zrušiť",
                     Ok: "ok",
+                    Repeat: "opakovať",
                     RepeatBy: "opakujte podľa",
                     RepeatEvery: "opakovať každý",
                     RepeatOn: "opakujte na",
@@ -1658,7 +1706,7 @@
                     EveryWeekDay: "každý všedný deň",
                     Never: "nikdy",
                     After: "po",
-                    Occurence: "Výskyt (y)",
+                    Occurrence: "Výskyt (y)",
                     On: "na",
                     Edit: "editovať",
                     RecurrenceDay: "Day (s)",
@@ -2491,6 +2539,16 @@
                     CreateSparkline: "Vytvoriť Sparkline",
                     SelectDataSource: "Zvoľte rozsah zdrojov dát pre sparkline",
                     SPARKLINEDESIGN: "Sparkline Design",
+                    CancellationRequested: "Nedá sa otvoriť v stanovenom časovom limite",
+                    ImportPreventedOnUnknownFormula: "Tento súbor nie je možné načítať, pretože obsahuje nepodporované vzorce.",
+                    PivotTableName: "Názov kontingenčnej tabuľky",
+                    ArrayaFormula: "Nemôžete zmeniť časť poľa",
+                    ArrayaFormulaTableAlert: "Vzorce s viacerými bunkami nie sú v tabuľkách povolené",
+                    ValueFieldSettings: "Nastavenia polí hodnoty",
+                    FieldTab: "Zhrnúť hodnoty",
+                    SummarizeValue: "Zhrňte pole s hodnotami",
+                    SummarizeChooseType: "Vyberte typ výpočtu, ktorý chcete použiť na zhrnutie údajov z vybraného poľa",
+                    FieldValue: "Názov zdroja:",
                 };
                 break;
 			case "ejTimePicker":
@@ -2611,6 +2669,9 @@
                     okButtonText: "OK",
                     cancelButtonText: "Zrušiť",
                     confirmDeleteText: "potvrdiť zmazanie",
+                    batchSaveConfirmText: "Ste si istí, že chcete uložiť zmeny?",
+                    batchSaveLostChangesText: "Neuložené zmeny budú stratené. Ste si istí, že chcete pokračovať?",
+                    cancelEditText: "Ste si istí, že chcete zrušiť zmeny?",
                     dropDownListBlanksText: "(Prázdne)",
                     dropDownListClearText: "(Vyčistiť filter)",
                     trueText: "pravdivý",

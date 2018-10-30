@@ -57,7 +57,7 @@
                                              "scrollSettings", "sortSettings", "customToolbarItems", "columns", "searchSettings", "_collapsedCards", "tooltipSettings", "enableTotalCount","allowToggleColumn"]);										 
     setViewstate(ej.Gantt, ["columns","toolbarSettings","leftTaskLabelMapping", "rightTaskLabelMapping", "leftTaskLabelTemplate", "resourceUnitMapping", "selectionType", "selectionMode", "workUnit", "taskType", "cellTooltipTemplate", "rightTaskLabelTemplate",
 	                        "showColumnOptions", "columnDialogFields", "enableWBS", "enableWBSPredecessor", "enableResize", "isResponsive", "sortSettings","taskSchedulingModeMapping","taskSchedulingMode","validateManualTasksOnLinking",
-							"allowSorting", "allowColumnResize", "dataSource", "allowSelection", "highlightWeekends", "enableProgressBarResizing",
+							"allowSorting", "allowColumnResize", "dataSource", "allowSelection", "highlightWeekends", "highlightNonWorkingTime", "enableProgressBarResizing",
                             "includeWeekend", "showTaskNames", "showGridCellTooltip", "showGridExpandCellTooltip", "showProgressStatus", "showResourceNames", "enableTaskbarDragTooltip",
                             "enableTaskbarTooltip", "allowKeyboardNavigation", "allowMultiSorting", "enableAltRow", "enableVirtualization", "allowGanttChartEditing",
                             "renderBaseline", "enableContextMenu", "showColumnChooser", "taskIdMapping", "parentTaskIdMapping", "taskNameMapping", "startDateMapping",
@@ -65,15 +65,15 @@
                             "progressMapping", "predecessorMapping", "resourceInfoMapping", "scheduleStartDate", "scheduleEndDate", "taskbarBackground", "progressbarBackground",
                             "connectorLineBackground", "parentTaskbarBackground", "parentProgressbarBackground", "cssClass", "locale", "taskbarTooltipTemplate",
                             "progressbarTooltipTemplate", "taskbarTooltipTemplateId", "dateFormat", "resourceIdMapping", "resourceNameMapping", "progressbarTooltipTemplateId",
-                            "taskbarEditingTooltipTemplateId", "taskbarEditingTooltipTemplate", "weekendBackground", "baselineColor", "splitterPosition", "resources", "holidays",
+                            "taskbarEditingTooltipTemplateId", "taskbarEditingTooltipTemplate", "weekendBackground", "nonWorkingBackground", "baselineColor", "splitterPosition", "resources", "holidays",
                             "stripLines", "editDialogFields", "rowHeight", "connectorlineWidth", "progressbarHeight", "selectedRowIndex", "treeColumnIndex", "workingTimeScale",
                             "roundOffDayworkingTime", "durationUnit", "enableCollapseAll", "query", "enableResize", "splitterSettings", "enablePredecessorValidation", "isResponsive", "taskbarTemplate", "parentTaskbarTemplate", "milestoneTemplate", "workMapping", "taskbarHeight", "searchSettings", "criticalTask", "toolbarSettings", "workWeek",
-                            "groupIdMapping", "groupCollection", "groupNameMapping", "resourceCollectionMapping", "taskCollectionMapping", "viewType", "filterSettings", "enableSerialNumber", "predecessorTooltipTemplate"]);
+                            "groupIdMapping", "groupCollection", "groupNameMapping", "resourceCollectionMapping", "taskCollectionMapping", "viewType", "filterSettings", "enableSerialNumber", "predecessorTooltipTemplate", "allowUnscheduledTask"]);
     setViewstate(ej.TreeGrid, ["allowSorting", "allowMultiSorting", "allowColumnResize", "allowColumnReordering", "selectionType", "selectionMode", "allowPaging", "headerTextOverflow", "showColumnOptions", "columnDialogFields", "allowKeyboardNavigation", "allowFiltering", "allowSelection",
                              "dataSource", "enableResize", "filterBarMode", "query", "selectionType", "showGridCellTooltip", "showGridExpandCellTooltip",
                              "enableAltRow", "enableVirtualization", "showColumnChooser", "idMapping", "parentIdMapping", "childMapping",
                              "cssClass", "locale", "rowHeight", "selectedRowIndex", "treeColumnIndex", "enableCollapseAll", "columns", "sortSettings",
-                             "toolbarSettings", "contextMenuSettings", "editSettings", "filterSettings", "selectionSettings", "pageSettings", "columnResizeSettings", "showSummaryRow", "showTotalSummary", "isResponsive", "allowTextWrap", "hasChildMapping", "enableLoadOnDemand","allowSearching","searchSettings"]);
+                             "toolbarSettings", "contextMenuSettings", "editSettings", "filterSettings", "selectionSettings", "pageSettings", "columnResizeSettings", "showSummaryRow", "showTotalSummary", "totalSummaryHeight", "collapsibleTotalSummary", "isResponsive", "allowTextWrap", "hasChildMapping", "enableLoadOnDemand","allowSearching","searchSettings"]);
     if (ej.datavisualization) {
         setViewstate(ej.datavisualization.Chart, ["series.visibility", "size"]);
         setViewstate(ej.datavisualization.Map, ["enablePan", "enableAnimation", "enableResize"]);

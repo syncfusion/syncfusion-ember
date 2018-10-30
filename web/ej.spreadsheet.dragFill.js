@@ -89,6 +89,8 @@
         hideAutoFillOptions: function () {
             var elem = this.XLObj._getAutoFillOptElem();
             if (elem) {
+                if(!elem.find("button").data("ejSplitButton"))
+                   this.XLObj._initializeSplitButton();
                 elem.find("button").data("ejSplitButton")._hidePopup();
                 elem.addClass("e-hide");
             }
@@ -111,7 +113,7 @@
             details.rowSel = sheet._isRowSelected;
             details.colSel = sheet._isColSelected;
             if (xlObj._trigger("autoFillBegin", options))
-                return;
+                return false;
             switch (options.fillType) {
                 case aOpt.FillSeries:
                 case aOpt.FillWithoutFormatting:

@@ -49,7 +49,7 @@ window.ej = window.Syncfusion = window.Syncfusion || {};
                     antiForgery: dataSource.antiForgery,
                     jsonp: dataSource.jsonp,
                     dataType: dataSource.dataType,
-                    enableAJAXCache: dataSource.enableAJAXCache,
+                    enableAjaxCache: dataSource.enableAjaxCache,
                     offline: dataSource.offline !== undefined ? dataSource.offline : dataSource.adaptor == "remoteSaveAdaptor" || dataSource.adaptor instanceof ej.remoteSaveAdaptor ? false : dataSource.url ? false : true,
                     requiresFormat: dataSource.requiresFormat
                 };
@@ -262,7 +262,7 @@ window.ej = window.Syncfusion = window.Syncfusion || {};
                 dataType: this.dataSource.dataType,
                 crossDomain: this.dataSource.crossDomain,
                 jsonp: this.dataSource.jsonp,
-                cache: ej.isNullOrUndefined(this.dataSource.enableAJAXCache) ? true: this.dataSource.enableAJAXCache,
+                cache: ej.isNullOrUndefined(this.dataSource.enableAjaxCache) ? true: this.dataSource.enableAjaxCache,
                 beforeSend: $proxy(this._beforeSend, this),
                 processData: false,
                 success: fnSuccess,
@@ -570,7 +570,7 @@ window.ej = window.Syncfusion = window.Syncfusion || {};
                 var ms = /^\/Date\(([+-]?[0-9]+)([+-][0-9]{4})?\)\/$/.exec(value);
                 if (ms)
                     return ej.parseDateInUTC ? p.isValidDate(ms[0]) : p.replacer(new Date(parseInt(ms[1])));
-                else if (/^(\d{4}\-\d\d\-\d\d([tT][\d:\.]*){1})([zZ]|([+\-])(\d\d):?(\d\d))?$/.test(value)) {
+                else if (/^(\d{4}\-\d\d\-\d\d)|(\d{4}\-\d\d\-\d\d([tT][\d:\.]*){1})([zZ]|([+\-])(\d\d):?(\d\d))?$/.test(value)) {
                     value = ej.parseDateInUTC ? p.isValidDate(value) : p.replacer(new Date(value));
                     if (isNaN(value)) {
                         var a = s.split(/[^0-9]/);
@@ -1502,19 +1502,22 @@ window.ej = window.Syncfusion = window.Syncfusion || {};
         },
 		_typeStringQuery: function (pred, requiresCast,val,field,guid) {
 			if(val.indexOf("'") != -1)
-                    val = val.replace(new RegExp(/'/g),"''");
-                val = "'" + val + "'";
-
-                if (requiresCast) {
-                    field = "cast(" + field + ", 'Edm.String')";
-                }
-                if (ej.isGUID(val))
-                    guid = 'guid';
-                if (pred.ignoreCase) {
-                    !guid ? field = "tolower(" + field + ")" : field;
-                    val = val.toLowerCase();
-                }
-				return {"val":val,"guid":guid ,"field":field};
+			    val = val.replace(new RegExp(/'/g), "''");
+			var specialCharFormat = /[ !@@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/; 
+			if (specialCharFormat.test(val)) { 
+			    val = encodeURIComponent(val)
+			}
+            val = "'" + val + "'";
+            if (requiresCast) {
+                field = "cast(" + field + ", 'Edm.String')";
+            }
+            if (ej.isGUID(val))
+                guid = 'guid';
+            if (pred.ignoreCase) {
+                !guid ? field = "tolower(" + field + ")" : field;
+                val = val.toLowerCase();
+            }
+			return {"val":val,"guid":guid ,"field":field};
 		},
         onPredicate: function (pred, query, requiresCast) {
             var returnValue = "",
@@ -1543,6 +1546,7 @@ window.ej = window.Syncfusion = window.Syncfusion || {};
 				return returnValue;
 			}
 			if( pred.operator == "in" || pred.operator == "notin" ) {
+				returnValue += "(";
 				for(var index = 0; index < val.length; index++ ) {
 					if (val[index] instanceof Date)
 						val[index] = "datetime'" + p.replacer(val[index]).toJSON() + "'";
@@ -1555,15 +1559,12 @@ window.ej = window.Syncfusion = window.Syncfusion || {};
 					returnValue += val[index];
 					if( index != val.length -1 ) returnValue += ( pred.operator == "in") ? " or " : " and ";
 				}
+				returnValue += ")";
 				return returnValue;
 			}
-            if (operator) {
-                returnValue += field;
-                returnValue += operator;
-                if (guid)
-                    returnValue += guid;
-                return returnValue + val;
-            }
+		    if (operator) {
+		        return this.onOperation(returnValue, operator, field, val, guid);
+		    }
 
             operator = ej.data.odUniOperator[pred.operator];
             if (!operator || type !== "string") return "";
@@ -1592,6 +1593,13 @@ window.ej = window.Syncfusion = window.Syncfusion || {};
 				return returnValue1;
 			}
             return returnValue;
+		},
+		onOperation: function (returnValue, operator, field, val, guid) {
+		        returnValue += field;
+		        returnValue += operator;
+		        if (guid)
+		            returnValue += guid;
+		        return returnValue + val;
         },
         onComplexPredicate: function (pred, requiresCast) {
             var res = [];
@@ -1757,7 +1765,7 @@ window.ej = window.Syncfusion = window.Syncfusion || {};
             if(typeof(value) == "string"){
                 return {
                     type: "DELETE",
-                    url: dm.dataSource.url.replace(/\/*$/, tableName ? '/' + tableName : '') + "('" + value + "')"
+                    url: ej.isGUID(value) ? dm.dataSource.url.replace(/\/*$/, tableName ? '/' + tableName : '') + "(" + value + ")" : dm.dataSource.url.replace(/\/*$/, tableName ? '/' + tableName : '') + "('" + value + "')"
                 };
             }
             return {
@@ -1768,7 +1776,7 @@ window.ej = window.Syncfusion = window.Syncfusion || {};
         update: function (dm, keyField, value, tableName) {
 			var url;
 			if(typeof value[keyField] === "string")
-				url = dm.dataSource.url.replace(/\/*$/, tableName ? '/' + tableName : '') + "('" + value[keyField] + "')";
+			    url = ej.isGUID(value[keyField]) ? dm.dataSource.url.replace(/\/*$/, tableName ? '/' + tableName : '') + "(" + value[keyField] + ")" : dm.dataSource.url.replace(/\/*$/, tableName ? '/' + tableName : '') + "('" + value[keyField] + "')";
 			else 
 				url = dm.dataSource.url.replace(/\/*$/, tableName ? '/' + tableName : '') + '(' + value[keyField] + ')';
             return {
@@ -1809,13 +1817,14 @@ window.ej = window.Syncfusion = window.Syncfusion || {};
         },
         generateDeleteRequest: function (arr, e) {
             if (!arr) return "";
-            var req = "";
+            var req = "", val;
 
             for (var i = 0; i < arr.length; i++) {
                 req += "\n" + e.cSet + "\n";
                 req += oData.changeSetContent + "\n\n";
                 req += "DELETE ";
-                req += e.url + "(" + arr[i][e.key] + ") HTTP/1.1\n";
+                val = typeof arr[i][e.key] == "string" ? "'" + arr[i][e.key] + "'" : arr[i][e.key];
+                req += e.url + "(" + val + ") HTTP/1.1\n";
                 req += "If-Match : * \n"
                 req += "Accept: " + oData.accept + "\n";
                 req += "Content-Id: " + this.pvt.changeSet++ + "\n";
@@ -1844,13 +1853,14 @@ window.ej = window.Syncfusion = window.Syncfusion || {};
         },
         generateUpdateRequest: function (arr, e) {
             if (!arr) return "";
-            var req = "";
+            var req = "", val;
 
             for (var i = 0; i < arr.length; i++) {
                 req += "\n" + e.cSet + "\n";
                 req += oData.changeSetContent + "\n\n";
                 req += "PUT ";
-                req += e.url + "(" + arr[i][e.key] + ")" + " HTTP/1.1\n";
+                val = typeof arr[i][e.key] == "string" ? "'" + arr[i][e.key] + "'" : arr[i][e.key];
+                req += e.url + "(" + val + ")" + " HTTP/1.1\n";
                 req += "If-Match : * \n"
                 req += "Accept: " + oData.accept + "\n";
                 req += "Content-Id: " + this.pvt.changeSet++ + "\n";
@@ -1899,6 +1909,18 @@ window.ej = window.Syncfusion = window.Syncfusion || {};
                 if (isDate)
                     returnValue = returnValue.replace(/datetime'(.*)'$/, "$1");
 
+            return returnValue;
+        },
+        onOperation: function (returnValue, operator, field, val, guid) {
+            if (guid) {
+                returnValue += "(" + field;
+                returnValue += operator;
+                returnValue += val.replace(/["']/g, "") + ")";
+            } else {
+                returnValue += field;
+                returnValue += operator;
+                returnValue += val;
+            }
             return returnValue;
         },
         onEachSearch: function (e) {
@@ -2254,9 +2276,9 @@ window.ej = window.Syncfusion = window.Syncfusion || {};
             if(!ej.isNullOrUndefined(changes)){
             if (data.d)
                 data = data.d;
-            if(data.added)changes.added = data.added;
-            if(data.changed)changes.changed = data.changed;
-            if(data.deleted)changes.deleted = data.deleted;
+            if(data.added)changes.added = ej.parseJSON(data.added);
+            if(data.changed)changes.changed = ej.parseJSON(data.changed);
+            if(data.deleted)changes.deleted = ej.parseJSON(data.deleted);
             var i;
             for (i = 0; i < changes.added.length; i++)
                 ej.JsonAdaptor.prototype.insert(ds, changes.added[i]);
@@ -3408,6 +3430,9 @@ window.ej = window.Syncfusion = window.Syncfusion || {};
         },
 
         fnAscending: function (x, y) {
+			if(ej.isNullOrUndefined(y) && ej.isNullOrUndefined(x))
+                return -1;
+			
             if (y === null || y === undefined)
                 return -1;
 
@@ -3421,6 +3446,9 @@ window.ej = window.Syncfusion = window.Syncfusion || {};
         },
 
         fnDescending: function (x, y) {
+			if(ej.isNullOrUndefined(y) && ej.isNullOrUndefined(x))
+                return -1;
+			
             if (y === null || y === undefined)
                 return 1;
 

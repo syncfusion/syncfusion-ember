@@ -267,7 +267,7 @@ function  formatMapper (format, value) {
 }
 
 function customFormat(value, format, locale) {
-	if(!value || typeof value === "string" || !format)
+	if(ej.isNullOrUndefined(value) || typeof value === "string" || !format)
 		throw "Bad Number Format Exception";
 	var formatLength, formatObj, rules, orgFormat = format;
 	formatObj = formatMapper(format, value);

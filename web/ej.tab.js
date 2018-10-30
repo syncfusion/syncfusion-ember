@@ -280,7 +280,6 @@
         },
 
         _removeScroll: function () {
-            this.itemsContainer.removeAttr("style");
             this.element.find("div.e-chevron-circle-right").remove();
             this.element.find("div.e-chevron-circle-left").remove();
         },
@@ -1087,11 +1086,12 @@
                         this.itemsContainer.css("clip", "rect(0 ," + (ej.getDimension(this.element, "width") + (itemPosition + 10)) + "px, 100px," + (itemPosition + 10) + "px)").css("margin-left", "-" + (itemPosition + 10) + "px")
                         this._rightScrollIcon ? this._rightScrollIcon.css("margin-right", (this.itemsContainer.width() - ej.getDimension(this.element, "width") + 10 - itemPosition) + "px").css("display", "block") : "";
                         this._addScrollBackIcon();
-                        if ((this._leftScrollIcon && this._leftScrollIcon.css("margin-left")) && (Number(this.itemsContainer.css("margin-left").split("px")[0].replace("-", "")) >= (this._tabContentsWidth() - ej.getDimension(this.element, "width")))) {
+                        if ((this._leftScrollIcon && this._leftScrollIcon.css("margin-left")) && (Number(this.itemsContainer.css("margin-left").split("px")[0].replace("-", "")) >= (this._tabContentsWidth() - ej.getDimension(this.element, "width"))) && ((Number(this.itemsContainer.find("li.e-active").offset().left.toFixed(0)) - this.itemsContainer.find("li.e-active").width() < 0))) {
                         this._rightScrollIcon.css("display", "none"); 
 						this._off(this.items, "swipeleft", this._tabSwipe);
                     }else
                         this._leftScrollIcon ? this._leftScrollIcon.css("display", "block") : "";
+                        this._rightScrollIcon ? this._rightScrollIcon.css("display", "none") : "";
                     }
                 }
             }
@@ -1183,6 +1183,16 @@
                      }	 
                 }
                 this.removeItem(index);
+                if(this.model.enableTabScroll && (this.model.headerPosition == "top" || this.model.headerPosition == "bottom") && ( this._leftScrollIcon || this._rightScrollIcon ) && !this.model.enableRTL) {
+                    this._removeScroll();
+                    var itemswidth = 0;
+                    for(var i = 0; i< this.items.length; i++){
+                        itemswidth += $(this.items[i]).width(); 
+                    }
+                    if(this.scrollPanelWidth <= itemswidth){
+                        this._addScroll();
+                    }
+                }
             }
         },
         _tabScrollClick: function (args) {
@@ -1317,17 +1327,30 @@
                         case 40:
                             {
                                 e.preventDefault();
-                                this.showItem(this.selectedItemIndex() + 1);
+								var index = [];
+								for(var i=0; i<this.getItemsCount();i++) {
+									if($.inArray(i,this.model.hiddenItemIndex) < 0)
+									{
+										index.push(i);
+									}
+								}
+								var tabIndex = $.inArray(this.selectedItemIndex(),index);
+								tabIndex==index.length-1?this.showItem(index[0]): this.showItem(index[tabIndex+1]);
                                 break;
                             }
                         case 37:
                         case 38:
                             {
                                 e.preventDefault();
-                                if (this.selectedItemIndex() != 0)
-                                    this.showItem(this.selectedItemIndex() - 1);
-                                else if (this.selectedItemIndex() == 0)
-                                    this.showItem(this.getItemsCount() - 1);
+								var index = [];
+								for(var i=0; i<this.getItemsCount();i++) {
+									if($.inArray(i,this.model.hiddenItemIndex) < 0)
+									{
+										index.push(i);
+									}
+								}
+								var tabIndex = $.inArray(this.selectedItemIndex(),index);
+								tabIndex==0 ? this.showItem(index[index.length-1]) : this.showItem(index[tabIndex-1]);
                                 break;
                             }
                         case 35:
@@ -1403,6 +1426,7 @@
             this._on(this.itemsContainer, "focusout", this._focusOut);
             $(window).on('resize', $.proxy(this._resize, this));
             this._on(this.element.find(">ul").eq(0).find(">li div.e-reload"), "click", this._tabReloadClick);
+			this._resizeEvents(this.model.heightAdjustMode);
         },
         _resize: function () {
             if (this.model && this.model.width == null && this.model.enableTabScroll && (this.model.headerPosition == "top" || this.model.headerPosition == "bottom")) {
@@ -1611,7 +1635,7 @@
             if (this.model.enableTabScroll && this.model.headerPosition == "right") {
                 $(this.contentPanels).css("height", this.model.height + "px");
             }
-
+			this._setTabsHeightStyle(this.model.heightAdjustMode);
         },
 
         _isSizeExceeded: function () {

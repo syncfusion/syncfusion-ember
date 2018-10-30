@@ -169,6 +169,21 @@
         setCurrentTime: function () {
             if (!this.model.readOnly) this._setMask();
         },
+        
+        setValue: function (value) {
+            var prevValue = this.model.value;
+            this.model.value = ej.format(this._createObject(value, true), this.model.timeFormat, this.model.locale);
+            this._ensureValue();
+            this._enableMask();
+            if (this.model.enableStrictMode && !this._isValid(value, true)) {
+                    var tval = this._isValid(this.model.value) ? this._localizeTime(this.model.value) : this.model.value;
+                     this.element.val(tval);
+            }
+            if (prevValue != this.model.value) {
+                this._raiseChangeEvent(prevValue, true);
+            }
+            this._checkErrorClass();
+        },
 
         show: function () {
             (!this.showDropdown && !this._getInternalEvents) && this._showResult();
@@ -417,7 +432,7 @@
             var change = false, prev = this.model.value;
 			
             for (var option in options) {
-			if(option != "timeFormat" && option != "height" && option != "width" && option != "htmlAttributes" && option != "watermarkText" && option != "enabled" && option != "validationRules" && option != "validationMessages"){
+			if(option != "height" && option != "width" && option != "htmlAttributes" && option != "watermarkText" && option != "enabled" && option != "validationRules" && option != "validationMessages"){
 				if (ej.isNullOrUndefined(this.popupList)) this._renderDropdown();
 			}
                 switch (option) {
@@ -607,7 +622,11 @@
                 if (keyName == "class") proxy.wrapper.addClass(value);
                 else if (keyName == "disabled" && value == "disabled") proxy.disable();
                 else if (keyName == "readOnly" && value == "readOnly") proxy.model.readOnly = true;
-                else if (keyName == "style" || keyName == "id") proxy.wrapper.attr(key, value);
+                else if (keyName == "style") proxy.wrapper.attr(key, value);
+                else if (keyName == "id") {
+                    proxy.wrapper.attr(key, value + "_wrapper");
+                    proxy.element.attr(key, value);
+                }
                 else if (ej.isValidAttr(proxy.element[0], key)) proxy.element.attr(key, value);
                 else proxy.wrapper.attr(key, value);
 
@@ -657,7 +676,7 @@
             var oldWrapper = $("#" + this.element[0].id + "_popup").get(0);
             if (oldWrapper)
                 $(oldWrapper).remove();
-            if (!this.model.showPopupButton || this.popupList) return false;
+            if (this.popupList) return false;
             this.popupList = ej.buildTag("div.e-time-popup e-popup e-widget e-box " + this.model.cssClass + "#" + this.target.id + "_popup", "", {}, { 'tabindex': 0, 'role':'listbox'});
             if (!ej.isTouchDevice()) this.popupList.addClass('e-ntouch');
             this.popup = this.popupList;
@@ -851,7 +870,7 @@
             var modifiedTime = this._localizeTime(time);
             this.element.val(modifiedTime);
             if (this.model.enableStrictMode) {
-                this.model.value = (this._compareTime(this.model.value, this.model.minTime) && this._compareTime(this.model.maxTime, this.model.value)) ? modifiedTime : null;
+                this.model.value = (this._compareTime(this.model.value, this.model.minTime, true) && this._compareTime(this.model.maxTime, this.model.value, true)) ? modifiedTime : null;
             } else {
                 this.model.value = modifiedTime;
             }
@@ -1129,10 +1148,13 @@
             this._prevTimeVal = this.element.val();
             this._raiseEvent("focusIn");
             this.wrapper.addClass('e-valid');
+            if (!this.model.showPopupButton) this._showResult();
+            if (!this.model.showPopupButton) this._on(this.element, "click", this._elementClick);
         },
         _targetBlur: function () {
             this.focused = false;
             this.element.off('mousewheel DOMMouseScroll', $.proxy(this._mouseWheel, this));
+            if (!this.model.showPopupButton) this._off(this.element, "click", this._elementClick);
             this.wrapper.removeClass("e-focus");
             if (!this.model.enableStrictMode) {
                 // To remove the min value mask while focusout the timepicker.
@@ -1755,7 +1777,7 @@
             return top;
         },
         _changeActiveEle: function () {
-            if (!this.model.showPopupButton || !this.popupList) return false;
+            if (!this.popupList) return false;
             var elements = this.ul.find("li");
             var currTime = this.element.val(), firstTime = elements.first().html(), index;
             index = (this._parse(currTime) - this._parse(firstTime)) / (this.model.interval * 60000);

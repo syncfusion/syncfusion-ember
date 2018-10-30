@@ -495,13 +495,14 @@
                 this._setInnerPosition();
                 var self = this;
                 $.each(this.model.items, function (index, element) {
-                    self._setSegmentCount(element.characterSettings.type);
+					var characterSettingsType = element.characterSettings.type.toLowerCase();
+                    self._setSegmentCount(characterSettingsType);
                     self.itemIndex = index;
                     self.canvasEl.attr("aria-label", element.value);
                     self._setShadow(index, element);
                     if (element.enableCustomFont)
                         self._setCustomFont(index, element);
-                    else if (element.characterSettings.type.indexOf("matrix") != -1)
+                    else if (characterSettingsType.indexOf("matrix") != -1)
                         self._drawMatrixSegments(index, element);
                     else
                         self._drawSegments(index, element);
@@ -533,7 +534,7 @@
 
           
         _drawMatrixSegments: function (index, element) {
-            var segmentXCollection = [], segmentCollection = [];
+            var segmentXCollection = [], segmentCollection = [], characterSettingsType = element.characterSettings.type.toLowerCase();
             if (element.value) {
                 this._value = element.value.toString().split('');
                   
@@ -541,9 +542,9 @@
             }
             else
                 this._value = "";
-            this.radius = (element.characterSettings.type.indexOf("dot") != -1) ? (element.segmentSettings.length + element.segmentSettings.width) / 2 : element.segmentSettings.width / 2;
+            this.radius = (characterSettingsType.indexOf("dot") != -1) ? (element.segmentSettings.length + element.segmentSettings.width) / 2 : element.segmentSettings.width / 2;
             var controlStartX = this.startX = (this.bounds.width - element.characterSettings.count * (this._SegmentCount[0] * (2 * this.radius) + element.characterSettings.spacing + this._SegmentCount[0] * element.segmentSettings.spacing)) * (element.position.x / 100);
-            var controlStartY = this.startY = (this.bounds.height - (this._SegmentCount[1] * ((element.characterSettings.type.indexOf("dot") != -1) ? 2 * this.radius : element.segmentSettings.length) + this._SegmentCount[1] * element.segmentSettings.spacing)) * (element.position.y / 100);
+            var controlStartY = this.startY = (this.bounds.height - (this._SegmentCount[1] * ((characterSettingsType.indexOf("dot") != -1) ? 2 * this.radius : element.segmentSettings.length) + this._SegmentCount[1] * element.segmentSettings.spacing)) * (element.position.y / 100);
             for (var character = 0; character < element.characterSettings.count; character++) {
                 if (this._value) {
                     this.character = element.textAlign == "right" ? this._value[this._value.length - element.characterSettings.count + character] : this._value[character];
@@ -555,7 +556,7 @@
                 }
                 for (var dotY = 0; dotY < this._SegmentCount[1]; dotY++) {
                     if (dotY != 0) {
-                        this.startY = ((element.characterSettings.type.indexOf("dot") != -1) ? (2 * this.radius) : element.segmentSettings.length) + this.startY + element.segmentSettings.spacing;
+                        this.startY = ((characterSettingsType.indexOf("dot") != -1) ? (2 * this.radius) : element.segmentSettings.length) + this.startY + element.segmentSettings.spacing;
                         this.startX = controlStartX;
                     }
                     if (segmentCollection) {
@@ -571,7 +572,7 @@
                     for (var dotX = 0; dotX < this._SegmentCount[0]; dotX++) {
                         if (dotX != 0)
                             this.startX = this.startX + 2 * this.radius + element.segmentSettings.spacing;
-                        if (element.characterSettings.type.indexOf("dot") != -1)
+                        if (characterSettingsType.indexOf("dot") != -1)
                             this.gradient = this.contextEl.createRadialGradient(0, 0, 0, 0, 0, this.radius);
                         else
                             this.gradient = this.contextEl.createLinearGradient(0, 0, element.segmentSettings.width, 0);
@@ -588,7 +589,7 @@
                         };
                         if (this.model.itemRendering)
                             this._clientSideOnItemRendering(true, dotX, dotY);
-                        if (element.characterSettings.type.indexOf("dot") != -1)
+                        if (characterSettingsType.indexOf("dot") != -1)
                             this._drawDot(this.region, this.style);
                         else
                             this._drawSquare(this.region, this.style);
@@ -600,13 +601,13 @@
 
           
         _drawSegments: function (index, element) {
-            var segmentCollection = [];
+            var segmentCollection = [] , characterSettingsType = element.characterSettings.type.toLowerCase() ;
             if (element.value) {
                 this._value = element.value.toUpperCase().toString().split('');
                 //beyond the four character it align in center. else it align left
                 element.characterSettings.count = (this._value.length > 4) ? this._value.length : 4;
             }
-            this.characterSpace = element.characterSettings.type == "sevensegment" ? 2 * element.segmentSettings.width : 4 * element.segmentSettings.width;
+            this.characterSpace =  characterSettingsType == "sevensegment" ? 2 * element.segmentSettings.width : 4 * element.segmentSettings.width;
             this._renderSegmentCalculation(element);
             this.gradient = this.contextEl.createLinearGradient(0, 0, 0, element.segmentSettings.width);
             if (element.segmentSettings.color)
@@ -629,7 +630,7 @@
                         "fillStyle": this.gradient,
                         "isStroke": false,
                         "isFill": true,
-                        "characterHeight": element.characterSettings.type == "sevensegment" ? element.segmentSettings.length : this.segmentHeight[segment],
+                        "characterHeight": characterSettingsType == "sevensegment" ? element.segmentSettings.length : this.segmentHeight[segment],
                         "segmentWidth": element.segmentSettings.width,
                         "opacity": (segmentCollection && ($.inArray(segment, segmentCollection) != -1)) ? element.characterSettings.opacity : element.segmentSettings.opacity
                     };
@@ -662,10 +663,10 @@
 
           
         _renderSegmentCalculation: function (element) {
-            var length = element.segmentSettings.length, width = element.segmentSettings.width;
+            var length = element.segmentSettings.length, width = element.segmentSettings.width, characterSettingsType = element.characterSettings.type.toLowerCase();
             this.startX = (this.bounds.width - element.characterSettings.count * (length + this.characterSpace + element.characterSettings.spacing)) * (element.position.x / 100);
             this.startY = (this.bounds.height - 2 * length - width) * (element.position.y / 100);
-            var tempLength = element.characterSettings.type == "sevensegment" ? length : length / 2;
+            var tempLength = characterSettingsType == "sevensegment" ? length : length / 2;
             this.segment16X = [
                   this.startX + width / 2,
                   this.startX + length + 4 * width,
@@ -721,9 +722,9 @@
                   length / 2
             ];
             this.angle = [-90, 0, 0, -90, 0, 0, -90, 0, -90, 0, 27, -27, 27, -27, -90, -90];
-            if (element.characterSettings.type == "sevensegment")
+            if (characterSettingsType == "sevensegment")
                 this.segment16X[2] = this.segment16X[1] = this.startX + length + 2 * width;
-            if (element.characterSettings.type == "fourteensegment")
+            if (characterSettingsType == "fourteensegment")
                 this.segmentHeight[3] = this.segmentHeight[0] = length + 2 * width;
         },
 

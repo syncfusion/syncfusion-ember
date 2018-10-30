@@ -32,7 +32,7 @@
             cells = xlObj._getMultiRangeCells(range);
             len = cells.length;
             if (xlObj._trigger("beforeCellFormat", { sheetIndex: sheetIdx, format: formatObj, cells: cells }))
-                return;
+                return false; 
             if (len) {
                 formatObj = this._getFormatObj(formatObj);
                 if (style in formatObj || format in formatObj) {
@@ -117,7 +117,11 @@
                         cellInfo = xlObj._getCellInfo(cellIdx);
                         xlObj._dupDetails = true;
                         if (format in formatObj && ["text", "general"].indexOf(this._cellObj.type) === -1) {
-                            globalWidth = xlObj._detailsFromGlobalSpan(cellIdx.rowIndex, cellIdx.colIndex, "width", this._cellObj.value2);
+                            var data = xlObj.getRangeData({ range: [cellIdx.rowIndex, cellIdx.colIndex, cellIdx.rowIndex, cellIdx.colIndex], property: ['value2', "formats", "altTxt", "type"] });
+                            if (xlObj._browserDetails.name == "msie" && xlObj._browserDetails.version == "8.0")
+                                globalWidth = xlObj._detailsFromGlobalSpan(cellIdx.rowIndex, cellIdx.colIndex, "width", this._cellObj.value2);
+                            else
+                                globalWidth = xlObj._getTextContentWidth(data[0], this._cellObj.value2);
                             if (globalWidth > cellInfo.width)
                                 xlObj.XLResize.setColWidth(cellIdx.colIndex, globalWidth);
                             if (xlObj.model.allowFreezing)
@@ -184,8 +188,11 @@
                     xlObj.XLEdit._refreshCellAlignment(options);
                 }
 			}
-            else
-                formattedval = this._format(formattedval, { formatStr: cellObj.formatStr, type: cellObj.type, thousandSeparator: cellObj.thousandSeparator, decimalPlaces: cellObj.decimalPlaces, cellObj: cellObj }, { rowIndex: rowIdx, colIndex: colIdx });
+            else {
+				if (xlObj._isDateTime(formattedval))
+                    type = xlObj.XLEdit.getPropertyValue(rowIdx, colIdx, "type");
+                formattedval = this._format(formattedval, { formatStr: cellObj.formatStr, type: cellObj.type, thousandSeparator: cellObj.thousandSeparator, decimalPlaces: cellObj.decimalPlaces, cellObj: cellObj, isTime: type === ej.Spreadsheet.CellType.Time }, { rowIndex: rowIdx, colIndex: colIdx });
+			}
 			return formattedval;
 		},
 		
@@ -194,10 +201,12 @@
                 temp = xlObj.isUndefined(value) ? "" : value, type = formatObj.type || "", ctype = ej.Spreadsheet.CellType,
                 locale = xlObj.model.locale, prefix = ["."].indexOf(this._thousandSeparator) > -1 ? '\\' : "", regx = new RegExp(prefix + this._thousandSeparator, "g");
             value = temp.toString();
+			xlObj.XLEdit._formatCellVal = null;
             switch (type) {
                 case ctype.Accounting:
                     if (xlObj._isDateTime(temp)) {
                         temp = xlObj._dateToInt(temp);
+						xlObj.XLEdit._formatCellVal = temp;
                         if (this._cellObj && this._cellObj.canUpdate)
                             this._cellObj.value = temp;
                     }
@@ -209,6 +218,7 @@
                 case ctype.Percentage:
                     if (xlObj._isDateTime(temp)) {
                         temp = xlObj._dateToInt(temp);
+						xlObj.XLEdit._formatCellVal = temp;
                         if (this._cellObj && this._cellObj.canUpdate)
                             this._cellObj.value = temp;
                     }
@@ -221,6 +231,7 @@
                 case ctype.Scientific:
                     if (xlObj._isDateTime(temp)) {
                         temp = xlObj._dateToInt(temp);
+						xlObj.XLEdit._formatCellVal = temp;
                         if (this._cellObj && this._cellObj.canUpdate)
                             this._cellObj.value = temp;
                     }
@@ -230,6 +241,7 @@
                 case ctype.Fraction:
                     if (xlObj._isDateTime(temp)) {
                         temp = xlObj._dateToInt(temp);
+						xlObj.XLEdit._formatCellVal = temp;
                         if (this._cellObj && this._cellObj.canUpdate)
                             this._cellObj.value = temp;
                     }
@@ -243,13 +255,17 @@
                 case ctype.Date:
                 case ctype.Time:
                 case ctype.DateTime:
-                    if (xlObj.isNumber(temp)) {
+                    if (typeof temp === "string")
+                        temp = xlObj._isValidTime(temp) ? new Date("01/01/1990 " + temp) : new Date(temp);
+                    if (!isNaN(ej.parseFloat(temp.toString(), 10, locale))) {
                         temp = xlObj.intToDate(temp);
-                        if (this._cellObj && this._cellObj.canUpdate)
-                            this._cellObj.value = temp;
-                    }
-                    else if (!xlObj._isDateTime(temp))
+					}
+                    else if (!xlObj._isDateTime(temp)) 
                         temp = ej.parseDate(temp);
+                    if (temp && this._cellObj && this._cellObj.canUpdate) {
+                        this._cellObj.value = temp;
+						xlObj.XLEdit._formatCellVal = temp;
+					}
                     if (xlObj._isDateTime(temp))
                         temp = xlObj.formatting(formatstr, temp, locale);
                     break;
@@ -268,7 +284,7 @@
 
         createTable: function (tableObj, range) {
 			var xlObj = this.XLObj;
-			if (!xlObj.model.allowFormatAsTable || (!xlObj.model.allowSelection && ej.isNullOrUndefined(range) || xlObj.model.isReadOnly))
+			if (!xlObj.model.allowFormatAsTable || (!xlObj.model.allowSelection && ej.isNullOrUndefined(range) || ( xlObj.getSheet()._isLoaded && xlObj.model.isReadOnly)))
                 return;
             ej.isNullOrUndefined(tableObj.format) && (tableObj.format = this._getTableLayoutFromName(tableObj.formatName).format);
             ej.isNullOrUndefined(tableObj.showHeaderRow) && (tableObj.showHeaderRow = true);
@@ -296,7 +312,7 @@
 					}
 				}
 			}
-            if (tableObj.name && !xlObj.XLRibbon._validateNamedRange(tableObj.name, xlObj._getDollarAlphaRange(trange, true)) && !xlObj.XLClipboard._isCut)
+            if (tableObj.name && !xlObj.XLRibbon._validateNamedRange(tableObj.name, xlObj._getDollarAlphaRange(trange, true), "Workbook") && !xlObj.XLClipboard._isCut)
                 return;
             cname = xlObj.XLEdit.getPropertyValue(trange[0], trange[1], "tableName") || "";
             if (!sheet._isImported || sheet._isLoaded) {
@@ -314,6 +330,8 @@
                 obj[str] = tableObj.formatName;
             if ("showHeaderRow" in tableObj)
                 obj["showHeaderRow"] = tableObj.showHeaderRow;
+			if ("totalRow" in tableObj)
+                obj["totalRow"] = tableObj.totalRow;
             if (!cname) {
                 if (xlObj.XLClipboard._isCut){
                     while (tableObj.tblId in tmgr)
@@ -358,7 +376,7 @@
                     }
                 }
                 if("dataSource" in tableObj)
-                    xlObj.updateRange(sheetIdx, { showHeader: "showHeader" in tableObj ? tableObj.showHeader : true, startCell: xlObj._getAlphaRange(sheetIdx, range[0], range[1], range[0], range[1]), dataSource: tableObj.dataSource });
+                    xlObj._updateRangeValue(sheetIdx, { showHeader: "showHeader" in tableObj ? tableObj.showHeader : true, startCell: xlObj._getAlphaRange(sheetIdx, range[0], range[1], range[0], range[1]), dataSource: tableObj.dataSource }, false);
                 xlObj.updateUniqueData({ tableName: 'e-table' + tlength }, range);
                 tmgr[tlength] = { name: tname, range: trange, showHeaderRow: tableObj.showHeaderRow };
                 tableObj.fnNumber && (tmgr[tlength].fnNumber = tableObj.fnNumber);
@@ -396,7 +414,12 @@
                 }
             }
             fltrColElem.length && fltrColElem.ejCheckBox("option", { checked: true });
-			xlObj.XLRibbon.addNamedRange(tname, xlObj._getDollarAlphaRange(range, true), null, sheetIdx);
+			xlObj.XLRibbon.addNamedRange(tname, xlObj._getDollarAlphaRange(range, true), null, sheetIdx, "Workbook");
+			this._updateTableFormula("addRange", tmgr[tlength], sheetIdx);
+			var keys = xlObj.getObjectKeys(xlObj._tableRangesFormula[tname]), keysLen = keys.length;
+			 xlObj._tableFormulaCollection[tname] = [];
+				for(var j=0;j<keysLen;j++)
+				    xlObj._tableFormulaCollection[tname].push({"text": "[" + keys[j] + "]", "display":keys[j]});
 			sheet._isLoaded && xlObj.XLSelection._refreshBorder();
 			this._isFAT = false;
 			return tableObj.name;
@@ -408,7 +431,7 @@
                 cntBdr = "contentBorder", val2 = "value2", tblName = "tableName", hlk = "hyperlink", tableName = "e-table" + tableId,
                 hasStyle = false, xlObj = this.XLObj, sheetIdx = xlObj.getActiveSheetIndex(), sheet = xlObj.getSheet(sheetIdx),
                 table = sheet.tableManager[tableId], range = table.range, minr = range[0],
-                minc = range[1], maxr = range[2], maxc = range[3], fltrColElem = xlObj.element.find("#" + xlObj._id + "_Ribbon_tsofiltercolumn");
+                minc = range[1], maxr = range[2], maxc = range[3], fltrColElem = xlObj.element.find("#" + xlObj._id + "_Ribbon_tsofiltercolumn"),tempArr = [], pos =2, tempVal;
             table[frmt] = options.format;
             if (options.formatName)
                 table[frmtName] = options.formatName;
@@ -420,6 +443,7 @@
                 if (bdr in style) {
                     arange = xlObj._getProperAlphaRange(sheetIdx, minr, minc, minr, maxc);
                     xlObj._intrnlReq = true;
+                    xlObj._isTableBrdrEnd = true;
                     this.applyBorder(style.border, arange);
                     xlObj._intrnlReq = false;
                     delete style.border;
@@ -443,6 +467,17 @@
                     }
                     else if (val.toLowerCase() === txt.toLowerCase())
                         idx++;
+					tempVal = val.toLowerCase();
+					if(val.length) {
+						if(tempArr.indexOf(tempVal)< 0)
+						   tempArr.push(tempVal);
+					    else {
+						   val = val + pos;
+						   pos++;
+						   tempArr.push(val.toLowerCase());
+						   xlObj.XLEdit._updateCell(cellIdx, val);
+					    }
+					}
                     if (hasStyle) {
                         eformat = this._getExtendedFormat(cellIdx, style, this._isFAT);
                         args.format = this._createFormatClass(eformat.format);
@@ -454,6 +489,8 @@
                     j++;
                 }
             }
+			if(xlObj.isImport || xlObj.model.isImport)
+				maxr = options.totalRow ? (maxr + 1) : maxr;
             if (cntLyt in options.format) {
                 len = options.format.contentLayout.length;
                 idx = 0, i = options.showHeaderRow ? (minr + 1) : minr, j = maxr;
@@ -462,6 +499,7 @@
                     if (bdr in style) {
                         arange = xlObj._getProperAlphaRange(sheetIdx, i, minc, i, maxc);
                         xlObj._intrnlReq = true;
+                        xlObj._isTableBrdrEnd = true;
                         this.applyBorder(style.border, arange);
                         xlObj._intrnlReq = false;
                         delete style.border;
@@ -484,13 +522,18 @@
                     }
                     i++;
                     idx++;
-                }
+                }  
             }
             if (cntBdr in options.format) {
                 arange = xlObj._getProperAlphaRange(sheetIdx, minr + 1, minc, maxr, maxc);
                 xlObj._intrnlReq = true;
+                xlObj._isTableBrdrEnd = true;
                 this.applyBorder($.extend({}, options.format.contentBorder.border), arange);
                 xlObj._intrnlReq = false;
+            }
+            if (xlObj.model.scrollSettings.allowVirtualScrolling & xlObj._isTableBrdrEnd) {
+                xlObj.XLScroll._refreshScroller(sheetIdx, "refresh", "vertical");
+                xlObj._isTableBrdrEnd = false;
             }
             if (!xlObj.XLClipboard._isCut)
                 xlObj._tableCnt++;
@@ -548,7 +591,8 @@
 			if (!xlObj.model.allowFormatAsTable || xlObj.model.isReadOnly)
                 return;
             var tclass, cells, len, formats, tformats, borders, tborders, i = 0, sheetIdx = xlObj.getActiveSheetIndex(), tmgr = xlObj.getSheet(sheetIdx).tableManager, range = tmgr[tableId].range, name = tmgr[tableId].name, fltrColElem = xlObj.element.find("#" + xlObj._id + "_Ribbon_tsofiltercolumn");
-            if (tableId in tmgr) {               
+            this._updateTableFormula("removeTable", tmgr[tableId],sheetIdx);
+			if (tableId in tmgr) {               
                 xlObj.clearRangeData(range, ["tableName"]);
                 cells = xlObj._getSelectedRange({ rowIndex: range[0], colIndex: range[1] }, { rowIndex: range[2], colIndex: range[3] });
                 len=cells.length;
@@ -593,6 +637,7 @@
                         xlObj.XLRibbon.removeNamedRange(tname);
                         tmgr[tid].name = newName;
                         xlObj.XLRibbon.addNamedRange(tmgr[tid].name, trange, null, sheetIdx);
+						this._updateTableFormula("rename", tmgr[tid],sheetIdx, tname);
                         details.newName = tmgr[tid].name;
                         robj.showTab(xlObj._getLocStr('Design'));
                         xlObj._completeAction(details);
@@ -719,6 +764,7 @@
             isChecked ? tmgr[tid]["totalRow"] = true : "totalRow" in tmgr[tid] && delete tmgr[tid]["totalRow"];
             tRange = tmgr[tid].range;
             xlObj.XLFormat._createTable(tid, { format: tmgr[tid].format });
+			this._updateTableFormula("totalRow", tmgr[tid], sheetIdx);
             cCells.push(xlObj.getRangeData({ range: [tRange[2] + 1, tRange[1], tRange[2] + 1, tRange[3]] }))
             details = { sheetIndex: sheetIdx, reqType: "format-table", action: "totalrow", range: aRange, check: isChecked, id: chkboxId, cell: cells, tmgr: tmgr, tableId: tid, pcells: pCells[0], curCells: cCells[0], fnNumber: tmgr[tid]["fnNumber"] , isShift: isShift};
             if(isOk)
@@ -863,10 +909,9 @@
         },
 
         applyBorder: function (options, range, details) {
-			var xlObj = this.XLObj;
-			if (!xlObj.model.allowCellFormatting || !xlObj.model.formatSettings.allowCellBorder || xlObj.model.isReadOnly)
+			var xlObj = this.XLObj, sheetIdx = xlObj.getActiveSheetIndex(), sheet = xlObj.getSheet(sheetIdx);
+			if (!xlObj.model.allowCellFormatting || !xlObj.model.formatSettings.allowCellBorder || (sheet._isLoaded && xlObj.model.isReadOnly))
                 return;
-            var sheetIdx = xlObj.getActiveSheetIndex(), sheet = xlObj.getSheet(sheetIdx);
             range = xlObj._getRangeArgs(range, "object", sheetIdx);
             if (!sheet._isImported || sheet._isLoaded) {
                 if (!details)
@@ -1404,7 +1449,7 @@
         _updateRowHeight: function (range, sheetIdx) {
 
             var xlObj = this.XLObj, sheetIdx = sheetIdx ? sheetIdx : xlObj.getActiveSheetIndex(), sheet = xlObj.getSheet(sheetIdx),
-            cells = xlObj._getSelectedCells(sheetIdx, range).selCells;
+            cells = xlObj._getSelectedCells(sheetIdx, range).selCells, cell, cHght;
             i = cells.length;
             while (i--) {
                 if (xlObj._isRowViewable(sheetIdx, cells[i].rowIndex))
@@ -1662,7 +1707,7 @@
             details["afterData"] = xlObj.getRangeData({ range: selRange, property: ["wrap", "hyperlink", "value", "value2", "cFormatRule", "format", "cellType", "formats", "formatStr", "decimalPlaces", "thousandSeparator","type"] });
 			details.aFormat = this.getHashCodeClassAsArray(selRange);
 			xlObj.XLSelection.refreshSelection();
-			xlObj.XLDragFill.positionAutoFillElement();
+			xlObj.XLDragFill && xlObj.XLDragFill.positionAutoFillElement();
 			evtArgs = { sheetIndex: details.sheetIndex, currData:details["afterData"], currFormat:details.aFormat, reqType: details.reqType, range: details.range, prevData:details.beforeData, prevFormat: details.bFormat, unwrapCells: details.unwrapCells, wrapCells: details.wrapCells };
 			if (!xlObj._isUndoRedo) {
 			    xlObj._completeAction(details);
@@ -1801,12 +1846,10 @@
                 else
                     this._updateBorderObj([minr, minc, minr, maxc], options, top);
             }
-            if (rgt in options) {
+            if (rgt in options)
                 this._updateBorder([minr, maxc, maxr, maxc], options, rgt,"",details);
-            }
-            if (btm in options) {
+            if (btm in options)
                 this._updateBorder([maxr, minc, maxr, maxc], options, btm,"", details);
-            }
             if (lft in options) {
                 if (minc)
                     this._updateBorder([minr, minc - 1, maxr, minc - 1], options, rgt, true,details);
@@ -1911,7 +1954,7 @@
                         bdrObj = this._parseBorder(extBdr, bdrPos[1] + " " + bdrPos[2], isDuplicate);
                         hCode = this._getBorderHashCode(bdrObj.border);
                         this._createFormatClass(bdrObj, hCode);
-						if(rangeData[cells]["isMHide"])
+                        if(rangeData[cells]["isMHide"])
 							this._updateFormatClass({ rowIndex: rangeData[cells]["mergeIdx"].rowIndex, colIndex: rangeData[cells]["mergeIdx"].colIndex }, hCode, true);
                         this._updateFormatClass({ rowIndex: hRowIdx, colIndex: hColIdx }, hCode, true);
                         if ((xlObj.getObjectKeys(bdrObj.border).indexOf("bottom") > -1 && bdrObj.border.bottom.indexOf("double") > -1 || (!ej.isNullOrUndefined(bdrObj["border-bottom"]) && bdrObj["border-bottom"].indexOf("double") > -1)) && sameRow != hRowIdx){
@@ -1969,7 +2012,7 @@
         },
 
         _refreshTableRowCol: function (options) {
-            var xlObj = this.XLObj,sheet = xlObj.getSheet(xlObj.getActiveSheetIndex()) , tableMngr = sheet.tableManager, curTable = tableMngr[options.tid];           
+            var xlObj = this.XLObj,sheetIdx = xlObj.getActiveSheetIndex(), sheet = xlObj.getSheet(sheetIdx) , tableMngr = sheet.tableManager, curTable = tableMngr[options.tid];           
             if (curTable) {
                 if (options.isInsertBefore)
                 {
@@ -1990,6 +2033,7 @@
                         curTable.range[3] = curTable.range[3] + options.cnt;
                     xlObj._dupDetails = true;
                     xlObj.XLFormat._createTable(options.tid, { format: curTable.format });
+					this._updateTableFormula("updateRange", curTable, sheetIdx)
                     xlObj._dupDetails = false;
                 }
             }
@@ -2354,7 +2398,7 @@
         },
         addNewCustomStyle: function (styleName, options) {
             var xlObj = this.XLObj, container = xlObj._dataContainer;
-            if (!xlObj.isImport) {
+            if (!(xlObj.isImport || xlObj.model.isImport)) {
                 if (this._isHeaderAdded && xlObj.getObjectKeys(container.customCellStyle).indexOf(styleName) > -1) {
                     xlObj._showAlertDlg("Alert", "cellStyleAlert", "cellStyleAlert", 200);
                     return;
@@ -2438,6 +2482,96 @@
             div.append($(hdrdiv));
             $("#" + xlObj._id + "_Ribbon").append(div);
             xlObj._on($('#' + xlObj._id + '_bordercontainer'), "click", xlObj._borderSelectionClick);
+        },
+		
+        _updateTableFormula: function(operation, tmgr, sheetIdx, oldName) {
+            var xlObj = this.XLObj, calcEngine = xlObj.getCalcEngine(), isUpdate = false, isRename= false, xlEdit = xlObj.XLEdit;
+            if(operation === "updateRange")
+                isUpdate = true;
+            if(operation === "rename")
+                isRename = true;
+            if(operation === "addRange" || isUpdate) {
+                var i, range = tmgr.range,colsName,cells, name = tmgr.name, tableRangesFormula, tableFormulaCln ={}, colsLen;
+                colsName = xlObj.getRangeData({ range:[range[0], range[1], range[0], range[3]], property: ["value2"], sheetIdx:sheetIdx });
+                for(i=0,colsLen = colsName.length;i<colsLen;i++) {
+                    if(isUpdate)
+                        calcEngine.removeNamedRange(name + "[" + colsName[i].value2 +"]");
+                    tableFormulaCln[colsName[i].value2] = xlEdit._parseSheetRef(xlObj._getDollarAlphaRange([range[0]+1, range[1]+i,  range[2], range[1]+i]));
+                    calcEngine.addNamedRange(name + "[" + colsName[i].value2 +"]", tableFormulaCln[colsName[i].value2]);
+                }
+                if(isUpdate) {
+                    calcEngine.removeNamedRange(name + "[#All]");
+                    calcEngine.removeNamedRange(name + "[#Data]");
+                    calcEngine.removeNamedRange(name + "[#Headers]");
+                }
+                if(tmgr.totalRow) {
+                    calcEngine.removeNamedRange(name + "[#Rows]");
+                    tableFormulaCln["#Rows"] = xlEdit._parseSheetRef(xlObj._getDollarAlphaRange([range[2], range[1], range[2], range[3]]));
+                    calcEngine.addNamedRange(name + "[#Rows]",tableFormulaCln["#Rows"]);
+                }
+                tableFormulaCln["#All"] = xlEdit._parseSheetRef(xlObj._getDollarAlphaRange(range));
+                calcEngine.addNamedRange(name + "[#All]",tableFormulaCln["#All"]);
+                tableFormulaCln["#Data"] = xlEdit._parseSheetRef(xlObj._getDollarAlphaRange([range[0]+1, range[1], range[2], range[3]]));
+                calcEngine.addNamedRange(name + "[#Data]",tableFormulaCln["#Data"] );
+                tableFormulaCln["#Headers"] = xlEdit._parseSheetRef(xlObj._getDollarAlphaRange([range[0], range[1], range[0], range[3]]));
+                calcEngine.addNamedRange(name + "[#Headers]",tableFormulaCln["#Headers"] );
+                xlObj._tableRangesFormula[tmgr.name] = tableFormulaCln;
+            }
+            else if(operation === "totalRow") {
+                if(calcEngine.namedRangeValues.containsKey(tmgr.name+"[#Rows]"))
+                    calcEngine.removeNamedRange(tmgr.name+"[#Rows]");
+                if(tmgr.totalRow) {
+                    xlObj._tableRangesFormula[tmgr.name]["#Rows"] = xlEdit._parseSheetRef(xlObj._getDollarAlphaRange([tmgr.range[2], tmgr.range[1], tmgr.range[2], tmgr.range[3]]));
+                    calcEngine.addNamedRange(tmgr.name+"[#Rows]",xlObj._tableRangesFormula[tmgr.name]["#Rows"]);
+                }
+                else 
+                    xlObj._tableRangesFormula[tmgr.name]["#Rows"] && delete xlObj._tableRangesFormula[tmgr.name]["#Rows"];
+					
+                xlObj._tableRangesFormula[tmgr.name]["#All"]  = xlEdit._parseSheetRef(xlObj._getDollarAlphaRange(tmgr.range));
+                calcEngine.removeNamedRange(tmgr.name+"[#All]");
+                calcEngine.addNamedRange(tmgr.name+"[#All]",xlObj._tableRangesFormula[tmgr.name]["#All"]);
+            }
+            else if(operation === "removeTable" || isRename) {
+                if(!isRename)
+                    oldName = tmgr.name;
+                var i, keyLen, name = tmgr.name, keys = xlObj.getObjectKeys(xlObj._tableRangesFormula[oldName]);
+                for(i=0,keyLen = keys.length;i<keyLen;i++) {
+                    calcEngine.removeNamedRange(oldName + "[" + keys[i] + "]");
+                    if(isRename)
+                        calcEngine.addNamedRange(name + "[" + keys[i] + "]", xlObj._tableRangesFormula[oldName][keys[i]] );
+                }
+                if(isRename)
+                    xlObj._tableFormulaCollection[name] = xlObj._tableFormulaCollection[oldName];
+                delete xlObj._tableRangesFormula[oldName];
+                delete xlObj._tableFormulaCollection[oldName];
+            }
+        },
+        _updateTableColName: function(rowIdx, colIdx, preVal, val, sheetIdx, tableClass) {
+            var xlObj = this.XLObj, tid = xlObj._getTableID(tableClass), tmgr = xlObj.getSheet(sheetIdx).tableManager, range = tmgr[tid].range, tempVal = val.toUpperCase();
+            if(range[0] === rowIdx && preVal.length && preVal.toUpperCase() !== tempVal ) {
+                var calcEngine = xlObj.getCalcEngine(), keys, i, len, name = tmgr[tid].name, colsName = xlObj.getRangeData({ range:[range[0], range[1], range[0], range[3]], property: ["value2"], sheetIdx:sheetIdx }), j=2, tempArr = [], inc;
+				    for(i=0, len = colsName.length;i<len;i++) {
+					   tempArr[i] = colsName[i].value2 ? colsName[i].value2.toUpperCase() : "";
+					   if(tempArr[i] === tempVal) {
+						  val = val + j;
+					      j++;
+					    }
+				    }
+				    while(tempArr.indexOf(val.toUpperCase()) > -1) {
+					inc = parseInt(val.slice(-1));					
+					val = val.substring(0,val.length-1);
+					val = (inc==NaN) ? val + j : (inc++ && val + inc);
+				    }
+                calcEngine.removeNamedRange(name + "[" + preVal + "]");
+                calcEngine.addNamedRange(name + "[" + val + "]", xlObj._tableRangesFormula[name][preVal]);
+                xlObj._tableRangesFormula[name][val] = xlObj._tableRangesFormula[name][preVal];
+                delete xlObj._tableRangesFormula[name][preVal];
+                keys = xlObj.getObjectKeys(xlObj._tableRangesFormula[name]);
+                xlObj._tableFormulaCollection[name] = [];
+                for(i=0, len = keys.length;i<len;i++)
+                    xlObj._tableFormulaCollection[name].push({"text": "[" + keys[i] + "]", "display":keys[i]});
+            }
+			return val;
         }
     };
 

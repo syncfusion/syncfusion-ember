@@ -352,7 +352,7 @@
             var div = document.getElementById(canvas.id + "_adorner");
             if (!div)
                 div = document.createElement("div");
-            var attr = { "id": canvas.id + "_adorner", "class": "adornerLayer", "style": "position:absolute;left:0px;top:0px" };
+            var attr = { "id": canvas.id + "_adorner", "class": "adornerLayer_parent_div", "style": "position:absolute;left:0px;top:0px" };
             ej.datavisualization.Diagram.Util.attr(div, attr);
             diagram._adornerLayer = this._renderAdornerSvg(diagram, canvas, div, isload, view);
             diagram._tooltipLayer = this._renderTooltipLayer(canvas, div, isload);
@@ -1142,10 +1142,10 @@
                                     child1.offsetX = child.offsetX + 7;
                                     child1.offsetY = child.offsetY + 5;
                                     this.renderNode(child1, svg, g, undefined, diagram, overView);
+                                }
                             }
                         }
                     }
-                }
                 }
                 this._renderLabels(group, svg, diagram);
                 this._renderPorts(group, (diagram._adornerSvg && !overView) ? diagram._adornerSvg : svg, diagram, overView);
@@ -1368,6 +1368,17 @@
             return fill;
         },
 
+        _fillBorder: function (node, svg) {
+            var fillBorder;
+            if (node.borderGradient) {
+                fillBorder = this._renderGradient(node.name, node.borderGradient, svg);
+            }
+            if (!fillBorder) {
+                fillBorder = node.borderColor;
+            }
+            return fillBorder;
+        },
+
         _addCssClass: function (object, attr) {
             if (object.cssClass) {
                 if (attr) {
@@ -1393,11 +1404,12 @@
 
         _renderRect: function (node, svg, g) {
             var fill = this._fill(node, svg);
+            var fillBorder = this._fillBorder(node, svg);
             var width = node.width ? node.width : node._width;
             var height = node.height ? node.height : node._height;
             var attr = {
                 "id": node.name + "_shape", "rx": node.cornerRadius, "ry": node.cornerRadius, "role": "presentation",
-                "width": width, "height": height, "fill": fill, "stroke": node.borderColor,
+                "width": width, "height": height, "fill": fill, "stroke": fillBorder,
                 "stroke-width": node.borderWidth, "opacity": node.opacity, "stroke-dasharray": node.borderDashArray
             };
             if (node._isClassifier)
@@ -1420,10 +1432,11 @@
             var width = node.width ? node.width : node._width;
             var height = node.height ? node.height : node._height;
             var fill = this._fill(node, svg);
+            var fillBorder = this._fillBorder(node, svg);
             var attr = {
                 "id": node.name + "_shape", "rx": width / 2, "ry": height / 2, "role": "presentation",
                 "cx": width / 2, "cy": height / 2,
-                "fill": fill, "stroke": node.borderColor, "stroke-width": node.borderWidth,
+                "fill": fill, "stroke": fillBorder, "stroke-width": node.borderWidth,
                 "opacity": node.opacity, "stroke-dasharray": node.borderDashArray
 
             };
@@ -1464,10 +1477,11 @@
 
         _renderPolygon: function (node, svg, g) {
             var fill = this._fill(node, svg);
+            var fillBorder = this._fillBorder(node, svg);
             ej.datavisualization.Diagram.Geometry.updatePolygonPoints(node);
             var points = this._convertToSVGPoints(node.points);
             var attr = {
-                "id": node.name + "_shape", "fill": fill, "stroke": node.borderColor, "role": "presentation",
+                "id": node.name + "_shape", "fill": fill, "stroke": fillBorder, "role": "presentation",
                 "stroke-width": node.borderWidth, "opacity": node.opacity,
                 "stroke-dasharray": node.borderDashArray, "points": points
             };
@@ -1485,6 +1499,7 @@
 
         _renderPath: function (node, svg, g) {
             var fill = this._fill(node, svg);
+            var fillBorder = this._fillBorder(node, svg);
             var width = node.width ? node.width : node._width;
             var height = node.height ? node.height : node._height;
             var d;
@@ -1494,7 +1509,7 @@
             var attr = {
                 "id": node.name + "_shape",
                 "d": d, "opacity": node.opacity, "role": "presentation",
-                "stroke-dasharray": node.borderDashArray, "stroke": node.borderColor,
+                "stroke-dasharray": node.borderDashArray, "stroke": fillBorder,
                 "stroke-width": node.borderWidth, "fill": fill
 
             };
@@ -1687,7 +1702,7 @@
                         this.updateGroup(child, svg, diagram, layout, isoverView);
                     else if (child.segments) {
                         ej.datavisualization.Diagram.Util.updateBridging(child, diagram);
-                        this.updateConnector(child, svg, diagram);
+                        this.updateConnector(child, svg, diagram, isoverView);
                     }
                     else {
                         this.updateNode(child, svg, diagram, layout, isoverView);
@@ -1697,15 +1712,15 @@
                             child1.offsetX = child.offsetX + 7;
                             child1.offsetY = child.offsetY + 5;
                             this.updateNode(child1, svg, diagram, layout, isoverView);
-                }
-            }
+                        }
+                    }
                 }
             }
             svg.g({ "id": group.name, "visibility": visible, "style": style });
             this._updateGoupBackground(group, svg, diagram);
 
             this._updateAssociatedConnector(group, svg, diagram);
-            this._updateLabels(group, svg, diagram);
+            this._updateLabels(group, svg, diagram, isoverView);
             this._updatePorts(group, (diagram._adornerSvg && !isoverView) ? diagram._adornerSvg : svg, diagram, isoverView);
             if (group.isSwimlane) {
                 var phases = ej.datavisualization.Diagram.SwimLaneContainerHelper.getPhases(diagram, group);
@@ -1715,7 +1730,7 @@
                         phase = diagram.nameTable[diagram._getChild(phases[j])];
                         if (phase)
                             this._updatephase(phase, diagram, group);
-                        this._updatePhaseStyle(phase,{}, diagram)
+                        this._updatePhaseStyle(phase, {}, diagram)
                     }
                 }
             }
@@ -1929,6 +1944,8 @@
                 attr["stroke-dasharray"] = node.borderDashArray;
                 if (node.gradient)
                     attr["fill"] = this._renderGradient(node.name, node.gradient, svg);
+                if (node.borderGradient)
+                    attr["stroke"] = this._renderGradient(node.name, node.borderGradient, svg);
                 if (node._type == "node") {
                     var type = node.type == "text" || node.type == "html" ? "_backRect" : "_shape";
                     if (node.type == "html") {
@@ -2003,7 +2020,7 @@
             if (svg) {
                 if (diagram && !diagram._isInit && node._status !== "new")
                     node._status = "update";
-                this._updateLabels(node, svg, diagram);
+                this._updateLabels(node, svg, diagram, isoverView);
                 this._updateNode(node, svg, diagram);
                 if (node.outEdges.length)
                     this._updateIcons(node, svg, diagram);
@@ -2174,7 +2191,7 @@
                         });
                     break;
             }
-          
+
         },
 
         _updateHtmlElement: function (node, svg, diagram) {
@@ -2248,7 +2265,7 @@
                     this._renderBackgroundRect(node, svg, g);
                     var container = document.createElement("div");
                     var text = document.createElement("span");
-                    ej.datavisualization.Diagram.Util.attr(text, { "id": node.name + "_label", "class": "ej-d-label", "style": "display: inline-block; position: absolute; pointer-events: all; line-height: normal; alignment-baseline:middle" });
+                    ej.datavisualization.Diagram.Util.attr(text, { "id": node.name + "_label_lblbg", "class": "ej-d-label", "style": "display: inline-block; position: absolute; pointer-events: all; line-height: normal; alignment-baseline:middle" });
                     if (textElement.bold) text.style.fontWeight = "bold";
                     if (textElement.italic) text.style.fontStyle = "italic";
                     text.style.textDecoration = textElement.textDecoration;
@@ -2334,10 +2351,11 @@
 
         _renderBackgroundRect: function (node, svg, g) {
             var fill = this._fill(node, svg);
+            var fillBorder = this._fillBorder(node, svg);
             var attr = {
                 "id": node.name + "_backRect", "class": "backrect", "x": 0, "y": 0,
                 "width": node.width, "height": node.height, "fill": fill,
-                "stroke": node.borderColor, "stroke-width": node.borderWidth, "opacity": node.opacity,
+                "stroke": fillBorder, "stroke-width": node.borderWidth, "opacity": node.opacity,
                 "stroke-dasharray": node.borderDashArray
             };
             this._addCssClass(node, attr);
@@ -2355,10 +2373,11 @@
 
         _updateBackgroundRect: function (node, svg) {
             var fill = this._fill(node, svg);
+            var fillBorder = this._fillBorder(node, svg);
             var attr = {
                 "id": node.name + "_backRect", "x": 0, "y": 0,
                 "width": node.width, "height": node.height,
-                "fill": fill, "stroke": node.borderColor, "stroke-width": node.borderWidth,
+                "fill": fill, "stroke": fillBorder, "stroke-width": node.borderWidth,
                 "opacity": node.opacity, "stroke-dasharray": node.borderDashArray, "class": node.cssClass
             };
             svg.rect(attr);
@@ -2799,7 +2818,7 @@
 
         },
 
-        updateConnector: function (connector, svg, diagram) {
+        updateConnector: function (connector, svg, diagram, isOverview) {
             //var svg = diagram._svg;
             if (svg) {
                 var visible = connector.visible && ej.datavisualization.Diagram.Util.enableLayerOption(connector, "visible", diagram) ? "visible" : "hidden";
@@ -2815,7 +2834,7 @@
                 if (!diagram._animatingLayout)
                     svg.g(attr);
                 this._updateConnector(connector, svg, diagram);
-                this._updateLabels(connector, svg, diagram);
+                this._updateLabels(connector, svg, diagram, isOverview);
                 this._updateDecorators(connector, svg, diagram);
                 if (connector.shape) {
                     ej.datavisualization.Diagram.DefautShapes.updateInlineDecoratorsShape(connector, diagram);
@@ -3455,7 +3474,7 @@
                         x = 0 + label.margin.left;
                         break;
                     case "right":
-                        x = - textBounds.width - label.margin.right;
+                        x = -textBounds.width - label.margin.right;
                         break;
                     case "center":
                         x = x + (-textBounds.width / 2) + (label.margin.left - label.margin.right);
@@ -3701,11 +3720,11 @@
                     }
                     else {
                         if (textSeries.length - 1 > j || totawidth > 0) {
-                        tspan.setAttribute("totalWidth", totawidth);
-                        var tspan = svg.tspan();
-                        textElement.appendChild(tspan);
-                        var textElementBounds = textElement.getBBox();
-                        tspan.setAttribute("x", "0px");
+                            tspan.setAttribute("totalWidth", totawidth);
+                            var tspan = svg.tspan();
+                            textElement.appendChild(tspan);
+                            var textElementBounds = textElement.getBBox();
+                            tspan.setAttribute("x", "0px");
                             tspan.setAttribute("y", fontSize);
                         }
                         if (text[i] != "\n") {
@@ -3776,7 +3795,7 @@
                                 }
                                 if (textSeries[j] != "\n") {
                                     tspan.textContent += textSeries[j];
-                                    totawidth = (this._getSuitableLabelSize(label, textSeries[j], diagram) * (label.fontSize / label.fontSize));
+                                    totawidth += (this._getSuitableLabelSize(label, " ", diagram) * (label.fontSize / label.fontSize));
                                 }
                                 else
                                     totawidth = 0;
@@ -4148,8 +4167,9 @@
             }
             text.style.borderStyle = "solid";
             text.textContent = label.text;
-            label.width =  width = width > label.width ? width : label.width;
-            label.height =  height = height > label.height ? height : label.height;
+            width = width > label.width ? width : label.width;
+            width -= (label.padding.left + label.padding.right);
+            height = height > label.height ? height : label.height;
             if (label.margin.left && label.margin.right) width -= (label.margin.left || 0) + (label.margin.right || 0);
             if (label.margin.top && label.margin.bottom) height -= (label.margin.top || 0) + (label.margin.bottom || 0);
             var style = "display: inline-block; position: absolute; pointer-events: none; " + "width:" + width + "px;height:" + height + "px;";
@@ -4182,7 +4202,7 @@
                 }
             }
         },
-        _updateLabels: function (node, svg, diagram) {
+        _updateLabels: function (node, svg, diagram, isOverview) {
             if (diagram.model.labelRenderingMode == ej.datavisualization.Diagram.LabelRenderingMode.Svg) {
                 if (!diagram._isSelectMode)
                     this._updateSVGLabels(node, svg, diagram);
@@ -4191,7 +4211,10 @@
                 var labels = node.labels;
                 var bounds = ej.datavisualization.Diagram.Util.bounds(node);
                 var width, height, x, y;
-                var htmlLayer = diagram._htmlLayer ? diagram._htmlLayer : svg.document.parentNode.getElementsByClassName("htmlLayer")[0];
+                var htmlLayer = isOverview ? svg._htmlLayer : diagram._htmlLayer;
+                if (!htmlLayer) {
+                    htmlLayer = svg.document.parentNode.getElementsByClassName("htmlLayer")[0]
+                }
                 if (htmlLayer) {
                     var parent = htmlLayer.childNodes[node.zOrder];
                     if (!parent || parent.id != node.name) {
@@ -4245,6 +4268,7 @@
                                 labelwidth = width > label.width ? width : label.width;
                                 if (label.margin.left && label.margin.right) labelwidth -= (label.margin.left || 0) + (label.margin.right || 0);
                                 if (label.margin.top && label.margin.bottom) labelheight -= (label.margin.top || 0) + (label.margin.bottom || 0);
+                                labelwidth -= (label.padding.left + label.padding.right);
                                 textContainter.style.height = labelheight + "px";
                                 textContainter.style.width = labelwidth + "px";
                                 if (!label.templateId)
@@ -4312,6 +4336,7 @@
                     labelwidth = width > label.width ? width : label.width;
                     if (label.margin.left && label.margin.right) labelwidth -= (label.margin.left || 0) + (label.margin.right || 0);
                     if (label.margin.top && label.margin.bottom) labelheight -= (label.margin.top || 0) + (label.margin.bottom || 0);
+                    labelwidth -= (label.padding.left + label.padding.right);
                     textContainter.style.height = labelheight + "px";
                     textContainter.style.width = labelwidth + "px";
                     textContainter.style.opacity = node.opacity;
@@ -4395,10 +4420,16 @@
                         text.style.wordWrap = "break-word";
                         if (!node.segments) {
                             if (Math.abs(actualDimensions.x) < label.width) actualDimensions.x = label.width;
-                            text.style.maxWidth = Math.abs(actualDimensions.x) + "px";
-                            text.style.maxHeight = Math.abs(actualDimensions.y) + "px";
+                            if (label.textOverflow) {
+                                text.style.maxWidth = Math.abs(actualDimensions.x) + "px";
+                                text.style.maxHeight = Math.abs(actualDimensions.y) + "px";
+                            }
                         }
-                        else text.style.maxWidth = (nodeBounds.width > label.width ? nodeBounds.width : label.width) + "px";
+                        else {
+                            if (label.textOverflow) {
+                                text.style.maxWidth = (nodeBounds.width > label.width ? nodeBounds.width : label.width) + "px";
+                            }
+                        }
                     }
                     else {
                         text.style.wordWrap = "break-word";
@@ -4560,8 +4591,8 @@
             if (background) {
                 var x = point.x + bounds.x;
                 var y = point.y;
-                if (ej.browserInfo().name === "mozilla")
-                    y = point.y + label.fontSize / 2;
+                //if (ej.browserInfo().name === "mozilla")
+                //    y = point.y + label.fontSize / 2;
                 x = x + bWidth / 2;
                 y = y + bWidth / 2;
                 var attr = {
@@ -4676,8 +4707,8 @@
                 offset.x += nodeBounds.x;
                 offset.y += nodeBounds.y;
             }
-            if (ej.browserInfo().name === "mozilla")
-                point.y = point.y - label.fontSize / 2;
+            //if (ej.browserInfo().name === "mozilla")
+            //    point.y = point.y - label.fontSize / 2;
             return point;
         },
 
@@ -4894,7 +4925,9 @@
             var height = node.height ? node.height : node._height || 0;
             var x = node.offsetX - width * node.pivot.x;
             var y = node.offsetY - height * node.pivot.y;
-            var ports = node.ports;
+            var ports = node.ports || [];
+            if (node._ports && node._ports.length > 0)
+                ports = ports.concat(node._ports);
             var port, shape, g_ports, p_ports, parentElement, attr;
             var scale = diagram._currZoom;
             if (diagram.model.palettes || isoverView) {
@@ -4948,7 +4981,7 @@
             else {
                 if (ej.datavisualization.Diagram.Util.enableLayerOption(node, "visible", diagram))
                     visibility = "visible";
-            else
+                else
                     visibility = "hidden";
             }
             if (node._type === "group")
@@ -4996,7 +5029,7 @@
                     var height = size.height;
                     var d = port._absolutePath = ej.datavisualization.Diagram.Geometry.updatePath(((point.x * scale) - port.size / 2), ((point.y * scale) - port.size / 2), width, height, port.pathData, svg);
                     attr = {
-                        "id": node.name + "_" + port.name, "width": width,
+                        "id": node.name + "_" + port.name,"class": "ej-d-port", "width": width,
                         "height": height, "d": d, "stroke": port.borderColor,
                         "stroke-width": port.borderWidth, "fill": port.fillColor, "visibility": visibility
                     };
@@ -5060,7 +5093,7 @@
                 point = ej.Matrix.transform(matrix, point);
                 port._absolutePoint = point;
             }
-            
+
             visibility = ((port.visibility & ej.datavisualization.Diagram.PortVisibility.Visible) &&
                 ej.datavisualization.Diagram.Util.enableLayerOption(node, "visible", diagram)) ? "visible" : "hidden";
 
@@ -5102,8 +5135,10 @@
         },
 
         _updatePorts: function (node, svg, diagram, isoverView) {
-            if (node.ports) {
-                var ports = node.ports;
+            if (node.ports ||  node._ports) {
+                var ports = node.ports || [];
+                if (node._ports && node._ports.length > 0)
+                    ports = ports.concat(node._ports);
                 var scale = diagram._currZoom;
                 var width = (node.width ? node.width : node._width);
                 var height = (node.height ? node.height : node._height);
@@ -5362,8 +5397,8 @@
                 x = (point.x - port.size) * scale;
                 y = (point.y - port.size) * scale;
                 transform = "rotate(" + 0 + "," + (x + size.width / 2) + "," + (y + size.height / 2) + ")";
-                if(diagram)
-                diagram.portHighlight = true;
+                if (diagram)
+                    diagram.portHighlight = true;
             }
             var attr = {
                 "id": "portHighlighter", "class": "ej-d-port", "x": x,
@@ -6785,6 +6820,7 @@
             }
             if (update) {
                 var view, panel;
+                if (diagram._views) {
                 diagram._views.forEach(function (viewid) {
                     view = diagram._views[viewid];
                     panel = view.svg || view._canvas;
@@ -6794,7 +6830,7 @@
                     if (data._type === "group" || data.type === "pseudoGroup")
                         view.context.updateGroup(data, panel, diagram, layout, isoverView);
                     else if (data.segments)
-                        view.context.updateConnector(data, panel, diagram);
+                        view.context.updateConnector(data, panel, diagram, isoverView);
                     else if (data._type == "label") {
                         var node = diagram.findNode(data._parent);
                         view.context.updateLabel(node, data, panel, diagram);
@@ -6802,6 +6838,7 @@
                     else
                         view.context.updateNode(data, panel, diagram, layout, isoverView);
                 });
+            }
             }
         },
         _refreshSegments: function (connector, diagram) {

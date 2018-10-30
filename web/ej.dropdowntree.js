@@ -1098,7 +1098,6 @@ var __extends = (this && this.__extends) || function (d, b) {
             this.treeMethods();
         };
         ejDropDownTree.prototype.treeMethods = function () {
-            var _this = this;
             var addNode = ej.TreeView.prototype.addNode;
             var addNodes = ej.TreeView.prototype.addNodes;
             var checkAll = ej.TreeView.prototype.checkAll;
@@ -1113,55 +1112,56 @@ var __extends = (this && this.__extends) || function (d, b) {
             var unselectAll = ej.TreeView.prototype.unselectAll;
             var unselectNode = ej.TreeView.prototype.unselectNode;
             var treeview = this.treeView;
+            var proxy = this;
             ej.TreeView.prototype.addNode = function (newnodetext, target) {
-                addNode.apply(treeview, [newnodetext, target]);
-                _this.addNode(newnodetext, target);
+                addNode.apply(this, [newnodetext, target]);
+                proxy.addNode(newnodetext, target);
             };
             ej.TreeView.prototype.addNodes = function (newnodetext, target) {
-                addNodes.apply(treeview, [newnodetext, target]);
-                _this.addNodes(newnodetext, target);
+                addNodes.apply(this, [newnodetext, target]);
+                proxy.addNodes(newnodetext, target);
             };
             ej.TreeView.prototype.checkAll = function () {
-                checkAll.call(treeview);
-                _this.checkAll();
+                checkAll.call(this);
+                this.checkAll();
             };
             ej.TreeView.prototype.checkNode = function (ele) {
-                checkNode.apply(treeview, [ele]);
+                checkNode.apply(this, [ele]);
             };
             ej.TreeView.prototype.moveNode = function (src, dest, index) {
-                moveNode.apply(treeview, [src, dest, index]);
-                _this.moveNode(src, dest, index);
+                moveNode.apply(this, [src, dest, index]);
+                proxy.moveNode(src, dest, index);
             };
             ej.TreeView.prototype.removeAll = function () {
                 removeAll.call(treeview);
-                _this.removeAll();
+                proxy.removeAll();
             };
             ej.TreeView.prototype.removeNode = function (ele) {
                 removeNode.apply(treeview, [ele]);
             };
             ej.TreeView.prototype.selectAll = function () {
                 selectAll.call(treeview);
-                _this.selectAll();
+                proxy.selectAll();
             };
             ej.TreeView.prototype.selectNode = function (ele) {
-                selectNode.apply(treeview, [ele]);
-                _this.selectNode(ele);
+                selectNode.apply(this, [ele]);
+                proxy.selectNode(ele);
             };
             ej.TreeView.prototype.unCheckAll = function () {
                 unCheckAll.call(treeview);
-                _this.unCheckAll();
+                proxy.unCheckAll();
             };
             ej.TreeView.prototype.uncheckNode = function (ele) {
                 uncheckNode.apply(treeview, [ele]);
-                _this.uncheckNode(ele);
+                proxy.uncheckNode(ele);
             };
             ej.TreeView.prototype.unselectAll = function () {
                 unselectAll.call(treeview);
-                _this.unselectAll();
+                proxy.unselectAll();
             };
             ej.TreeView.prototype.unselectNode = function (ele) {
-                unselectNode.apply(treeview, [ele]);
-                _this.unselectNode(ele);
+                unselectNode.apply(this, [ele]);
+                proxy.unselectNode(ele);
             };
         };
         ejDropDownTree.prototype.nodeDelete = function (args) {
@@ -1410,7 +1410,7 @@ var __extends = (this && this.__extends) || function (d, b) {
                 var flag = true;
                 for (var j = 0; j < eles.length; j++) {
                     var eleText = this.getElementText(eles[j]);
-                    if (this.valueContainer[i] === eleText) {
+                    if (this.getMappedField(this.valueContainer[i], "value", "text") === eleText) {
                         flag = true;
                         break;
                     }
@@ -1469,7 +1469,34 @@ var __extends = (this && this.__extends) || function (d, b) {
             }
         };
         ejDropDownTree.prototype.maintainHiddenValue = function () {
-            this.hiddenValue = this.currentText;
+            var currentText;
+            if (this.model.textMode === 'fullPath' && this.currentText.indexOf(this.model.fullPathDelimiter) != -1) {
+                var items = this.currentText.split(this.model.fullPathDelimiter);
+                currentText = items[items.length - 1];
+            }
+            else {
+                currentText = this.currentText;
+            }
+            var val;
+            if (this.model.treeViewSettings.fields && this.model.treeViewSettings.fields.text && this.model.treeViewSettings.fields.value) {
+                val = this.getMappedField(currentText, "text", "value");
+            }
+            this.hiddenValue = !ej.isNullOrUndefined(val) ? val : this.currentText;
+        };
+        ejDropDownTree.prototype.getMappedField = function (text, textfield, valuefield) {
+            var treeSrc;
+            var val;
+            var mappedtextField = this.treeMapping(textfield);
+            var mappedvalueField = this.treeMapping(valuefield);
+            if (!(this.treeView.dataSource() instanceof ej.DataManager)) {
+                treeSrc = this.model.treeViewSettings.fields.dataSource;
+                for (var i = 0; i < treeSrc.length; i++) {
+                    if (ej.getObject(mappedtextField[0], treeSrc[i]) == text) {
+                        val = ej.getObject(mappedvalueField[0], treeSrc[i]);
+                    }
+                }
+            }
+            return val;
         };
         ejDropDownTree.prototype.getActiveItem = function () {
             var nodelist = this.getLi();
@@ -1535,7 +1562,9 @@ var __extends = (this && this.__extends) || function (d, b) {
         ejDropDownTree.prototype.removeText = function (currentValue) {
             var eleVal = this.element[0]['value'].split(this.model.delimiter);
             var hidVal = this.visibleInput.value.split(this.model.delimiter);
-            var index = $.inArray(currentValue, eleVal);
+            var mapVal = this.getMappedField(currentValue, "text", "value");
+            var val = ej.isNullOrUndefined(mapVal) ? currentValue.toString() : mapVal.toString();
+            var index = $.inArray(val, eleVal);
             if (index >= 0) {
                 eleVal.splice(index, 1);
                 this.updateValueContainer(currentValue, 'pop', index);

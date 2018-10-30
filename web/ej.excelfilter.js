@@ -137,8 +137,17 @@
         _getValueData: function (key, data) {
             var arr = this._empties;
 
-            if (this.isNotBlank(key, true))
-                arr = ej.distinct(data, this._$foreignKey || this.fName, false);
+            if (this.isNotBlank(key, true)){
+               arr = ej.distinct(data, this._$foreignKey || this.fName, false);
+			   if(!(ej.browserInfo().name == "msie" && ej.browserInfo().version == "8.0")){
+				for(var dat = 0; dat < arr.length; dat++){
+					if((arr[dat] instanceof Date)){
+						var temp = {dateString : arr[dat]};
+						arr[dat] = JSON.parse(JSON.stringify(temp)).dateString;
+						}
+					}
+			   }
+			}
 
             return arr.join(this._spliter); /*Return value will be set to input element value attr*/
         },
@@ -829,8 +838,9 @@
                             if (this._$colType == "boolean" && val !== this._filterdCol[i].value)
                                 continue;
                             if (this._$colType == "date" || this._$colType == "datetime") {
+								var filterval = this._filterdCol[i].value;
                                 var firstVal = this._$colType == "date" && val instanceof Date ? this._formatting(this._$format, new Date(val.getFullYear(), val.getMonth(), val.getDate()), this._locale) : this._formatting(this._$format, val, this._locale);
-                                var secondVal = this._formatting(this._$format, this._filterdCol[i].value, this._locale);
+                                var secondVal = this._$colType == "date" && filterval instanceof Date ? this._formatting(this._$format, new Date(filterval.getFullYear(), filterval.getMonth(), filterval.getDate()), this._locale) : this._formatting(this._$format, filterval, this._locale);
                                 if ((firstVal !== secondVal || this._filterdCol[i].operator != "equal") && !this._maxFilterCount)
                                     continue;
                                 else {
@@ -925,7 +935,7 @@
         _selectAllHandler: function (args) {
             
             if (args.checkState=="check"){
-                this._chkList.filter(":not(:checked)").ejCheckBox({ checked: args.isChecked });
+                this._chkList.filter(":not(:checked)").ejCheckBox({ checked: args.isChecked, change: ej.proxy(this._checkHandler, this) });
                 this._chkList.prop("checked", true);
             }
             else if (args.checkState == "uncheck") {
@@ -984,7 +994,7 @@
             $([$dp1, $dp2]).ejDropDownList({ fields: { text: "text", value: "value" }, height: 27, width: 120, enableRTL: this._ctrlInstance.model.enableRTL });
             if (type == "number") {
 				$([$dp1, $dp2]).ejDropDownList({ popupWidth: "170px" });
-                $([$in1, $in2]).ejNumericTextbox({ showSpinButton: false, height: "27px", width: "177px", enableRTL: this._ctrlInstance.model.enableRTL,watermarkText: this.localizedLabels.NumericTextboxWaterMark, focusOut: function(args){ if(this.model.decimalPlaces == 0) this.element.prev(".e-input").val(this.model.value); } });
+                $([$in1, $in2]).ejNumericTextbox({ showSpinButton: false, height: "27px",decimalPlaces : 2, width: "177px", enableRTL: this._ctrlInstance.model.enableRTL,watermarkText: this.localizedLabels.NumericTextboxWaterMark, focusOut: function(args){ if(this.model.decimalPlaces == 0) this.element.prev(".e-input").val(this.model.value); } });
             }
 			else if (type == "guid") {
                 $([$dp1, $dp2]).ejDropDownList({ popupWidth: "170px" });
@@ -1019,7 +1029,7 @@
                 return;
             this._openedFltr.ejDialog("open");
             this._openedFltr.ejDialog({open: function(args){
-				$("#" + id + "_CustomValue1").hasClass("e-autocomplete") ? $("#" + id + "_CustomValue1").focus() : $("#" + id + "_CustomValue1").prev().focus();
+				($("#" + id + "_CustomValue1").hasClass("e-autocomplete") || $("#" + id + "_CustomValue1").hasClass("e-datepicker") || $("#" + id + "_CustomValue1").hasClass("e-datetimepicker")) ? $("#" + id + "_CustomValue1").focus() : $("#" + id + "_CustomValue1").prev().focus();
 			}});
             this._openedFltr.find("legend").html(this._displayName);            
             var sl = (["Number","Date"].indexOf(type) != -1) ? 6 : 5;
@@ -1027,18 +1037,14 @@
             $("#" + id + "_CustomDrop1").ejDropDownList({ dataSource: sliced });
             $("#" + id + "_CustomDrop2").ejDropDownList({ dataSource: sliced });
 			if (this._$colType == "number") {
-                var decimalPlace = 0;
                 if(operator == "top10"){
                     this._openedFltr.find(".e-optable tr").not(".e-top").addClass("e-hide");   
                     this._openedFltr.find(".e-optable tr.e-top").removeClass("e-hide");
                     $("#" + id + "_CustomDrop3").ejDropDownList({ dataSource: this.localizedLabels[type + "MenuOptions"] });
                 }
                 else{                   
-                    decimalPlace = this._$format.length != 0 ? parseInt(this._$format.replace(/\D/g,'')) : 0;                    
                     this._openedFltr.find(".e-optable tr.e-top").addClass("e-hide");
                     this._openedFltr.find(".e-optable tr").not(".e-top").removeClass("e-hide"); 
-                    $("#" + id + "_CustomValue1").ejNumericTextbox("model.decimalPlaces", decimalPlace);
-                    $("#" + id + "_CustomValue2").ejNumericTextbox("model.decimalPlaces", decimalPlace);
                 }
             }
             else {

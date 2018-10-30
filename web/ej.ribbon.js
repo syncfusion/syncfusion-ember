@@ -1903,7 +1903,7 @@
           if (i > 0)
             content.hide();
 	        if (backstageSet.pages[i].contentID && !this.model.enableOnDemand) {
-	            backStageTitleContent = ej.buildTag("div#" + this._id + "_BackStageTitleContent").addClass('e-backstagetitlecontent').appendTo($(content));
+	           var backStageTitleContent = ej.buildTag("div#" + this._id + "_BackStageTitleContent").addClass('e-backstagetitlecontent').appendTo($(content));
 	            $(backStageTitleContent).text('').append(backstageSet.pages[i].text);
 	            $(content).append($('#' + backstageSet.pages[i].contentID).addClass('e-backstagetabarea').show());
 	        }
@@ -3461,7 +3461,7 @@
                                             }
                                             break;
                                         case ej.Ribbon.Type.Gallery:
-                                            var galleryContentDiv, galleryPagesDiv, prevPage, nextPage, expandGallery, visibleRowCnt, galleryRows;
+                                            var galleryContentDiv, galleryPagesDiv, prevPage, nextPage, expandGallery, visibleRowCnt, galleryRows, gallery;
                                             gallery = subGroup[m];
                                             this._galleryControl = ej.buildTag("div#" + this._id + "_" + gallery.id + "_gallerycontrol").addClass("e-ribbongallerycontrol");
                                             this._gallery = ej.buildTag("div#" + this._id + "_" + gallery.id).addClass("e-ribbongallery");
@@ -3766,7 +3766,7 @@
 			if(tab<0)
 			 tab=this._tabUl.find(".e-tab,.e-contextualtabset").index(this._tabUl.find("li.e-collapseactive"));
             if (!ej.isNullOrUndefined(this.model.applicationTab))
-                tabIndex = tab + 1;
+            var tabIndex = tab + 1;
             var ribTabContents = this.element.find('.e-content.e-content-item');
             var ribActiveContent = this.element.find(".e-active-content");
             var tabContent = ribTabContents.eq(tabIndex).attr('id');
@@ -4333,7 +4333,7 @@
             var startIndex = 0;
             if (this.element.find('.e-gallexpandcontent:visible').length > 0) {
                 var visibleRows = 0, n = 0;
-                gallery = this.element.find('.e-gallexpandcontent:visible').parent().find('.e-ribbongallery');
+                var gallery = this.element.find('.e-gallexpandcontent:visible').parent().find('.e-ribbongallery');
                 var galleryRowlen = gallery.find('.e-galleryrow').length;
                 for (var i = 1; i <= galleryRowlen; i++) {
                     if (gallery.find('.e-galleryrow').eq(i - 1).css('display') === "block") {
@@ -4345,7 +4345,7 @@
                 gallery.find('.e-galleryrow').hide();
                 gallery.parent().find('.e-gallexpandcontent').hide();
                 gallery.show();
-                gryColumns = gallery.find('.e-galleryrow').eq(0).children().length;
+                var gryColumns = gallery.find('.e-galleryrow').eq(0).children().length;
                 gallery.find('.e-galleryrow').eq(0).children().remove();
                 var galleryRowlen = gallery.find('.e-galleryrow').length;
                 for (var k = 0; k < galleryRowlen; k++) {

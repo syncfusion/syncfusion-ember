@@ -72,12 +72,9 @@ var InternalAdaptive = (function () {
                     }
                 }
             }
-            kObj._kbnTransitionEnd = false;
             if (kObj._kbnSwipeCount > 1)
                 kObj._kbnSwipeWidth = kObj._kbnSwipeWidth + kObj.element.offset().left;
-            kObj.headerContent.find('table').css({ 'transform': 'translate3d(' + kObj._kbnSwipeWidth + 'px, 0px, 0px)', 'transition-duration': '' }).one("webkitTransitionEnd otransitionend oTransitionEnd msTransitionEnd transitionend", function (event) {
-                proxy._kbnTransitionEnd = true;
-            });
+            kObj.headerContent.find('table').css({ 'transform': 'translate3d(' + kObj._kbnSwipeWidth + 'px, 0px, 0px)', 'transition-duration': '' });
             kObj.kanbanContent.find('table').eq(0).css({ 'transform': 'translate3d(' + kObj._kbnSwipeWidth + 'px, 0px, 0px)', 'transition-duration': '' });
             --kObj._kbnSwipeCount;
         }
@@ -126,11 +123,8 @@ var InternalAdaptive = (function () {
                     }
                 }
             }
-            kObj._kbnTransitionEnd = false;
             kObj._kbnSwipeWidth = kObj._kbnSwipeWidth + kObj.element.offset().left;
-            kObj.headerContent.find('table').css({ 'transform': 'translate3d(' + kObj._kbnSwipeWidth + 'px, 0px, 0px)', 'transition-duration': '' }).one("webkitTransitionEnd otransitionend oTransitionEnd msTransitionEnd transitionend", function (event) {
-                proxy._kbnTransitionEnd = true;
-            });
+            kObj.headerContent.find('table').css({ 'transform': 'translate3d(' + kObj._kbnSwipeWidth + 'px, 0px, 0px)', 'transition-duration': '' });
             kObj.kanbanContent.find('table').eq(0).css({ 'transform': 'translate3d(' + kObj._kbnSwipeWidth + 'px, 0px, 0px)', 'transition-duration': '' });
             ++kObj._kbnSwipeCount;
         }
@@ -534,6 +528,8 @@ var InternalAdaptive = (function () {
         var kObj = this.kanbanObj, $ddl = ej.buildTag('div.e-swimlane-ddl', "", {}), curItem = kObj.model.fields.swimlaneKey, textDiv, slWindow, slItem, slScrollContent;
         var ddlItems = [], ddlTempl, $select, $option, data, uniqueData, toolbar = kObj.element.find('.e-kanbantoolbar');
         kObj.element.addClass('e-swimlane-responsive');
+        if (curItem && kObj.model.swimlaneSettings.headers.length > 0)
+            kObj._kbnAdaptDdlData = kObj._slText;
         ej.buildTag('div.e-swimlane-text', kObj._kbnAdaptDdlData[0]).appendTo($ddl);
         ej.buildTag('div.e-swimlane-arrow').appendTo($ddl);
         slWindow = ej.buildTag('div#' + kObj._id + '_slWindow.e-swimlane-window', "", {});
@@ -595,6 +591,18 @@ var InternalAdaptive = (function () {
     InternalAdaptive.prototype._adaptiveSwimlaneRefresh = function () {
         var kObj = this.kanbanObj, slRows;
         kObj.element.find('.e-swimlane-window .e-swimlane-ul').empty();
+        var header = kObj.model.swimlaneSettings.headers;
+        if (header.length > 0) {
+            for (var i = 0; i < header.length; i++) {
+                var index = kObj._kbnAdaptDdlData.indexOf(header[i].key);
+                if (index == -1)
+                    !ej.isNullOrUndefined(header[i].text) ? kObj._kbnAdaptDdlData.push(header[i].text) : (typeof header[i].key == 'string' && header[i].key.length > 0) ? kObj._kbnAdaptDdlData.push(header[i].key) : false;
+                else if (!ej.isNullOrUndefined(header[i].text)) {
+                    kObj._kbnAdaptDdlData[index] = kObj._kbnAdaptDdlData.push(header[i].text);
+                }
+            }
+            kObj._kbnAdaptDdlData = ej.dataUtil.mergeSort(kObj._kbnAdaptDdlData);
+        }
         for (var index = 0; index < kObj._kbnAdaptDdlData.length; index++)
             ej.buildTag('li.e-swimlane-item ', '<div>' + kObj._kbnAdaptDdlData[index] + '</div>', {}).appendTo(kObj.element.find('.e-swimlane-window .e-swimlane-ul'));
         if (kObj.KanbanAdaptive && kObj.element.hasClass('e-responsive') && !ej.isNullOrUndefined(kObj.model.fields.swimlaneKey)) {

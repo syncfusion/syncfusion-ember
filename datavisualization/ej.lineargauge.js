@@ -1190,7 +1190,7 @@
         _setTicksCordinates: function (element, index) {
             var staticPosition, height, lineChangePosition, interval;
             if (this.scaleEl[this.scaleIndex].majorIntervalValue > this.scaleEl[this.scaleIndex].minorIntervalValue) {
-                interval = element.type == "majorinterval" ? this.scaleEl[this.scaleIndex].majorIntervalValue : this.scaleEl[this.scaleIndex].minorIntervalValue;
+                interval = element.type.toLowerCase() == "majorinterval" ? this.scaleEl[this.scaleIndex].majorIntervalValue : this.scaleEl[this.scaleIndex].minorIntervalValue;
                 if (element.placement == "near") {
                     staticPosition = this.Model.orientation == "Vertical" ? this.scaleStartX[this.scaleIndex] : this.scaleStartY[this.scaleIndex];
                 }
@@ -1363,7 +1363,7 @@
             element.value = element.value < this.scaleEl[this.scaleIndex].minimum ? this.scaleEl[this.scaleIndex].minimum : element.value;
             var grd, lineYPosition, radius, height, width, startY, backgroundColor, startX, gradients;
             gradients = [{ "ColorStop": 0, "Color": (this.Model.pointerGradient1 == "transparent") ? "rgba(0,0,0,0)" : this.Model.pointerGradient1 }, { "ColorStop": 1, "Color": (this.Model.pointerGradient2 == "transparent") ? "rgba(0,0,0,0)" : this.Model.pointerGradient2}];
-            radius = this.scaleEl[this.scaleIndex].type == "roundedrectangle" ? 5 : 0;
+            radius = this.scaleEl[this.scaleIndex].type.toLowerCase() == "roundedrectangle" ? 5 : 0;
             if (this.scaleEl[this.scaleIndex].direction.toLowerCase() == "clockwise") {
                 lineYPosition = this._getClockwiseLinePosition(element.value);
                 if (this.scaleEl[this.scaleIndex].type == "thermometer" && this.isScaleModified) {
@@ -1502,7 +1502,7 @@
                 grd = this.contextEl.createLinearGradient(0, 0, element.width, 0);
                 startY = linePosition;
             }
-            if (element.type == "roundedrectangle") {
+            if (element.type.toLowerCase() == "roundedrectangle") {
                 if (this.Model.orientation == "Vertical" && this.markerPlacement == "near")
                     startY += element.length;
                 else if (this.Model.orientation == "horizontal") {
@@ -1539,7 +1539,7 @@
                 this._notifyArrayChange("scales[" + this.scaleIndex + "]markerpointers[" + index + "]value", element.value);
             if (this.Model.drawMarkerPointers)
                 this._onDrawMarkerPointers(angle, element.value);
-            if (element.type == "roundedrectangle")
+            if (element.type.toLowerCase() == "roundedrectangle")
                 this.style.radius = 5;
             this._drawMarkerType(element.type, this.region, this.style);
             if (this.scaleEl[this.scaleIndex].type == "thermometer" && this.isModify) {
@@ -1747,7 +1747,7 @@
         },
 
         _drawFrame: function (type, location, style) {
-            switch (type) {
+            switch (type.toLowerCase()) {
                 case "circle":
                     this._drawFrameCircle(location, style, this);
                     break;
@@ -3482,7 +3482,8 @@
         },
        
         _setTheme: function () {
-            var selectedTheme = this.model.themeProperties[this.model.theme];
+			var theme = this.model.theme.toLowerCase();
+            var selectedTheme = this.model.themeProperties[theme];
             this._setThemeColors(selectedTheme);
         },
 		 

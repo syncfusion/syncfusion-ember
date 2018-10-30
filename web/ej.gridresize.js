@@ -255,7 +255,7 @@
                     $prevheaderCols = this.gridInstance._$headerCols;
                    }
                     var $prevheaderCol = $prevheaderCols.filter(this._diaplayFinder).eq(!this.gridInstance.model.allowGrouping || !ej.isNullOrUndefined(this.gridInstance.model.detailsTemplate || this.gridInstance.model.childGrid) ? this._currentCell : this._currentCell + this.gridInstance.model.groupSettings.groupedColumns.length)
-                    var oldColWidth = $prevheaderCol.width();
+                    var oldColWidth = parseInt($prevheaderCol[0].style.width);
                    }
                     this._resizeColumnUsingDiff(_oldWidth, _extra);
                     $content = this.gridInstance.element.find(".e-gridcontent").first();
@@ -264,11 +264,11 @@
                     if (browser && browser.browser == "msie" && this.gridInstance.model.allowScrolling) {
                         var oldWidth = this.gridInstance.getContentTable().width(), newwidth = this.gridInstance._calculateWidth();
                         if (this.gridInstance.model.scrollSettings && this.gridInstance.model.scrollSettings.frozenColumns > 0) {
-                            if (this.gridInstance.model.showSummary && !ej.isNullOrUndefined(this.gridInstance.getFooterContent()))
-                                this.gridInstance.getFooterTable().last().width(newwidth - this.gridInstance.getFooterContent().find(".e-frozenfootertdiv").width());
+                         	if(this.gridInstance.model.showSummary && !ej.isNullOrUndefined(this.gridInstance.getFooterContent()))
+								this.gridInstance.getFooterTable().last().width(newwidth - this.gridInstance.getFooterContent().find(".e-frozenfootertdiv").width());
                         }
                         else {
-                            if (newwidth > oldWidth) {
+                            if (newwidth > oldWidth) {                               
                                 this.gridInstance.model.showSummary && this.gridInstance.getFooterTable().width(newwidth);
                             }
                         }
@@ -285,8 +285,10 @@
                         this.gridInstance.getHeaderTable().parent().scrollLeft($content.find(".e-content").scrollLeft() - 1);
                     }
                     this.gridInstance._colgroupRefresh();
-                    if (this.gridInstance.model.allowTextWrap)
+                    if (this.gridInstance.model.allowTextWrap){
+						this.gridInstance._isResized = true;
                         this.gridInstance.rowHeightRefresh();
+					}
                     if (this.gridInstance.model.groupSettings.groupedColumns.length && !this.gridInstance.model.isEdit)
                         this.gridInstance._recalculateIndentWidth();
                     if (ej.getObject("resizeSettings.resizeMode", this.gridInstance.model) != 'normal') {
@@ -300,7 +302,7 @@
                             }
                             var nextCell = this._currentCell + 1;
                             var $headerCol = $headerCols.filter(this._diaplayFinder).eq(!this.gridInstance.model.allowGrouping || !ej.isNullOrUndefined(this.gridInstance.model.detailsTemplate) ? nextCell : nextCell + this.gridInstance.model.groupSettings.groupedColumns.length)
-                            var newWidth = $headerCol.width() + (oldColWidth - $prevheaderCol.width()), $ContentCol;
+                            var newWidth = parseInt($headerCol[0].style.width) + (oldColWidth - parseInt($prevheaderCol[0].style.width)), $ContentCol;
                             if (newWidth < this._colMinWidth)
                                 newWidth = this._colMinWidth;
                             $headerCol.width(newWidth);
@@ -372,7 +374,7 @@
                             if (this.gridInstance.pluginName != "ejTreeGrid" && (!this.gridInstance.model.allowScrolling || !this.gridInstance.model.isResponsive))
                                 $("#" + this.gridInstance._id).css("width", oldTableWidth + parseInt(_extra));
                             else {
-                                // this.gridInstance.getHeaderTable().css("width", oldTableWidth + parseInt(_extra));
+                               // this.gridInstance.getHeaderTable().css("width", oldTableWidth + parseInt(_extra));
                                 if(this.gridInstance.model.showSummary && !ej.isNullOrUndefined(this.gridInstance.getFooterTable()))
                                     this.gridInstance.getFooterTable().css("width", oldTableWidth + parseInt(_extra));
                             }
@@ -396,7 +398,7 @@
                         if (tableWidth <= this.gridInstance.getContentTable().width() || this.gridInstance.getHeaderTable().width() > this.gridInstance.getContentTable().width()) {
                             if (this.gridInstance.model.showSummary && !ej.isNullOrUndefined(this.gridInstance.getFooterTable()))
                                 this.gridInstance.getFooterTable().width(tableWidth);
-						}
+                        }
                     }
                     if (this.gridInstance.model.allowResizing && this.gridInstance.getHeaderTable().find(".e-columnheader").css('cursor') == 'default') {
                         var cellIndex = this._currentCell;
@@ -411,8 +413,8 @@
                                 if(stackedHeaderCol[i].headerText == stackedHeaderText)
                                     stackedHeaderColumns = stackedHeaderCol[i].column;
                             }
-                            var columns = stackedHeaderColumns;
-                            if (!(stackedHeaderColumns instanceof Array))
+                            var columns = stackedHeaderColumns | [];
+                            if (!ej.isNullOrUndefined(stackedHeaderColumns) && !(stackedHeaderColumns instanceof Array))
                                 columns = stackedHeaderColumns.split(",");
                             for (var i = 0 ; i < columns.length; i++) {
                                 var index = this.gridInstance.getColumnIndexByField(columns[i]);
@@ -456,22 +458,10 @@
             return $(this).css('display') != 'none';
         },
         _resizeColumnUsingDiff: function (_oldWidth, _extra) {
-            var proxy = this, _extraVal;			
+            var proxy = this;			
             this._currntCe = this._currentCell;
-            var $headerCols = this.gridInstance.getHeaderTable().find('colgroup').find("col");
-            var $ContentCols = this.gridInstance.getContentTable().find('colgroup').find("col");
-            if (!ej.isNullOrUndefined(this.gridInstance.model.detailsTemplate || this.gridInstance.model.childGrid)) {
-                this.gridInstance._detailColsRefresh();
-                $headerCols = this.gridInstance._$headerCols;
-                $ContentCols = this.gridInstance._$contentCols;
-            }
-            var $headerCol = $headerCols.filter(this._diaplayFinder).eq(!this.gridInstance.model.allowGrouping || !ej.isNullOrUndefined(this.gridInstance.model.detailsTemplate || this.gridInstance.model.childGrid) ? this._currentCell : this._currentCell + this.gridInstance.model.groupSettings.groupedColumns.length)
-                    , $ContentCol, $footerCol, $frozenCols = $headerCols.slice(0, this.gridInstance.model.scrollSettings ? this.gridInstance.model.scrollSettings.frozenColumns : 0);
-            var colWidth = $headerCol[0].style.width, isPercent = colWidth.indexOf("%") != -1;
-            var _inlineWidth = (!colWidth || isPercent)? $(this._target).outerWidth() : colWidth;
-            var indent = !isPercent ? _oldWidth / parseInt(_inlineWidth) : 1;
-            _extraVal = _extra = _extra / indent
-            var _newWidth = this._newWidth = parseInt(_extra) + parseInt(_inlineWidth);
+            this._widthchanges(_oldWidth,_extra);
+			var _newWidth = this._newWidth, _extraVal = this._extra, $headerCols = this._$headerCols, $ContentCols = this._$ContentCols, $ContentCol, $headerCol = this._$headerCol, $frozenCols = this._$frozenCols, $footerCol; 		
             if (this.gridInstance.pluginName == "ejTreeGrid" && _extra > 0 && !ej.isNullOrUndefined(this.gridInstance._currentCell) && this.gridInstance.model.columns[this.gridInstance._currentCell].isFrozen == true) {
                 var width = this.gridInstance._frozenWidth();
                 //if resizing exceeds the grid width
@@ -498,19 +488,30 @@
                 }
                 else
                     $ContentCol = $ContentCols.filter(this._diaplayFinder).eq(!this.gridInstance.model.allowGrouping || !ej.isNullOrUndefined(this.gridInstance.model.detailsTemplate || this.gridInstance.model.childGrid) ? this._currentCell : this._currentCell + this.gridInstance.model.groupSettings.groupedColumns.length);
-                if (this.gridInstance.model.showSummary && !ej.isNullOrUndefined(this.gridInstance.getFooterTable())) {
-                    this._$footerCols = this.gridInstance.getFooterTable().find('colgroup').find("col");
-                    var colCount = this.gridInstance.model.columns.length;
-                    if (this._$footerCols.length > colCount) this._$footerCols.splice(0, (this._$footerCols.length - colCount));
-                    var $footerCols = this._$footerCols,
-                    $footerCol = $footerCols.filter(this._diaplayFinder).eq(this._currentCell);
-                    $footerCol.outerWidth(_newWidth);
-                }
                 if ($(this._target).parent('tr').hasClass('e-stackedHeaderRow')) {
                     this._resizeStackedHeaderColumn($(this._target).parent('tr'), _extraVal, this._currntCe);
                 }
                 else
                     $headerCol.outerWidth(_newWidth);
+                if (this.gridInstance.model.showSummary && !ej.isNullOrUndefined(this.gridInstance.getFooterTable())) {
+                        this._$footerCols = this.gridInstance.getFooterTable().find('colgroup').find("col");
+                        var colCount = this.gridInstance.model.columns.length;
+                        if (this._$footerCols.length > colCount) this._$footerCols.splice(0, (this._$footerCols.length - colCount));
+                        var $footerCols = this._$footerCols,
+                        $footerCol = $footerCols.filter(this._diaplayFinder).eq(this._currentCell);
+                        if(!($(this._target).parent('tr').hasClass('e-stackedHeaderRow'))){
+							$footerCol.outerWidth(_newWidth);
+                        }
+                        else{
+                            for (var i = 0; i < this._changedcell.length; i++) {
+                                $footerCol = $footerCols.filter(this._diaplayFinder).eq(i);
+                                var width = parseInt((_extraVal)) + parseInt($footerCols[i].style.width);
+                                if (width < this._colMinWidth)
+                                width = this._colMinWidth
+                                $footerCol.outerWidth(width);
+                            }
+                        }
+                }
                 if ($(this._target).parent('tr').hasClass('e-stackedHeaderRow')) {
                     if (this.gridInstance.model.groupSettings.groupedColumns.length) {
                         var $tables = this.gridInstance.getContentTable().find(".e-recordtable");
@@ -623,13 +624,19 @@
         _triggerResizeEvents: function (event, _x) {
             var _rowobj = this.gridInstance.getHeaderTable().find(".e-columnheader");
             var _childTH = _rowobj.find(".e-headercell").filter(":visible");
-            var cellIndex = this._cellIndex;
+            var cellIndex = this._cellIndex,currentCell;
             var target = $(this._target), columnIndex = [], col = [];
             if (event == "resizeStart") {
                 this._orgX = _x;
                 cellIndex = this._cellIndex = this._getCellIndex(this, _x);
             }
-            var _outerCell = _childTH[this._currentCell];
+            if (this.gridInstance.model.enableRTL && (this.gridInstance.model.detailsTemplate || this.gridInstance.model.childGrid))
+                 currentCell = this._currentCell - 1;
+            else{
+				 !this.gridInstance.model.enableRTL && this._getResizableCell();
+				 currentCell = this._currentCell;
+			}
+            var _outerCell = _childTH[currentCell];
             var _oldWidth = _outerCell.offsetWidth;
             if (this.gridInstance.model.showStackedHeader && target.hasClass("e-stackedHeaderCell")) {
                 var rowindex = target.parent(".e-stackedHeaderRow").index(),
@@ -639,8 +646,8 @@
                     if(stackedHeaderCol[i].headerText == stackedHeaderText)
                         stackedHeaderColumns = stackedHeaderCol[i].column;
                 }
-                var columns = stackedHeaderColumns;
-                if (!(stackedHeaderColumns instanceof Array))
+                var columns = stackedHeaderColumns | [];
+                if (!ej.isNullOrUndefined(stackedHeaderColumns) && !(stackedHeaderColumns instanceof Array))
                     columns = stackedHeaderColumns.split(",");
                 for (var i = 0 ; i < columns.length; i++) {
                     var index = this.gridInstance.getColumnIndexByField(columns[i]);
@@ -660,17 +667,33 @@
             else {
                 var _childth = _rowobj.find(".e-headercell").not(".e-detailheadercell").filter(":visible");
                 var _extra = _x - this._orgX;
-                var newWidth = _oldWidth + _extra;
+				this._widthchanges(_oldWidth,_extra);
                 this.gridInstance._colgroupRefresh();
                 var args = {};
                 if (this.gridInstance.model.showStackedHeader && target.hasClass("e-stackedHeaderCell")) {
-                    args = { columnIndex: columnIndex, column: col, target: $(_outerCell), oldWidth: _oldWidth, newWidth: newWidth, extra: _extra };
+                    args = { columnIndex: columnIndex, column: col, target: $(_outerCell), oldWidth: _oldWidth, newWidth: this._newWidth, extra: _extra };
                 }
                 else
-                    args = { columnIndex: cellIndex, column: this.gridInstance.model.columns[cellIndex], target: $(_outerCell), oldWidth: _oldWidth, newWidth: newWidth, extra: _extra };
+                    args = { columnIndex: cellIndex, column: this.gridInstance.model.columns[cellIndex], target: $(_outerCell), oldWidth: _oldWidth, newWidth: this._newWidth, extra: _extra };
                 return this.gridInstance._trigger("resizeEnd", args);
             }
         },
+		_widthchanges:function(_oldWidth,_extra){
+		     	var $headerCols = this._$headerCols = this.gridInstance.getHeaderTable().find('colgroup').find("col");
+                var $ContentCols = this._$ContentCols = this.gridInstance.getContentTable().find('colgroup').find("col");
+                if (!ej.isNullOrUndefined(this.gridInstance.model.detailsTemplate || this.gridInstance.model.childGrid)) {
+                    this.gridInstance._detailColsRefresh();
+                    $headerCols = this._$headerCols =this.gridInstance._$headerCols;
+                    $ContentCols = this._$ContentCols =_this.gridInstance._$contentCols;
+                }
+                var $headerCol = this._$headerCol = $headerCols.filter(this._diaplayFinder).eq(!this.gridInstance.model.allowGrouping || !ej.isNullOrUndefined(this.gridInstance.model.detailsTemplate || this.gridInstance.model.childGrid) ? this._currentCell : this._currentCell + this.gridInstance.model.groupSettings.groupedColumns.length)
+                        , $ContentCol, $footerCol, $frozenCols = this._$frozenCols = $headerCols.slice(0, this.gridInstance.model.scrollSettings ? this.gridInstance.model.scrollSettings.frozenColumns : 0);
+                var colWidth = $headerCol[0].style.width, isPercent = colWidth.indexOf("%") != -1;
+                var _inlineWidth = (!colWidth || isPercent)? $(this._target).outerWidth() : colWidth;
+                var indent = !isPercent ? _oldWidth / parseInt(_inlineWidth) : 1;
+                this._extra = _extra / indent;
+                this._newWidth = parseInt(_extra) + parseInt(_inlineWidth);
+		},
         _mouseUp: function (e) {
             if (this.gridInstance._resizeTimeOut){
                 clearTimeout(this.gridInstance._resizeTimeOut);
@@ -694,8 +717,14 @@
                 }
                 _x += document.documentElement.scrollLeft;
                 this._reSize(_x, _y);
-                if (!ej.isNullOrUndefined(this._currntCe) && this._currntCe >= 0)
-                    this.gridInstance.model.columns[this._currntCe].width = this.gridInstance.columnsWidthCollection[this._currntCe];
+                if (!ej.isNullOrUndefined(this._currntCe) && this._currntCe >= 0){
+					var vCols = ej.DataManager(this.gridInstance.model.columns).executeLocal(new ej.Query().where("visible","equal",true));
+					var currCol = vCols[this._currntCe];
+					var inx = this.gridInstance.model.columns.indexOf(currCol)
+					if(vCols.length != this.gridInstance.model.columns.length)
+						this.gridInstance.model.columns[inx].width = this.gridInstance.columnsWidthCollection[inx];
+					else this.gridInstance.model.columns[this._currntCe].width = this.gridInstance.columnsWidthCollection[this._currntCe];
+				}
             }
         },
         _getResizableCell: function () {
@@ -711,19 +740,23 @@
                 var cellPoint = cell[this._currentCell].getBoundingClientRect().left + scrollLeft + 5,
                     isFrozenPreviousCell = cellPoint > this._orgX ? true : false;
             }
-            if (!frozenColumns || this._currentCell != frozenColumns - 1 || isFrozenPreviousCell)
-                for (var i = 0; i < cell.length; i++) {
-                    var point = cell[i].getBoundingClientRect();
-                    var xlimit = point.left + scrollLeft + 5;
-                    if (xlimit > this._orgX && cell[i].offsetHeight + point.top >= this._orgY) {
-                        this._currentCell = i - 1;
-                        return;
-                    }
-                    if (i == cell.length - 1 || (this.gridInstance.model.showStackedHeader && $(this._target).get(0) === cell[i])) {
-                        this._currentCell = i;
-                        return;
-                    }
-                }
+            if (!frozenColumns || this._currentCell != frozenColumns - 1 || isFrozenPreviousCell){
+				var inx = $(this._target).closest(".e-columnheader").index();
+				row = $(this._target).hasClass('e-stackedHeaderCell') ? row[inx] : row;
+				var cell = $(row).find(".e-headercell").not(".e-hide,.e-detailheadercell");
+				for (var i = 0; i < cell.length; i++) {
+					var point = cell[i].getBoundingClientRect();
+					var xlimit = point.left + scrollLeft + 5;
+					if (xlimit > this._orgX && cell[i].offsetHeight + point.top >= this._orgY) {
+						this._currentCell = i - 1;
+						return;
+					}
+					if (i == cell.length - 1 || (this.gridInstance.model.showStackedHeader && $(this._target).get(0) === cell[i])) {
+						this._currentCell = i;
+						return;
+					}
+				}
+			}
         },
         _moveVisual: function (_x) {
             /// Used to move the visual element in mouse move
@@ -892,7 +925,7 @@
 					    else
 						    $span.html(content);
 					    $(td).html($span);
-						tdWidth = td.find('span:first').width() > 0 ? td.find('span:first').width() + parseInt(td.css("padding-left")) + parseInt(td.css("padding-right")) : td.find('span:first').width();
+						tdWidth = td.find('span:first').width() > 0 ? td.find('span:first').width() + parseFloat(td.css("padding-left")) + parseFloat(td.css("padding-right")) : td.find('span:first').width();
 					    if (tdWidth > contentWidth)
 						    contentWidth = tdWidth;
 					    $(td).html(content);
@@ -902,7 +935,7 @@
             proxy._refreshUnboundTemplate(this.gridInstance.getContentTable());
             return contentWidth;
         },
-        _getHeaderContentWidth: function ($cellDiv) {
+    _getHeaderContentWidth: function ($cellDiv) {
             var headerWidth = 0, $span = ej.buildTag('span', {}, {});
 			var IE = this.gridInstance.getBrowserDetails().browser == "msie" ;
 			if(IE)
@@ -910,14 +943,14 @@
             var content = $cellDiv.html();
             $span.html(content);
             $cellDiv.html($span);
-            headerWidth = $cellDiv.find('span:first').width() + parseInt($cellDiv.css("padding-left"))+parseInt($cellDiv.css("padding-right"));
+            headerWidth = $cellDiv.find('span:first').width() + parseFloat($cellDiv.css("padding-left")) + parseFloat($cellDiv.css("padding-right"));
 			if(IE)
                 headerWidth += 2;
             if(this.gridInstance.model.allowFiltering && (this.gridInstance.model.filterSettings.filterType == "menu" || this.gridInstance.model.filterSettings.filterType == "excel")){
                 var filter = $cellDiv.parent().find(".e-filtericon");
                 headerWidth = headerWidth + filter.width() + 10;
 				if(filter.length)
-				headerWidth += parseInt(filter.css("margin-left"));
+				headerWidth += parseFloat(filter.css("margin-left"));
 			}
             $cellDiv.html(content);
             return headerWidth;

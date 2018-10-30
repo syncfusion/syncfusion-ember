@@ -26,11 +26,11 @@
             clientExportMode: "chartandgrid",
             enableDeferUpdate: false,
             enablePivotTreeMap: false,
-            enableRTL:false,
-            enableDefaultValue:false,
+            enableRTL: false,
+            enableDefaultValue: false,
             enableAdvancedFilter: false,
             enablePaging: false,
-            enableSplitter:false,
+            enableSplitter: false,
             enableToolBar: false,
             enableCellSelection: false,
             enableLocalStorage: false,
@@ -39,7 +39,7 @@
             showUniqueNameOnPivotButton: false,
             isResponsive: false,
             collapseCubeBrowserByDefault: false,
-            enableKPI:false,
+            enableKPI: false,
             showReportCollection: false,
             enableValueCellHyperlink: false,
             enableRowHeaderHyperlink: false,
@@ -52,6 +52,7 @@
             enableCellClick: false,
             enableXHRCredentials: false,
             enableCompleteDataExport: false,
+            enableMemberEditorSorting:false,
             dataSource: {
                 data: null,
                 sourceInfo: "",
@@ -77,7 +78,7 @@
                 defaultView: "grid",
                 controlPlacement: "tab",
                 enableTogglePanel: false,
-                
+
                 enableFullScreen: false
             },
             serviceMethodSettings: {
@@ -103,7 +104,7 @@
                 removeDBReport: "RemoveReportFromDB",
                 renameDBReport: "RenameReportInDB",
                 calculatedMember: "CalculatedMember",
-                valueSorting:"ValueSorting"
+                valueSorting: "ValueSorting"
             },
             size: {
                 height: "685px",
@@ -133,6 +134,7 @@
                 sortOrder: "none"
             },
             customObject: {},
+            calculatedMembers: [],
             enableMeasureGroups: false,
             locale: "en-US",
             analysisMode: "olap",
@@ -143,13 +145,13 @@
             load: null,
             chartLoad: null,
             treeMapLoad: null,
-            drillThrough : null,
+            drillThrough: null,
             beforeExport: null,
             beforeServiceInvoke: null,
             afterServiceInvoke: null,
             saveReport: null,
             loadReport: null,
-            fetchReport:null,
+            fetchReport: null,
             cellSelection: null,
             gridDrillSuccess: null,
             chartDrillSuccess: null,
@@ -240,6 +242,9 @@
             this._chartWidth = 0;
             this._gridHeight = 0;
             this._gridWidth = 0;
+            this._maxInitialChartHeight = 0;
+            this._maxInitialChartWidth = 0;
+            this._maxInitialGridWidth = 0;
             this._initStyles = new Array();
             this._toggleStyles = new Array();
             this._initToggle = true;
@@ -261,7 +266,7 @@
             this._pagerObj = null;
             this._dialogTitle = "";
             this._dataModel = " ";
-            this._clientReportCollection = [];            
+            this._clientReportCollection = [];
             this._prevDrillElements = [];
             this._drillParams = [];
             this._drillInfo = [];
@@ -300,7 +305,7 @@
             this._olapReport = "";
             this._jsonRecords = null;
             this._excelFilterInfo = [];
-            this._index = {tab:0,icon:1,chartimg:0,button:1,dialog:0,editor:0,tree:0};
+            this._index = { tab: 0, icon: 1, chartimg: 0, button: 1, dialog: 0, editor: 0, tree: 0 };
             this._curFocus = { tab: null, icon: null, chartimg: null, button: null, dialog: null, editor: null, tree: null };
             this._seriesCurrentPage = 1;
             this._categCurrentPage = 1;
@@ -377,6 +382,43 @@
             this.model.toolbarIconSettings.enableFullScreen = this.model.displaySettings.enableFullScreen = (this.model.toolbarIconSettings.enableFullScreen || this.model.displaySettings.enableFullScreen) ? true : false;
             this.model.toolbarIconSettings.enableDeferUpdate = this.model.enableDeferUpdate = (this.model.enableDeferUpdate) ? true : false;
             this._trigger("load", eventArgs);
+            if (this.model.operationalMode == ej.Pivot.OperationalMode.ClientMode && this.model.analysisMode == ej.Pivot.AnalysisMode.Olap && this.model.dataSource.cube != "") {
+                var measures = this.model.dataSource.values.length > 0 ? this.model.dataSource.values[0].measures : [];
+                var rows = this.model.dataSource.rows; var columns = this.model.dataSource.columns;
+                var isExist = false; var calcMems = [];
+                this.model.dataSource.rows = this._reArrangeCalcFields(rows).reportItem;
+                calcMems = this._reArrangeCalcFields(rows).calcMems;
+                this.model.dataSource.columns = this._reArrangeCalcFields(columns).reportItem;
+                calcMems = $.merge(calcMems, this._reArrangeCalcFields(columns).calcMems);
+                measures = $.grep(measures, function (value, index) {
+                    if (value.expression != undefined) {
+                        calcMems.push({
+                            caption: value.fieldName, "expression": value.expression, hierarchyUniqueName: value.hierarchyUniqueName,
+                            formatString: (value.formatString ? value.formatString : null),
+                            format: (value.format ? value.format : null),
+                            memberType: ej.PivotClient.MemberType.Measure
+                        });
+                        value.caption = ej.isNullOrUndefined(value.fieldCaption) ? value.fieldName : value.fieldCaption;
+                        value.fieldName = (value.fieldName.toLowerCase().indexOf("measure") > -1) ? value.fieldName : "[Measures].[" + $.trim(value.fieldName) + "]";
+                    }
+                    return value;
+                });
+                if (this.model.calculatedMembers.length > 0) {
+                    $.grep(this.model.calculatedMembers, function (value, index) {
+                        var value = value; calcMems = $.grep(calcMems, function (Calcvalue, index) {
+                            if (value.caption != Calcvalue.caption) {
+                                if (!(Calcvalue.caption.toLowerCase().indexOf("measure") > -1 && "[Measures].[" + value.caption + "]" != Calcvalue.caption))
+                                    return value;
+                            }
+                        });
+                    });
+                    this.model.calculatedMembers = $.merge(calcMems, this.model.calculatedMembers);
+                }
+                else {
+                    this.model.calculatedMembers = [];
+                    this.model.calculatedMembers = $.merge(calcMems, this.model.calculatedMembers);
+                }
+            }
             this.element.addClass(this.model.cssClass);
             this.element.ejWaitingPopup({ showOnInit: true });
             this._waitingPopup = this.element.data("ejWaitingPopup");
@@ -403,6 +445,25 @@
             }
         },
 
+        _reArrangeCalcFields: function (items) {
+            var calcMembers = [], calcMems = [];
+            var items = $.grep(items, function (item, index) {
+                if (item.expression != undefined) {
+                    calcMems.push({
+                        caption: item.fieldName, "expression": item.expression,
+                        hierarchyUniqueName: item.hierarchyUniqueName,
+                        format: (item.format ? item.format : null),
+                        formatString: (item.formatString ? item.formatString : null),
+                        memberType: ej.PivotClient.MemberType.Dimension
+                    });
+                    calcMembers.push(item)
+                }
+                else
+                    return item;
+            });
+            return { reportItem: $.merge(calcMembers, items), calcMems: calcMems };
+        },
+
         _renderClientControls: function (msg) {
             this._renderLayout();
             this.setOlapReport(msg.PivotReport);
@@ -420,9 +481,8 @@
 
         _createControl: function () {
             var cubes = "";
-            this.element.find("#" + this._id + "_PivotSchemaDesigner").ejPivotSchemaDesigner({ pivotControl: this, _waitingPopup: this._waitingPopup, enableRTL: this.model.enableRTL, layout: ej.PivotSchemaDesigner.Layouts.OneByOne, olap: { showKPI: false, showNamedSets: false }, serviceMethods: { nodeDropped: this.model.serviceMethodSettings.nodeDropped, memberExpand: this.model.serviceMethodSettings.memberExpand }, locale: this.model.locale, width: this.model.enableSplitter ? "100%" : this.element.width()/3, height: this.element.find(".e-controlPanel").height() });
-            if (this.model.enablePaging)
-            {
+            this.element.find("#" + this._id + "_PivotSchemaDesigner").ejPivotSchemaDesigner({ pivotControl: this, _waitingPopup: this._waitingPopup, enableRTL: this.model.enableRTL, enableMemberEditorSorting:this.model.enableMemberEditorSorting, layout: ej.PivotSchemaDesigner.Layouts.OneByOne, olap: { showKPI: false, showNamedSets: false }, serviceMethods: { nodeDropped: this.model.serviceMethodSettings.nodeDropped, memberExpand: this.model.serviceMethodSettings.memberExpand }, locale: this.model.locale, width: this.model.enableSplitter ? "100%" : this.element.width() / 3, height: this.element.find(".e-controlPanel").height() });
+            if (this.model.enablePaging) {
                 this.element.find("#" + this._id + "_Pager").ejPivotPager({ locale: this.model.locale, mode: ej.PivotPager.Mode.Both, targetControlID: this._id });
                 this.element.find(".e-controlPanel").height(this.element.find(".e-controlPanel").height() - (this.element.find("#" + this._id + "_Pager").height() + 5));
                 this.element.find(".e-gridContainer").height(this.element.find(".e-gridContainer").height() - (this.element.find("#" + this._id + "_Pager").height() + 5));
@@ -457,16 +517,16 @@
             });
             this.element.find(".reportlist").attr("tabindex", 0);
             if (this.model.operationalMode == ej.Pivot.OperationalMode.ClientMode)
-                this._clientReportCollection=[this.model.dataSource];
+                this._clientReportCollection = [this.model.dataSource];
             if (this.model.analysisMode == ej.Pivot.AnalysisMode.Olap && this.model.operationalMode != ej.Pivot.OperationalMode.ClientMode) {
-                var tempddlwidth = this.element.find(".e-csHeader").width() - this.element.find(".cubeText").width() - this.element.find(".e-toggleExpandButton").width() - (this.model.enableSplitter?50:20);
+                var tempddlwidth = this.element.find(".e-csHeader").width() - this.element.find(".cubeText").width() - this.element.find(".e-toggleExpandButton").width() - (this.model.enableSplitter ? 50 : 20);
                 var cubeddlWidth = this.enableTogglePanel() ? tempddlwidth - 25 : tempddlwidth;
                 var cubeCollection = (cubes == "" ? "" : $.parseJSON(cubes));
                 this.element.find(".cubeSelector").ejDropDownList({
                     dataSource: cubeCollection,
                     enableRTL: this.model.enableRTL,
                     fields: { text: "name", value: "name" },
-                    width: this.model.enableSplitter&&!this.model.isResponsive?"100%":"" + cubeddlWidth + "px",
+                    width: this.model.enableSplitter && !this.model.isResponsive ? "100%" : "" + cubeddlWidth + "px",
                     create: function () { $(this.wrapper.find('.e-input')).focus(function () { $(this).blur(); }) }
                 });
                 this.ddlTarget = this.element.find('.cubeSelector').data("ejDropDownList");
@@ -484,11 +544,15 @@
             if (this.model.enableMeasureGroups)
                 this.element.find(".measureGroupSelector").ejDropDownList("option", "change", ej.proxy(this._measureGroupChanged, this));
             this.element.find("#clientTab").ejTab({ enableRTL: this.model.enableRTL, itemActive: ej.proxy(this._onTabClick, this) });
-            if(!this.model.enableSplitter)
-                this.element.find(".e-controlPanel").width(this.element.width()-this.element.find("#" + this._id + "_PivotSchemaDesigner").width() -(this.model.displaySettings.enableTogglePanel?30:10));
-			
+            if (!this.model.enableSplitter)
+                this.element.find(".e-controlPanel").width(this.element.width() - this.element.find("#" + this._id + "_PivotSchemaDesigner").width() - (this.model.displaySettings.enableTogglePanel ? 30 : 10));
+
+            var charContrHeight = 0;
+            if (this.controlPlacement() == "tile" && this.displayMode() == "chartandgrid")
+                charContrHeight = this.element.find("#" + this._id + "_PivotChart").parent().height();
             if (this.displayMode() != "chartonly") {
-                this.element.find("#" + this._id + "_PivotGrid").ejPivotGrid({ locale: this.model.locale, customObject: this.model.customObject, enableRTL: this.model.enableRTL,enableDefaultValue: this.model.enableDefaultValue, enableCellSelection: this.model.enableCellSelection, cellSelection: this.model.cellSelection, hyperlinkSettings: { enableValueCellHyperlink: this.model.enableValueCellHyperlink, enableRowHeaderHyperlink: this.model.enableRowHeaderHyperlink, enableColumnHeaderHyperlink: this.model.enableColumnHeaderHyperlink, enableSummaryCellHyperlink: this.model.enableSummaryCellHyperlink }, enableCellContext: this.model.enableCellContext, enableDrillThrough: this.model.enableDrillThrough, enableCellEditing: this.model.enableCellEditing, enableCellDoubleClick: this.model.enableCellDoubleClick, enableCellClick: this.model.enableCellClick, valueCellHyperlinkClick: this.model.valueCellHyperlinkClick, rowHeaderHyperlinkClick: this.model.rowHeaderHyperlinkClick, columnHeaderHyperlinkClick: this.model.columnHeaderHyperlinkClick, summaryCellHyperlinkClick: this.model.summaryCellHyperlinkClick, cellContext: this.model.cellContext, cellEdit: this.model.cellEdit, cellDoubleClick: this.model.cellDoubleClick, enableCellClick: this.model.enableCellClick, drillThrough: this.model.drillThrough, isResponsive: this.model.isResponsive, drillSuccess: ej.proxy(this.model.operationalMode == ej.Pivot.OperationalMode.ServerMode ? this._gridDrillSuccess : this._clientGridDrillSuccess, this), enableCollapseByDefault: true });
+				var contrHeight=this.element.find("#" + this._id + "_PivotGrid").parent().height(); 
+                this.element.find("#" + this._id + "_PivotGrid").ejPivotGrid({ locale: this.model.locale, customObject: this.model.customObject, enableRTL: this.model.enableRTL, enableDefaultValue: this.model.enableDefaultValue, enableCellSelection: this.model.enableCellSelection, cellSelection: this.model.cellSelection, hyperlinkSettings: { enableValueCellHyperlink: this.model.enableValueCellHyperlink, enableRowHeaderHyperlink: this.model.enableRowHeaderHyperlink, enableColumnHeaderHyperlink: this.model.enableColumnHeaderHyperlink, enableSummaryCellHyperlink: this.model.enableSummaryCellHyperlink }, enableCellContext: this.model.enableCellContext, enableDrillThrough: this.model.enableDrillThrough, enableCellEditing: this.model.enableCellEditing, enableCellDoubleClick: this.model.enableCellDoubleClick, enableCellClick: this.model.enableCellClick, valueCellHyperlinkClick: this.model.valueCellHyperlinkClick, rowHeaderHyperlinkClick: this.model.rowHeaderHyperlinkClick, columnHeaderHyperlinkClick: this.model.columnHeaderHyperlinkClick, summaryCellHyperlinkClick: this.model.summaryCellHyperlinkClick, cellContext: this.model.cellContext, cellEdit: this.model.cellEdit, cellDoubleClick: this.model.cellDoubleClick, enableCellClick: this.model.enableCellClick, drillThrough: this.model.drillThrough, isResponsive: this.model.isResponsive, drillSuccess: ej.proxy(this.model.operationalMode == ej.Pivot.OperationalMode.ServerMode ? this._gridDrillSuccess : this._clientGridDrillSuccess, this), enableCollapseByDefault: true });
                 this._pivotGrid = this.element.find("#" + this._id + "_PivotGrid").data("ejPivotGrid");
                 this._pivotGrid.model.operationalMode = this.model.operationalMode;
                 this._pivotGrid.model.analysisMode = this.model.analysisMode;
@@ -496,6 +560,8 @@
                 this._pivotGrid.model.url = this.model.url;
                 this._pivotGrid.model.dataSource = this.model.dataSource;
                 this._pivotGrid.model.valueSortSettings = this.model.valueSortSettings;
+                if(this.model.enableVirtualScrolling  && this.displayMode() == "chartandgrid")
+                    this.element.find("#" + this._id + "_PivotGrid").parent().height(contrHeight);
             }
             if (this.displayMode() != "gridonly") {
                 this.element.find("#" + this._id + "_PivotChart").ejPivotChart({ locale: this.model.locale, customObject: this.model.customObject, enableRTL: this.model.enableRTL, enableDefaultValue: this.model.enableDefaultValue, axesLabelRendering: this.model.axesLabelRendering, pointRegionClick: this.model.pointRegionClick, canResize: this.model.isResponsive, drillSuccess: ej.proxy(this.model.operationalMode == ej.Pivot.OperationalMode.ServerMode ? this._chartDrillSuccess : this._clientChartDrillSuccess, this), size: { height: this._chartHeight, width: this._chartWidth }, commonSeriesOptions: { type: this.model.chartType, tooltip: { visible: true } } });
@@ -505,6 +571,8 @@
                 this._pivotChart._waitingPopup = this._waitingPopup;
                 this._pivotChart.model.url = this.model.url;
                 this._pivotChart.model.dataSource = this.model.dataSource;
+                if (this.model.enableVirtualScrolling && charContrHeight > 0)
+                    this.element.find("#" + this._id + "_PivotChart").parent().height(charContrHeight);
             }
             this._pivotSchemaDesigner = this.element.find("#" + this._id + "_PivotSchemaDesigner").data("ejPivotSchemaDesigner");
             var items = {};
@@ -551,7 +619,7 @@
                     }
                     if (this.displayMode() != ej.PivotClient.DisplayMode.GridOnly) {
                         //this._pivotChart.setPivotEngine(this.getJSONRecords().ChartJSON);
-                        if(this._pivotChart.model.enableMultiLevelLabels)
+                        if (this._pivotChart.model.enableMultiLevelLabels)
                             this._pivotChart._generateData({ JsonRecords: this.getJSONRecords(), PivotReport: this.getOlapReport() });
                         else
                             this._pivotChart.renderControlSuccess({ JsonRecords: this.getJSONRecords().ChartJSON, OlapReport: this.getOlapReport() });
@@ -605,7 +673,7 @@
             if (this.element.find(".e-chartTypesDialog").length > 0)
                 this.element.find(".e-chartTypesDialog").remove();
             if (this.displayMode() != ej.PivotClient.DisplayMode.GridOnly)
-                this._pivotChart._labelCurrentTags = {};            
+                this._pivotChart._labelCurrentTags = {};
             if (this.model.operationalMode == ej.Pivot.OperationalMode.ServerMode) {
                 var reportVal = null, gridJN = null, chartJN = null;
                 if (report[0] != undefined) {
@@ -699,7 +767,7 @@
                         this.model.enableAdvancedFilter = options[key];
                         break;
                     }
-                    case "enableDefaultValue": { this.model.enableDefaultValue = options[key]; break;}
+                    case "enableDefaultValue": { this.model.enableDefaultValue = options[key]; break; }
                     case "enablePaging":
                         {
                             this.model.enablePaging = options[key];
@@ -1017,7 +1085,7 @@
             this._on(this.element, "mouseleave", ".e-pvtBtn", ej.proxy(function (evt) {
                 $(evt.target).siblings(".e-dropIndicator").removeClass("e-dropIndicatorActive");
             }, this));
-                            
+
 
             this.element.find(".e-sortDisable, .e-sortEnable, .e-filterDisable, .e-filterEnable ").on(ej.eventType.click, function (evt) {
                 var pivotClientObj = $(this).parents(".e-pivotclient").data("ejPivotClient");
@@ -1067,7 +1135,7 @@
             this.element.find(".e-toggleCollapseButton").click(function (evt) {
                 var pivotClientObj = $(this).parents(".e-pivotclient").data("ejPivotClient");
                 pivotClientObj._isCollapseCB = false;
-                if (pivotClientObj.model.isResponsive){
+                if (pivotClientObj.model.isResponsive) {
                     pivotClientObj._rwdToggleExpand();
                     if (pivotClientObj.model.enableSplitter)
                         if (pivotClientObj.model.analysisMode == ej.Pivot.AnalysisMode.Olap && pivotClientObj.model.operationalMode == ej.Pivot.OperationalMode.ServerMode)
@@ -1087,7 +1155,7 @@
                         pivotClientObj.element.find(".e-chartContainer").width(pivotClientObj.element.find(".e-controlPanel").width() - 5);
                     else if (pivotClientObj.controlPlacement() == ej.PivotClient.ControlPlacement.Tile) {
                         if (pivotClientObj.defaultView() == ej.PivotClient.DefaultView.Grid) {
-                            pivotClientObj.element.find(".e-gridContainer").width(pivotClientObj.element.find(".e-controlPanel").width()-5);
+                            pivotClientObj.element.find(".e-gridContainer").width(pivotClientObj.element.find(".e-controlPanel").width() - 5);
                             pivotClientObj.element.find(".e-chartContainer").width(pivotClientObj.element.find(".e-controlPanel").width() - 10);
                         }
                         else {
@@ -1105,10 +1173,9 @@
                             pivotClientObj.element.find(".e-chartContainer").width(pivotClientObj.element.find(".e-controlPanel").width() - 5);
                         }
                     }
-                    if (pivotClientObj.model.enableToolBar)
-                    {
+                    if (pivotClientObj.model.enableToolBar) {
                         pivotClientObj.element.find("#" + this._id + "_PivotCharttoolBar").width(pivotClientObj.element.find(".e-chartContainer").width());
-                        pivotClientObj.element.find("#" + this._id + "_PivotGridToolbar").width(pivotClientObj.element.find(".e-gridContainer").width()-10);
+                        pivotClientObj.element.find("#" + this._id + "_PivotGridToolbar").width(pivotClientObj.element.find(".e-gridContainer").width() - 10);
                         pivotClientObj.element.find(".e-chartToolBar").width(pivotClientObj.element.find(".e-chartContainer").width());
                         pivotClientObj.element.find(".e-toolBar").width(pivotClientObj.element.find(".e-gridContainer").width());
                     }
@@ -1130,7 +1197,7 @@
                     }
                 }
             });
-
+            this._on(this.element, "click", ".e-memberAscendingIcon, .e-memberDescendingIcon", ej.proxy(ej.Pivot._memberSortBtnClick, this));
             this.element.find(".maximizedView").click(function (evt) {
                 var pivotClientObj = $(this).parents(".e-pivotclient").data("ejPivotClient");
                 pivotClientObj._maxViewBtnClick();
@@ -1164,7 +1231,7 @@
             }
         },
 
-        _collapseCubeBrowser: function(){
+        _collapseCubeBrowser: function () {
             if (this.model.isResponsive)
                 this._rwdToggleCollapse();
             else {
@@ -1225,12 +1292,12 @@
             }
         },
 
-        _keyPressUp: function(e){
+        _keyPressUp: function (e) {
             if (e.keyCode === 93 && !this.element.find(".e-dialog:visible").length > 0 && this.element.find(".e-hoverCell:visible").length > 0) {
                 e.preventDefault();
                 if (!ej.isNullOrUndefined(this._curFocus.tab) && this._curFocus.tab.hasClass("e-text")) {
                     var position = { x: this.element.find(".e-hoverCell").offset().left + this.element.find(".e-hoverCell").outerWidth(), y: this.element.find(".e-hoverCell").offset().top + this.element.find(".e-hoverCell").outerHeight() };
-                    this.element.find(".e-hoverCell").trigger({type: 'mouseup',which: 3,clientX: position.x,clientY: position.y,pageX: position.x,pageY: position.y});
+                    this.element.find(".e-hoverCell").trigger({ type: 'mouseup', which: 3, clientX: position.x, clientY: position.y, pageX: position.x, pageY: position.y });
                 }
             }
         },
@@ -1240,12 +1307,12 @@
                 if (!pivotClientObj.element.find(".e-shadowbar").parents(".e-parentsplit"))
                     var s = containerWidth;
                 else if ((pivotClientObj.element.find(".e-shadowbar").parent(".e-parentsplit").length > 0 || pivotClientObj.element.find(".e-shadowbar").parent(".e-serverparentsplit").length > 0)) {
-                    if(!pivotClientObj.model.enableRTL)
+                    if (!pivotClientObj.model.enableRTL)
                         var s = containerWidth + (pivotClientObj.element.find(".e-controlPanel").offset().left - pivotClientObj.element.find(".e-shadowbar").offset().left);
                     else
                         var s = containerWidth + (pivotClientObj.element.find(".e-shadowbar").offset().left - pivotClientObj.element.find(".e-split-divider").offset().left);
                 }
-                $("#" + pivotClientObj._pivotChart._id + "Container").width(s-15);
+                $("#" + pivotClientObj._pivotChart._id + "Container").width(s - 15);
                 pivotClientObj.chartObj = null;
                 pivotClientObj.chartObj = pivotClientObj.element.find("#" + pivotClientObj._pivotChart._id + "Container").data("ejChart");
                 pivotClientObj.chartObj.redraw();
@@ -1260,7 +1327,7 @@
                         isResponsive: true,
                         enableRTL: this.model.enableRTL,
                         height: this.model.analysisMode == ej.Pivot.AnalysisMode.Olap && this.model.operationalMode == ej.Pivot.OperationalMode.ServerMode ? this.element.height() - ((this.element.find("div.e-titleText").length > 0 ? 50 : 0) + this.element.find("#reportToolbar").height() + 5) : this.element.find(".e-outerTable").height(),
-                        properties: [{ expandable: false, collapsible: false, paneSize: "50%", maxSize: this.model.enablePaging ? "400%" : "" }, { enableAutoResize: true, collapsible: false, paneSize: "50%", minSize: this.model.enableRTL?225:"" }],
+                        properties: [{ expandable: false, collapsible: false, paneSize: "50%", maxSize: this.model.enablePaging ? "400%" : "" }, { enableAutoResize: true, collapsible: false, paneSize: "50%", minSize: this.model.enableRTL ? 225 : "" }],
                         resize: function (args) {
                             var obj = this.element.find(".e-childsplit, .e-serverchildsplit").data("ejSplitter");
                             pivotClientObj = $(this.element).parents(".e-pivotclient").data("ejPivotClient");
@@ -1283,7 +1350,7 @@
                     cssClass: "customCSS",
                     height: this.model.analysisMode == ej.Pivot.AnalysisMode.Olap && this.model.operationalMode == ej.Pivot.OperationalMode.ServerMode ? (this.element.height() - ((this.element.find("div.e-titleText").length > 0 ? 50 : 0) + this.element.find("#reportToolbar").height() + this.element.find(".e-csHeader").height() + (this.model.enableVirtualScrolling ? 25 : 15))) : "",
                     isResponsive: true,
-                    enableRTL:this.model.enableRTL,
+                    enableRTL: this.model.enableRTL,
                     properties: [{ expandable: false, collapsible: false, enableAutoResize: true, paneSize: "50%", enableRTL: this.model.enableRTL }, { paneSize: "50%", collapsible: false }]
                 });
                 if (this.model.enableRTL) {
@@ -1309,7 +1376,7 @@
                 this.element.find(".e-childsplit>span.e-splitbar.e-h-bar").css("left", "5.5px");
                 this.element.find(".e-splitresponsive>span.e-splitbar.e-h-bar").css("left", "5.5px");
             }
-            
+
         },
         _keyPressDown: function (e) {
             var btnTab;
@@ -1322,7 +1389,7 @@
             if (e.keyCode === 93 && !ej.isNullOrUndefined(btnTab) && !this.element.find(".e-dialog:visible").length > 0 && this.element.find(".e-hoverCell:visible").length > 0) {
                 e.preventDefault();
                 var position = { x: $(btnTab).offset().left + $(btnTab).outerWidth(), y: $(btnTab).offset().top + $(btnTab).outerHeight() };
-                btnTab.trigger({type: 'mouseup',which: 3,clientX: position.x,clientY: position.y,pageX: position.x,pageY: position.y});
+                btnTab.trigger({ type: 'mouseup', which: 3, clientX: position.x, clientY: position.y, pageX: position.x, pageY: position.y });
             }
             if (((e.which === 46) || (e.which === 82 && e.ctrlKey)) && !this.element.find(".e-dialog:visible").length > 0 && !ej.isNullOrUndefined(btnTab)) {
                 e.preventDefault();
@@ -1357,7 +1424,7 @@
                     this.element.find(".e-dialogCancelBtn:visible").click();
                     this._curFocus.dialog = null;
                 }
-            }           
+            }
             if (this.element.find(".e-dialog:visible").length > 0 && e.keyCode == 27) {
                 if (!ej.isNullOrUndefined(this._curFocus.icon)) {
                     this._curFocus.icon.attr("tabindex", "-1").addClass("e-hoverCell").focus().mouseover();
@@ -1378,7 +1445,7 @@
                 }
                 else if (!this._curFocus.tab.hasClass("e-icon")) {
                     this._curFocus.tab.focus().mouseover();
-                }               
+                }
             }
             else if (this.element.find(".e-chartTypesDialog:visible").length > 0 && e.which === 27) {
                 this.element.find(".e-chartTypesDialog").remove();
@@ -1402,13 +1469,13 @@
                 }
                 else {
                     focEle = this.element.find(".e-dialog .e-filterEnable:visible,.e-dialog .filterFrom:visible:not([disabled='disabled']),.e-dialog .filterTo:visible:not([disabled='disabled']),.e-dialog .e-radioBtnAsc:visible:not([disabled='disabled']),.e-dialog .e-preserveHrchy:visible:not([disabled='disabled']),.e-dialog .e-dialogOKBtn:visible:not([aria-disabled='true']),.e-dialog .e-dialogCancelBtn:visible,.e-dialog .e-close:visible,.e-dialog .e-checkAll:visible,.e-dialog .e-unCheckAll:visible,.e-dialog .e-sortfiltTab .e-active:visible,.e-dialog .e-measureEditor:visible:first,.e-dialog .e-text:visible:first,.e-dialog .e-sortEnable:visible,.e-dialog .reportName:visible,#reportNameList_container:visible");
-                }      
+                }
                 if (!ej.isNullOrUndefined(this._curFocus.dialog)) {
                     this._curFocus.dialog.attr("tabindex", "0").removeClass("e-hoverCell").mouseleave();
                     if (e.which === 9 && e.shiftKey) {
                         this._index.dialog = this._index.dialog - 1 < 0 ? focEle.length - 1 : this._index.dialog - 1;
                     }
-                    else if (e.which === 9){
+                    else if (e.which === 9) {
                         this._index.dialog = this._index.dialog + 1 > focEle.length - 1 ? 0 : this._index.dialog + 1;
                     }
                     this._curFocus.dialog = focEle.eq(this._index.dialog);
@@ -1428,8 +1495,8 @@
                 e.preventDefault();
                 this.element.find(".e-hoverCell").removeClass("e-hoverCell").mouseleave();
                 this.element.find(".e-node-focus").removeClass("e-node-focus");
-                this._index.button = 1;this._index.icon = 1;this._index.chartimg = 0;this._index.tree = 0;this._index.dialog = 0;
-                this._curFocus.button = null;this._curFocus.icon = null;this._curFocus.chartimg = null;this._curFocus.tree = null;this._curFocus.editor = null;this._curFocus.dialog = null;
+                this._index.button = 1; this._index.icon = 1; this._index.chartimg = 0; this._index.tree = 0; this._index.dialog = 0;
+                this._curFocus.button = null; this._curFocus.icon = null; this._curFocus.chartimg = null; this._curFocus.tree = null; this._curFocus.editor = null; this._curFocus.dialog = null;
                 var focEle;
                 if ($(".e-fullScreenView").length != 0) {
                     if ($("[role='columnheader']:visible:not([p='0,0'])").first().length > 0) {
@@ -1445,7 +1512,7 @@
 
                         this._index.tab = this._index.tab - 1 < 0 ? focEle.length - 1 : this._index.tab - 1;
                     }
-                    else if (e.which === 9){
+                    else if (e.which === 9) {
                         this._index.tab = this._index.tab + 1 > focEle.length - 1 ? 0 : this._index.tab + 1;
                     }
                     this._curFocus.tab = focEle.eq(this._index.tab).attr("tabindex", "-1").focus().addClass("e-hoverCell").mouseover();
@@ -1493,7 +1560,7 @@
                 }
                 else if (!ej.isNullOrUndefined(this._curFocus.tab)) {
                     this._curFocus.tab.attr("tabindex", "-1").focus().mouseover();
-                }    
+                }
             }
             else if (e.keyCode == 13 && !ej.isNullOrUndefined(this._curFocus.tab) && this._curFocus.tab.attr("role") != "columnheader") {
                 e.preventDefault();
@@ -1515,7 +1582,7 @@
             else if ((e.which === 39 || e.which === 37) && (this.element.find(".e-cubeTreeView .e-text:visible").hasClass("e-hoverCell")) && !this.element.find(".e-editorTreeView:visible").length > 0) {
                 this.element.find(".e-cubeTreeView .e-hoverCell").parent().find(".e-plus,.e-minus").click();
             }
-            else if ((e.which === 37 || e.which === 39 || e.which === 38 || e.which === 40) && (this.element.find(".e-chartTypesDialog").length > 0 || this.element.find(".e-reportDBDialog").length > 0)){
+            else if ((e.which === 37 || e.which === 39 || e.which === 38 || e.which === 40) && (this.element.find(".e-chartTypesDialog").length > 0 || this.element.find(".e-reportDBDialog").length > 0)) {
                 e.preventDefault();
                 var dia = this.element.find(".e-chartTypesDialog").length > 0 ? this.element.find(".e-chartTypesDialog") : this.element.find(".e-reportDBDialog");
                 dia.tabindex = -1;
@@ -1530,22 +1597,22 @@
                         this._index.chartimg = this._index.chartimg - 1 < 0 ? td.length - 1 : this._index.chartimg - 1;
                     }
                     else if (e.which === 40 && dia.find(".e-chartTypesIcon").length > 0) {
-                        this._index.chartimg = this._index.chartimg + 5 > td.length - 1 ? (this._index.chartimg + 5)%10  : this._index.chartimg + 5;
+                        this._index.chartimg = this._index.chartimg + 5 > td.length - 1 ? (this._index.chartimg + 5) % 10 : this._index.chartimg + 5;
                     }
                     else if (e.which === 38 && dia.find(".e-chartTypesIcon").length > 0) {
-                        this._index.chartimg = this._index.chartimg - 5 < 0 ? td.length - 1  : this._index.chartimg - 5;
+                        this._index.chartimg = this._index.chartimg - 5 < 0 ? td.length - 1 : this._index.chartimg - 5;
                     }
                     this._curFocus.chartimg = td.eq(this._index.chartimg).addClass("e-hoverCell").mouseover();
                 }
                 else {
-                    this._index.chartimg = e.which == 39 ? 0 : e.which == 37 ? td.length - 1 : 0 ;
+                    this._index.chartimg = e.which == 39 ? 0 : e.which == 37 ? td.length - 1 : 0;
                     this._curFocus.chartimg = td.eq(this._index.chartimg).addClass("e-hoverCell").mouseover();
-                }               
+                }
             }
             else if ((e.which === 37 || e.which === 39) && !ej.isNullOrUndefined(this._curFocus.tab) && this._curFocus.tab.hasClass("e-icon") && !this._curFocus.tab.hasClass("e-toggleCollapseButton") && !this._curFocus.tab.hasClass("e-toggleExpandButton") && !this.element.find(".e-dialog:visible").length > 0) {
                 e.preventDefault();
                 this._curFocus.tab.removeClass("e-hoverCell").mouseleave();
-                var td = this.element.find(".e-reportToolbar .e-icon:visible:not(.e-reportCol)");                
+                var td = this.element.find(".e-reportToolbar .e-icon:visible:not(.e-reportCol)");
                 if (!ej.isNullOrUndefined(this._curFocus.icon)) {
                     this._curFocus.icon.removeClass("e-hoverCell").mouseleave();
                     if (e.which === 39) {
@@ -1667,7 +1734,7 @@
                     if (pivotClientObj._isTimeOut)
                         pivotClientObj._waitingPopup.show();
                 }, 800);
-               
+
                 $($(evt.target).parent()).remove();
                 if (pivotClientObj._currentReportItems.length != 0) {
                     if (pivotClientObj._treeViewData.hasOwnProperty($(evt.target).parent().find("button").attr("title"))) {
@@ -1712,7 +1779,7 @@
             var reportName = pivotClientObj.element.find(".reportlist").data("ejDropDownList").getSelectedValue(), exportSetting = {}, chartExpObj = {};
             var exportSetting = { url: "", fileName: "PivotClient", exportMode: ej.PivotClient.ExportMode.JSON, title: "", description: "", exportChartAsImage: true, fileFormat: "xls", exportWithStyle: true, exportValueAsNumber: false };
             if (pivotClientObj.model.displaySettings.mode != ej.PivotClient.DisplayMode.GridOnly && pivotClientObj.model.clientExportMode != ej.PivotClient.ClientExportMode.GridOnly) {
-                pivotClientObj.chartObj = null; var chartSeries = [], isOlapFullExport =false && pivotClientObj.model.analysisMode == ej.Pivot.AnalysisMode.Olap; //&& exportSetting.exportMode != ej.PivotClient.ExportMode.JSON;
+                pivotClientObj.chartObj = null; var chartSeries = [], isOlapFullExport = false && pivotClientObj.model.analysisMode == ej.Pivot.AnalysisMode.Olap; //&& exportSetting.exportMode != ej.PivotClient.ExportMode.JSON;
                 pivotClientObj.chartObj = pivotClientObj.element.find("#" + pivotClientObj._pivotChart._id + "Container").data("ejChart");
                 if (ej.isNullOrUndefined(pivotClientObj.chartObj) && !ej.isNullOrUndefined(pivotClientObj.otreemapObj))
                     pivotClientObj.chartObj = pivotClientObj.element.find("#" + pivotClientObj.otreemapObj._id + "TreeMapContainer").data("ejTreeMap");
@@ -1745,7 +1812,7 @@
                             {
                                 exportMode: mode, exportOption: exportOption, fileFormat: (exportSetting.fileFormat + (exportSetting.exportMode == ej.PivotClient.ExportMode.JSON && (exportSetting.fileFormat == ".xls" || exportSetting.fileFormat == ".xlsx") ? ("~" + exportSetting.exportValueAsNumber) : "")),
                                 pGridData: (pivotClientObj._pivotGrid.exportRecords != null && pivotClientObj._pivotGrid.exportRecords != "") ? pivotClientObj._pivotGrid.exportRecords : null, rowCount: rowCnt, columnCount: colCnt, fileName: exportSetting.fileName, customObject: JSON.stringify(pivotClientObj._pivotGrid.model.customObject),
-                                title: exportSetting.title, description: exportSetting.description, completeDataExport: pivotClientObj.model.enableCompleteDataExport, exportWithStyle: exportSetting.exportWithStyle,multiControlExport:true
+                                title: exportSetting.title, description: exportSetting.description, completeDataExport: pivotClientObj.model.enableCompleteDataExport, exportWithStyle: exportSetting.exportWithStyle, multiControlExport: true
                             })
                     };
                 }
@@ -1761,12 +1828,13 @@
                     if (!ej.isNullOrUndefined(exportSetting.exportChartAsImage) && !exportSetting.exportChartAsImage)
                         chartInfo.chartModel = chartExpObj;
                     params = { args: JSON.stringify(chartInfo) };
-                }                
+                }
             }
             else {
                 mode = ej.PivotClient.ClientExportMode.ChartAndGrid;
-                if (pivotClientObj.model.operationalMode == ej.Pivot.OperationalMode.ClientMode || (pivotClientObj._pivotGrid._excelLikeJSONRecords != null && exportSetting.exportMode == ej.PivotClient.ExportMode.JSON) || ( exportSetting.exportMode == ej.PivotClient.ExportMode.JSON)) {
-                    var chartInfo = { exportMode: mode, exportOption: exportOption, fileFormat: (exportSetting.fileFormat + (exportSetting.exportMode == ej.PivotClient.ExportMode.JSON && (exportSetting.fileFormat == ".xls" || exportSetting.fileFormat == ".xlsx") ? ("~" + exportSetting.exportValueAsNumber) : "")),
+                if (pivotClientObj.model.operationalMode == ej.Pivot.OperationalMode.ClientMode || (pivotClientObj._pivotGrid._excelLikeJSONRecords != null && exportSetting.exportMode == ej.PivotClient.ExportMode.JSON) || (exportSetting.exportMode == ej.PivotClient.ExportMode.JSON)) {
+                    var chartInfo = {
+                        exportMode: mode, exportOption: exportOption, fileFormat: (exportSetting.fileFormat + (exportSetting.exportMode == ej.PivotClient.ExportMode.JSON && (exportSetting.fileFormat == ".xls" || exportSetting.fileFormat == ".xlsx") ? ("~" + exportSetting.exportValueAsNumber) : "")),
                         pGridData: (pivotClientObj._pivotGrid.exportRecords != null && pivotClientObj._pivotGrid.exportRecords != "") ? pivotClientObj._pivotGrid.exportRecords : null, rowCount: rowCnt, columnCount: colCnt, fileName: exportSetting.fileName, customObject: JSON.stringify(pivotClientObj._pivotGrid.model.customObject),
                         chartdata: chartString.split(',')[1], bgColor: $(pivotClientObj._pivotChart.element).css('background-color'), title: exportSetting.title,
                         description: exportSetting.description, completeDataExport: pivotClientObj.model.enableCompleteDataExport,
@@ -1913,7 +1981,7 @@
                         valueCellBGColor: pivotClientObj._pivotGrid.element.find(".value").css("background-color"),
                         summaryCellColor: pivotClientObj._pivotGrid.element.find(".summary").css("color"),
                         summaryCellBGColor: pivotClientObj._pivotGrid.element.find(".summary").css("background-color")
-                }
+                    }
                 }
                 if (pivotClientObj.model.displaySettings.mode == ej.PivotClient.DisplayMode.GridOnly || pivotClientObj.model.clientExportMode == ej.PivotClient.ClientExportMode.GridOnly) {
                     mode = ej.PivotClient.ClientExportMode.GridOnly;
@@ -1927,7 +1995,8 @@
                                 title: exportSetting.title,
                                 description: exportSetting.description,
                                 completeDataExport: pivotClientObj.model.enableCompleteDataExport,
-                                exportWithStyle: exportSetting.exportWithStyle
+                                exportWithStyle: exportSetting.exportWithStyle,
+                                formatting: !ej.isNullOrUndefined(pivotClientObj._pivotGrid) && pivotClientObj._pivotGrid.model.enableConditionalFormatting ? pivotClientObj._pivotGrid._cFormat : []
                             })
                         };
                     }
@@ -1943,7 +2012,8 @@
                                 title: exportSetting.title,
                                 description: exportSetting.description,
                                 completeDataExport: this.model.enableCompleteDataExport,
-                                exportWithStyle: exportSetting.exportWithStyle
+                                exportWithStyle: exportSetting.exportWithStyle,
+                                formatting: !ej.isNullOrUndefined(pivotClientObj._pivotGrid) && pivotClientObj._pivotGrid.model.enableConditionalFormatting ? pivotClientObj._pivotGrid._cFormat : []
                             })
                         };
                     }
@@ -1979,13 +2049,13 @@
                         }
                         if (!ej.isNullOrUndefined(exportSetting.exportChartAsImage) && !exportSetting.exportChartAsImage)
                             chartInfo.chartModel = chartExpObj;
-                        params = {args: JSON.stringify(chartInfo)};
+                        params = { args: JSON.stringify(chartInfo) };
                     }
                 }
                 else {
                     mode = ej.PivotClient.ClientExportMode.ChartAndGrid;
                     if (pivotClientObj.model.operationalMode == ej.Pivot.OperationalMode.ClientMode || (pivotClientObj._pivotGrid._excelLikeJSONRecords != null && exportSetting.exportMode == ej.PivotClient.ExportMode.JSON) || ($.trim(exportSetting.url) != "" && exportSetting.exportMode == ej.PivotClient.ExportMode.JSON)) {
-                        var chartInfo={
+                        var chartInfo = {
                             exportMode: mode,
                             exportOption: exportOption,
                             fileFormat: (exportSetting.fileFormat + (exportSetting.exportMode == ej.PivotClient.ExportMode.JSON && (exportSetting.fileFormat == ".xls" || exportSetting.fileFormat == ".xlsx") ? ("~" + exportSetting.exportValueAsNumber) : "")),
@@ -1995,11 +2065,12 @@
                             title: exportSetting.title,
                             description: exportSetting.description,
                             completeDataExport: pivotClientObj.model.enableCompleteDataExport,
-                            exportWithStyle: exportSetting.exportWithStyle
+                            exportWithStyle: exportSetting.exportWithStyle,
+                            formatting: !ej.isNullOrUndefined(pivotClientObj._pivotGrid) && pivotClientObj._pivotGrid.model.enableConditionalFormatting ? pivotClientObj._pivotGrid._cFormat : []
                         }
                         if (!ej.isNullOrUndefined(exportSetting.exportChartAsImage) && !exportSetting.exportChartAsImage)
                             chartInfo.chartModel = chartExpObj;
-                        params = {args: JSON.stringify(chartInfo)};
+                        params = { args: JSON.stringify(chartInfo) };
                     }
                     else {
                         var chartInfo = {
@@ -2015,8 +2086,9 @@
                             title: exportSetting.title,
                             description: exportSetting.description,
                             completeDataExport: pivotClientObj.model.enableCompleteDataExport,
-                            exportWithStyle: exportSetting.exportWithStyle
-                        }                        
+                            exportWithStyle: exportSetting.exportWithStyle,
+                            formatting: !ej.isNullOrUndefined(pivotClientObj._pivotGrid) && pivotClientObj._pivotGrid.model.enableConditionalFormatting ? pivotClientObj._pivotGrid._cFormat : []
+                        }
                         if (!ej.isNullOrUndefined(exportSetting.exportChartAsImage) && !exportSetting.exportChartAsImage)
                             chartInfo.chartModel = chartExpObj;
                         params = { args: JSON.stringify(chartInfo) };
@@ -2036,32 +2108,37 @@
             this.element.find(".e-toggleaxisImg").click(function (evt) {
                 var pivotClientObj = $(this).parents(".e-pivotclient").data("ejPivotClient");
                 pivotClientObj._isTimeOut = true;
-                setTimeout(function () {
-                    if (pivotClientObj._isTimeOut)
-                        pivotClientObj._waitingPopup.show();
-                }, 800);
+
+                
                 if (pivotClientObj.displayMode() != ej.PivotClient.DisplayMode.GridOnly) {
                     pivotClientObj.chartObj = null;
                     pivotClientObj.chartObj = pivotClientObj.element.find("#" + pivotClientObj._pivotChart._id + "Container").data("ejChart");
                     if (ej.isNullOrUndefined(pivotClientObj.chartObj) && !ej.isNullOrUndefined(pivotClientObj.otreemapObj))
                         pivotClientObj.chartObj = pivotClientObj.element.find("#" + pivotClientObj.otreemapObj._id + "TreeMapContainer").data("ejTreeMap");
                 }
-                if (pivotClientObj.model.operationalMode == ej.Pivot.OperationalMode.ClientMode)
-                {
+                if (pivotClientObj.model.operationalMode == ej.Pivot.OperationalMode.ClientMode) {
+                    setTimeout(function () { if (pivotClientObj._isTimeOut) pivotClientObj._waitingPopup.show(); }, 800);
                     var dataSrcInfo = pivotClientObj.model.dataSource.rows;
                     pivotClientObj.model.dataSource.rows = pivotClientObj.model.dataSource.columns;
                     pivotClientObj.model.dataSource.columns = dataSrcInfo;
                     if (pivotClientObj.model.analysisMode == ej.Pivot.AnalysisMode.Olap && pivotClientObj.model.dataSource.values.length > 0)
-                        pivotClientObj.model.dataSource.values[0]["axis"]= pivotClientObj.model.dataSource.values[0]["axis"] == "rows" ? "columns" : (pivotClientObj.model.dataSource.values[0]["axis"] == "columns" ? "rows" : "columns");
-                    if(pivotClientObj.model.analysisMode == ej.Pivot.AnalysisMode.Olap)
+                        pivotClientObj.model.dataSource.values[0]["axis"] = pivotClientObj.model.dataSource.values[0]["axis"] == "rows" ? "columns" : (pivotClientObj.model.dataSource.values[0]["axis"] == "columns" ? "rows" : "columns");
+                    if (pivotClientObj.model.analysisMode == ej.Pivot.AnalysisMode.Olap)
                         ej.olap.base.clearDrilledItems(pivotClientObj.model.dataSource, { action: "nodeDropped" }, pivotClientObj);
                     pivotClientObj.refreshControl();
                 }
                 else if (pivotClientObj.model.analysisMode == ej.Pivot.AnalysisMode.Pivot) {
+                    if (pivotClientObj._waitingPopup)
+                    pivotClientObj._waitingPopup.show();
                     pivotClientObj.doAjaxPost("POST", pivotClientObj.model.url + "/" + pivotClientObj.model.serviceMethodSettings.toolbarServices, JSON.stringify({ "action": "toggleAxis", "args": JSON.stringify({ "currentReport": JSON.parse(pivotClientObj.getOlapReport()).Report, "sortedHeaders": (!ej.isNullOrUndefined(pivotClientObj._ascdes) ? pivotClientObj._ascdes : "") }), "customObject": JSON.stringify(pivotClientObj.model.customObject) }), pivotClientObj._toggleAxisSuccess);
                 }
-                else if ((pivotClientObj.element.find(".e-rowAxis").html() != "") || (pivotClientObj.element.find(".e-categoricalAxis").html() != ""))
+                else if ((pivotClientObj.element.find(".e-rowAxis").html() != "") || (pivotClientObj.element.find(".e-categoricalAxis").html() != "")) {
+                    if (pivotClientObj._waitingPopup)
+                    pivotClientObj._waitingPopup.show()
                     pivotClientObj.doAjaxPost("POST", pivotClientObj.model.url + "/" + pivotClientObj.model.serviceMethodSettings.toggleAxis, JSON.stringify({ "action": "toggleAxis", "currentReport": pivotClientObj.currentReport, "clientReports": pivotClientObj.reports, "customObject": JSON.stringify(pivotClientObj.model.customObject) }), pivotClientObj._toggleAxisSuccess);
+                }
+                !ej.isNullOrUndefined(pivotClientObj.chartObj)
+                    pivotClientObj.chartObj.redraw();
             });
 
             this.element.find(".e-reportDBImg").click(function (evt) {
@@ -2072,7 +2149,7 @@
                      (pivotClientObj.model.showReportCollection ? "" : ej.buildTag("td", ej.buildTag("div.e-loadReportImg e-reportDBIcon").attr({ "title": pivotClientObj._getLocalizedLabels("Load"), tabindex: 0 })[0].outerHTML)[0].outerHTML) +
                      ej.buildTag("td", ej.buildTag("div.e-removeDBReportImg e-reportDBIcon").attr({ "title": pivotClientObj._getLocalizedLabels("Remove"), tabindex: 0 })[0].outerHTML)[0].outerHTML +
                      ej.buildTag("td", ej.buildTag("div.e-renameDBReportImg e-reportDBIcon").attr({ "title": pivotClientObj._getLocalizedLabels("Rename"), tabindex: 0 })[0].outerHTML)[0].outerHTML)[0].outerHTML)[0].outerHTML)[0].outerHTML);
-              
+
                 var ele = pivotClientObj.element.find('div.e-reportDBDialog');
                 if (ele.length == 0) {
                     $(reportDBDlg).appendTo(pivotClientObj.element);
@@ -2175,7 +2252,7 @@
                         $(chartTypesDlg).css("left", $(evt.target).offset().left + 10 + "px").css("top", $(evt.target).offset().top + 15 + "px");
                     else
                         $(chartTypesDlg).css("left", this.offsetLeft + 20 + "px").css("top", this.offsetTop + 20 + "px");
-                    if(!pivotClientObj._pivotChart.model.enable3D)
+                    if (!pivotClientObj._pivotChart.model.enable3D)
                         pivotClientObj.element.find(".e-" + pivotClientObj._pivotChart.seriesType()).addClass("e-activeChartType");
                 }
                 $(".e-chartTypesIcon").click(function (e) {
@@ -2196,14 +2273,14 @@
                             }
                         }
                     }
-                    else{
+                    else {
                         pivotClientObj._pivotChart.model.commonSeriesOptions.marker = {
                             dataLabel: {
                                 visible: false
                             }
                         }
                     }
-                    if (jQuery.inArray(selectedtype, ["line", "spline", "area", "splinearea", "stepline", "steparea", "stackingarea", "scatter"]) > -1 && !pivotClientObj._pivotChart.model.commonSeriesOptions.marker.visible){
+                    if (jQuery.inArray(selectedtype, ["line", "spline", "area", "splinearea", "stepline", "steparea", "stackingarea", "scatter"]) > -1 && !pivotClientObj._pivotChart.model.commonSeriesOptions.marker.visible) {
                         pivotClientObj._pivotChart.model.commonSeriesOptions.marker = {
                             shape: ej.PivotChart.SymbolShapes.Circle,
                             size: { height: 12, width: 12 },
@@ -2321,10 +2398,13 @@
                     var selectedReport = pivotClientObj.element.find(".reportNameList")[0].value;
                     if (selectedReport != "") {
                         pivotClientObj._isTimeOut = true;
-                        setTimeout(function () {
-                            if (pivotClientObj._isTimeOut)
-                                pivotClientObj._waitingPopup.show();
-                        }, 800);
+                        if (pivotClientObj.model.operationalMode == ej.Pivot.OperationalMode.ServerMode)
+                            pivotClientObj._waitingPopup.show();
+                        else
+                            setTimeout(function () {
+                                if (pivotClientObj._isTimeOut)
+                                    pivotClientObj._waitingPopup.show();
+                            }, 800);
                         pivotClientObj._fieldMembers = {};
                         pivotClientObj._fieldSelectedMembers = {};
                         if (pivotClientObj.model.operationalMode == ej.Pivot.OperationalMode.ServerMode) {
@@ -2336,7 +2416,7 @@
                             }), (pivotClientObj.model.analysisMode == ej.Pivot.AnalysisMode.Pivot ? pivotClientObj._renderControlSuccess : pivotClientObj._toolbarOperationSuccess));
                         }
                         else {
-                            var loadReportSetting = { url: "", reportCollection: pivotClientObj._clientReportCollection,selectedReport:selectedReport, mode: pivotClientObj.model.analysisMode }
+                            var loadReportSetting = { url: "", reportCollection: pivotClientObj._clientReportCollection, selectedReport: selectedReport, mode: pivotClientObj.model.analysisMode }
                             pivotClientObj._trigger("loadReport", { targetControl: pivotClientObj, loadReportSetting: loadReportSetting });
                             if (pivotClientObj.model.enableLocalStorage) {
                                 pivotClientObj.model.dataSource = loadReportSetting.reportCollection[0];
@@ -2490,7 +2570,7 @@
                             pivotClientObj.element.find(".e-editorTreeView").ejTreeView("removeNode", pivotClientObj.element.find(".e-editorTreeView").find("li span.e-searchfilterselection").closest("li"));
                         if (pivotClientObj.model.enableAdvancedFilter && pivotClientObj._excelFilterInfo.length > 0) {
                             pivotClientObj._removeFilterTag(pivotClientObj._selectedFieldName);
-                            if(pivotClientObj._selectedLevelUniqueName)
+                            if (pivotClientObj._selectedLevelUniqueName)
                                 pivotClientObj._removeFilterTag(pivotClientObj._selectedLevelUniqueName);
                         }
                         if ((pivotClientObj._currentItem.indexOf(pivotClientObj._getLocalizedLabels("Measures")) < 0))
@@ -2524,7 +2604,7 @@
                         else if (pivotClientObj._args_innerHTML != "ToolbarButtons" && pivotClientObj._args_innerHTML != undefined) {
                             ej.Pivot.updateTreeView(pivotClientObj);
                             //unselectedNodes = pivotClientObj._getUnSelectedNodes() + "CHECKED" + pivotClientObj._getSelectedNodes(pivotClientObj._currentAxis == "Slicers" ? true : false);
-                            unselectedNodes = ((pivotClientObj._args_innerHTML =="KPIs")? pivotClientObj._getUnSelectedNodes(): ej.Pivot._getUnSelectedTreeState(pivotClientObj)) + "CHECKED" + ((pivotClientObj._args_innerHTML =="KPIs")? pivotClientObj._getSelectedNodes(pivotClientObj._currentAxis == "Slicers" ? true : false): ej.Pivot._getSelectedTreeState(pivotClientObj._currentAxis == "Slicers" ? true : false, pivotClientObj));
+                            unselectedNodes = ((pivotClientObj._args_innerHTML == "KPIs") ? pivotClientObj._getUnSelectedNodes() : ej.Pivot._getUnSelectedTreeState(pivotClientObj)) + "CHECKED" + ((pivotClientObj._args_innerHTML == "KPIs") ? pivotClientObj._getSelectedNodes(pivotClientObj._currentAxis == "Slicers" ? true : false) : ej.Pivot._getSelectedTreeState(pivotClientObj._currentAxis == "Slicers" ? true : false, pivotClientObj));
                         }
                         pivotClientObj._isTimeOut = true;
                         setTimeout(function () {
@@ -2538,7 +2618,7 @@
                             });
                         }
                         $(pivotClientObj).find(".e-dialog").hide();
-                        if (pivotClientObj.model.enableMemberEditorPaging && pivotClientObj._args_innerHTML != pivotClientObj._getLocalizedLabels("Measures")&& pivotClientObj._args_innerHTML != pivotClientObj._getLocalizedLabels("KPIs")&& pivotClientObj.element.find(".e-nextPageDiv").length > 0)
+                        if (pivotClientObj.model.enableMemberEditorPaging && pivotClientObj._args_innerHTML != pivotClientObj._getLocalizedLabels("Measures") && pivotClientObj._args_innerHTML != pivotClientObj._getLocalizedLabels("KPIs") && pivotClientObj.element.find(".e-nextPageDiv").length > 0)
                             unselectedNodes = ej.Pivot._getUnSelectedTreeState(pivotClientObj) + "CHECKED" + ej.Pivot._getSelectedTreeState(pivotClientObj._currentAxis == "Slicers" ? true : false, pivotClientObj);
                         if (pivotClientObj.model.beforeServiceInvoke != null)
                             pivotClientObj._trigger("beforeServiceInvoke", { "action": "filtering", element: this.element, customObject: pivotClientObj.model.customObject });
@@ -2571,10 +2651,11 @@
                             pivotClientObj._currentRecordName = (operation == "New Report" ? "" : pivotClientObj._currentRecordName);
                             pivotClientObj.element.find(".e-dialog").hide();
                             pivotClientObj._isTimeOut = true;
-                            setTimeout(function () {
-                                if (pivotClientObj._isTimeOut)
-                                    pivotClientObj._waitingPopup.show();
-                            }, 800);
+                            if (pivotClientObj.model.operationalMode == ej.Pivot.OperationalMode.ServerMode) {
+                                pivotClientObj._waitingPopup.show();
+                            }
+                            else
+                                setTimeout(function () { if (pivotClientObj._isTimeOut) pivotClientObj._waitingPopup.show(); }, 800);
                             var repCollection;
                             if (operation == "SaveAs Report" && pivotClientObj.model.analysisMode == ej.Pivot.AnalysisMode.Olap)
                                 repCollection = pivotClientObj._updateReportCollection(true);
@@ -2586,9 +2667,9 @@
                                     pivotClientObj._slicerBtnTextInfo[this.reportDropTarget.selectedIndexValue] = pivotClientObj._fieldSelectedMembers;
                                     repCollection = pivotClientObj._updateReportCollection(false);
                                 }
-                                if((operation == "Remove Report")){
+                                if ((operation == "Remove Report")) {
                                     delete pivotClientObj._slicerBtnTextInfo[this.reportDropTarget.selectedIndexValue];
-                                    pivotClientObj._fieldSelectedMembers  = pivotClientObj._slicerBtnTextInfo[this.reportDropTarget.selectedIndexValue - 1];
+                                    pivotClientObj._fieldSelectedMembers = pivotClientObj._slicerBtnTextInfo[this.reportDropTarget.selectedIndexValue - 1];
                                 }
                                 else
                                     pivotClientObj._fieldSelectedMembers = {};
@@ -2702,7 +2783,7 @@
                                             pivotClientObj._fieldMembers = {};
                                             pivotClientObj._fieldSelectedMembers = {};
 
-                                           
+
 
                                             reportListData.model.dataSource.push({ name: reportName });
                                             reportListData.selectItemByText(reportName);
@@ -2792,6 +2873,8 @@
 
             this.element.find(".e-calcMemberImg").click(function (evt) {
                 var pivotClientObj = $(this).parents(".e-pivotclient").data("ejPivotClient");
+                if (pivotClientObj.model.operationalMode == ej.Pivot.OperationalMode.ClientMode)
+                    pivotClientObj.element.find(".e-calcMemberDialog").remove();
                 if (pivotClientObj.element.find(".e-calcMemberDialog").length > 0) {
                     pivotClientObj._calcMemberTreeObj.collapseAll();
                     ej.Pivot.openPreventPanel(pivotClientObj);
@@ -2805,11 +2888,30 @@
                 }
                 else {
                     pivotClientObj._waitingPopup.show();
-                      if (pivotClientObj.model.beforeServiceInvoke != null)
-                        pivotClientObj._trigger("beforeServiceInvoke", { action: "fetchCalcMemberTreeView", element: pivotClientObj.element, customObject: pivotClientObj.model.customObject });
-                    var serializedCustomObject = JSON.stringify(pivotClientObj.model.customObject);
-                    pivotClientObj.doAjaxPost("POST", pivotClientObj.model.url + "/" + pivotClientObj.model.serviceMethodSettings.fetchMemberTreeNodes, JSON.stringify({ "action": "fetchCalcMemberTreeView", "dimensionName": "calcMember", "olapReport": pivotClientObj.currentReport, "customObject": serializedCustomObject }), ej.proxy(ej.Pivot._createCalcMemberDialog, pivotClientObj));
-                    //ej.Pivot._createCalcMemberDialog(pivotClientObj);
+                    if (pivotClientObj.model.operationalMode == ej.Pivot.OperationalMode.ServerMode) {
+                        if (pivotClientObj.model.beforeServiceInvoke != null)
+                            pivotClientObj._trigger("beforeServiceInvoke", { action: "fetchCalcMemberTreeView", element: pivotClientObj.element, customObject: pivotClientObj.model.customObject });
+                        var serializedCustomObject = JSON.stringify(pivotClientObj.model.customObject);
+                        pivotClientObj.doAjaxPost("POST", pivotClientObj.model.url + "/" + pivotClientObj.model.serviceMethodSettings.fetchMemberTreeNodes, JSON.stringify({ "action": "fetchCalcMemberTreeView", "dimensionName": "calcMember", "olapReport": pivotClientObj.currentReport, "customObject": serializedCustomObject }), ej.proxy(ej.Pivot._createCalcMemberDialog, pivotClientObj));
+                    }
+                    else {
+                        var BlankNode = [];
+                        var treeData = pivotClientObj.element.find(".e-schemaFieldTree").data("ejTreeView").model.fields.dataSource;
+                        treeData = $.grep(treeData, function (item, index) {
+                            if (item.id)
+                                item.id = item.id.replace(/\]/g, '_').replace(/\[/g, '_').replace(/\./g, '_').replace(/ /g, '_');
+                            if (item.pid)
+                                item.pid = item.pid.replace(/\]/g, '_').replace(/\[/g, '_').replace(/\./g, '_').replace(/ /g, '_');
+                            if (item.spriteCssClass.indexOf("e-level") > -1) {
+                                BlankNode.push({ id: item.id + "_1", pid: item.id, name: "(Blank)", hasChildren: false, spriteCssClass: "" });
+                            }
+                            return item;
+                        });
+                        treeData = $.merge(BlankNode, treeData);
+                        pivotClientObj._selectedCalcMember = null;
+                        var calcTreeview = { CubeTreeInfo: JSON.stringify(treeData) };
+                        ej.Pivot._createCalcMemberDialog(calcTreeview, pivotClientObj);
+                    }
                 }
             });
             //this._on(this.element, "click", ".e-calcMemberImg", ej.proxy(ej.Pivot._createCalcMemberDialog, this)); 
@@ -2902,7 +3004,33 @@
                 }
             });
         },
+        _generateCalculatedMember: function (ths, args) {
+            var data = $(args).find("Axis:eq(0) Tuple"), treeViewData = [], treeNodeInfo = {};
+            for (var i = 0; i < data.length; i++) {
+                var memberUqName = $($(args).find("Axis:eq(0) Tuple:eq(" + i + ")").children().children()[0]).text(),
+                    memberName = $($(args).find("Axis:eq(0) Tuple:eq(" + i + ")").children().children()[1]).text() == "" ? "(Blank)" : $($(args).find("Axis:eq(0) Tuple:eq(" + i + ")").children().children()[1]).text();
 
+                treeNodeInfo = {
+                    hasChildren: $(data[i]).find("CHILDREN_CARDINALITY").text() != "0",
+                    checkedStatus: true,
+                    id: memberUqName.replace(/\]*\]/g, '-').replace(/\[*\[/g, '-').replace(/ /g, "_").replace(/&/g, "_"),
+                    name: memberName,
+                    tag: memberUqName,
+                    level: parseInt($(data[i]).find("LNum").text())
+                };
+                treeViewData.push(treeNodeInfo);
+            }
+            var treeObj = this.element.find(".e-cubeTreeViewCalcMember").data("ejTreeView");
+            var obj = treeViewData;
+            treeObj.addNodes(obj, this._calcExpanded.id);
+            for (var i = 0; i < obj.length; i++) {
+                if (i == 0)
+                    treeObj.element.find("#" + this._calcExpanded.id).find("li:eq(0)").remove();
+                var tag = obj[i].tag;
+                treeObj.element.find("#" + this._calcExpanded.id).find("li:eq(" + i + ")").attr("data-tag", tag);
+            }
+            this._waitingPopup.hide();
+        },
         _updateReportCollection: function (isSaveRpt) {
             var ind = -1, reportList, cubeList, curRep, cubeIndex, currentReport, reports, cubeName, repCollection;
             if (this.model.operationalMode == ej.Pivot.OperationalMode.ClientMode) {
@@ -2924,8 +3052,8 @@
                 cubeList = this.element.find('#cubeSelector').data("ejDropDownList");
             }
             if (this.model.analysisMode == ej.Pivot.AnalysisMode.Olap && this.model.operationalMode == ej.Pivot.OperationalMode.ServerMode)
-            this._slicerBtnTextInfo[reportList.selectedIndexValue] = this._fieldSelectedMembers;
-            curRep = { "CubeName": cubeName, "CurrentReport": currentReport, "Reports": reports, "ReportIndex": reportList.selectedIndexValue, "ReportList": JSON.parse(JSON.stringify(reportList.model.dataSource)), _fieldSelectedMembers: this._fieldSelectedMembers, slicerBtnTextInfo: this._slicerBtnTextInfo };
+                this._slicerBtnTextInfo[reportList.selectedIndexValue] = this._fieldSelectedMembers;
+            curRep = { "CubeName": cubeName, "CurrentReport": currentReport, "Reports": reports, "ReportIndex": reportList.selectedIndexValue, "ReportList": JSON.parse(JSON.stringify(reportList.model.dataSource)), _fieldSelectedMembers: this._fieldSelectedMembers, slicerBtnTextInfo: this._slicerBtnTextInfo, calculatedMembers: this.model.calculatedMembers };
             $.map(this._repCol, function (value, index) {
                 if (value.CubeName == cubeName)
                     ind = index;
@@ -2938,8 +3066,8 @@
                 cubeIndex = this._repCol.length;
                 this._repCol.push(curRep);
             }
-            if(isSaveRpt)
-            this._repCol.push({ "cubeIndex": cubeIndex });
+            if (isSaveRpt)
+                this._repCol.push({ "cubeIndex": cubeIndex });
             repCollection = JSON.stringify(this._repCol);
             return repCollection;
         },
@@ -2949,8 +3077,8 @@
         },
 
         _unWireEvents: function () {
-            $(this.element.find(".e-dialogCancelBtn, .e-dialogOKBtn, .e-newReportImg, .e-addReportImg, .e-removeReportImg, .e-renameReportImg, .e-pvtBtn, .e-removeSplitBtn, .e-unCheckAll, .e-checkAll, .e-removeMeasure, .e-toggleCollapseButton, .e-toggleExpandButton, .e-reportDBImg, .e-saveAsReportImg, .e-saveReportImg, .e-loadReportImg, .e-removeDBReportImg, .e-renameDBReportImg, .e-mdxImg,.maximizedView,.e-colSortFilterImg, .e-rowSortFilterImg, .e-chartTypesImg, .e-toggleaxisImg, .e-autoExecuteImg, .e-nextPage, .e-prevPage, .e-firstPage, .e-lastPage, .e-searchEditorTree, .e-calcMemberImg")).off(ej.eventType.click);
-            $(this.element.find(".e-dialogCancelBtn, .e-dialogOKBtn, .e-newReportImg, .e-addReportImg, .e-removeReportImg, .e-renameReportImg, .e-pvtBtn, .e-removeSplitBtn, .e-unCheckAll, .e-checkAll, .e-removeMeasure, .e-toggleCollapseButton, .e-toggleExpandButton, .e-reportDBImg, .e-saveAsReportImg, .e-saveReportImg, .e-loadReportImg, .e-removeDBReportImg, .e-renameDBReportImg, .e-mdxImg,.maximizedView,.e-colSortFilterImg, .e-rowSortFilterImg, .e-chartTypesImg, .e-toggleaxisImg,.e-autoExecuteImg, .e-nextPage, .e-prevPage, .e-firstPage, .e-lastPage, .e-searchEditorTree,.e-calcMemberImg")).off('click');
+            $(this.element.find(".e-dialogCancelBtn, .e-dialogOKBtn, .e-newReportImg, .e-addReportImg, .e-removeReportImg, .e-renameReportImg, .e-pvtBtn, .e-removeSplitBtn, .e-unCheckAll, .e-checkAll, .e-removeMeasure, .e-toggleCollapseButton, .e-toggleExpandButton, .e-reportDBImg, .e-saveAsReportImg, .e-saveReportImg, .e-loadReportImg, .e-removeDBReportImg, .e-renameDBReportImg, .e-mdxImg,.maximizedView,.e-colSortFilterImg, .e-rowSortFilterImg, .e-chartTypesImg, .e-toggleaxisImg, .e-autoExecuteImg, .e-nextPage, .e-prevPage, .e-firstPage, .e-lastPage, .e-searchEditorTree, .e-calcMemberImg, .e-excelExportImg, .e-wordExportImg, .e-pdfExportImg")).off(ej.eventType.click);
+            $(this.element.find(".e-dialogCancelBtn, .e-dialogOKBtn, .e-newReportImg, .e-addReportImg, .e-removeReportImg, .e-renameReportImg, .e-pvtBtn, .e-removeSplitBtn, .e-unCheckAll, .e-checkAll, .e-removeMeasure, .e-toggleCollapseButton, .e-toggleExpandButton, .e-reportDBImg, .e-saveAsReportImg, .e-saveReportImg, .e-loadReportImg, .e-removeDBReportImg, .e-renameDBReportImg, .e-mdxImg,.maximizedView,.e-colSortFilterImg, .e-rowSortFilterImg, .e-chartTypesImg, .e-toggleaxisImg,.e-autoExecuteImg, .e-nextPage, .e-prevPage, .e-firstPage, .e-lastPage, .e-searchEditorTree,.e-calcMemberImg,  .e-excelExportImg, .e-wordExportImg, .e-pdfExportImg")).off('click');
             $(document).find(".e-winCloseBtn").off(ej.eventType.click);
             $(this._off(this.element, "mouseup", ".e-parentsplit"));
             this._off(this.element, "click", "#preventDiv");
@@ -2959,6 +3087,7 @@
             this._off($(document), 'keydown', this._keyPressDown);
             this._off($(document), 'keyup', this._keyPressUp);
             this._off(this.element.find("a.e-linkPanel"), "click", ej.Pivot._editorLinkPanelClick);
+            this._off(this.element, "click", ".e-memberAscendingIcon, .e-memberDescendingIcon", ej.proxy(ej.Pivot._memberSortBtnClick, this));
             if (this.model.isResponsive)
                 $(window).off('resize', $.proxy(this._reSizeHandler, this));
         },
@@ -2975,7 +3104,7 @@
                 else if (this.model.enablePaging) {
                     if (this.model.displaySettings.controlPlacement == ej.PivotClient.ControlPlacement.Tab) {
                         this.element.find(".e-controlPanel").height(ctrlPanelHeight - this.element.find("#" + this._id + "_Pager").height());
-                        if (this.model.isResponsive) this.element.find("#" + this._id + "_Pager").width(this.element.find(".e-controlPanel").width()).css({ "margin-top": "1px" });
+                        if (this.model.isResponsive) this.element.find("#" + this._id + "_Pager").css({ "margin-top": "-1px" });
                     }
                     else
                         this.element.find(".e-controlPanel").height(ctrlPanelHeight - this.element.find("#" + this._id + "_Pager").height() - 5);
@@ -2986,7 +3115,7 @@
                 cdbHeight = this.element.height() - ((this.element.find("div.e-titleText").length > 0 ? 50 : 0) + this.element.find("#reportToolbar").height() + this.element.find(".e-csHeader").height() + 38);
                 this.element.find(".e-cubeBrowser").css("height", (cdbHeight + 7) - this.element.find(".e-cdbHeader").height());
                 this.element.find(".e-cubeTreeView").height((this.element.find(".e-cubeBrowser").height() - this.element.find(".e-cubeName").height()) - (7 + (this.model.enableMeasureGroups ? (this.element.find(".measureGroupselector").height() + 13) : 0)));
-                aebHeight = cdbHeight - ((this.element.find(".e-axisHeader").height() * 3) + (this.model.enableSplitter?8:4));
+                aebHeight = cdbHeight - ((this.element.find(".e-axisHeader").height() * 3) + (this.model.enableSplitter ? 8 : 4));
                 this.element.find(".e-categoricalAxis, .e-rowAxis, .e-slicerAxis").css("height", ((aebHeight / 3) + "px"));
                 if (this.model.enableSplitter)
                     this.element.find(".e-serversplitresponsive").height(this.element.height() - ((this.element.find("div.e-titleText").length > 0 ? 50 : 0) + this.element.find("#reportToolbar").height() + this.element.find(".e-csHeader").height() + 30));
@@ -2996,7 +3125,7 @@
                 this.element.find(".e-outerTable, .controlPanelTD").css("height", ctrlPanelHeight + "px");
                 if (this.model.enableVirtualScrolling) {
                     this.element.find(".e-controlPanel").height(ctrlPanelHeight - 15);
-                    if(this.model.displaySettings.mode!=ej.PivotClient.DisplayMode.ChartOnly)
+                    if (this.model.displaySettings.mode != ej.PivotClient.DisplayMode.ChartOnly)
                         this._pivotGrid._applyVScrolling();
                 }
                 else if (this.model.enablePaging) {
@@ -3011,11 +3140,15 @@
                 this._pivotSchemaDesigner._reSizeHandler();
                 if (this.enableTogglePanel() && this.element.find(".pivotFieldList").length > 0) {
                     this.element.find("div.e-togglePanel").remove();
-                    this.element.find(".e-controlPanel").width(this.element.width() - ((this.element.width() / 3) + (this.model.enableVirtualScrolling? 39 : 20)));//this.element.find("#" + this._id + "_PivotSchemaDesigner").parents("td:eq(0)").height() - 30
+                    if (this.model.enableRTL)
+                        this.element.find(".e-pivotschemadesigner").css({ "margin-left": "0px", "margin-right": "0px" });
+                    this.element.find(".e-controlPanel").width(this.element.width() - ((this.element.width() / 3) + (this.model.enableVirtualScrolling ? 39 : 20)));//this.element.find("#" + this._id + "_PivotSchemaDesigner").parents("td:eq(0)").height() - 30
                     $(ej.buildTag("div.e-togglePanel", ej.buildTag("div.e-toggleExpandButton e-icon", "", {}).attr("aria-label", "toggle expanded")[0].outerHTML + ej.buildTag("div.e-toggleCollapseButton e-icon", {}, { "display": "none" }).attr("aria-label", "toggle collapsed")[0].outerHTML)[0].outerHTML).appendTo(this.element.find(".pivotFieldList").parent());
                     this.element.find(".e-togglePanel").height((this.element.height() - ((this.element.find("div.e-titleText").length > 0 ? 50 : 0) + this.element.find("#reportToolbar").height() + 5)) + "px").width(14);
                     this.element.find(".e-toggleExpandButton,.e-toggleCollapseButton").css("margin-top", (this.element.find("#" + this._id + "_PivotSchemaDesigner").parents("td:eq(0)").height() - 9) / 2);
                     this.element.find(".e-togglePanel").children().addClass("e-toggleButtons");
+                    if (this.model.enableRTL)
+                        this.element.find(".e-pivotschemadesigner").css({ "margin-left": "2px", "margin-right": "4px" });
                     this._unWireEvents();
                     this._wireEvents();
                 }
@@ -3039,31 +3172,53 @@
                     else {
                         if (this.model.enableVirtualScrolling)
                             this.element.find(".e-gridContainer").height(this.element.find(".e-controlPanel").height() - (this.element.find("ul.clientTab").height() + 30));
-                        else
-                            this.element.find(".e-gridContainer").height(this.element.find(".e-controlPanel").height() - (this.element.find("ul.clientTab").height() + 15));
+                        else {
+                            if(this.model.isResponsive)
+                                this.element.find(".e-gridContainer").height(this.element.find(".e-controlPanel").height() - (this.element.find("ul.clientTab").height() + 19));
+                            else
+                                this.element.find(".e-gridContainer").height(this.element.find(".e-controlPanel").height() - (this.element.find("ul.clientTab").height() + 15));
+                        }
                     }
                 }
             }
             if (this.displayMode() != ej.PivotClient.DisplayMode.GridOnly) {
                 if (this.controlPlacement() == ej.PivotClient.ControlPlacement.Tile && this.displayMode() == ej.PivotClient.DisplayMode.ChartAndGrid) {
-                    if (this.defaultView() == ej.PivotClient.DefaultView.Grid)
-                        this.element.find(".e-chartContainer").height((this.element.find(".e-controlPanel").height() / 2) - 10);
+                    if (this.defaultView() == ej.PivotClient.DefaultView.Grid) {
+                        if (this.model.isResponsive) {
+                            if (this.model.analysisMode == ej.Pivot.AnalysisMode.Olap && this.model.operationalMode == ej.Pivot.OperationalMode.ServerMode)
+                                this.element.find(".e-chartContainer").height((this.element.find(".e-controlPanel").height() / 2) - 10);
+                            else
+                                this.element.find(".e-chartContainer").height((this.element.find(".e-controlPanel").height() / 2) - 15);
+                        }
+                        else
+                            this.element.find(".e-chartContainer").height((this.element.find(".e-controlPanel").height() / 2) - 10);
+                    }
                     else
                         this.element.find(".e-chartContainer").height((this.element.find(".e-controlPanel").height() / 2) - 15);
                 }
                 else {
                     if (this.displayMode() == ej.PivotClient.DisplayMode.ChartOnly)
-                        this.element.find(".e-chartContainer").height(this.element.find(".e-controlPanel").height() - 17);
+                     {
+                     if (this.model.isResponsive)
+                     this.element.find(".e-chartContainer").height(this.element.find(".e-controlPanel").height() - 25);
+                     else
+                     this.element.find(".e-chartContainer").height(this.element.find(".e-controlPanel").height() - 17);
+                   }
                     else {
                         var diffHeight = this.element.find(".e-controlPanel").height() - (this.element.find("ul.clientTab").height() + 20);
                         if (this.model.enableVirtualScrolling)
                             this.element.find(".e-chartContainer").height(diffHeight - 5);
-                        else
+                        else {
+                            if (this.model.isResponsive)
+                                this.element.find(".e-chartContainer").height(diffHeight - 4);
+                            else
                             this.element.find(".e-chartContainer").height(diffHeight - 2);
+                        }
                     }
                 }
             }
-            this._chartHeight = this.model.enableToolBar ? this.element.find(".e-chartContainer").height() - 68 + "px" : this.element.find(".e-chartContainer").height() - 3 + "px"  //+ "px";
+            var containerHeight = this.element.find(".e-chartContainer").height();
+            this._chartHeight = this.model.enableToolBar ? containerHeight - 68 + "px" : ((this.model.isResponsive && this.controlPlacement() == ej.PivotClient.ControlPlacement.Tile && this.displayMode() == ej.PivotClient.DisplayMode.ChartAndGrid) ? (this.model.analysisMode == ej.Pivot.AnalysisMode.Olap && this.model.operationalMode == ej.Pivot.OperationalMode.ServerMode ? ((containerHeight + 10) + "px") : ((containerHeight - 5) + "px")) : (containerHeight - 3) + "px");
             this._gridHeight = this.model.enableToolBar ? this.element.find(".e-gridContainer").height() - 46 + "px" : this.element.find(".e-gridContainer").height() - 10 + "px"//+ "px";
             if (this.model.enableToolBar) {
                 this.element.find("#" + this._id + "_PivotGridToolbar").height(this._gridHeight);
@@ -3100,7 +3255,7 @@
                 }
                 if (this.model.enableToolBar) {
                     this.element.find("#" + this._id + "_PivotCharttoolBar").width(this.element.find(".e-chartContainer").width());
-                    this.element.find("#" + this._id + "_PivotGridToolbar").width(this.element.find(".e-gridContainer").width()-10);
+                    this.element.find("#" + this._id + "_PivotGridToolbar").width(this.element.find(".e-gridContainer").width() - 10);
                     this.element.find(".e-chartToolBar").width(this.element.find(".e-chartContainer").width());
                     this.element.find(".e-toolBar").width(this.element.find(".e-gridContainer").width());
                 }
@@ -3112,24 +3267,24 @@
             this.element.find(".e-toggleCollapseButton").hide();
             this.element.find(".e-toggleText").hide();
             this._calculateHeight();
+            if(this.model.displaySettings.enableFullScreen)
+            this.element.find("#" + this._id + "_PivotGrid").css("width", "");
             if (this._parentElwidth < 850) {
-                this.element.find(".e-outerTable").css({ "position": "absolute", "float": (this.model.enableRTL ? "right" : "left"), "tableLayout": "auto","z-index":"10000" });
+                this.element.find(".e-outerTable").css({ "position": "absolute", "float": (this.model.enableRTL ? "right" : "left"), "tableLayout": "auto", "z-index": "10000" });
                 this.element.find(".pivotFieldList").width("91%");
                 this.element.find("table.e-cubeTable").css({ "width": "71%" });
                 this.element.find(".e-csHeader").css({ "width": "100%" });
                 this.element.find("#cubeSelector_wrapper").css({ "width": "100%" });
-                this.element.find(".controlPanelTD").css({ "width": (this.element.find(".oClientTbl").width() - this.element.find("table.e-cubeTable").width()), "float": (this.model.enableRTL ? "left" : "right"), "left": (this.model.enableRTL ?"0px": "15px"), "right": (this.model.enableRTL ?"15px": "0px"), "position": "relative" });
+                this.element.find(".controlPanelTD").css({ "width": (this.element.find(".oClientTbl").width() - this.element.find("table.e-cubeTable").width()), "float": (this.model.enableRTL ? "left" : "right"), "left": (this.model.enableRTL ? "0px" : "15px"), "right": (this.model.enableRTL ? "15px" : "0px"), "position": "relative" });
                 this.element.find(".e-controlPanel").css({ "width": this.element.find(".controlPanelTD").width() - 20 });
 
             }
 
             if (this._parentElwidth > 850) {
-                this.element.find(".controlPanelTD").css({ "width": "56%", "left": "inherit", "float": "left", "margin-left" : "5px" });
+                this.element.find(".controlPanelTD").css({ "width": "56%", "left": "inherit", "float": "left", "margin-left": "5px" });
                 this.element.find("table.e-cubeTable").css({ "width": "98%" });
                 this.element.find(".e-outerTable,.controlPanelTD").css({ "position": "inherit" });
-                if (this._currentTab == "grid")
-                    $(".e-controlPanel").width(($("#" + this._id).width() * 55 / 100) + "px");
-                else if (this._currentTab == "chart")
+                if (this._currentTab == "grid" || this._currentTab == "chart")
                     $(".e-controlPanel").width(($("#" + this._id).width() * 55 / 100) + "px");
                 else
                     $(".e-controlPanel").width("100%");
@@ -3138,15 +3293,19 @@
                     this.element.find(".e-outerTable").width($("#" + this._id).width() * 43 / 100);// + "px";
                     this.element.find(".e-csHeader").width(($("#" + this._id).width() * 41 / 100) + "px");
                     this.element.find("#cubeSelector_wrapper").width(($("#" + this._id).width() * 29 / 100 - 60) + "px");
+                    if (!this.model.enableSplitter)
+                    this.element.find(".cubeTableTD, .e-cubeBrowser, .e-cdbHeader").css({ "width": (($(".e-cubeTable").width() / 2) - 4) + "px" });
                     if (this.controlPlacement() == ej.PivotClient.ControlPlacement.Tile && this.displayMode() == "chartandgrid")
                         this.element.find(".e-gridPanel").width(($("#" + this._id).width() * 56 / 100) + "px");
                 }
                 else {
                     this.element.find(".e-outerTable").css({ "width": ($("#" + this._id).width() * (this.model.enableVirtualScrolling ? 41 : 42) / 100) + "px", "tableLayout": "auto" });
-                    this.element.find(".e-csHeader").css({ "width": ($("#" + this._id).width() * 42 / 100) + "px"});
-                    this.element.find("#cubeSelector_wrapper").css({ "width":($("#" + this._id).width() * 32 / 100 - 60) + "px"});
+                    this.element.find(".e-csHeader").css({ "width": ($("#" + this._id).width() * 42 / 100) + "px" });
+                    this.element.find("#cubeSelector_wrapper").css({ "width": ($("#" + this._id).width() * 32 / 100 - 60) + "px" });
+                    if(!this.model.enableSplitter)
+                    this.element.find(".cubeTableTD, .e-cubeBrowser, .e-cdbHeader").css({ "width": (($(".e-cubeTable").width() / 2)-4) + "px" });
                     if (this.controlPlacement() == ej.PivotClient.ControlPlacement.Tile && this.displayMode() == "chartandgrid")
-                        this.element.find(".e-gridPanel").css({ "width":($("#" + this._id).width() * 57 / 100) + "px"});
+                        this.element.find(".e-gridPanel").css({ "width": ($("#" + this._id).width() * 55 / 100) + "px" });
                 }
 
             }
@@ -3164,13 +3323,19 @@
                     else
                         $("#" + this._pivotChart._id).width($(".e-controlPanel").width() - 30);
                     if (this.model.isResponsive && this._currentTab == "chart")
-                        this.element.find(".e-chartContainer").css({ "width": "98.8%" });                    
+                        this.element.find(".e-chartContainer").css({ "width": "98.8%" });
                 }
                 else {
-                    $("#" + this._pivotChart._id).width($(".e-controlPanel").width()-12);
+                    $("#" + this._pivotChart._id).width($(".e-controlPanel").width() - 12);
                 }
                 this.chartObj = null;
                 this.chartObj = this.element.find("#" + this._pivotChart._id + "Container").data("ejChart");
+                if (!ej.isNullOrUndefined(this.chartObj) && this.model.displaySettings.enableFullScreen)
+                {
+                this.chartObj.model.size.width = this.element.find(".e-chartContainer").width()-7;
+                this.chartObj.model.size.height = this.element.find(".e-chartContainer").height();
+                this.element.find("#" + this._pivotChart._id + "Container").width(this.chartObj.model.size.width);
+                }
                 if (ej.isNullOrUndefined(this.chartObj) && this.model.enablePivotTreeMap && !ej.isNullOrUndefined(this.otreemapObj))
                     this.chartObj = this.element.find("#" + this.otreemapObj._id + "TreeMapContainer").data("ejTreeMap");
                 if (!ej.isNullOrUndefined(this.chartObj)) {
@@ -3184,7 +3349,7 @@
             }
             this._overflow();
             if (this.displayMode() != ej.PivotClient.DisplayMode.ChartOnly) {
-                if(this._pivotGrid.element.length > 0)
+                if (this._pivotGrid.element.length > 0)
                     this._pivotGrid._applyFrozenHeaderWidth(this._pivotGrid._JSONRecords);
             }
         },
@@ -3203,16 +3368,23 @@
 
         _rwdToggleCollapse: function () {
             if (this._parentElwidth < 850) {
-                this.element.find(".e-outerTable").css({ "position": "absolute"});
+                this.element.find(".e-outerTable").css({ "position": "absolute" });
                 this.element.find(".controlPanelTD").css({ "left": (this.model.enableRTL ? "0px" : "35px"), "right": (this.model.enableRTL ? "35px" : "0px"), "position": "relative" });
             }
             if (this._currentTab == "grid") {
-                $(".e-controlPanel").css({ "width": $("#" + this._id).width() * 91 / 100 + "px"});
+                $(".e-controlPanel").css({ "width": $("#" + this._id).width() * 91 / 100 + "px" });
             }
+            else if(this.displayMode() == ej.PivotClient.DisplayMode.ChartOnly)
+               this.element.find(".e-controlPanel").css({ "width": $("#" + this._id).width() * 91 / 100 + "px" });
             else
-                $(".e-controlPanel").css({ "width": "100%"});
-            if (this.controlPlacement() == ej.PivotClient.ControlPlacement.Tile && this.displayMode() == "chartandgrid") 
-                this.element.find(".e-gridPanel").css({ "width": $("#" + this._id).width() * 92.65 / 100 + "px" });
+               this.element.find(".e-controlPanel").css({ "width": "100%" });
+            if (this.model.displaySettings.enableFullScreen)
+                this.element.find("#" + this._id + "_PivotGrid").css("width", "");
+            if (this.displayMode() == "chartandgrid") {
+                if (this.controlPlacement() == ej.PivotClient.ControlPlacement.Tile)
+                    this.element.find(".e-gridPanel").css({ "width": $("#" + this._id).width() * 92.65 / 100 + "px" });			
+                $(".e-controlPanel").css({ "width": $("#" + this._id).width() * 91 / 100 + "px" });
+            }
             //this.element.find(".e-chartPanel").css({ "width": "99%" });
             this.element.find(".e-csHeader, .e-cubeTable, .e-pivotschemadesigner,.e-toggleExpandButton").hide();
             //this.element.find(".controlPanelTD").css({ "left": (this.model.enableRTL ? "0" : "4%"), "right": (this.model.enableRTL ? "4%" : "0px"),"position": "relative", "width": "95%", "tableLayout": "fixed", "float": "" });
@@ -3227,19 +3399,31 @@
                 this._pivotGrid._applyVScrolling();
             if (this.displayMode() != "gridonly") {
                 if (this.controlPlacement() == ej.PivotClient.ControlPlacement.Tile && this.displayMode() == "chartandgrid") {
-                    if(this.model.enableToolBar)
+                    if (this.model.enableToolBar)
                         $("#" + this._pivotChart._id).width($(".e-controlPanel").width() - 45);
-                    else
-                        $("#" + this._pivotChart._id).width($(".e-controlPanel").width() - (this._currentTab == "grid" ? -11 : 17));
-                    this.element.find(".e-chartContainer").css({ "width": this._currentTab == "grid" ? "98%" : "100%" });
+                    else {
+                        var chartWidth = this.element.find(".e-controlPanel").width() - (this._currentTab == "grid" ? 0 : 17);
+                        $("#" + this._pivotChart._id).width(chartWidth);
+                        $("#" + this._id + "_PivotChartContainer").width("99.6%");
+                    }
+                    this.element.find(".e-chartContainer").css({ "width": this._currentTab == "grid" ? "99.2%" : "100%" });
                 }
                 else {
                     // if (!this.model.enableToolBar)
-                    $("#" + this._pivotChart._id).width($(".e-controlPanel").width()-25);
+                    $("#" + this._pivotChart._id).width($(".e-controlPanel").width() - 25);
+                    if (this.displayMode() == ej.PivotClient.DisplayMode.ChartOnly){
+                    this.element.find(".e-chartContainer").css({ "width":"100%"});
+                   }
                 }
                 if (this.displayMode() != ej.PivotClient.DisplayMode.GridOnly) {
                     this.chartObj = null;
                     this.chartObj = this.element.find("#" + this._pivotChart._id + "Container").data("ejChart");
+                     if (!ej.isNullOrUndefined(this.chartObj) && this.model.displaySettings.enableFullScreen)
+                       { this.chartObj.model.size.width = this.element.find(".e-chartContainer").width()+"px";
+                       this.chartObj.model.size.height = this.element.find(".e-chartContainer").height();
+                       if(this.displayMode() == ej.PivotClient.DisplayMode.ChartOnly)
+                       this.element.find("#" + this._pivotChart._id + "Container").width(this.element.find(".e-chartContainer").width());
+                        }
                     if (ej.isNullOrUndefined(this.chartObj) && this.model.enablePivotTreeMap && !ej.isNullOrUndefined(this.otreemapObj))
                         this.chartObj = this.element.find("#" + this.otreemapObj._id + "TreeMapContainer").data("ejTreeMap");
                 }
@@ -3253,12 +3437,12 @@
                 }
             }
             if (this.displayMode() != ej.PivotClient.DisplayMode.ChartOnly) {
-                if(this._pivotGrid.element.length > 0)
+                if (this._pivotGrid.element.length > 0)
                     this._pivotGrid._applyFrozenHeaderWidth(this._pivotGrid._JSONRecords);
             }
         },
         _removeFilterTag: function (uniqueName) {
-            var sortOrder=[];
+            var sortOrder = [];
             if (uniqueName && uniqueName.indexOf("].") >= 0) {
                 var removeElement = uniqueName.split("].").length > 2 ? "levelUniqueName" : "hierarchyUniqueName";
                 if (this._excelFilterInfo.length > 0) {
@@ -3275,7 +3459,7 @@
                 return sortOrder;
             }
             else if (uniqueName && this._excelFilterInfo.length > 0 && this.model.analysisMode == ej.Pivot.AnalysisMode.Pivot) {
-                var    reportName = this.element.find('#reportList').data("ejDropDownList").model.value;
+                var reportName = this.element.find('#reportList').data("ejDropDownList").model.value;
                 this._excelFilterInfo = $.grep(this._excelFilterInfo, function (item, index) {
                     if (item.report == reportName && !(item["levelUniqueName"] == uniqueName))
                         return item;
@@ -3285,18 +3469,18 @@
         _groupLabelChange: function (args) {
             this._selectedLevelUniqueName = args.selectedValue;
             var filterInfo = [];
-            var sortInfo=[];
+            var sortInfo = [];
             if (this._excelFilterInfo.length > 0) {
                 var cubeName = this.element.find('.cubeSelector').data("ejDropDownList").model.value, reportName = this.element.find('#reportList').data("ejDropDownList").model.value, levelName = this._selectedLevelUniqueName, hierarchyName = this._selectedFieldName;
                 filterInfo = $.map(this._excelFilterInfo, function (item, index) {
                     if (item.cubeName == cubeName && item.report == reportName && item.hierarchyUniqueName == hierarchyName && item.levelUniqueName == levelName)
-                        return { action: item.action, operator: item.operator, value1: item.value1 ,sortInfo:item.sortOrder};
+                        return { action: item.action, operator: item.operator, value1: item.value1, sortInfo: item.sortOrder };
                 });
             }
             var filterElem = this.element.find("#clearAllFilters a").children().clone();
             this.element.find("#clearAllFilters a").text(this._getLocalizedLabels("ClearFilter") + " from \"" + this.element.find(".groupLabelDrop").data("ejDropDownList").model.text + "\"").append(filterElem);
             this.element.find(".e-filterElementTag .e-activeFilter,.e-filterIndicator").remove();
-            if ((filterInfo.length > 0 && (ej.isNullOrUndefined(filterInfo[0]["sortInfo"]) || (!ej.isNullOrUndefined(filterInfo[0]["sortInfo"]) &&filterInfo[0]["sortInfo"].length ==0)) || filterInfo.length == 0))
+            if ((filterInfo.length > 0 && (ej.isNullOrUndefined(filterInfo[0]["sortInfo"]) || (!ej.isNullOrUndefined(filterInfo[0]["sortInfo"]) && filterInfo[0]["sortInfo"].length == 0)) || filterInfo.length == 0))
                 this.element.find(".e-clrSort").parents("li:eq(0)").css("opacity", "0.5").attr("disable", true);
             else {
                 if (filterInfo[0]["sortInfo"].length > 0)
@@ -3307,18 +3491,17 @@
             this.element.find("#valueClearFilter").css("opacity", "0.5").attr("disable", true);
 
             if (filterInfo.length > 0 && !ej.isNullOrUndefined(filterInfo[0]["operator"])) {
-                var filterTag="",filterId="";
-                if(filterInfo[0].action == "valuefiltering") 
-                {
-                    filterTag="valueFilterBtn"; 
-                    filterId=filterId = (filterInfo[0]["operator"] == "equals" || filterInfo[0]["operator"] == "not equals" || filterInfo[0]["operator"] == "less than or equal to" || filterInfo[0]["operator"] == "greater than or equal to" || filterInfo[0]["operator"] == "greater than" || filterInfo[0]["operator"] == "less than") ? "_valueFilter" : "";
+                var filterTag = "", filterId = "";
+                if (filterInfo[0].action == "valuefiltering") {
+                    filterTag = "valueFilterBtn";
+                    filterId = filterId = (filterInfo[0]["operator"] == "equals" || filterInfo[0]["operator"] == "not equals" || filterInfo[0]["operator"] == "less than or equal to" || filterInfo[0]["operator"] == "greater than or equal to" || filterInfo[0]["operator"] == "greater than" || filterInfo[0]["operator"] == "less than") ? "_valueFilter" : "";
                 }
-                else{
-                    filterTag="labelFilterBtn";
+                else {
+                    filterTag = "labelFilterBtn";
                     filterId = (filterInfo[0]["operator"] == "equals" || filterInfo[0]["operator"] == "not equals" || filterInfo[0]["operator"] == "less than or equal to" || filterInfo[0]["operator"] == "greater than or equal to" || filterInfo[0]["operator"] == "greater than" || filterInfo[0]["operator"] == "less than") ? "_labelFilter" : "";
                 }
                 //this.element.find(".clientDialog").prepend("<div class='e-filterIndicator e-icon' style='top:" + (filterTag == "labelFilterBtn" ? "169px" : "199px") + ";margin-left:12px;' />");
-                this.element.find("#" + filterTag +" a:eq(0)").append("<span class='e-filterState e-icon'/>");
+                this.element.find("#" + filterTag + " a:eq(0)").append("<span class='e-filterState e-icon'/>");
                 this.element.find(".e-clrFilter").parents("li:eq(0)").removeAttr("style disable");
                 this.element.find("#" + filterTag + " #labelClearFilter").removeAttr("style disable");
                 this.element.find("#" + filterTag + " #valueClearFilter").removeAttr("style disable");
@@ -3326,10 +3509,10 @@
                     this.element.find("#" + filterTag + " li#" + filterInfo[0]["operator"].replace(/ /g, '').replace("Bottom", "top") + " a").append($(ej.buildTag("span.e-activeFilter e-icon")[0].outerHTML));
                 }
                 else
-                    this.element.find("#" + filterTag + " li#" + filterInfo[0]["operator"].replace(/ /g, '') + filterId+ " a").append($(ej.buildTag("span.e-activeFilter e-icon")[0].outerHTML));
+                    this.element.find("#" + filterTag + " li#" + filterInfo[0]["operator"].replace(/ /g, '') + filterId + " a").append($(ej.buildTag("span.e-activeFilter e-icon")[0].outerHTML));
             }
             else {
-                if (this._getUnSelectedNodes()!="")
+                if (this._getUnSelectedNodes() != "")
                     this.element.find(".e-clientDialog").prepend("<div class='e-filterIndicator e-icon' style='margin-top:120px' />");
             }
         },
@@ -3338,17 +3521,17 @@
                 return args.Cancel;
 
             this._selectedLevelUniqueName = (this.element.find(".groupLabelDrop").data("ejDropDownList").model.value || this.element.find(".groupLabelDrop").data("ejDropDownList").model.dataSource[0].value);
-            var cubeName = this.element.find('.cubeSelector').length>0 ? (this.element.find('.cubeSelector').data("ejDropDownList").model.value): "", reportName = this.element.find('#reportList').data("ejDropDownList").model.value, levelName = this._selectedLevelUniqueName, hierarchyName = this._selectedFieldName;
+            var cubeName = this.element.find('.cubeSelector').length > 0 ? (this.element.find('.cubeSelector').data("ejDropDownList").model.value) : "", reportName = this.element.find('#reportList').data("ejDropDownList").model.value, levelName = this._selectedLevelUniqueName, hierarchyName = this._selectedFieldName;
 
             if (!($(args.element).attr("id") == "labelClearFilter" || ($(args.element).attr("id") == "valueClearFilter")) && !$(args.element).parent(".e-filterElementTag").length > 0) {
-                var currentAction = $(args.element).parents("li:eq(0)#valueFilterBtn").length>0 ? "valueFilterDlg" : "labelFilterDlg";
+                var currentAction = $(args.element).parents("li:eq(0)#valueFilterBtn").length > 0 ? "valueFilterDlg" : "labelFilterDlg";
                 var filterVal = [];
                 if (this._excelFilterInfo.length > 0 && $(args.element).siblings("li:eq(0)").attr("disable") != "true") {
                     filterVal = $.map(this._excelFilterInfo, function (item, index) { if (item.cubeName == cubeName && item.report == reportName && item.hierarchyUniqueName == hierarchyName && item.levelUniqueName == levelName) return { value1: item.value1, value2: item.value2, operator: item.operator, measure: item.measure }; });
-                    if ($(args.element).attr("id").replace("_labelFilter", "").replace("_valueFilter","") != filterVal[0]["operator"].replace(/ /g, '') && filterVal.length > 0)
+                    if ($(args.element).attr("id").replace("_labelFilter", "").replace("_valueFilter", "") != filterVal[0]["operator"].replace(/ /g, '') && filterVal.length > 0)
                         filterVal = [];
                 }
-                if(this._schemaData){
+                if (this._schemaData) {
                     this._schemaData._selectedLevelUniqueName = this._selectedLevelUniqueName;
                     this._schemaData.selectedFieldName = this._selectedFieldName;
                 }
@@ -3369,13 +3552,13 @@
                         return item;
                     });
                 }
-                if(!isSorted)
+                if (!isSorted)
                     this._excelFilterInfo.push({ cubeName: this.element.find('.cubeSelector').length > 0 ? (this.element.find('.cubeSelector').data("ejDropDownList").model.value) : "", report: this.element.find('#reportList').data("ejDropDownList").model.value, hierarchyUniqueName: this._selectedFieldName, levelUniqueName: this._selectedLevelUniqueName, sortOrder: $(args.element).attr("id") });
 
                 this.doAjaxPost("POST", this.model.url + "/" + this.model.serviceMethodSettings.filterElement, JSON.stringify({ "action": "labelSorting", "clientParams": this._selectedFieldName + "--" + $(args.element).attr("id"), "olapReport": this.currentReport, "clientReports": this.reports, "customObject": JSON.stringify(this.model.customObject) }), this._filterElementSuccess);
             }
             else {
-                var sortOrder=this._removeFilterTag(this._selectedLevelUniqueName);
+                var sortOrder = this._removeFilterTag(this._selectedLevelUniqueName);
                 this._excelFilterInfo.push({ cubeName: this.element.find('.cubeSelector').length > 0 ? (this.element.find('.cubeSelector').data("ejDropDownList").model.value) : "", report: this.element.find('#reportList').data("ejDropDownList").model.value, hierarchyUniqueName: this._selectedFieldName, levelUniqueName: this._selectedLevelUniqueName, sortOrder: sortOrder });
                 this.doAjaxPost("POST", this.model.url + "/" + this.model.serviceMethodSettings.filterElement, JSON.stringify({ "action": "labelfiltering", "clientParams": this._selectedLevelUniqueName + "--Clear Filter", "olapReport": this.currentReport, "clientReports": this.reports, "customObject": JSON.stringify(this.model.customObject) }), this._filterElementSuccess);
             }
@@ -3395,9 +3578,9 @@
                         pivotClientObj._waitingPopup.show();
                 }, 800);
             }
-            var selectedOperator = (this.element.find("#filterOptions").data("ejDropDownList").model.value ||this.element.find("#filterOptions")[0].value),
+            var selectedOperator = (this.element.find("#filterOptions").data("ejDropDownList").model.value || this.element.find("#filterOptions")[0].value),
                 filterValue1 = this.element.find("#filterValue1")[0].value,
-                filterValue2 = (this.element.find("#filterValue2").length>0? this.element.find("#filterValue2")[0].value :""),
+                filterValue2 = (this.element.find("#filterValue2").length > 0 ? this.element.find("#filterValue2")[0].value : ""),
                 selectedMeasure, params, levelFilterInfo = [], actionName = "labelfiltering";
 
             params = this._selectedLevelUniqueName + "--" + selectedOperator + "--" + filterValue1;
@@ -3408,7 +3591,7 @@
                 params = params + "--" + selectedMeasure;
                 actionName = "valuefiltering";
             }
-            var sortOrder=this._removeFilterTag(this._selectedLevelUniqueName);
+            var sortOrder = this._removeFilterTag(this._selectedLevelUniqueName);
             this._excelFilterInfo.push({ cubeName: this.element.find('.cubeSelector').length > 0 ? (this.element.find('.cubeSelector').data("ejDropDownList").model.value) : "", report: this.element.find('#reportList').data("ejDropDownList").model.value, action: actionName, hierarchyUniqueName: this._selectedFieldName, levelUniqueName: this._selectedLevelUniqueName, operator: selectedOperator, measure: selectedMeasure, value1: filterValue1, value2: filterValue2, sortOrder: sortOrder });
             this.doAjaxPost("POST", this.model.url + "/" + this.model.serviceMethodSettings.filterElement, JSON.stringify({ "action": actionName, "clientParams": params, "olapReport": this.currentReport, "clientReports": this.reports, "customObject": JSON.stringify(this.model.customObject) }), this._filterElementSuccess);
         },
@@ -3479,9 +3662,12 @@
         _maxViewBtnClick: function () {
             var winWidth = $(window).width() - 150;
             var winHeight = $(window).height() - 100;
+            this._maxInitialChartHeight = this.element.find("#" + this._pivotChart._id + "Container").height();
+            this._maxInitialChartWidth = this.element.find("#" + this._pivotChart._id + "Container").width();
+            this._maxInitialGridWidth = this.element.find("#" + this._id + "_PivotGrid").width();
             var docDivTag = ej.buildTag("div.e-fullScreenView", "", { width: $(document).width(), height: $(document).height() });
             var winDivTag = ej.buildTag("div#" + this._id + "_maxView.e-maximumView", "", { width: winWidth, height: winHeight });
-            var maxViewCls = ej.buildTag("div#Winclose.e-winCloseBtn e-icon", "").attr("role","button").attr("aria-label","close").attr("clientID", this._id);
+            var maxViewCls = ej.buildTag("div#Winclose.e-winCloseBtn e-icon", "").attr("role", "button").attr("aria-label", "close").attr("clientID", this._id);
             if (this.displayMode() != ej.PivotClient.DisplayMode.GridOnly) {
                 this.chartObj = null;
                 this.chartObj = this.element.find("#" + this._pivotChart._id + "Container").data("ejChart");
@@ -3558,23 +3744,23 @@
                     this.chartObj = this.element.find("#" + this.otreemapObj._id + "TreeMapContainer").data("ejTreeMap");
             }
             if (this.displayMode() == ej.PivotClient.DisplayMode.ChartOnly && ($("#" + this._pivotChart._id + "Container_svg")[0]))
-                this._fullScreenViewCls(560, 557 + tolerance);
+                this._fullScreenViewCls(this._maxInitialChartHeight, this._maxInitialChartWidth-7);
             if (this.displayMode() == ej.PivotClient.DisplayMode.GridOnly)
                 fullScreen.find("#" + this._id + "_PivotGrid").css({ "width": "inherit", "max-height": '', "overflow": "hidden" });
             if (this.controlPlacement() == ej.PivotClient.ControlPlacement.Tab && this.displayMode() == "chartandgrid") {
                 if (this._currentTab == "chart" && $("#" + this._pivotChart._id + "Container_svg")[0])
-                    this._fullScreenViewCls(533, 553 + tolerance);
+                    this._fullScreenViewCls(this._maxInitialChartHeight, this._maxInitialChartWidth-7);
                 else
-                    fullScreen.find("#" + this._id + "_PivotGrid").css({ "max-height": "550px", "width": (555 + tolerance + "px") });
+                    fullScreen.find("#" + this._id + "_PivotGrid").css({ "max-height": "", "width": (this._maxInitialGridWidth + "px") });
             }
             if (this.controlPlacement() == ej.PivotClient.ControlPlacement.Tile && this.displayMode() == "chartandgrid")
                 if ($("#" + this._pivotChart._id + "Container_svg")[0]) {
-                    this._fullScreenViewCls(285, 555 + tolerance);
-                    fullScreen.find("#" + this._id + "_PivotGrid").css({ "max-height": "300px", "width": (555 + tolerance + "px"), "overflow": "hidden" });
+                    this._fullScreenViewCls(this._maxInitialChartHeight, this._maxInitialChartWidth-7);
+                    fullScreen.find("#" + this._id + "_PivotGrid").css({ "width": (this._maxInitialGridWidth + "px"),"max-height": '', "overflow": "auto" });
                 } else
-                    fullScreen.find("#" + this._id + "_PivotGrid").css({ "max-height": "275px", "width": (555 + tolerance + "px") });
-            if (this.enableTogglePanel() && (this.element.find(".e-cubeTable").is(':visible')) == false)
-                fullScreen.find("#" + this._id + "_PivotGrid").css("width", "950px");
+                    fullScreen.find("#" + this._id + "_PivotGrid").css({ "max-height": "", "width": (this._maxInitialGridWidth + "px") });
+            if (this.enableTogglePanel() && ((this.element.find(".e-cubeTable").is(':visible')) == false || (this.element.find(".e-outerTable").is(':visible')) == false))
+                fullScreen.find("#" + this._id + "_PivotGrid").css("width", this._maxInitialGridWidth + "px");
             fullScreen.find("#" + this._id + "_PivotGrid").appendTo(this.element.find(".e-gridContainer"));
             $(".e-maximumView").remove();
             $(".e-fullScreenView").remove();
@@ -3592,31 +3778,32 @@
         _enableResponsive: function () {
 
             this.element.find(".outerPanel").css({ "width": "100%" });
-            $(".e-pivotclient").css({ "width":"100%"});
-            this.element.find(".e-outerTable").css({ "float": this.model.enableRTL?"right":"left" });
-            if (!this.model.enableSplitter) {
-                this.element.find(".e-cdbHeader, .e-cubeBrowser").addClass("e-responsive");
-                this.element.find(".e-cdbHeader, .e-cubeBrowser").css({ "max-width": window.navigator.userAgent.indexOf('Trident') > 0 ? "255px" : "245px" });
-            }
-            else
-                this.element.find(".e-cdbHeader, .e-cubeBrowser").css("width","99%");
+            $(".e-pivotclient").css({ "width": "100%" });
+            this.element.find(".e-outerTable").css({ "float": this.model.enableRTL ? "right" : "left" });
+            if(this.model.enableSplitter)
+            this.element.find(".e-cdbHeader, .e-cubeBrowser").css("width", "99%");
             this.element.find(".e-rowAxis, .e-slicerAxis, .e-categoricalAxis").width("99%");
             this.element.find(".controlPanelTD").width("56%");
             if (this.controlPlacement() == ej.PivotClient.ControlPlacement.Tile && this.displayMode() == "chartandgrid")
                 this.element.find(".controlPanelTD").css("display", "inline-block");
             if (this.model.operationalMode == ej.Pivot.OperationalMode.ClientMode)
-                this.element.find(".e-cubeTable,.e-pivotschemadesigner").width("100%");                           
+                {this.element.find(".e-cubeTable").width("100%");
+                if(this.displayMode() == ej.PivotClient.DisplayMode.ChartOnly)
+                this.element.find(".e-pivotschemadesigner").width("95%");
+                else
+                this.element.find(".e-pivotschemadesigner").width("100%");
+                }
             else
                 this.element.find(".e-cubeTable").width("98%");
             if (window.navigator.userAgent.indexOf('Trident') > 0) {
                 if (this._currentTab == "grid")
-                    $(".e-controlPanel").css({ "width":$("#" + this._id).width() * 55 / 100 + "px"});
+                    $(".e-controlPanel").css({ "width": $("#" + this._id).width() * 55 / 100 + "px" });
                 else
-                    $(".e-controlPanel").css({ "width":"99%"});
+                    $(".e-controlPanel").css({ "width": "99%" });
                 this.element.find(".e-outerTable").width($("#" + this._id).width() * 39 / 100);
                 this.element.find(".e-csHeader").width($("#" + this._id).width() * 38 / 100);
                 if (this.controlPlacement() == ej.PivotClient.ControlPlacement.Tile && this.displayMode() == "chartandgrid")
-                    this.element.find(".e-gridPanel").width($("#" + this._id).width() * 55 / 100 );
+                    this.element.find(".e-gridPanel").width($("#" + this._id).width() * 55 / 100);
             }
             else {
                 this.element.find(".e-outerTable").width($("#" + this._id).width() * 38 / 100);
@@ -3633,7 +3820,7 @@
                 else
                     var chartHeight = this._pivotChart.model.size.height = this.chartObj.model.size.height = $(window).height() - height + "px";
                 this.element.find("#" + this._id + "_PivotChart").css({ "min-height": chartHeight, "width": chartWidth });
-                this.element.find("#" + this._id + "_PivotChartContainer").css({ "width": chartWidth, "height":chartHeight });
+                this.element.find("#" + this._id + "_PivotChartContainer").css({ "width": chartWidth, "height": chartHeight });
                 this.chartObj.redraw();
             }
         },
@@ -3642,21 +3829,22 @@
             if (this._pivotChart != null && this._pivotChart != undefined) {
                 this.chartObj = this.element.find("#" + this._pivotChart._id + "Container").data("ejChart");
                 var chartHeight = this.chartObj.model.size.height = this._pivotChart.model.size.height = height + "px";
-                if (this.enableTogglePanel() && (this.element.find(".e-cubeTable").is(':visible')) == false)
+                if (this.enableTogglePanel() && (this.element.find(".e-cubeTable").is(':visible')) == false && ((this.element.find(".e-outerTable").is(':visible')) == false))
                     var chartWidth = this.chartObj.model.size.width = this._pivotChart.model.size.width = "950px";
                 else
                     var chartWidth = this.chartObj.model.size.width = this._pivotChart.model.size.width = width + "px";
                 this.element.find("#" + this._id + "_PivotChart").css({ "min-height": chartHeight, "width": chartWidth });
                 this.element.find("#" + this._pivotChart._id + "Container").width(chartWidth);
+                if(this.displayMode() == ej.PivotClient.DisplayMode.ChartOnly)
+                this.element.find("#" + this._pivotChart._id + "Container").height(chartHeight);
                 this.chartObj.redraw();
             }
         },
         _calcMemberDroppedSuccess: function (data) {
             if (data[0] != undefined) {
-                for (var i = 0; i < data.length; i++)
-                {
+                for (var i = 0; i < data.length; i++) {
                     if (data[i].Key == "calcMemberTreeData") {
-                        this._calcMembers=JSON.parse(data[i].Value);
+                        this._calcMembers = JSON.parse(data[i].Value);
                         data.splice(i, 1);
                         break;
                     }
@@ -3740,11 +3928,11 @@
             $(this._createSplitButtons(rowElements, "Rows")).appendTo(".e-rowAxis");
             $(this._createSplitButtons(slicerElements, "Slicers")).appendTo(".e-slicerAxis");
             this.element.find(".e-categoricalAxis, .e-rowAxis, .e-slicerAxis").find("button").ejButton({ height: "20px", type: ej.ButtonType.Button });
+            this._setSplitBtnTitle();
             if (this.model.showUniqueNameOnPivotButton) {
                 $(".e-pvtBtn").addClass("e-splitBtnUnique");
-                $(".e-removeSplitBtn").addClass("e-removeBtnUnqiue");
+                this._addSplitButtonHeight();
             }
-            this._setSplitBtnTitle();
             this._renderControls();
             this._unWireEvents();
             this._wireEvents();
@@ -3752,7 +3940,7 @@
             this._trigger("renderSuccess", this);
             this._buttonContextMenu();
         },
-        _buttonContextMenu : function(){
+        _buttonContextMenu: function () {
             var context = ej.buildTag("ul.pivotTree#pivotTree", ej.buildTag("li", ej.buildTag("a", this._getLocalizedLabels("AddToColumn"))[0].outerHTML)[0].outerHTML + ej.buildTag("li", ej.buildTag("a", this._getLocalizedLabels("AddToRow"))[0].outerHTML)[0].outerHTML + ej.buildTag("li", ej.buildTag("a", this._getLocalizedLabels("AddToSlicer"))[0].outerHTML)[0].outerHTML)[0].outerHTML;
             this.element.append(context);
             $("#pivotTree").ejMenu({
@@ -3765,7 +3953,7 @@
             });
         },
         _editorTreeInfoSuccess: function (editorTree) {
-            
+
             if (editorTree[0] != undefined) {
                 if (editorTree[2] != null && editorTree[2] != undefined)
                     this.model.customObject = editorTree[2].Value;
@@ -3808,8 +3996,8 @@
                     this._setChartDrillMembers(data.tranposeEngine, this._pivotGrid._drillAction);
                     this._drillInfo = [];
                 }
-                else 
-                    this._pivotChart.generateJSON(this, data.tranposeEngine);                
+                else
+                    this._pivotChart.generateJSON(this, data.tranposeEngine);
                 if (this.model.analysisMode == ej.Pivot.AnalysisMode.Olap) {
                     this._pivotChart._drilledCellSet = (this._drilledCellSet.length > 0) ? this._drilledCellSet : [];
                     this._pivotChart.XMLACellSet = (this.XMLACellSet.length > 0) ? this.XMLACellSet : [];
@@ -3854,7 +4042,7 @@
                 if (!this.model.isResponsive) {
                     if (this.model.enableRTL && !this.model.enableVirtualScrolling) {
                         browserPanel = ej.buildTag("div#" + this._id + "_PivotSchemaDesigner.pivotFieldList", "", {}).attr("class", "e-childsplit")[0].outerHTML;
-                        htmlTag = ej.buildTag("div.outerPanel", "", {  }).append("<div class=\"e-titleText\"><span style='padding-left:10px'>" + this.model.title + "</span></div>" + reportToolBar + "<table class=\"e-outerTable\" style='width:100%'><tr class='e-parentsplit' style='width:100%'><td class=\"controlPanelTD\" style='width:50%'>" + this._controlPanel() + "</td><td style='width:50%'>" + browserPanel + "</td></tr></table>");
+                        htmlTag = ej.buildTag("div.outerPanel", "", {}).append("<div class=\"e-titleText\"><span style='padding-left:10px'>" + this.model.title + "</span></div>" + reportToolBar + "<table class=\"e-outerTable\" style='width:100%'><tr class='e-parentsplit' style='width:100%'><td class=\"controlPanelTD\" style='width:50%'>" + this._controlPanel() + "</td><td style='width:50%'>" + browserPanel + "</td></tr></table>");
                     }
                     else if (this.model.enableVirtualScrolling || (this.model.enableRTL && this.model.enableVirtualScrolling)) {
                         browserPanel = ej.buildTag("div#" + this._id + "_PivotSchemaDesigner.pivotFieldList", "", {}).attr("class", "e-childsplit")[0].outerHTML;
@@ -3866,27 +4054,26 @@
                     }
                 }
                 else if (this.model.isResponsive) {
-                    browserPanel = ej.buildTag("div#" + this._id + "_PivotSchemaDesigner.pivotFieldList", "", { }).addClass("e-splitresponsive")[0].outerHTML;
+                    browserPanel = ej.buildTag("div#" + this._id + "_PivotSchemaDesigner.pivotFieldList", "", {}).addClass("e-splitresponsive")[0].outerHTML;
                     htmlTag = ej.buildTag("div.outerPanel", "").append(ej.buildTag("div.e-titleText", ej.buildTag("span", this.title(), { "padding-left": "10px" })[0].outerHTML)[0].outerHTML + reportToolBar + ej.buildTag("table.oClientTbl", ej.buildTag("tr", ej.buildTag("td", ej.buildTag("table.e-outerTable", ej.buildTag("tr", ej.buildTag("td", browserPanel).attr("width", "100%")[0].outerHTML).attr("width", "100%")[0].outerHTML)[0].outerHTML + ej.buildTag("table.controlPanelTD", ej.buildTag("tr", ej.buildTag("td", this._controlPanel())[0].outerHTML)[0].outerHTML)[0].outerHTML)[0].outerHTML)[0].outerHTML, { width: "100%" })[0].outerHTML);
                 }
             }
-            else
-            {
+            else {
                 if (!this.model.isResponsive) {
                     browserPanel = ej.buildTag("div#" + this._id + "_PivotSchemaDesigner.pivotFieldList", "", {})[0].outerHTML;
                     htmlTag = ej.buildTag("div.outerPanel", "", {}).append(($.trim(this.model.title) != "" ? ("<div class=\"e-titleText\"><span style='padding-left:10px'>" + this.model.title + "</span></div>") : "") + reportToolBar + "<table class=\"e-outerTable\" style='display:block'><tr><td>" + browserPanel + "</td><td class=\"controlPanelTD\"style='display:block'>" + this._controlPanel() + "</td>" + (this.model.enableVirtualScrolling ? ej.buildTag("td.virtualScrolling", ej.buildTag("div.e-vScrollPanel")[0].outerHTML)[0].outerHTML : "") + "</tr></table>");
                 }
                 else if (this.model.isResponsive) {
-                    browserPanel =  ej.buildTag("div#" + this._id + "_PivotSchemaDesigner.pivotFieldList", "", { })[0].outerHTML //: this._createCubeSelector() + ej.buildTag("table.e-cubeTable", ej.buildTag("tbody", ej.buildTag("tr", ej.buildTag("td.cubeTableTD", this._createCubeBrowser(cubeTreeInfo)).attr({ valign: "bottom", width: "50%" })[0].outerHTML + ej.buildTag("td.cubeTableTD", this._createAxisElementBuilder(columnElements, rowElements, slicerElements)).attr({ valign: "bottom", width: "50%" })[0].outerHTML)[0].outerHTML)[0].outerHTML)[0].outerHTML);
+                    browserPanel = ej.buildTag("div#" + this._id + "_PivotSchemaDesigner.pivotFieldList", "", {})[0].outerHTML //: this._createCubeSelector() + ej.buildTag("table.e-cubeTable", ej.buildTag("tbody", ej.buildTag("tr", ej.buildTag("td.cubeTableTD", this._createCubeBrowser(cubeTreeInfo)).attr({ valign: "bottom", width: "50%" })[0].outerHTML + ej.buildTag("td.cubeTableTD", this._createAxisElementBuilder(columnElements, rowElements, slicerElements)).attr({ valign: "bottom", width: "50%" })[0].outerHTML)[0].outerHTML)[0].outerHTML)[0].outerHTML);
                     htmlTag = ej.buildTag("div.outerPanel", "").append(($.trim(this.model.title) != "" ? (ej.buildTag("div.e-titleText", ej.buildTag("span", this.title(), { "padding-left": "10px" })[0].outerHTML)[0].outerHTML) : "") + reportToolBar + ej.buildTag("table.oClientTbl", ej.buildTag("tr", ej.buildTag("td", ej.buildTag("table.e-outerTable", ej.buildTag("tr", ej.buildTag("td", browserPanel)[0].outerHTML)[0].outerHTML)[0].outerHTML + ej.buildTag("table.controlPanelTD", ej.buildTag("tr", ej.buildTag("td", this._controlPanel())[0].outerHTML + (this.model.enableVirtualScrolling ? ej.buildTag("td.virtualScrolling", ej.buildTag("div.e-vScrollPanel")[0].outerHTML)[0].outerHTML : ""))[0].outerHTML)[0].outerHTML)[0].outerHTML)[0].outerHTML, { width: "100%" })[0].outerHTML);
-                }           
+                }
             }
             this.element.html(htmlTag);
             this.element.find(".e-reportToolbar").ejToolbar({ enableRTL: this.model.enableRTL, height: "35px" });
             this._calculateSize();
             if (this.model.enableRTL)
                 this.element.addClass("e-rtl");
-            if ((this.enableTogglePanel()&& !this.model.enableSplitter)||this.model.isResponsive) {
+            if ((this.enableTogglePanel() && !this.model.enableSplitter) || this.model.isResponsive) {
                 this.element.find(".e-controlPanel").width(this.element.width() - ((this.element.width() / 3) + (this.model.enableVirtualScrolling ? 39 : 20)));
                 $(ej.buildTag("div.e-togglePanel", ej.buildTag("div.e-toggleExpandButton e-icon", "", {}).attr("aria-label", "toggle expanded")[0].outerHTML + ej.buildTag("div.e-toggleCollapseButton e-icon", {}, { "display": "none" }).attr("aria-label", "toggle collapsed")[0].outerHTML)[0].outerHTML).appendTo(this.element.find(".pivotFieldList").parent());
             }
@@ -3907,10 +4094,11 @@
         },
         _calculateSize: function () {
             $(this.element).height(this.model.size.height).width(this.model.size.width);
+            if (!this.model.isResponsive)
             $(this.element).height($(this.element).height() < 500 ? 500 : $(this.element).height());
             $(this.element).width($(this.element).width() < 600 ? 600 : $(this.element).width());
             var ctrlPanelHeight = this.element.height() - ((this.element.find("div.e-titleText").length > 0 ? 50 : 0) + this.element.find("#reportToolbar").height() + 5);
-            if (!(this.model.analysisMode==ej.Pivot.AnalysisMode.Olap && this.model.operationalMode == ej.Pivot.OperationalMode.ServerMode)) {
+            if (!(this.model.analysisMode == ej.Pivot.AnalysisMode.Olap && this.model.operationalMode == ej.Pivot.OperationalMode.ServerMode)) {
                 if (!this.model.isResponsive && !this.model.enableSplitter) {
                     this.element.find(".e-outerTable").width(this.element.width());
                     this.element.find(".e-controlPanel").width(this.element.width() * (2 / 3));
@@ -3918,38 +4106,38 @@
                         this.element.find(".e-controlPanel").width(this.element.width() - ((this.element.width() / 3) + (this.model.enableVirtualScrolling ? 39 : 20)));
                 }
                 this.element.find(".controlPanelTD, .e-outerTable").height(ctrlPanelHeight);
-                if(this.model.enableVirtualScrolling)
-                    this.element.find(".e-controlPanel").height(ctrlPanelHeight -20);
+                if (this.model.enableVirtualScrolling)
+                    this.element.find(".e-controlPanel").height(ctrlPanelHeight - 20);
                 else
                     this.element.find(".e-controlPanel").height(ctrlPanelHeight);
             }
             else {
-                var aebHeight,axisHeaderHeight;
+                var aebHeight, axisHeaderHeight;
                 if (!this.model.isResponsive && !this.model.enableSplitter) {
                     var cdbWidth = this.element.width() / 2.5;
-                    this.element.find(".e-csHeader").width(cdbWidth+15);
+                    this.element.find(".e-csHeader").width(cdbWidth + 15);
                     this.element.find(".axisBuilderTD").width(cdbWidth / 2);
                     this.element.find(".e-cdbHeader, .e-cubeBrowser").width(cdbWidth / 2);
                     this.element.find(".e-controlPanel").width(this.element.width() - (cdbWidth + 25));
                 }
                 // this.element.find(".outerTable").height(ctrlPanelHeight-15);
-                if (this.model.enableVirtualScrolling) 
+                if (this.model.enableVirtualScrolling)
                     this.element.find(".e-controlPanel").height(ctrlPanelHeight - 15);
                 else if (this.model.enablePaging)
                     this.element.find(".e-controlPanel").height(ctrlPanelHeight - 5);
                 else
                     this.element.find(".e-controlPanel").height(ctrlPanelHeight);
-                this.element.find(".e-cubeTable").height((this.element.height() - ((this.element.find("div.e-titleText").length>0 ?  50:0) + this.element.find("#reportToolbar").height()+ this.element.find(".e-csHeader").height()+38)));
+                this.element.find(".e-cubeTable").height((this.element.height() - ((this.element.find("div.e-titleText").length > 0 ? 50 : 0) + this.element.find("#reportToolbar").height() + this.element.find(".e-csHeader").height() + 38)));
                 if (this.model.isResponsive) {
                     this.element.find(".e-cubeBrowser").height(this.element.find(".e-cubeTable").height() - (this.element.find(".e-cdbHeader").height()));
-                    this.element.find(".e-cubeTreeView").height(this.element.find(".e-cubeBrowser").height() - (56 + (this.model.enableMeasureGroups ? 35: 0)));
-                    aebHeight = this.element.find(".e-cubeTable").height() - ((this.element.find(".e-axisHeader").height() * 3) +4);
+                    this.element.find(".e-cubeTreeView").height(this.element.find(".e-cubeBrowser").height() - (56 + (this.model.enableMeasureGroups ? 35 : 0)));
+                    aebHeight = this.element.find(".e-cubeTable").height() - ((this.element.find(".e-axisHeader").height() * 3) + 4);
                 }
                 else {
                     this.element.find(".cdbTD, .cubeTableTD").height(this.element.find(".e-cubeTable").height());
                     this.element.find(".e-cubeBrowser").height((this.element.find(".cdbTD, .cubeTableTD").height() + 9) - this.element.find(".e-cdbHeader").height());
                     this.element.find(".e-cubeTreeView").height(this.element.find(".e-cubeBrowser").height() - (61 + (this.model.enableMeasureGroups ? 30 : 0)));
-                    aebHeight = this.element.find(".e-cubeTable").height() - ((this.element.find(".e-axisHeader").height() * 3) + (this.model.enableSplitter?14:3));
+                    aebHeight = this.element.find(".e-cubeTable").height() - ((this.element.find(".e-axisHeader").height() * 3) + (this.model.enableSplitter ? 14 : 3));
                 }
                 this.element.find(".e-categoricalAxis, .e-rowAxis, .e-slicerAxis").height((aebHeight / 3));
             }
@@ -3958,15 +4146,15 @@
                     if (this.model.enableVirtualScrolling) {
                         this.element.find(".e-controlPanel").width(this.element.find(".e-controlPanel").width() - 5);
                     }
-                                     
+
                     if (this.defaultView() == ej.PivotClient.DefaultView.Grid) {
                         if (this.model.enablePaging)
-                            this.element.find(".e-gridContainer").height((this.element.find(".e-controlPanel").height() / 2)+5 );
+                            this.element.find(".e-gridContainer").height((this.element.find(".e-controlPanel").height() / 2) + 5);
                         else
                             this.element.find(".e-gridContainer").height((this.element.find(".e-controlPanel").height() / 2) - 10);
-                        if (!this.model.isResponsive && !this.model.enableSplitter) 
+                        if (!this.model.isResponsive && !this.model.enableSplitter)
                             this.element.find(".e-gridContainer").width(this.element.find(".e-controlPanel").width() - 15);
-                   
+
                     }
                     else {
                         this.element.find(".e-gridContainer").height((this.element.find(".e-controlPanel").height() / 2) - 10);
@@ -3974,9 +4162,9 @@
                             this.element.find(".e-gridContainer").width(this.element.find(".e-controlPanel").width() - ((this.enableTogglePanel() && this._currentTab == "chart") ? 15 : 20));
                     }
                 }
-                else{
+                else {
                     if (this.displayMode() == ej.PivotClient.DisplayMode.GridOnly) {
-                        this.element.find(".e-gridContainer").height(this.element.find(".e-controlPanel").height() -(this.model.operationalMode == ej.Pivot.OperationalMode.ClientMode? 12: 20));
+                        this.element.find(".e-gridContainer").height(this.element.find(".e-controlPanel").height() - (this.model.operationalMode == ej.Pivot.OperationalMode.ClientMode ? 12 : 20));
                         if (!this.model.isResponsive && !this.model.enableSplitter)
                             this.element.find(".e-gridContainer").width(this.element.find(".e-controlPanel").width() - 15)
                     }
@@ -3987,13 +4175,13 @@
                             this.element.find(".e-gridContainer").height(this.element.find(".e-controlPanel").height() - (this.element.find("ul.clientTab").height() + 17));
                     }
                 }
-                    
+
             }
             if (this.displayMode() != ej.PivotClient.DisplayMode.GridOnly) {
                 if (this.controlPlacement() == ej.PivotClient.ControlPlacement.Tile && this.displayMode() == ej.PivotClient.DisplayMode.ChartAndGrid) {
                     if (this.defaultView() == ej.PivotClient.DefaultView.Grid) {
                         if (this.model.enablePaging)
-                            this.element.find(".e-chartContainer").height((this.element.find(".e-controlPanel").height() / 2)+15);
+                            this.element.find(".e-chartContainer").height((this.element.find(".e-controlPanel").height() / 2) + 15);
                         else
                             this.element.find(".e-chartContainer").height((this.element.find(".e-controlPanel").height() / 2) - 10);
                         if (!this.model.isResponsive && !this.model.enableSplitter)
@@ -4005,7 +4193,7 @@
                             this.element.find(".e-chartContainer").width(this.element.find(".e-controlPanel").width() - 20)
                     }
                 }
-                else{
+                else {
                     if (this.displayMode() == ej.PivotClient.DisplayMode.ChartOnly) {
                         this.element.find(".e-chartContainer").height(this.element.find(".e-controlPanel").height() - 17);
                         if (!this.model.isResponsive && !this.model.enableSplitter)
@@ -4015,19 +4203,19 @@
                         var diffHeight = this.element.find(".e-controlPanel").height() - (this.element.find("ul.clientTab").height() + 20);
                         if (this.model.enableVirtualScrolling)
                             this.element.find(".e-chartContainer").height(diffHeight - 5);
-                        else if(this.model.enablePaging)
+                        else if (this.model.enablePaging)
                             this.element.find(".e-chartContainer").height(diffHeight);
                         else
-                            this.element.find(".e-chartContainer").height(diffHeight-2);
+                            this.element.find(".e-chartContainer").height(diffHeight - 2);
                     }
                 }
-                    
+
             }
 
             this._chartHeight = this.model.enableToolBar ? (this.model.enablePaging ? (this.element.find(".e-chartContainer").height() - (105)) : this.element.find(".e-chartContainer").height() - 68) + "px" : (this.model.enablePaging ? this.element.find(".e-chartContainer").height() - 40 : this.element.find(".e-chartContainer").height() - 3) + "px";
-            this._chartWidth = (this.model.isResponsive || this.model.enableSplitter) ? "99%" : (this.model.analysisMode == ej.Pivot.AnalysisMode.Olap && this.model.operationalMode == ej.Pivot.OperationalMode.ServerMode ? this.element.find(".e-chartContainer").width() - 7 + "px" : (this.controlPlacement() == ej.PivotClient.ControlPlacement.Tile && this.displayMode() == ej.PivotClient.DisplayMode.ChartAndGrid?this.element.find(".e-chartContainer").width() - 8 + "px":this.element.find(".e-chartContainer").width() - 15 + "px"));
+            this._chartWidth = (this.model.isResponsive || this.model.enableSplitter) ? "99%" : (this.model.analysisMode == ej.Pivot.AnalysisMode.Olap && this.model.operationalMode == ej.Pivot.OperationalMode.ServerMode ? this.element.find(".e-chartContainer").width() - 7 + "px" : (this.controlPlacement() == ej.PivotClient.ControlPlacement.Tile && this.displayMode() == ej.PivotClient.DisplayMode.ChartAndGrid ? this.element.find(".e-chartContainer").width() - 8 + "px" : this.element.find(".e-chartContainer").width() - 15 + "px"));
             this._gridHeight = this.model.enableToolBar ? (this.model.enablePaging ? this.element.find(".e-gridContainer").height() - 78 + "px" : this.element.find(".e-gridContainer").height() - 46 + "px") : this.element.find(".e-gridContainer").height() - 10 + "px";
-            this._gridWidth =(this.model.isResponsive||this.model.enableSplitter)?"98%": (this.model.enableToolBar && !(this.model.analysisMode==ej.Pivot.AnalysisMode.Olap && this.model.operationalMode==ej.Pivot.OperationalMode.ServerMode)?this.element.find(".e-gridContainer").width() - 16 + "px":this.element.find(".e-gridContainer").width() - 6 + "px");
+            this._gridWidth = (this.model.isResponsive || this.model.enableSplitter) ? "98%" : (this.model.enableToolBar && !(this.model.analysisMode == ej.Pivot.AnalysisMode.Olap && this.model.operationalMode == ej.Pivot.OperationalMode.ServerMode) ? this.element.find(".e-gridContainer").width() - 16 + "px" : this.element.find(".e-gridContainer").width() - 6 + "px");
         },
         _reportToolbar: function () {
             return ej.buildTag("ul", (this.model.toolbarIconSettings.enableNewReport ? ej.buildTag("li.e-newReportImg e-icon", "", {}).attr("aria-label", this._getLocalizedLabels("NewReport")).attr({ "title": this._getLocalizedLabels("NewReport"), tabindex: 0 })[0].outerHTML : "") +
@@ -4140,7 +4328,7 @@
                 if (pivotClientObj._isTimeOut)
                     pivotClientObj._waitingPopup.show();
             }, 800);
-            if(this.model.analysisMode == ej.Pivot.AnalysisMode.Pivot)
+            if (this.model.analysisMode == ej.Pivot.AnalysisMode.Pivot)
                 this.refreshControl();
             else
                 ej.olap.base.getJSONData({ action: "clearSorting" }, this.model.dataSource, this);
@@ -4269,7 +4457,7 @@
                 this._pivotChart._generateData(clonedEngine);
             }
             else
-                this._pivotChart.generateJSON(this, pivotEngine);                
+                this._pivotChart.generateJSON(this, pivotEngine);
         },
         refreshPagedPivotClient: function (axis, pageNo) {
             var report;
@@ -4320,7 +4508,7 @@
         _hiddenCellInfo: function (report) {
             var colHiddenCells = ($.map(report, function (item) { if (item.Key == "FilteredColumnHeaders") return item.Value; }));
             var rowHiddenCells = ($.map(report, function (item) { if (item.Key == "FilteredRowHeaders") return item.Value; }));
-            return { columnArea: (colHiddenCells.length > 0) ? colHiddenCells[0] : colHiddenCells, rowArea: (rowHiddenCells.length>0)? rowHiddenCells[0]:[]  }
+            return { columnArea: (colHiddenCells.length > 0) ? colHiddenCells[0] : colHiddenCells, rowArea: (rowHiddenCells.length > 0) ? rowHiddenCells[0] : [] }
         },
 
         _loadCollectionList: function (args) {
@@ -4372,6 +4560,8 @@
         },
 
         _renderControlSuccess: function (msg) {
+			if(ej.isNullOrUndefined(this.model))
+				return false;
             ej.Pivot._updateValueSortingIndex(msg, this);
             if (this.model.isResponsive || this.model.collapseCubeBrowserByDefault)
                 this.model.displaySettings.enableTogglePanel = true;
@@ -4394,9 +4584,9 @@
                     this.model.analysisMode = ej.Pivot.AnalysisMode.Pivot;
                     this._currentReportName = "Default";
                     var hiddenCellCol = this._hiddenCellInfo(msg.d);
-                    if (msg.d.length>4 && msg.d[4].Value == "LoadReport") {
+                    if (msg.d.length > 4 && msg.d[4].Value == "LoadReport") {
                         this._clientReportCollection = JSON.parse(msg.d[5].Value);
-                        
+
                         this._renderClientControls({
                             PivotReport: msg.d[0].Value, GridJSON: msg.d[1].Value, ChartJSON: msg.d[2].Value,
                             FilteredColumnHeaders: hiddenCellCol.columnArea.length > 0 ? (hiddenCellCol.columnArea) : "[]",
@@ -4411,7 +4601,7 @@
                     }
                     else {
                         if (this.model.enableDrillThrough && !ej.isNullOrUndefined(msg.d[4].Value))
-                            this.dataSet =msg.d[4].Value;
+                            this.dataSet = msg.d[4].Value;
                         this._clientReportCollection = [{ name: "Default", report: $.parseJSON(msg.d[0].Value).Report }];
                         this._renderClientControls(
                             {
@@ -4438,8 +4628,8 @@
                         this.model.analysisMode = ej.Pivot.AnalysisMode.Pivot;
                         this._currentReportName = ej.isNullOrUndefined(msg.ReportCollection) ? "Default" : JSON.parse(msg.ReportCollection)[0].name;
                         this._clientReportCollection = ej.isNullOrUndefined(msg.ReportCollection) ? [{ name: "Default", report: $.parseJSON(msg.PivotReport).Report }] : JSON.parse(msg.ReportCollection);
-                        if(!ej.isNullOrUndefined(msg.DataSet))
-                        this.dataSet = msg.DataSet;
+                        if (!ej.isNullOrUndefined(msg.DataSet))
+                            this.dataSet = msg.DataSet;
                         this._renderClientControls(msg);
                         return;
                     }
@@ -4458,7 +4648,7 @@
             if (this.model.afterServiceInvoke != null)
                 this._trigger("afterServiceInvoke", { action: "initialize", element: this.element, customObject: this.model.customObject });
             var treeViewData = null;
-            if(msg != "")
+            if (msg != "")
                 treeViewData = $.parseJSON(cubeTreeInfo);
             var reportBar = ej.buildTag("div.e-reportToolbar#reportToolbar", this._reportToolbar(), { width: "410px", height: "29px" })[0].outerHTML;
             var browserPanel, htmlTag;
@@ -4479,9 +4669,9 @@
                         htmlTag = ej.buildTag("div.outerPanel", "", {}).append("<div class=\"e-titleText\"><span>" + this.title() + "</span></div>" + reportBar + "<table class=\"e-outerTable\" style='width:100%'><tr class='e-serverparentsplit' style='width:100%'><td style='width:49%'>" + browserPanel + "</td><td class=\"controlPanelTD\" style='width:49%'>" + this._controlPanel() + "</td>" + (this.model.enableVirtualScrolling ? ej.buildTag("td.virtualScrolling", ej.buildTag("div.e-vScrollPanel")[0].outerHTML)[0].outerHTML : "") + "</tr></table>");
                     }
                 }
-                    
+
                 else {
-                    browserPanel = this._createCubeSelector() + ej.buildTag("table.e-cubeTable", ej.buildTag("tbody", ej.buildTag("tr.e-serversplitresponsive", ej.buildTag("td.cubeTableTD", this._createCubeBrowser(cubeTreeInfo)).attr({ valign: "bottom"}).css("width","50%")[0].outerHTML + ej.buildTag("td.cubeTableTD", this._createAxisElementBuilder(columnElements, rowElements, slicerElements)).attr({ valign: "bottom"}).css("width","50%")[0].outerHTML).css("width","100%")[0].outerHTML)[0].outerHTML)[0].outerHTML;
+                    browserPanel = this._createCubeSelector() + ej.buildTag("table.e-cubeTable", ej.buildTag("tbody", ej.buildTag("tr.e-serversplitresponsive", ej.buildTag("td.cubeTableTD", this._createCubeBrowser(cubeTreeInfo)).attr({ valign: "bottom" }).css("width", "50%")[0].outerHTML + ej.buildTag("td.cubeTableTD", this._createAxisElementBuilder(columnElements, rowElements, slicerElements)).attr({ valign: "bottom" }).css("width", "50%")[0].outerHTML).css("width", "100%")[0].outerHTML)[0].outerHTML)[0].outerHTML;
                     htmlTag = ej.buildTag("div.outerPanel", "").append(($.trim(this.model.title) != "" ? (ej.buildTag("div.e-titleText", ej.buildTag("span", this.title(), { "padding-left": "10px" })[0].outerHTML)[0].outerHTML) : "") + reportBar + ej.buildTag("table.oClientTbl", ej.buildTag("tr", ej.buildTag("td", ej.buildTag("table.e-outerTable", ej.buildTag("tr", ej.buildTag("td", browserPanel)[0].outerHTML)[0].outerHTML)[0].outerHTML + ej.buildTag("table.controlPanelTD", ej.buildTag("tr", ej.buildTag("td", this._controlPanel())[0].outerHTML + (this.model.enableVirtualScrolling ? ej.buildTag("td.virtualScrolling", ej.buildTag("div.e-vScrollPanel")[0].outerHTML)[0].outerHTML : ""))[0].outerHTML)[0].outerHTML)[0].outerHTML)[0].outerHTML, { width: "100%" })[0].outerHTML);
                 }
             }
@@ -4491,7 +4681,7 @@
                     htmlTag = ej.buildTag("div.outerPanel", "", {}).append("<div class=\"e-titleText\"><span>" + this.title() + "</span></div>" + reportBar + "<table class=\"e-outerTable\"><tr><td>" + browserPanel + "</td><td class=\"controlPanelTD\" style='display:block'>" + this._controlPanel() + "</td>" + (this.model.enableVirtualScrolling ? ej.buildTag("td.virtualScrolling", ej.buildTag("div.e-vScrollPanel")[0].outerHTML)[0].outerHTML : "") + "</tr></table>");
                 }
                 else if (this.model.isResponsive) {
-                    browserPanel = this._createCubeSelector() + ej.buildTag("table.e-cubeTable", ej.buildTag("tbody", ej.buildTag("tr", ej.buildTag("td.cubeTableTD", this._createCubeBrowser(cubeTreeInfo)).attr({ valign: "bottom", width: "50%", height: "100%" }).css({"table-layout":"fixed","display":"initial"})[0].outerHTML + ej.buildTag("td.cubeTableTD", this._createAxisElementBuilder(columnElements, rowElements, slicerElements)).attr({ valign: "bottom", width: "50%",height:"100%" })[0].outerHTML)[0].outerHTML)[0].outerHTML)[0].outerHTML;
+                    browserPanel = this._createCubeSelector() + ej.buildTag("table.e-cubeTable", ej.buildTag("tbody", ej.buildTag("tr", ej.buildTag("td.cubeTableTD", this._createCubeBrowser(cubeTreeInfo)).attr({ valign: "bottom", width: "50%", height: "100%" }).css({ "table-layout": "fixed", "display": "initial" })[0].outerHTML + ej.buildTag("td.cubeTableTD", this._createAxisElementBuilder(columnElements, rowElements, slicerElements)).attr({ valign: "bottom", width: "50%", height: "100%" })[0].outerHTML)[0].outerHTML)[0].outerHTML)[0].outerHTML;
                     htmlTag = ej.buildTag("div.outerPanel", "").append(($.trim(this.model.title) != "" ? (ej.buildTag("div.e-titleText", ej.buildTag("span", this.title(), { "padding-left": "10px" })[0].outerHTML)[0].outerHTML) : "") + reportBar + ej.buildTag("table.oClientTbl", ej.buildTag("tr", ej.buildTag("td", ej.buildTag("table.e-outerTable", ej.buildTag("tr", ej.buildTag("td", browserPanel)[0].outerHTML)[0].outerHTML)[0].outerHTML + ej.buildTag("table.controlPanelTD", ej.buildTag("tr", ej.buildTag("td", this._controlPanel())[0].outerHTML + (this.model.enableVirtualScrolling ? ej.buildTag("td.virtualScrolling", ej.buildTag("div.e-vScrollPanel")[0].outerHTML)[0].outerHTML : ""))[0].outerHTML)[0].outerHTML)[0].outerHTML)[0].outerHTML, { width: "100%", "table-layout": "fixed" })[0].outerHTML);
                 }
             }
@@ -4518,16 +4708,16 @@
             if (this.model.showReportCollection)
                 this._fetchCollectionList();
             this.element.find(".reportlist").attr("tabindex", 0);
-            var tempddlwidth = this.element.find(".e-csHeader").width() - this.element.find(".cubeText").width() - (this.element.find(".e-toggleExpandButton").length > 0 ? this.element.find(".e-toggleExpandButton").width() : 0) - (((this.model.analysisMode=="olap"&&this.model.operationalMode=="servermode")||this.model.enableSplitter)?20:50);
+            var tempddlwidth = this.element.find(".e-csHeader").width() - this.element.find(".cubeText").width() - (this.element.find(".e-toggleExpandButton").length > 0 ? this.element.find(".e-toggleExpandButton").width() : 0) - (((this.model.analysisMode == "olap" && this.model.operationalMode == "servermode") || this.model.enableSplitter) ? 20 : 50);
             var cubeddlWidth = this.enableTogglePanel() ? tempddlwidth - 25 : tempddlwidth;
             var cubeCollection = (cubes == "" ? "" : $.parseJSON(cubes));
             this.element.find(".cubeSelector").ejDropDownList({
                 dataSource: cubeCollection,
                 enableRTL: this.model.enableRTL,
                 fields: { text: "name", value: "name" },
-                width: this.model.enableSplitter && !this.model.isResponsive? "100%" : "" + cubeddlWidth + "px"
+                width: this.model.enableSplitter && !this.model.isResponsive ? "100%" : "" + cubeddlWidth + "px"
             });
-             
+
             this.ddlTarget = this.element.find('.cubeSelector').data("ejDropDownList");
             this.reportDropTarget = this.element.find('#reportList').data("ejDropDownList");
             if (msg != "" && !ej.isNullOrUndefined(this.ddlTarget)) {
@@ -4561,6 +4751,8 @@
             this.element.find(".e-cubeTreeView").attr("tabindex", 0);
             var treeViewElements = this.element.find(".e-cubeTreeView").find("li");
             for (var i = 0; i < treeViewElements.length; i++) {
+                if (!ej.isNullOrUndefined(treeViewElements[i].id) && treeViewElements[i].id.indexOf("'").length > -1)
+                    treeViewElements[i].setAttribute("id", treeViewElements[i].id.replace(/'/g, ""));
                 treeViewElements[i].setAttribute("data-tag", treeViewData[i].tag);
                 if (!ej.isNullOrUndefined(treeViewData[i].parentUniqueName) && treeViewData[i].parentUniqueName != "")
                     treeViewElements[i].setAttribute("data-parentUniqueName", !ej.isNullOrUndefined(treeViewData[i].parentUniqueName) ? treeViewData[i].parentUniqueName.split(">>||>>")[1] : "");
@@ -4585,7 +4777,7 @@
             }
 
             this._cubeTreeView = this.element.find('.e-cubeTreeView').data("ejTreeView");
-            var searchEditor = ej.buildTag("div.searchDiv", ej.buildTag("input#" + this._id + "_SearchTreeView.searchTreeView").attr("type", "text")[0].outerHTML, {"margin":"5px 5px 0px 0px"})[0].outerHTML;
+            var searchEditor = ej.buildTag("div.searchDiv", ej.buildTag("input#" + this._id + "_SearchTreeView.searchTreeView").attr("type", "text")[0].outerHTML, { "margin": "5px 5px 0px 0px" })[0].outerHTML;
             var cubeName = ej.buildTag("div.e-cubeName", this.currentCubeName + searchEditor);
             $(this.element).find(".e-cubeBrowser").prepend(cubeName);
             this.element.find("#" + this._id + "_SearchTreeView").ejMaskEdit({
@@ -4609,9 +4801,8 @@
             this._overflow();
             this._setSplitBtnTitle();
             this.element.find("#clientTab").ejTab({ enableRTL: this.model.enableRTL, itemActive: ej.proxy(this._onTabClick, this) });
-            
-            if (this.model.operationalMode != ej.Pivot.OperationalMode.ClientMode)
-            {
+
+            if (this.model.operationalMode != ej.Pivot.OperationalMode.ClientMode) {
                 if (this.defaultView() == ej.PivotClient.DefaultView.Chart) {
                     this.element.find("#" + this._id + "_PivotChart").ejPivotChart({ url: this.model.url, customObject: this.model.customObject, enableRTL: this.model.enableRTL, enableDefaultValue: this.model.enableDefaultValue, axesLabelRendering: this.model.axesLabelRendering, pointRegionClick: this.model.pointRegionClick, canResize: this.model.isResponsive, currentReport: this.currentReport, locale: this.locale(), showTooltip: true, size: { height: this._chartHeight, width: this._chartWidth }, commonSeriesOptions: { type: this.model.chartType, tooltip: { visible: true } }, beforeServiceInvoke: this.model.chartLoad, drillSuccess: ej.proxy(this._chartDrillSuccess, this) });
                     if (this.gridLayout() != ej.PivotGrid.Layout.Normal)
@@ -4626,8 +4817,7 @@
                         this.element.find("#" + this._id + "_PivotGrid").ejPivotGrid({ url: this.model.url, customObject: this.model.customObject, isResponsive: this.model.isResponsive, enableRTL: this.model.enableRTL, enableDefaultValue: this.model.enableDefaultValue, enableCellSelection: this.model.enableCellSelection, cellSelection: this.model.cellSelection, hyperlinkSettings: { enableValueCellHyperlink: this.model.enableValueCellHyperlink, enableRowHeaderHyperlink: this.model.enableRowHeaderHyperlink, enableColumnHeaderHyperlink: this.model.enableColumnHeaderHyperlink, enableSummaryCellHyperlink: this.model.enableSummaryCellHyperlink }, enableCellContext: this.model.enableCellContext, enableDrillThrough: this.model.enableDrillThrough, enableCellEditing: this.model.enableCellEditing, enableCellDoubleClick: this.model.enableCellDoubleClick, enableCellClick: this.model.enableCellClick, valueCellHyperlinkClick: this.model.valueCellHyperlinkClick, rowHeaderHyperlinkClick: this.model.rowHeaderHyperlinkClick, columnHeaderHyperlinkClick: this.model.columnHeaderHyperlinkClick, summaryCellHyperlinkClick: this.model.summaryCellHyperlinkClick, cellContext: this.model.cellContext, cellEdit: this.model.cellEdit, cellDoubleClick: this.model.cellDoubleClick, enableCellClick: this.model.enableCellClick, drillThrough: this.model.drillThrough, currentReport: this.currentReport, locale: this.locale(), drillSuccess: ej.proxy(this._gridDrillSuccess, this) });
                     this.element.find("#" + this._id + "_PivotChart").ejPivotChart({ url: this.model.url, customObject: this.model.customObject, enableRTL: this.model.enableRTL, enableDefaultValue: this.model.enableDefaultValue, axesLabelRendering: this.model.axesLabelRendering, pointRegionClick: this.model.pointRegionClick, canResize: this.model.isResponsive, currentReport: this.currentReport, locale: this.locale(), showTooltip: true, size: { height: this._chartHeight, width: this._chartWidth }, commonSeriesOptions: { type: this.model.chartType, tooltip: { visible: true } }, drillSuccess: ej.proxy(this._chartDrillSuccess, this), beforeServiceInvoke: this.model.chartLoad });
                 }
-                if (this.model.enablePaging)
-                {
+                if (this.model.enablePaging) {
                     this.element.find("#" + this._id + "_Pager").ejPivotPager({ mode: ej.PivotPager.Mode.Both, targetControlID: this._id });
                     this.element.find("#" + this._id + "_Pager").css("margin-top", "5px");
                     this.element.find(".e-controlPanel").height(this.element.find(".e-controlPanel").height() - (this.element.find("#" + this._id + "_Pager").height() + 5));
@@ -4638,7 +4828,7 @@
                 if (this.displayMode() != "chartonly")
                     this._pivotGrid = this.element.find("#" + this._id + "_PivotGrid").data("ejPivotGrid");
                 if (this.displayMode() != "gridOnly")
-                    this._pivotChart = this.element.find('#'+ this._id + '_PivotChart').data("ejPivotChart");
+                    this._pivotChart = this.element.find('#' + this._id + '_PivotChart').data("ejPivotChart");
                 var items = {};
                 if (this._pivotChart != null) {
                     this.element.find('#' + this._id + '_PivotChart').width(this._pivotChart.model.size.width);
@@ -4661,7 +4851,7 @@
                     }
                     if (this.controlPlacement() == ej.PivotClient.ControlPlacement.Tile && this.displayMode() == "chartandgrid" && this._currentTab == "chart")
                         this.element.find(".e-chartContainer").css({ "width": "99.6%" });
-                }                
+                }
                 if (this.model.analysisMode == ej.Pivot.AnalysisMode.Olap && this.model.operationalMode != ej.Pivot.OperationalMode.ClientMode) {
                     var tempddlwidth = this.element.find(".e-csHeader").width() - this.element.find(".cubeText").width() - this.element.find(".e-toggleExpandButton").width() - (this.model.enableSplitter ? 50 : 20);
                     var cubeddlWidth = this.enableTogglePanel() ? tempddlwidth - 25 : tempddlwidth;
@@ -4675,14 +4865,14 @@
                 this.progressPos = $("#" + this._id).position();
                 this._treeContextMenu();
                 this._buttonContextMenu();
-                if (this.model.analysisMode == "olap" && this.model.operationalMode == "servermode" && this.model.enableSplitter) 
+                if (this.model.analysisMode == "olap" && this.model.operationalMode == "servermode" && this.model.enableSplitter)
                     this._createSplitter();
                 if (!ej.isNullOrUndefined(msg.Exception)) {
                     ej.Pivot._createErrorDialog(msg, "Exception", this);
                 }
                 if (this.model.showUniqueNameOnPivotButton) {
                     $(".e-pvtBtn").addClass("e-splitBtnUnique");
-                    $(".e-removeSplitBtn").addClass("e-removeBtnUnqiue");
+                    this._addSplitButtonHeight();
                 }
             }
             if (this.model.collapseCubeBrowserByDefault) {
@@ -4701,8 +4891,8 @@
                     "reportName": args.selectedText, operationalMode: this.model.operationalMode, analysisMode: this.model.analysisMode, "olapReport": this.currentReport, "clientReports": this.reports, "customObject": serializedCustomObject, "clientParams": JSON.stringify(this.model.enableMeasureGroups)
                 }), (this.model.analysisMode == ej.Pivot.AnalysisMode.Pivot ? this._renderControlSuccess : this._toolbarOperationSuccess));
             }
-            else{
-                var loadReportSetting = { url: "", reportCollection: this._clientReportCollection,selectedReport:args.selectedText, mode: this.model.analysisMode }
+            else {
+                var loadReportSetting = { url: "", reportCollection: this._clientReportCollection, selectedReport: args.selectedText, mode: this.model.analysisMode }
                 this._trigger("loadReport", { targetControl: this, loadReportSetting: loadReportSetting });
                 if (this.model.enableLocalStorage) {
                     this.model.dataSource = loadReportSetting.reportCollection[0];
@@ -4780,7 +4970,7 @@
             delete this._fieldSelectedMembers[this._dimensionName.split(":").length > 1 ? this._dimensionName.split(":")[1] : this._dialogTitle];
             ej.Pivot.closePreventPanel(this);
             var axisName = args.events.text;
-            var droppedPosition="";
+            var droppedPosition = "";
             var pivotClientObj = this;
             pivotClientObj._isTimeOut = true;
             if (axisName == this._getLocalizedLabels("Remove")) {
@@ -4795,14 +4985,14 @@
                     }
                 });
                 pivotClientObj._cubeTreeView.model.beforeDelete = null;
-                pivotClientObj._cubeTreeView.removeNode(pivotClientObj._selectedMember.parent().parent().attr("id"));
+                pivotClientObj._cubeTreeView.removeNode(pivotClientObj._selectedMember.parent().parent().attr("id").replace(/'/g, ""));
                 pivotClientObj._cubeTreeView.model.beforeDelete = function () { return false };
                 // pivotClientObj._selectedMember.parent().parent().remove();
                 if (!ej.isNullOrUndefined(pivotClientObj._calcMemberTreeObj))
                     pivotClientObj._calcMemberTreeObj.removeNode(pivotClientObj._selectedMember.parent().parent().attr("id"));
                 if (pivotClientObj.element.find(".e-cubeTreeView .e-calcMemberCDB").length == 0 && pivotClientObj.element.find(".e-cubeTreeView .e-calcMemberGroupCDB").parents("li").length > 0) {
                     pivotClientObj._cubeTreeView.model.beforeDelete = null;
-                    pivotClientObj._cubeTreeView.removeNode(pivotClientObj.element.find(".e-cubeTreeView .e-calcMemberGroupCDB").parents("li").attr("id"));
+                    pivotClientObj._cubeTreeView.removeNode(pivotClientObj.element.find(".e-cubeTreeView .e-calcMemberGroupCDB").parents("li").attr("id").replace(/'/g, ""));
                     pivotClientObj._cubeTreeView.model.beforeDelete = function () { return false };
                 }
                 if (pivotClientObj.element.find(".e-cubeTreeViewCalcMember .e-calcMemberCDB").length == 0 && pivotClientObj.element.find(".e-cubeTreeViewCalcMember .e-calcMemberGroupCDB").parents("li").length > 0) {
@@ -4863,13 +5053,17 @@
                         this.element.find(".e-serverchildsplit > .e-splitbar").css("height", this.element.find(".e-cubeTable").height());
                     this.element.find(".e-cubeTable").height((this.element.height() - ((this.element.find("div.e-titleText").length > 0 ? this.element.find("div.e-titleText").height() : 0) + this.element.find("#reportToolbar").height() + this.element.find(".e-csHeader").height() + 38)));
                     this.element.find(".cdbTD, .cubeTableTD").height(this.element.find(".e-cubeTable").height());
-                    aebHeight = this.element.find(".cdbTD, .cubeTableTD").height() - ((this.element.find(".e-axisHeader").height() * 3) + (this.model.enableSplitter ? (this.model.isResponsive?18:24) : (this.model.isResponsive ? 14 : 3)));
+                    aebHeight = this.element.find(".cdbTD, .cubeTableTD").height() - ((this.element.find(".e-axisHeader").height() * 3) + (this.model.enableSplitter ? (this.model.isResponsive ? 18 : 24) : (this.model.isResponsive ? 14 : 3)));
                     this.element.find(".e-categoricalAxis, .e-rowAxis, .e-slicerAxis").height((aebHeight / 3));
                 }
                 this.element.find(".e-categoricalAxis, .e-rowAxis, .e-slicerAxis").find("button").ejButton({ height: "20px", type: ej.ButtonType.Button });
                 this.element.find(".e-categoricalAxis, .e-rowAxis, .e-slicerAxis").addClass("e-droppable");
                 this._renderControls();
                 this._setSplitBtnTitle();
+                if (this.model.showUniqueNameOnPivotButton) {
+                    $(".e-pvtBtn").addClass("e-splitBtnUnique");
+                    this._addSplitButtonHeight()
+                }
                 this._unWireEvents();
                 this._wireEvents();
                 this._trigger("renderSuccess", this);
@@ -4911,6 +5105,8 @@
             });
             var treeViewElements = this.element.find(".e-cubeTreeView").find("li");
             for (var i = 0; i < treeViewElements.length; i++) {
+                if (!ej.isNullOrUndefined(treeViewElements[i].id) && treeViewElements[i].id.indexOf("'").length > -1)
+                    treeViewElements[i].setAttribute("id", treeViewElements[i].id.replace(/'/g, ""));
                 treeViewElements[i].setAttribute("data-tag", treeViewData[i].tag);
                 if (!ej.isNullOrUndefined(treeViewData[i].parentUniqueName) && treeViewData[i].parentUniqueName != "")
                     treeViewElements[i].setAttribute("data-parentUniqueName", !ej.isNullOrUndefined(treeViewData[i].parentUniqueName) ? treeViewData[i].parentUniqueName.split(">>||>>")[1] : "");
@@ -4925,7 +5121,7 @@
         },
 
         _cubeChangedSuccess: function (report) {
-            var cubeTreeInfo, chartSettings,reportList;
+            var cubeTreeInfo, chartSettings, reportList;
             if (report[0] != undefined) {
                 this.currentReport = report[0].Value; cubeTreeInfo = report[1].Value; this.reports = report[2].Value;
                 this.reportsCount = report[3].Value; reportList = $.parseJSON(report[4].Value);
@@ -4958,7 +5154,7 @@
                     this.model.customObject = report.customObject;
             }
             var currentCubeName = this.currentCubeName;
-            var filterText = $.map(this._repCol, function (value, index) { if (value.CubeName == currentCubeName) { return value.slicerBtnTextInfo;}});
+            var filterText = $.map(this._repCol, function (value, index) { if (value.CubeName == currentCubeName) { return value.slicerBtnTextInfo; } });
             this.slicerBtnTextInfo = filterText.length > 0 ? filterText[0] : {};
             this.model.chartType = chartSettings.ChartType.toLowerCase();
             if (this.model.afterServiceInvoke != null)
@@ -4968,15 +5164,15 @@
             else
                 this.element.find(".e-splitBtn, .e-treeview, .e-cubeTreeView, .e-cubeName, .searchDiv").remove();
             var cubeTree = ej.buildTag("div#cubeTreeView.e-cubeTreeView")[0].outerHTML;
-            var searchEditor = ej.buildTag("div.searchDiv", ej.buildTag("input#" + this._id + "_SearchTreeView.searchTreeView").attr("type", "text")[0].outerHTML, {"margin":"5px 5px 0px 5px"})[0].outerHTML;
+            var searchEditor = ej.buildTag("div.searchDiv", ej.buildTag("input#" + this._id + "_SearchTreeView.searchTreeView").attr("type", "text")[0].outerHTML, { "margin": "5px 5px 0px 5px" })[0].outerHTML;
             var cubeName = ej.buildTag("div.e-cubeName", this.currentCubeName + searchEditor)[0].outerHTML;
             if (this.model.enableMeasureGroups) {
-                this._createMeasureGroup();               
+                this._createMeasureGroup();
             }
             var treeViewData = $.parseJSON(cubeTreeInfo);
             $(cubeTree).appendTo(".e-cubeBrowser");
             this.element.find(".e-cubeTreeView").ejTreeView({
-                clientObj:this,
+                clientObj: this,
                 fields: { id: "id", parentId: "pid", text: "name", spriteCssClass: "spriteCssClass", dataSource: treeViewData, parentUniqueName: "parentUniqueName" },
                 allowDragAndDrop: true,
                 allowDropChild: false,
@@ -4995,6 +5191,8 @@
             });
             var treeViewElements = this.element.find(".e-cubeTreeView").find("li");
             for (var i = 0; i < treeViewElements.length; i++) {
+                if (!ej.isNullOrUndefined(treeViewElements[i].id) && treeViewElements[i].id.indexOf("'").length > -1)
+                    treeViewElements[i].setAttribute("id", treeViewElements[i].id.replace(/'/g, ""));
                 treeViewElements[i].setAttribute("data-tag", treeViewData[i].tag);
                 if (!ej.isNullOrUndefined(treeViewData[i].parentUniqueName) && treeViewData[i].parentUniqueName != "")
                     treeViewElements[i].setAttribute("data-parentUniqueName", !ej.isNullOrUndefined(treeViewData[i].parentUniqueName) ? treeViewData[i].parentUniqueName.split(">>||>>")[1] : "");
@@ -5019,7 +5217,7 @@
             }
             this.element.find(".e-cubeTable").height((this.element.height() - (this.element.find("div.e-titleText").height() + this.element.find("#reportToolbar").height() + this.element.find(".e-csHeader").height() + 38)));
             this.element.find(".cdbTD, .cubeTableTD").height((this.element.height() - (this.element.find("div.e-titleText").height() + this.element.find("#reportToolbar").height() + this.element.find(".e-csHeader").height() + 38)));
-            this.element.find(".e-cubeBrowser").height((this.element.find(".cdbTD, .cubeTableTD").height() - (this.element.find(".e-cdbHeader").height()+ 5)) + (this.model.isResponsive ? 0 : 14));
+            this.element.find(".e-cubeBrowser").height((this.element.find(".cdbTD, .cubeTableTD").height() - (this.element.find(".e-cdbHeader").height() + 5)) + (this.model.isResponsive ? 0 : 14));
             $(this._createSplitButtons(report.Columns, "Columns")).appendTo(".e-categoricalAxis");
             $(this._createSplitButtons(report.Rows, "Rows")).appendTo(".e-rowAxis");
             $(this._createSplitButtons(report.Slicers, "Slicers")).appendTo(".e-slicerAxis");
@@ -5036,12 +5234,12 @@
             this._buttonContextMenu();
             if (this.model.showUniqueNameOnPivotButton) {
                 this.element.find(".e-pvtBtn").addClass("e-splitBtnUnique");
-                this.element.find(".e-removeSplitBtn").addClass("e-removeBtnUnqiue");
+                this._addSplitButtonHeight();
             }
             this.element.find(".e-cubeTreeView").height((this.element.find(".e-cubeBrowser").height() - this.element.find(".e-cubeName").height()) - (7 + (this.model.enableMeasureGroups ? (this.element.find(".measureGroupselector").height() + 13) : 0)));
         },
-        
-        _treeContextMenu : function(){
+
+        _treeContextMenu: function () {
             var contextTag = ej.buildTag("ul.pivotTreeContext#pivotTreeContext", ej.buildTag("li", ej.buildTag("a", this._getLocalizedLabels("AddToColumn"))[0].outerHTML)[0].outerHTML + ej.buildTag("li", ej.buildTag("a", this._getLocalizedLabels("AddToRow"))[0].outerHTML)[0].outerHTML + ej.buildTag("li", ej.buildTag("a", this._getLocalizedLabels("AddToSlicer"))[0].outerHTML)[0].outerHTML + ej.buildTag("li#Remove", ej.buildTag("a", this._getLocalizedLabels("Remove"))[0].outerHTML)[0].outerHTML)[0].outerHTML;
             $(this.element).append(contextTag);
             $("#pivotTreeContext").ejMenu({
@@ -5116,7 +5314,7 @@
             if (msg != null) {
                 var reportCollection = "";
                 if (msg && msg.d)
-                    reportCol =msg.d[0].Value;
+                    reportCol = msg.d[0].Value;
                 else if (msg && msg["report"])
                     reportCol = msg["report"];
                 if (reportCol.indexOf(":>>:") > -1) {
@@ -5125,6 +5323,7 @@
                 reportCol = reportCollection = this._pivotSchemaDesigner._repCollection = JSON.parse(reportCol.split(":>>:")[0]);
                 if (this.model.analysisMode == ej.Pivot.AnalysisMode.Olap && reportCol[reportCol.length - 1]["cubeIndex"] != undefined) {
                     reportCollection = reportCol[reportCol[reportCol.length - 1]["cubeIndex"]]["Reports"];
+                    this.model.calculatedMembers = reportCol[reportCol[reportCol.length - 1]["cubeIndex"]].calculatedMembers
                     this.reportDropTarget.selectItemByIndex(reportCol[reportCol[reportCol.length - 1]["cubeIndex"]]["ReportIndex"]);
                 }
                 else
@@ -5148,7 +5347,7 @@
             }
         },
 
-        _successDialog: function(action){
+        _successDialog: function (action) {
             var msg = action == "Save" ? this._getLocalizedLabels("SaveMsg") : action == "Rename" ? this._getLocalizedLabels("RenameMsg") : action == "Remove" ? this._getLocalizedLabels("RemoveMsg") : "";
             msg != "" ? ej.Pivot._createErrorDialog(msg, this._getLocalizedLabels("Success"), this) : "";
             this._isTimeOut = false;
@@ -5163,7 +5362,7 @@
                     report.d = null;
                 }
                 if ((report.d != undefined && report.d || report[0] != undefined && report[0]) || report.CurrentReport || report.PivotReport) {
-                    var columnElements, rowElements, slicerElements, action, renamedReport, chartSettings,cubeTreeInfo;
+                    var columnElements, rowElements, slicerElements, action, renamedReport, chartSettings, cubeTreeInfo;
                     if (report.length > 1 && report[0] != undefined) {
                         this.currentReport = report[0].Value; this.reports = report[1].Value; this.reportsCount = report[2].Value; columnElements = report[3].Value;
                         rowElements = report[4].Value; slicerElements = report[5].Value; action = report[6].Value; reportList = $.parseJSON(report[7].Value);
@@ -5198,8 +5397,7 @@
                                 this._clientReportCollection.push({ name: this._currentReportName, report: this.currentReport });
                                 this.refreshControl({ GridJSON: JSON.stringify(""), ChartJSON: JSON.stringify(""), PivotReport: $.grep(report.d, function (item) { return item.Key == "PivotReport" })[0].Value });
                             }
-                            else if (action == "RemoveReport" || action == "ChangeReport")
-                            {
+                            else if (action == "RemoveReport" || action == "ChangeReport") {
                                 var valFilterHiddenCells = this._hiddenCellInfo(report.d);
                                 this.refreshControl({
                                     GridJSON: $.grep(report.d, function (item) { return item.Key == "GridJSON" })[0].Value,
@@ -5257,7 +5455,7 @@
                                     FilteredRowHeaders: (!ej.isNullOrUndefined(report.FilteredRowHeaders)) ? report.FilteredRowHeaders : "[]"
                                 });
                             }
-                            var reportList = $.map(this._clientReportCollection, function (report) { return { "name" : report.name }; });
+                            var reportList = $.map(this._clientReportCollection, function (report) { return { "name": report.name }; });
                             this.element.find(".reportlist").ejDropDownList("option", "dataSource", reportList);
                             var ddList = this.element.find(".reportlist").data("ejDropDownList");
                             this._isReportListAction = false;
@@ -5316,7 +5514,7 @@
                             });
                             var treeViewData = $.parseJSON(cubeTreeInfo);
                             this.element.find(".e-cubeTreeView").ejTreeView({
-                                clientObj:this,
+                                clientObj: this,
                                 fields: { id: "id", parentId: "pid", text: "name", spriteCssClass: "spriteCssClass", dataSource: treeViewData, parentUniqueName: "parentUniqueName" },
                                 allowDragAndDrop: true,
                                 allowDropChild: false,
@@ -5335,6 +5533,8 @@
                             });
                             var treeViewElements = this.element.find(".e-cubeTreeView").find("li");
                             for (var i = 0; i < treeViewElements.length; i++) {
+                                if (!ej.isNullOrUndefined(treeViewElements[i].id) && treeViewElements[i].id.indexOf("'").length > -1)
+                                    treeViewElements[i].setAttribute("id", treeViewElements[i].id.replace(/'/g, ""));
                                 treeViewElements[i].setAttribute("data-tag", treeViewData[i].tag);
                                 if (!ej.isNullOrUndefined(treeViewData[i].parentUniqueName) && treeViewData[i].parentUniqueName != "")
                                     treeViewElements[i].setAttribute("data-parentUniqueName", !ej.isNullOrUndefined(treeViewData[i].parentUniqueName) ? treeViewData[i].parentUniqueName.split(">>||>>")[1] : "");
@@ -5410,11 +5610,12 @@
                 this._treeContextMenu();
                 this._buttonContextMenu();
             }
+            
+            this._setSplitBtnTitle();
             if (this.model.showUniqueNameOnPivotButton) {
                 $(".e-pvtBtn").addClass("e-splitBtnUnique");
-                $(".e-removeSplitBtn").addClass("e-removeBtnUnqiue");
+                this._addSplitButtonHeight();
             }
-            this._setSplitBtnTitle();
             this._unWireEvents();
             this._wireEvents();
             this._isTimeOut = false;
@@ -5431,6 +5632,10 @@
 
             if (this.element.find(".e-cubeTreeView").find("li").first().length > 0) {
                 this._cubeTreeView.insertBefore(this._calcMembers[0], this.element.find(".e-cubeTreeView").find("li").first());
+                for (var i = 0; i < this._calcMembers.length; i++) {
+                    if (!ej.isNullOrUndefined(this._calcMembers[i].id) && this._calcMembers[i].id.indexOf("'") > -1)
+                        this._calcMembers[i].id = this._calcMembers[i].id.replace(/'/g, "");
+                }
                 this._cubeTreeView.addNodes(ej.DataManager(this._calcMembers).executeLocal(ej.Query().skip(1)), this._calcMembers[0].id);
                 this.element.find(".e-cubeTreeView").find("#" + this._calcMembers[0].id).find('> div > div:first').removeClass("e-process");
                 this._cubeTreeView.collapseNode(this._calcMembers[0].id);
@@ -5442,6 +5647,10 @@
             }
             if (!ej.isNullOrUndefined(this._calcMemberTreeObj) && this.element.find(".e-cubeTreeViewCalcMember").find("li").first().length > 0) {
                 this._calcMemberTreeObj.insertBefore(this._calcMembers[0], this.element.find(".e-cubeTreeViewCalcMember").find("li").first());
+                for (var i = 0; i < this._calcMembers.length; i++) {
+                    if (!ej.isNullOrUndefined(this._calcMembers[i].id) && this._calcMembers[i].id.indexOf("'") > -1)
+                        this._calcMembers[i].id = this._calcMembers[i].id.replace(/'/g, "");
+                }
                 this._calcMemberTreeObj.addNodes(ej.DataManager(this._calcMembers).executeLocal(ej.Query().skip(1)), this._calcMembers[0].id);
                 this.element.find(".e-cubeTreeViewCalcMember").find("#" + this._calcMembers[0].id).find('> div > div:first').removeClass("e-process");
                 this._calcMemberTreeObj.collapseNode(this._calcMembers[0].id);
@@ -5474,7 +5683,7 @@
             }
         },
         _fetchChildNodeSuccess: function (data) {
- 
+
             var newDataSource; var parentNode;
             if (data.length > 1 && data[0] != undefined)
                 newDataSource = JSON.parse(data[0].Value);
@@ -5502,9 +5711,11 @@
             else
                 parentNode = $(this.pNode).parents("li");
             $($(parentNode).find('input.nodecheckbox')[0]).ejCheckBox({ checked: false })
-            
+
+            if (this.model.enableMemberEditorSorting)
+                newDataSource = ej.DataManager(newDataSource).executeLocal(ej.Query().sortBy("name", this._sortType));
             if (!ej.DataManager(this._editorTreeData).executeLocal(ej.Query().where("pid", "equal", newDataSource[0].pid)).length > 0)
-                $.merge(this._editorTreeData, $.extend(true, [], newDataSource));                                      
+                $.merge(this._editorTreeData, $.extend(true, [], newDataSource));
             this.element.find(".nodeExpand").remove();
             if (this.model.enableMemberEditorPaging) {
                 var collObj = ej.Pivot._generateChildWithAncestors(this, parentNode, this.model.enableMemberEditorPaging, this.model.memberEditorPageSize);
@@ -5533,7 +5744,7 @@
         },
 
         _createCubeSelector: function () {
-            return ej.buildTag("div.e-csHeader", ej.buildTag("span.cubeText", this._getLocalizedLabels("CubeSelector"), { "padding-left": "6px", "float": "left", "margin-bottom": "10px", "width": this.model.enableSplitter&&!this.model.isResponsive?"25%":"", "text-overflow": "ellipsis" })[0].outerHTML + ej.buildTag("div.cubeSelect", "<input type='text' id='cubeSelector' class ='cubeSelector' />", { display: "inline", "float": "left", "padding-left": this.model.enableSplitter?"1%":"8px", "position": "relative", "top": "-3px", "width": this.model.enableSplitter&&!this.model.isResponsive?"70.5%":"" })[0].outerHTML, { width: (this.model.isResponsive || this.model.enableSplitter) ? "100%" : "", height: "20px" })[0].outerHTML;
+            return ej.buildTag("div.e-csHeader", ej.buildTag("span.cubeText", this._getLocalizedLabels("CubeSelector"), { "padding-left": "6px", "float": "left", "margin-bottom": "10px", "width": this.model.enableSplitter && !this.model.isResponsive ? "25%" : "", "text-overflow": "ellipsis" })[0].outerHTML + ej.buildTag("div.cubeSelect", "<input type='text' id='cubeSelector' class ='cubeSelector' />", { display: "inline", "float": "left", "padding-left": this.model.enableSplitter ? "1%" : "8px", "position": "relative", "top": "-3px", "width": this.model.enableSplitter && !this.model.isResponsive ? "70.5%" : "" })[0].outerHTML, { width: (this.model.isResponsive || this.model.enableSplitter) ? "100%" : "", height: "20px" })[0].outerHTML;
         },
 
         _createCubeBrowser: function (cubeTreeInfo) {
@@ -5591,7 +5802,7 @@
                         }
                         splitBtnTitle = dimensionElements.split('#')[i + 1].replace('.', ' - ').split("$")[0] == "Measures" ? this._getLocalizedLabels("Measures") : dimensionElements.split('#')[i + 1].replace('.', ' - ').split("$")[0];
                     }
-                    if (this.model.enableRTL && splitBtnTitle.indexOf("-")>0) {
+                    if (this.model.enableRTL && splitBtnTitle.indexOf("-") > 0) {
                         splitBtnTitle = splitBtnTitle.split("-").reverse().join(" - ");
                     }
                     splitButtons += ej.buildTag("div.e-splitBtn", ej.buildTag("button.e-pvtBtn", this.model.showUniqueNameOnPivotButton ? splitBtnTitle : caption).attr({ "title": splitBtnTitle, fieldCaption: caption, allMember: dimensionElements.split('#')[i + 1].split("$")[1] })[0].outerHTML + ej.buildTag("span.e-removeSplitBtn e-icon").attr("role", "button").attr("aria-label", "remove")[0].outerHTML, "", { "data-parenthierarchy": parent, "data-tag": axis + ':' + tag })[0].outerHTML;
@@ -5612,6 +5823,8 @@
                 }
                 if (this.element.find(".e-cubeTreeView").length > 0 && !(uniqueName.indexOf("Measures") >= 0)) {
                     uniqueName = uniqueName.indexOf("<>") > 0 ? uniqueName.replace("<>", ".") : uniqueName;
+                    if (uniqueName.indexOf("'") > 0)
+                        uniqueName = uniqueName.replace(/'/g, "~@");
                     var splBtnTitle = "", allMember = $(pivotButtons[i]).find("button").attr("allMember");
                     allMember = allMember != "All" ? allMember : this._getLocalizedLabels("All");
                     var liElementText = this.element.find(".e-cubeTreeView").find("li[data-tag='" + uniqueName + "'] a:eq(0)").text();
@@ -5622,7 +5835,7 @@
                     else {
                         var hName = this.element.find(".e-cubeTreeView").find("li[data-tag='" + uniqueName + "'] a:eq(0)").text() || this.element.find(".e-cubeTreeView").find("li[data-tag='" + uniqueName.toUpperCase() + "'] a:eq(0)").text() || liElementText;
                         splBtnTitle = $(pivotButtons[i]).find("button").attr("fieldCaption") == this._getLocalizedLabels("KPIs") ? this._getLocalizedLabels("KPIs") : $(pivotButtons[i]).find("button").attr("fieldCaption") + (hName != "" ? (" - " + hName) : "");
-                        splBtnTitle = (this.model.enableRTL && splBtnTitle.indexOf("-")>0 ? splBtnTitle.split("-").reverse().join(" - ") : splBtnTitle);
+                        splBtnTitle = (this.model.enableRTL && splBtnTitle.indexOf("-") > 0 ? splBtnTitle.split("-").reverse().join(" - ") : splBtnTitle);
                         $(pivotButtons[i]).find("button").attr("title", splBtnTitle);
                     }
                     if ($(pivotButtons[i]).attr("data-tag").split(":")[0] == "Slicers" && $(pivotButtons[i]).attr("data-tag").indexOf("::CalculatedMember") < 0) {
@@ -5635,42 +5848,50 @@
             }
         },
 
+        _addSplitButtonHeight: function(){
+            var pivotButtons = this.element.find(".e-splitBtn");
+            for (var i = 0; i < pivotButtons.length; i++) {
+                $(pivotButtons[i]).find(".e-removeSplitBtn").height($(pivotButtons[i]).height() - 9);
+                $(pivotButtons[i]).find(".e-removeSplitBtn").css("line-height",$(pivotButtons[i]).find(".e-removeSplitBtn").height()+"px");
+            }
+    },
+
         _controlPanel: function () {
             var controlTable; var gridDiv;
-           if (this.displayMode() != ej.PivotClient.DisplayMode.ChartOnly) {
+            if (this.displayMode() != ej.PivotClient.DisplayMode.ChartOnly) {
                 if (this.controlPlacement() == ej.PivotClient.ControlPlacement.Tile && this.displayMode() == ej.PivotClient.DisplayMode.ChartAndGrid) {
                     if (this.defaultView() == ej.PivotClient.DefaultView.Grid)
-                        gridDiv = ej.buildTag("div#gridPanel.e-gridPanel", ej.buildTag("div.e-gridContainer", ej.buildTag("div#" + this._id + "_PivotGrid", "", { "margin": this.model.enableToolBar ? "5px 0px 7px" : "5px 7px 7px", "padding": "1px" })[0].outerHTML, { "position": "relative", "overflow": this.model.enableToolBar ? "" : "auto", "left": "5px", "top": "5px", "width": (this.model.isResponsive) ? "100%" : (this.model.enableSplitter ? "inherit" : "") })[0].outerHTML, { width: this.model.enableSplitter?"99%":"auto", height: "auto" })[0].outerHTML;
+                        gridDiv = ej.buildTag("div#gridPanel.e-gridPanel", ej.buildTag("div.e-gridContainer", ej.buildTag("div#" + this._id + "_PivotGrid", "", { "margin": this.model.enableToolBar ? "5px 0px 7px" : "5px 7px 7px", "padding": "1px" })[0].outerHTML, { "position": "relative", "overflow": this.model.enableToolBar ? "" : "auto", "left": "5px", "top": "5px", "width": (this.model.isResponsive) ? "100%" : (this.model.enableSplitter ? "inherit" : "") })[0].outerHTML, { width: this.model.enableSplitter ? "99%" : "auto", height: "auto" })[0].outerHTML;
                     else
                         gridDiv = ej.buildTag("div#gridPanel.e-gridPanel", ej.buildTag("div.e-gridContainer", ej.buildTag("div#" + this._id + "_PivotGrid", "", { "margin": this.model.enableToolBar ? "10px 0px 7px" : "10px 7px 7px", "padding": "1px", "width": (this.model.isResponsive && !this.model.enableSplitter) ? "auto" : (this.model.enableSplitter ? "inherit" : "") })[0].outerHTML, { "position": "relative", "left": "7px", "border-top": "none", "margin-top": "-7px", "overflow": this.model.enableToolBar ? "" : "auto", "height": this.model.enablePaging ? "277px" : "", "width": this.model.isResponsive ? "100%" : "" })[0].outerHTML, { width: "auto", height: "auto" })[0].outerHTML;
                 }
                 else {
                     if (this.displayMode() == ej.PivotClient.DisplayMode.GridOnly)
-                        gridDiv = ej.buildTag("div#gridPanel.e-gridPanel", ej.buildTag("div.e-gridContainer", ej.buildTag("div#" + this._id + "_PivotGrid", "", { "margin":this.model.enableToolBar ? "5px 0px 7px":"5px 7px 7px", "padding": "1px" })[0].outerHTML, { "overflow": this.model.enableToolBar?"":"auto", "position": "absolute", "left": this.model.enableSplitter?(this.model.enableRTL?"13px":"5px"):"7px", "padding-top": "2px", "width": (this.model.isResponsive) ? "100%" : (this.model.enableSplitter?"98%":""), "top": "3px" })[0].outerHTML, { width: "auto", height: "auto" })[0].outerHTML;
+                        gridDiv = ej.buildTag("div#gridPanel.e-gridPanel", ej.buildTag("div.e-gridContainer", ej.buildTag("div#" + this._id + "_PivotGrid", "", { "margin": this.model.enableToolBar ? "5px 0px 7px" : "5px 7px 7px", "padding": "1px" })[0].outerHTML, { "overflow": this.model.enableToolBar ? "" : "auto", "position": "absolute", "left": this.model.enableSplitter ? (this.model.enableRTL ? "13px" : "5px") : "7px", "padding-top": "2px", "width": (this.model.isResponsive) ? "100%" : (this.model.enableSplitter ? "98%" : ""), "top": "3px" })[0].outerHTML, { width: "auto", height: "auto" })[0].outerHTML;
                     else
-                        gridDiv = ej.buildTag("div#gridPanel.e-gridPanel", ej.buildTag("div.e-gridContainer", ej.buildTag("div#" + this._id + "_PivotGrid", "", { "margin": this.model.enableToolBar ? "5px 0px 7px" : "5px 7px 7px", "padding": "1px" })[0].outerHTML, { "overflow": this.model.enableToolBar ? "" : "auto", "position": "relative", "width": (this.model.isResponsive) ? "100%" : "", "left": window.navigator.userAgent.indexOf('Trident') > 0 ? (this.model.analysisMode == ej.Pivot.AnalysisMode.Olap && this.model.operationalMode == ej.Pivot.OperationalMode.ServerMode ? (!this.model.enableRTL ? (this.model.enableSplitter ? "5px" : "0px") : "15px") : (this.model.enableRTL ? "5px" : (this.model.enableSplitter ? "4px" : "7px"))) : (this.model.enableRTL ? "5px" : (this.model.enableSplitter ? (this.model.enableVirtualScrolling?"8px":"5px") : "7px")), "padding-top": "5px", "border-top": "none" })[0].outerHTML, { width: "100%", height: "auto" })[0].outerHTML;
+                        gridDiv = ej.buildTag("div#gridPanel.e-gridPanel", ej.buildTag("div.e-gridContainer", ej.buildTag("div#" + this._id + "_PivotGrid", "", { "margin": this.model.enableToolBar ? "5px 0px 7px" : "5px 7px 7px", "padding": "1px" })[0].outerHTML, { "overflow": this.model.enableToolBar ? "" : "auto", "position": "relative", "width": (this.model.isResponsive) ? "100%" : "", "left": window.navigator.userAgent.indexOf('Trident') > 0 ? (this.model.analysisMode == ej.Pivot.AnalysisMode.Olap && this.model.operationalMode == ej.Pivot.OperationalMode.ServerMode ? (!this.model.enableRTL ? (this.model.enableSplitter ? "5px" : "0px") : "15px") : (this.model.enableRTL ? "5px" : (this.model.enableSplitter ? "4px" : "7px"))) : (this.model.enableRTL ? "5px" : (this.model.enableSplitter ? (this.model.enableVirtualScrolling ? "8px" : "5px") : "7px")), "padding-top": "5px", "border-top": "none" })[0].outerHTML, { width: "100%", height: "auto" })[0].outerHTML;
                 }
             }
             if (this.displayMode() != ej.PivotClient.DisplayMode.GridOnly) {
                 var chartDiv;
                 if (this.controlPlacement() == ej.PivotClient.ControlPlacement.Tile && this.displayMode() == ej.PivotClient.DisplayMode.ChartAndGrid) {
                     if (this.defaultView() == ej.PivotClient.DefaultView.Grid)
-                        chartDiv = ej.buildTag("div#chartPanel.e-chartPanel", ej.buildTag("div.e-chartContainer", ej.buildTag("div#" + this._id + "_PivotChart", "", { "overflow": this.model.enableToolBar || this.model.isResponsive ? "" : "auto", "border": this.model.enableToolBar ? "none" : "" })[0].outerHTML, { "position": "relative", "overflow": this.model.enableToolBar || this.model.enableSplitter ? "" : "auto", "left": "-2px", "padding": this.model.enableToolBar ? "5px 0px 5px 0px" : this.model.enableSplitter ? "5px 3px 5px 5px" : "5px 0px 5px 5px", "width": (this.model.isResponsive) ? "98.6%" : (this.model.enableSplitter ? "inherit" : ""), "border-top": "none", "margin-right": "-11px" })[0].outerHTML, { width: "100%", height: "auto" })[0].outerHTML;
+                        chartDiv = ej.buildTag("div#chartPanel.e-chartPanel", ej.buildTag("div.e-chartContainer", ej.buildTag("div#" + this._id + "_PivotChart", "", { "overflow": this.model.enableToolBar || this.model.isResponsive ? "" : "auto", "border": this.model.enableToolBar ? "none" : "" })[0].outerHTML, { "position": "relative", "overflow": this.model.enableToolBar || this.model.enableSplitter ? "" : "auto", "left": "-2px", "padding": this.model.enableToolBar ? "5px 0px 5px 0px" : this.model.enableSplitter ? "5px 3px 5px 5px" : "5px 0px 5px 5px", "width": (this.model.isResponsive) ? "99.2%" : (this.model.enableSplitter ? "inherit" : ""), "border-top": "none", "margin-right": "-11px" })[0].outerHTML, { width: "100%", height: "auto" })[0].outerHTML;
                     else
                         chartDiv = ej.buildTag("div#chartPanel.e-chartPanel", ej.buildTag("div.e-chartContainer", ej.buildTag("div#" + this._id + "_PivotChart", "", { "min-height": this.model.enablePaging ? "255px" : "", "border": this.model.enableToolBar ? "none" : "" })[0].outerHTML, { "position": "relative", "overflow": this.model.enableToolBar || this.model.enableSplitter || this.model.isResponsive ? "" : "auto", "padding": this.model.enableToolBar ? "5px 0px 5px 0px" : "5px 0px 5px 5px", "width": (this.model.isResponsive) ? "99.6%" : (this.model.enableSplitter ? "inherit" : "") })[0].outerHTML, { width: "98%", height: "auto" })[0].outerHTML;
                 }
                 else {
                     if (this.displayMode() == ej.PivotClient.DisplayMode.ChartOnly)
-                        chartDiv = ej.buildTag("div#chartPanel.e-chartPanel", ej.buildTag("div.e-chartContainer", ej.buildTag("div#" + this._id + "_PivotChart", "", { "border": this.model.enableToolBar ? "none" : "" })[0].outerHTML, { "position": "relative", "overflow": this.model.enableToolBar || this.model.enableSplitter || this.model.isResponsive ? "" : "auto", "padding": this.model.enableRTL ? (this.model.enableSplitter && !this.model.isResponsive?"5px 4px 2px 6px":"5px 25px 2px 6px") : (this.model.enableToolBar ? "5px 0px 5px 0px" : "5px 0px 5px 5px"), "margin-right": this.model.enableRTL ? "1px" : "-11px"})[0].outerHTML, { width:this.model.enableSplitter?"96%":"98%", margin: this.model.enableSplitter ? (this.model.enableRTL?(!(this.model.analysisMode==ej.Pivot.AnalysisMode.Olap&&this.model.operationalMode==ej.Pivot.OperationalMode.ServerMode)?"5px 2px 7px":"5px -5px 7px"):"5px 5px 7px" ): "5px 7px 7px", height: "auto" })[0].outerHTML;
+                        chartDiv = ej.buildTag("div#chartPanel.e-chartPanel", ej.buildTag("div.e-chartContainer", ej.buildTag("div#" + this._id + "_PivotChart", "", { "border": this.model.enableToolBar ? "none" : "" })[0].outerHTML, { "position": "relative", "overflow": this.model.enableToolBar || this.model.enableSplitter || this.model.isResponsive ? "" : "auto", "padding": this.model.enableRTL ? (this.model.enableSplitter && !this.model.isResponsive ? "5px 4px 2px 6px" : "5px 25px 2px 6px") : (this.model.enableToolBar ? "5px 0px 5px 0px" : "5px 0px 5px 5px"), "margin-right": this.model.enableRTL ? "1px" : "-11px" })[0].outerHTML, { width: this.model.enableSplitter ? "96%" : (this.model.isResponsive? "99%" : "98%"), margin: this.model.enableSplitter ? (this.model.enableRTL ? (!(this.model.analysisMode == ej.Pivot.AnalysisMode.Olap && this.model.operationalMode == ej.Pivot.OperationalMode.ServerMode) ? "5px 2px 7px" : "5px -5px 7px") : "5px 5px 7px") : "5px 7px 7px", height: "auto" })[0].outerHTML;
                     else
-                        chartDiv = ej.buildTag("div#chartPanel.e-chartPanel", ej.buildTag("div.e-chartContainer", ej.buildTag("div#" + this._id + "_PivotChart", "", { "border": this.model.enableToolBar ? "none" : "" })[0].outerHTML, { "position": "relative", "overflow": this.model.enableToolBar || this.model.enableSplitter || this.model.isResponsive ? "" : "auto", "top": "-5px", "left": window.navigator.userAgent.indexOf('Trident') > 0 ? (this.model.enableSplitter?"-1px":"-7px") : (this.model.enableRTL?"12px":"0px"), "padding": this.model.enableRTL ? "5px 5px 0px 5px" : (this.model.enableToolBar ? "5px 0px 5px 0px" : "5px 0px 5px 5px"), "border-top": "none", "margin-right": this.model.enableRTL ? "0px" : (this.model.enableSplitter?"-9px":"-11px"), "margin-left": this.model.enableRTL ? "-11px" : "0px" })[0].outerHTML, { margin:this.model.enableSplitter?(this.model.enableRTL?"5px -3px 7px":"5px 5px 7px"):(this.model.analysisMode==ej.Pivot.AnalysisMode.Olap&&this.model.operationalMode==ej.Pivot.OperationalMode.ServerMode?"5px 5px 7px":"5px 7px 7px"),width:this.model.isResponsive?(this.model.enableSplitter?(this.model.enableRTL?"96%":"99%"): "98.5%"):"98.5%",  left:this.model.enableSplitter?"7px":"",height: "auto" })[0].outerHTML;
+                        chartDiv = ej.buildTag("div#chartPanel.e-chartPanel", ej.buildTag("div.e-chartContainer", ej.buildTag("div#" + this._id + "_PivotChart", "", { "border": this.model.enableToolBar ? "none" : "" })[0].outerHTML, { "position": "relative", "overflow": this.model.enableToolBar || this.model.enableSplitter || this.model.isResponsive ? "" : "auto", "top": "-5px", "left": window.navigator.userAgent.indexOf('Trident') > 0 ? (this.model.enableSplitter ? "-1px" : "-7px") : (this.model.enableRTL ? "12px" : "0px"), "padding": this.model.enableRTL ? "5px 5px 0px 5px" : (this.model.enableToolBar ? "5px 0px 5px 0px" : "5px 0px 5px 5px"), "border-top": "none", "margin-right": this.model.enableRTL ? "0px" : (this.model.enableSplitter ? "-9px" : "-11px"), "margin-left": this.model.enableRTL ? "-11px" : "0px" })[0].outerHTML, { margin: this.model.enableSplitter ? (this.model.enableRTL ? "5px -3px 7px" : "5px 5px 7px") : (this.model.analysisMode == ej.Pivot.AnalysisMode.Olap && this.model.operationalMode == ej.Pivot.OperationalMode.ServerMode ? "5px 5px 7px" : "5px 7px 7px"), width: this.model.isResponsive ? (this.model.enableSplitter ? (this.model.enableRTL ? "96%" : "99%") : "98.5%") : "98.5%", left: this.model.enableSplitter ? "7px" : "", height: "auto" })[0].outerHTML;
                 }
             }
             if (this.controlPlacement() == ej.PivotClient.ControlPlacement.Tab && this.displayMode() == ej.PivotClient.DisplayMode.ChartAndGrid) {
                 var tabUl; var tabDiv;
                 var gridAnchor = "<a style='font: bold 12px Segoe UI' href='#gridPanel' tabindex='0'>" + this._getLocalizedLabels("Grid") + "</a>";
                 var chartAnchor = "<a style='font: bold 12px Segoe UI' href='#chartPanel' tabindex='0'>" + this._getLocalizedLabels("Chart") + "</a>";
-                var marginLeft = window.navigator.userAgent.indexOf('Trident') > 0 ? (this.model.analysisMode == ej.Pivot.AnalysisMode.Olap && this.model.operationalMode == ej.Pivot.OperationalMode.ServerMode ? (!this.model.enableRTL ? (this.model.enableSplitter?"5px":"0px") : "15px") : (this.model.enableRTL ? "5px" : (this.model.enableSplitter?"4px":"7px"))) : (this.model.enableRTL ? "5px" : (this.model.enableSplitter ? (this.model.enableVirtualScrolling?"8px":"5px") : "7px")), marginRight = 0;
+                var marginLeft = window.navigator.userAgent.indexOf('Trident') > 0 ? (this.model.analysisMode == ej.Pivot.AnalysisMode.Olap && this.model.operationalMode == ej.Pivot.OperationalMode.ServerMode ? (!this.model.enableRTL ? (this.model.enableSplitter ? "5px" : "0px") : "15px") : (this.model.enableRTL ? "5px" : (this.model.enableSplitter ? "4px" : "7px"))) : (this.model.enableRTL ? "5px" : (this.model.enableSplitter ? (this.model.enableVirtualScrolling ? "8px" : "5px") : "7px")), marginRight = 0;
                 if (this.model.enableRTL) {
                     marginRight = "-" + marginLeft;
                     marginLeft = 0;
@@ -5680,7 +5901,7 @@
                     tabDiv = ej.buildTag("div#clientTab", tabUl + chartDiv + gridDiv)[0].outerHTML;
                 }
                 else {
-                    tabUl = ej.buildTag("ul.clientTab", ej.buildTag("li", gridAnchor)[0].outerHTML + ej.buildTag("li", chartAnchor)[0].outerHTML, { "margin-left": marginLeft, "margin-right": marginRight  })[0].outerHTML;
+                    tabUl = ej.buildTag("ul.clientTab", ej.buildTag("li", gridAnchor)[0].outerHTML + ej.buildTag("li", chartAnchor)[0].outerHTML, { "margin-left": marginLeft, "margin-right": marginRight })[0].outerHTML;
                     tabDiv = ej.buildTag("div#clientTab", tabUl + gridDiv + chartDiv, { "height": "100%" })[0].outerHTML;
                 }
                 controlTable = tabDiv;
@@ -5732,16 +5953,17 @@
                 }
                 else {
                     if (!this.model.enableDeferUpdate) {
+                        var conditionalFormating = this._pivotGrid.model.enableConditionalFormatting ? this._pivotGrid.model.conditionalFormatSettings : [];
                         this.element.find(".e-pivotgrid, #" + this._id + "_PivotGrid").remove();
                         if (this.controlPlacement() == ej.PivotClient.ControlPlacement.Tile && this.displayMode() == ej.PivotClient.DisplayMode.ChartAndGrid)
                             gridDiv = ej.buildTag("div#" + this._id + "_PivotGrid", "", { "margin": this.model.enableToolBar ? "5px 0px 7px" : "5px 7px 7px", "width": this.model.isResponsive ? "auto" : " ", "padding": "1px" })[0].outerHTML;
                         else
-                            gridDiv = ej.buildTag("div#" + this._id + "_PivotGrid", "", { "margin": this.model.enableToolBar?"5px 0px 7px":"5px 7px 7px", "padding": "1px" })[0].outerHTML;
+                            gridDiv = ej.buildTag("div#" + this._id + "_PivotGrid", "", { "margin": this.model.enableToolBar ? "5px 0px 7px" : "5px 7px 7px", "padding": "1px" })[0].outerHTML;
                         $(gridDiv).appendTo(this.element.find(".e-gridContainer"));
                         if (this.gridLayout() != ej.PivotGrid.Layout.Normal)
-                            this.element.find("#" + this._id + "_PivotGrid").ejPivotGrid({ url: this.model.url, customObject: this.model.customObject, enableRTL: this.model.enableRTL, enableDefaultValue: this.model.enableDefaultValue, enableCellSelection: this.model.enableCellSelection, cellSelection: this.model.cellSelection, hyperlinkSettings: { enableValueCellHyperlink: this.model.enableValueCellHyperlink, enableRowHeaderHyperlink: this.model.enableRowHeaderHyperlink, enableColumnHeaderHyperlink: this.model.enableColumnHeaderHyperlink, enableSummaryCellHyperlink: this.model.enableSummaryCellHyperlink }, enableCellContext: this.model.enableCellContext, enableDrillThrough: this.model.enableDrillThrough, enableCellEditing: this.model.enableCellEditing, enableCellDoubleClick: this.model.enableCellDoubleClick, enableCellClick: this.model.enableCellClick, valueCellHyperlinkClick: this.model.valueCellHyperlinkClick, rowHeaderHyperlinkClick: this.model.rowHeaderHyperlinkClick, columnHeaderHyperlinkClick: this.model.columnHeaderHyperlinkClick, summaryCellHyperlinkClick: this.model.summaryCellHyperlinkClick, cellContext: this.model.cellContext, cellEdit: this.model.cellEdit, cellDoubleClick: this.model.cellDoubleClick, enableCellClick: this.model.enableCellClick, drillThrough: this.model.drillThrough, isResponsive: this.model.isResponsive, currentReport: this.currentReport, locale: this.locale(), layout: this.gridLayout(), drillSuccess: ej.proxy(this._gridDrillSuccess, this) });
+                            this.element.find("#" + this._id + "_PivotGrid").ejPivotGrid({ url: this.model.url, customObject: this.model.customObject, enableRTL: this.model.enableRTL, enableDefaultValue: this.model.enableDefaultValue, enableCellSelection: this.model.enableCellSelection, cellSelection: this.model.cellSelection, hyperlinkSettings: { enableValueCellHyperlink: this.model.enableValueCellHyperlink, enableRowHeaderHyperlink: this.model.enableRowHeaderHyperlink, enableColumnHeaderHyperlink: this.model.enableColumnHeaderHyperlink, enableSummaryCellHyperlink: this.model.enableSummaryCellHyperlink }, enableCellContext: this.model.enableCellContext, enableDrillThrough: this.model.enableDrillThrough, enableCellEditing: this.model.enableCellEditing, enableCellDoubleClick: this.model.enableCellDoubleClick, enableCellClick: this.model.enableCellClick, valueCellHyperlinkClick: this.model.valueCellHyperlinkClick, rowHeaderHyperlinkClick: this.model.rowHeaderHyperlinkClick, columnHeaderHyperlinkClick: this.model.columnHeaderHyperlinkClick, summaryCellHyperlinkClick: this.model.summaryCellHyperlinkClick, cellContext: this.model.cellContext, cellEdit: this.model.cellEdit, cellDoubleClick: this.model.cellDoubleClick, enableCellClick: this.model.enableCellClick, drillThrough: this.model.drillThrough, isResponsive: this.model.isResponsive, currentReport: this.currentReport, locale: this.locale(), layout: this.gridLayout(), drillSuccess: ej.proxy(this._gridDrillSuccess, this), conditionalFormatSettings: conditionalFormating, enableConditionalFormatting: this._pivotGrid.model.enableConditionalFormatting });
                         else
-                            this.element.find("#" + this._id + "_PivotGrid").ejPivotGrid({ url: this.model.url, customObject: this.model.customObject, enableRTL: this.model.enableRTL, enableDefaultValue: this.model.enableDefaultValue, enableCellSelection: this.model.enableCellSelection, cellSelection: this.model.cellSelection, hyperlinkSettings: { enableValueCellHyperlink: this.model.enableValueCellHyperlink, enableRowHeaderHyperlink: this.model.enableRowHeaderHyperlink, enableColumnHeaderHyperlink: this.model.enableColumnHeaderHyperlink, enableSummaryCellHyperlink: this.model.enableSummaryCellHyperlink }, enableCellContext: this.model.enableCellContext, enableDrillThrough: this.model.enableDrillThrough, enableCellEditing: this.model.enableCellEditing, enableCellDoubleClick: this.model.enableCellDoubleClick, enableCellClick: this.model.enableCellClick, valueCellHyperlinkClick: this.model.valueCellHyperlinkClick, rowHeaderHyperlinkClick: this.model.rowHeaderHyperlinkClick, columnHeaderHyperlinkClick: this.model.columnHeaderHyperlinkClick, summaryCellHyperlinkClick: this.model.summaryCellHyperlinkClick, cellContext: this.model.cellContext, cellEdit: this.model.cellEdit, cellDoubleClick: this.model.cellDoubleClick, enableCellClick: this.model.enableCellClick, drillThrough: this.model.drillThrough, isResponsive: this.model.isResponsive, currentReport: this.currentReport, locale: this.locale(), drillSuccess: ej.proxy(this._gridDrillSuccess, this) });
+                            this.element.find("#" + this._id + "_PivotGrid").ejPivotGrid({ url: this.model.url, customObject: this.model.customObject, enableRTL: this.model.enableRTL, enableDefaultValue: this.model.enableDefaultValue, enableCellSelection: this.model.enableCellSelection, cellSelection: this.model.cellSelection, hyperlinkSettings: { enableValueCellHyperlink: this.model.enableValueCellHyperlink, enableRowHeaderHyperlink: this.model.enableRowHeaderHyperlink, enableColumnHeaderHyperlink: this.model.enableColumnHeaderHyperlink, enableSummaryCellHyperlink: this.model.enableSummaryCellHyperlink }, enableCellContext: this.model.enableCellContext, enableDrillThrough: this.model.enableDrillThrough, enableCellEditing: this.model.enableCellEditing, enableCellDoubleClick: this.model.enableCellDoubleClick, enableCellClick: this.model.enableCellClick, valueCellHyperlinkClick: this.model.valueCellHyperlinkClick, rowHeaderHyperlinkClick: this.model.rowHeaderHyperlinkClick, columnHeaderHyperlinkClick: this.model.columnHeaderHyperlinkClick, summaryCellHyperlinkClick: this.model.summaryCellHyperlinkClick, cellContext: this.model.cellContext, cellEdit: this.model.cellEdit, cellDoubleClick: this.model.cellDoubleClick, enableCellClick: this.model.enableCellClick, drillThrough: this.model.drillThrough, isResponsive: this.model.isResponsive, currentReport: this.currentReport, locale: this.locale(), drillSuccess: ej.proxy(this._gridDrillSuccess, this), conditionalFormatSettings: conditionalFormating, enableConditionalFormatting: this._pivotGrid.model.enableConditionalFormatting });
                         this._pivotGrid = this.element.find("#" + this._id + "_PivotGrid").data("ejPivotGrid");
                     }
                     else {
@@ -5774,14 +5996,14 @@
                             successEvt = pvtChartObj.model.renderSuccess;
                         }
                         this.element.find(".e-pivotchart").remove();
-                        var chartDiv = ej.buildTag("div#" + this._id + "_PivotChart", "", {"height": "auto" })[0].outerHTML;
+                        var chartDiv = ej.buildTag("div#" + this._id + "_PivotChart", "", { "height": "auto" })[0].outerHTML;
                         if (this.element.find(".e-chartContainer").children().length == 0)
                             $(chartDiv).appendTo(this.element.find(".e-chartContainer"));
                         this.element.find("#" + this._id + "_PivotChart").ejPivotChart({ url: this.model.url, customObject: this.model.customObject, enableRTL: this.model.enableRTL, enableDefaultValue: this.model.enableDefaultValue, axesLabelRendering: this.model.axesLabelRendering, pointRegionClick: this.model.pointRegionClick, canResize: this.model.isResponsive, currentReport: this.currentReport, customObject: this.model.customObject, locale: this.locale(), showTooltip: true, size: { height: this._chartHeight, width: this._chartWidth }, commonSeriesOptions: { type: this.model.chartType, tooltip: { visible: true } }, beforeServiceInvoke: this.model.chartLoad, drillSuccess: ej.proxy(this._chartDrillSuccess, this), renderSuccess: successEvt });
                         this._pivotChart = this.element.find('#' + this._id + '_PivotChart').data("ejPivotChart");
                         this.element.find('#' + this._id + '_PivotChart').width(this._pivotChart.model.size.width);
-                        if(this.model.enableToolBar)
-                          this.element.find('#' + this._id + '_PivotChart').css("border","none");
+                        if (this.model.enableToolBar)
+                            this.element.find('#' + this._id + '_PivotChart').css("border", "none");
                     }
                     else {
                         this._isTimeOut = false;
@@ -5790,9 +6012,9 @@
                 }
             }
             if (this.displayMode() != ej.PivotClient.DisplayMode.GridOnly)
-            if (this._toggleExpand && !this.model.isResponsive && (this.chartObj.sfType.split(".")).pop().toLowerCase() != "treemap") {
-                this.element.find(".e-toggleExpandButton").click();
-            }
+                if (this._toggleExpand && !this.model.isResponsive && (this.chartObj.sfType.split(".")).pop().toLowerCase() != "treemap") {
+                    this.element.find(".e-toggleExpandButton").click();
+                }
         },
 
         _renderPivotTreeMap: function (drillTag, currentAction) {
@@ -5811,7 +6033,7 @@
                 else {
                     if (!this.model.enableDeferUpdate) {
                         this.element.find(".e-pivottreemap").remove();
-                        var chartDiv = ej.buildTag("div#" + this._id + "_PivotChart", "", {"height": "auto" })[0].outerHTML;
+                        var chartDiv = ej.buildTag("div#" + this._id + "_PivotChart", "", { "height": "auto" })[0].outerHTML;
                         if (this.element.find(".e-chartContainer").children().length == 0)
                             $(chartDiv).appendTo(this.element.find(".e-chartContainer"));
                         this.element.find("#" + this._id + "_PivotChart").ejPivotTreeMap({ url: this.model.url, customObject: this.model.customObject, canResize: this.model.isResponsive, currentReport: this.currentReport, customObject: this.model.customObject, locale: this.locale(), size: { height: this._chartHeight, width: this._chartWidth }, beforeServiceInvoke: this.model.treeMapLoad, drillSuccess: ej.proxy(this._treemapDrillSuccess, this) });
@@ -5825,9 +6047,9 @@
                 }
             }
             if (this.displayMode() != ej.PivotClient.DisplayMode.GridOnly)
-            if (this._toggleExpand && !this.model.isResponsive && (this.chartObj.sfType.split(".")).pop().toLowerCase() == "treemap") {
-                this.element.find(".e-toggleExpandButton").click();
-            }
+                if (this._toggleExpand && !this.model.isResponsive && (this.chartObj.sfType.split(".")).pop().toLowerCase() == "treemap") {
+                    this.element.find(".e-toggleExpandButton").click();
+                }
         },
         _renderControls: function () {
             if ((this._isNodeOrButtonDropped && ej.isNullOrUndefined(this.chartObj) || this._isrenderTreeMap) && this.displayMode() != ej.PivotClient.DisplayMode.GridOnly) {
@@ -5889,33 +6111,29 @@
         _createDialogRequest: function (evt) {
             if (evt.target.className.indexOf("e-dialogOKBtn") >= 0)
                 return;
-            if ((evt.target.type == "button" && $(evt.target).parent().attr("data-tag").indexOf("::CalculatedMember") > -1))
-            {
+            if ((evt.target.type == "button" && $(evt.target).parent().attr("data-tag").indexOf("::CalculatedMember") > -1)) {
                 this._selectedCalcMember = $(evt.target).parent().text();
                 if (this.element.find(".calcMemberDialog").length > 0) {
                     this._calcMemberTreeObj.collapseAll();
                     ej.Pivot.closePreventPanel(this);
                     this._calcMemberDialog.open();
                     var calcMember = ej.DataManager(this._calcMembers).executeLocal(ej.Query().where("name", "equal", this._selectedCalcMember));
-                    if(calcMember.length>0)
-                    {
+                    if (calcMember.length > 0) {
                         this.element.find("#" + this._id + "_captionFieldCM").val(calcMember[0].name);
                         this.element.find("#" + this._id + "_expressionFieldCM").val(calcMember[0].expression);
                         this.element.find("#" + this._id + "_memberTypeFieldCM").data("ejDropDownList").selectItemsByIndices(calcMember[0].nodeType);
                         if (calcMember[0].nodeType == 1) {
                             var dimensionName = calcMember[0].tag.split(".")[0].replace(/\[/g, "").replace(/\]/g, "");
-                            var dimensionFieldLen=this.element.find("#" + this._id + "_dimensionFieldCM").data("ejDropDownList").model.dataSource;
-                            for(var i=0;i<dimensionFieldLen.length;i++)
-                            {
+                            var dimensionFieldLen = this.element.find("#" + this._id + "_dimensionFieldCM").data("ejDropDownList").model.dataSource;
+                            for (var i = 0; i < dimensionFieldLen.length; i++) {
                                 if (dimensionFieldLen[i].value == dimensionName)
                                     this.element.find("#" + this._id + "_dimensionFieldCM").data("ejDropDownList").selectItemsByIndices(i);
                             }
                         }
-                        if(!ej.isNullOrUndefined(calcMember[0].formatString))
-                        {
-                            if(calcMember[0].formatString=="Currency")
+                        if (!ej.isNullOrUndefined(calcMember[0].formatString)) {
+                            if (calcMember[0].formatString == "Currency")
                                 this.element.find("#" + this._id + "_formatFieldCM").data("ejDropDownList").selectItemsByIndices(1);
-                            else if(calcMember[0].formatString=="Percent")
+                            else if (calcMember[0].formatString == "Percent")
                                 this.element.find("#" + this._id + "_formatFieldCM").data("ejDropDownList").selectItemsByIndices(2);
                             else {
                                 this.element.find("#" + this._id + "_formatFieldCM").data("ejDropDownList").selectItemsByIndices(2);
@@ -5973,7 +6191,7 @@
                 this.doAjaxPost("POST", this.model.url + "/" + this.model.serviceMethodSettings.fetchMemberTreeNodes, JSON.stringify({ "action": "fetchMemberTreeNodes", "dimensionName": $(evt.target).parent().attr("data-tag"), "olapReport": this.currentReport, "customObject": serializedCustomObject }), this._editorTreeInfoSuccess);
             }
             else {
-                    this._createDialog(this._args_className, this._args_innerHTML, "");
+                this._createDialog(this._args_className, this._args_innerHTML, "");
             }
         },
 
@@ -6061,377 +6279,381 @@
                     else if (!($(".e-categoricalAxis ")[0].childElementCount))
                         ej.Pivot._createErrorDialog(this._getLocalizedLabels("FilterSortElementAlertMsg"), this._getLocalizedLabels("Warning"), this);
                     return false;
-                    }   
                 }
-                if (this.model.analysisMode == ej.Pivot.AnalysisMode.Olap && !ej.isNullOrUndefined(this._selectedFieldName))
-                   isSlicerAxis=this.element.find(".e-pvtBtn").parent("[data-tag='Slicers:" + this._selectedFieldName.replace(/\[/g, "").replace(/\]/g, "") + "']").length>0;
-                var sortDlgField = "", sortState = "", filterState = "", levelInfo = [], editorTreeInfo;
-                if (editorTree[0] != undefined)
-                    editorTreeInfo = editorTree[0].Value;
-                else if (editorTree.d != undefined)
-                    editorTreeInfo = editorTree.d[0].Value;
+            }
+            if (this.model.analysisMode == ej.Pivot.AnalysisMode.Olap && !ej.isNullOrUndefined(this._selectedFieldName))
+                isSlicerAxis = this.element.find(".e-pvtBtn").parent("[data-tag='Slicers:" + this._selectedFieldName.replace(/\[/g, "").replace(/\]/g, "") + "']").length > 0;
+            var sortDlgField = "", sortState = "", filterState = "", levelInfo = [], editorTreeInfo;
+            if (editorTree[0] != undefined)
+                editorTreeInfo = editorTree[0].Value;
+            else if (editorTree.d != undefined)
+                editorTreeInfo = editorTree.d[0].Value;
+            else
+                editorTreeInfo = editorTree.EditorTreeInfo;
+            var ejDialog = ej.buildTag("div#" + (this.model.enableAdvancedFilter ? "clientDialog" : (this._id + "_ClientDialog")) + ".e-clientDialog", { "opacity": "1" })[0].outerHTML;
+            var dialogContent; var dialogTitle; var currentTag; var searchText; var editorNavPanel; var editorSearchNavPanel; var editorDrillNavPanel; var editorLinkPanel = '';
+
+            if (args_className.split(" ")[0] == "e-newReportImg") {
+                dialogTitle = this._getLocalizedLabels("NewReport");
+                currentTag = "New Report";
+                var newReportLabel = "<p class='e-dialogPara'>" + this._getLocalizedLabels("ReportName") + "</p>";
+                var newReport = "<input type=text id=reportName class='reportName'/></br>";
+                dialogContent = ej.buildTag("div#" + this._id + "_ReportDlg.e-reportDlg", "<table><tr><td>" + newReportLabel + "</td><td>" + newReport + "</td></tr></table>")[0].outerHTML;
+            }
+            else if (args_className.split(" ")[0] == "e-addReportImg") {
+                dialogTitle = this._getLocalizedLabels("AddReport");
+                currentTag = "Add Report";
+                var addReportLabel = "<p class='e-dialogPara'>" + this._getLocalizedLabels("ReportName") + "</p>";
+                var addReport = "<input type=text id=reportName class='reportName'/></br>";
+                dialogContent = ej.buildTag("div#" + this._id + "_ReportDlg.e-reportDlg", "<table><tr><td>" + addReportLabel + "</td><td>" + addReport + "</td></tr></table>")[0].outerHTML;
+            }
+            else if (args_className.split(" ")[0] == "e-removeReportImg") {
+                dialogTitle = this._getLocalizedLabels("RemoveReport");
+                currentTag = "Remove Report";
+                if (this.model.operationalMode == ej.Pivot.OperationalMode.ClientMode || this.model.analysisMode == ej.Pivot.AnalysisMode.Pivot)
+                    this.reportsCount = this._clientReportCollection.length;
+                if (this.reportsCount > 1)
+                    dialogContent = "<p>" + this._getLocalizedLabels("AreYouSureToDeleteTheReport") + "?</p>";
                 else
-                    editorTreeInfo = editorTree.EditorTreeInfo;
-                var ejDialog = ej.buildTag("div#" + (this.model.enableAdvancedFilter?"clientDialog" : (this._id + "_ClientDialog"))+".e-clientDialog", { "opacity": "1" })[0].outerHTML;
-                var dialogContent; var dialogTitle; var currentTag; var searchText; var editorNavPanel; var editorSearchNavPanel; var editorDrillNavPanel; var editorLinkPanel='';
+                    dialogContent = "<p>" + this._getLocalizedLabels("CannotRemoveSingleReport") + "!</p>";
+            }
+            else if (args_className.split(" ")[0] == "e-SortFilterDlg") {
 
-                if (args_className.split(" ")[0] == "e-newReportImg") {
-                    dialogTitle = this._getLocalizedLabels("NewReport");
-                    currentTag = "New Report";
-                    var newReportLabel = "<p class='e-dialogPara'>" + this._getLocalizedLabels("ReportName") + "</p>";
-                    var newReport = "<input type=text id=reportName class='reportName'/></br>";
-                    dialogContent = ej.buildTag("div#" + this._id + "_ReportDlg.e-reportDlg", "<table><tr><td>" + newReportLabel + "</td><td>" + newReport + "</td></tr></table>")[0].outerHTML;
-                }
-                else if (args_className.split(" ")[0] == "e-addReportImg") {
-                    dialogTitle = this._getLocalizedLabels("AddReport");
-                    currentTag = "Add Report";
-                    var addReportLabel = "<p class='e-dialogPara'>" + this._getLocalizedLabels("ReportName") + "</p>";
-                    var addReport = "<input type=text id=reportName class='reportName'/></br>";
-                    dialogContent = ej.buildTag("div#" + this._id + "_ReportDlg.e-reportDlg", "<table><tr><td>" + addReportLabel + "</td><td>" + addReport + "</td></tr></table>")[0].outerHTML;
-                }
-                else if (args_className.split(" ")[0] == "e-removeReportImg") {
-                    dialogTitle = this._getLocalizedLabels("RemoveReport");
-                    currentTag = "Remove Report";
-                    if (this.model.operationalMode == ej.Pivot.OperationalMode.ClientMode || this.model.analysisMode == ej.Pivot.AnalysisMode.Pivot)
-                        this.reportsCount = this._clientReportCollection.length;
-                    if (this.reportsCount > 1)
-                        dialogContent = "<p>" + this._getLocalizedLabels("AreYouSureToDeleteTheReport") + "?</p>";
-                    else
-                        dialogContent = "<p>" + this._getLocalizedLabels("CannotRemoveSingleReport") + "!</p>";
-                }
-                else if (args_className.split(" ")[0] == "e-SortFilterDlg") {
+                sortDlgField = args_innerHTML.split("||");
+                if (sortDlgField[1] != "")
+                    sortState = sortDlgField[1].split("<<");
+                if (sortDlgField[2] != "")
+                    filterState = sortDlgField[2].split("<<");
+                this.element.find(".e-dialog:not(.e-calcMemberDialog, .e-calcMemberDialog .e-dialog), .e-clientDialog").remove();
+                dialogTitle = this._getLocalizedLabels("SortingAndFiltering");
 
-                    sortDlgField = args_innerHTML.split("||");
-                    if (sortDlgField[1] != "")
-                        sortState = sortDlgField[1].split("<<");
-                    if (sortDlgField[2] != "")
-                        filterState = sortDlgField[2].split("<<");
-                    this.element.find(".e-dialog:not(.e-calcMemberDialog, .e-calcMemberDialog .e-dialog), .e-clientDialog").remove();
-                    dialogTitle = this._getLocalizedLabels("SortingAndFiltering");
+                var sortingLbl = ej.buildTag("label#sortingLbl.e-sortingLbl", this._getLocalizedLabels("Sorting"))[0].outerHTML;
+                var measureListLbl = ej.buildTag("label#measureListLbl.e-measureListLbl", this._getLocalizedLabels("Measure"))[0].outerHTML;
+                var orderLbl = ej.buildTag("label#orderLbl.e-orderLbl", this._getLocalizedLabels("Order"))[0].outerHTML;
+                var measureListDropDown = ej.buildTag("input#measuresList.e-measuresList", "", {}, { type: 'text', accesskey: 'M' })[0].outerHTML;
 
-                    var sortingLbl = ej.buildTag("label#sortingLbl.e-sortingLbl", this._getLocalizedLabels("Sorting"))[0].outerHTML;
-                    var measureListLbl = ej.buildTag("label#measureListLbl.e-measureListLbl", this._getLocalizedLabels("Measure"))[0].outerHTML;
-                    var orderLbl = ej.buildTag("label#orderLbl.e-orderLbl", this._getLocalizedLabels("Order"))[0].outerHTML;
-                    var measureListDropDown = ej.buildTag("input#measuresList.e-measuresList", "", {}, { type: 'text', accesskey: 'M' })[0].outerHTML;
+                var sortDisableRadio = ej.buildTag("input#sortDisable.e-sortDisable", "", {}, { name: "sort", type: "radio", checked: 'checked', tabindex: 0, accesskey: 'i' })[0].outerHTML + ej.buildTag("label.e-sortDisableLbl", this._getLocalizedLabels("Disable"))[0].outerHTML;
+                var sortEnableRadio = ej.buildTag("input#sortEnable.e-sortEnable", "", {}, { name: 'sort', type: 'radio', tabindex: 1, accesskey: 'n' })[0].outerHTML + ej.buildTag("label.e-sortEnableLbl", this._getLocalizedLabels("Enable"))[0].outerHTML + "<br/>";
+                var newascRadio = ej.buildTag("input#radioBtnAsc.e-radioBtnAsc", "", {}, { name: 'order', type: 'radio', checked: 'checked', tabindex: 0, accesskey: 'A' })[0].outerHTML + ej.buildTag("label.e-radioBtnAscLbl", this._getLocalizedLabels("Ascending"))[0].outerHTML + "<br/>";
+                var newdescRadio = ej.buildTag("input#radioBtnDesc.e-radioBtnDesc", "", {}, { name: 'order', type: 'radio', tabindex: 2, accesskey: 'e' })[0].outerHTML + ej.buildTag("label.e-radioBtnDescLbl", this._getLocalizedLabels("Descending"))[0].outerHTML;
+                var preservHierarchy = ej.buildTag("input#preserveHrchy.e-preserveHrchy", "", {}, { type: 'checkbox', checked: 'checked', tabindex: 0, accesskey: 'r' })[0].outerHTML + ej.buildTag("label.e-preserveHrchyLbl", this._getLocalizedLabels("PreserveHierarchy"))[0].outerHTML;
 
-                    var sortDisableRadio = ej.buildTag("input#sortDisable.e-sortDisable", "", {}, { name: "sort", type: "radio", checked: 'checked', tabindex: 0, accesskey: 'i' })[0].outerHTML + ej.buildTag("label.e-sortDisableLbl", this._getLocalizedLabels("Disable"))[0].outerHTML;
-                    var sortEnableRadio = ej.buildTag("input#sortEnable.e-sortEnable", "", {}, { name: 'sort', type: 'radio', tabindex: 1, accesskey: 'n' })[0].outerHTML + ej.buildTag("label.e-sortEnableLbl", this._getLocalizedLabels("Enable"))[0].outerHTML + "<br/>";
-                    var newascRadio = ej.buildTag("input#radioBtnAsc.e-radioBtnAsc", "", {}, { name: 'order', type: 'radio', checked: 'checked', tabindex: 0, accesskey: 'A' })[0].outerHTML + ej.buildTag("label.e-radioBtnAscLbl", this._getLocalizedLabels("Ascending"))[0].outerHTML + "<br/>";
-                    var newdescRadio = ej.buildTag("input#radioBtnDesc.e-radioBtnDesc", "", {}, { name: 'order', type: 'radio', tabindex: 2, accesskey: 'e' })[0].outerHTML + ej.buildTag("label.e-radioBtnDescLbl", this._getLocalizedLabels("Descending"))[0].outerHTML;
-                    var preservHierarchy = ej.buildTag("input#preserveHrchy.e-preserveHrchy", "", {}, { type: 'checkbox', checked: 'checked', tabindex: 0, accesskey: 'r' })[0].outerHTML + ej.buildTag("label.e-preserveHrchyLbl", this._getLocalizedLabels("PreserveHierarchy"))[0].outerHTML;
+                var filter = ej.buildTag("label#filterLbl.e-filterLbl", this._getLocalizedLabels("Filtering"))[0].outerHTML;
+                var filterDisableRadio = ej.buildTag("input#filterDisable.e-filterDisable", "", {}, { name: 'filter', type: 'radio', checked: 'checked', tabindex: 0, accesskey: 'i' })[0].outerHTML + ej.buildTag("label.e-filterDisableLbl", this._getLocalizedLabels("Disable"))[0].outerHTML;
+                var filterEnableRadio = ej.buildTag("input#filterEnable.e-filterEnable", "", {}, { name: 'filter', type: 'radio', tabindex: 0, accesskey: 'n' })[0].outerHTML + ej.buildTag("label.e-filterDisableLbl", this._getLocalizedLabels("Enable"))[0].outerHTML + "<br/>";
+                var conditionLbl = ej.buildTag("label#conditionLbl.e-conditionLbl", this._getLocalizedLabels("Condition"))[0].outerHTML;
+                var conditionDropDown = ej.buildTag("input#filterCondition.e-filterCondition", "", {}, { type: 'text', tabindex: 0, accesskey: 'o' })[0].outerHTML;
 
-                    var filter = ej.buildTag("label#filterLbl.e-filterLbl", this._getLocalizedLabels("Filtering"))[0].outerHTML;
-                    var filterDisableRadio = ej.buildTag("input#filterDisable.e-filterDisable", "", {}, { name: 'filter', type: 'radio', checked: 'checked', tabindex: 0, accesskey: 'i' })[0].outerHTML + ej.buildTag("label.e-filterDisableLbl", this._getLocalizedLabels("Disable"))[0].outerHTML;
-                    var filterEnableRadio = ej.buildTag("input#filterEnable.e-filterEnable", "", {}, { name: 'filter', type: 'radio', tabindex: 0, accesskey: 'n' })[0].outerHTML + ej.buildTag("label.e-filterDisableLbl", this._getLocalizedLabels("Enable"))[0].outerHTML + "<br/>";
-                    var conditionLbl = ej.buildTag("label#conditionLbl.e-conditionLbl", this._getLocalizedLabels("Condition"))[0].outerHTML;
-                    var conditionDropDown = ej.buildTag("input#filterCondition.e-filterCondition", "", {}, { type: 'text', tabindex: 0, accesskey: 'o' })[0].outerHTML;
+                var filterFrom = ej.buildTag("div#filterfrom.e-filterFrmDiv", ej.buildTag("input#filterFrom.filterFrom" + (ej.isMobile() ? " inputConditionMbl" : ""), "", {}, { name: 'inputVal', type: ej.isMobile() ? 'number' : 'text', inputmode: ej.isMobile() ? 'numeric' : '', pattern: ej.isMobile() ? '[0-9]*' : '', tabindex: 0 })[0].outerHTML)[0].outerHTML;
+                var filterbtw = ej.buildTag("div#filterbtw.e-filterBtw", "<p>" + this._getLocalizedLabels("and") + "</p>")[0].outerHTML;
+                var filterTo = ej.buildTag("div#filterto.e-filterToDiv", ej.buildTag("input#filterTo.filterTo" + (ej.isMobile() ? " inputConditionMbl" : ""), "", {}, { name: 'inputVal', type: ej.isMobile() ? 'number' : 'text', inputmode: ej.isMobile() ? 'numeric' : '', pattern: ej.isMobile() ? '[0-9]*' : '', tabindex: 0, accesskey: 'd' })[0].outerHTML)[0].outerHTML;
+                var fMeasureListLbl = ej.buildTag("label#filterMeasureListLbl.filterMeasureListLbl", this._getLocalizedLabels("Measure"))[0].outerHTML;
+                var fMeasureList = ej.buildTag("input#fMeasuresList.fMeasuresList", "", {}, { type: 'text', tabindex: 0, accesskey: 'M' })[0].outerHTML;
+                var fValueLbl = ej.buildTag("label#filterValueLbl.e-filterValueLbl", this._getLocalizedLabels("Value"), {}, { tabindex: 0, accesskey: 'a' })[0].outerHTML;
 
-                    var filterFrom = ej.buildTag("div#filterfrom.e-filterFrmDiv", ej.buildTag("input#filterFrom.filterFrom" + (ej.isMobile() ? " inputConditionMbl" : ""), "", {}, { name: 'inputVal', type: ej.isMobile() ? 'number' : 'text', inputmode: ej.isMobile() ? 'numeric' : '', pattern: ej.isMobile() ? '[0-9]*' : '', tabindex: 0 })[0].outerHTML)[0].outerHTML;
-                    var filterbtw = ej.buildTag("div#filterbtw.e-filterBtw", "<p>" + this._getLocalizedLabels("and") + "</p>")[0].outerHTML;
-                    var filterTo = ej.buildTag("div#filterto.e-filterToDiv", ej.buildTag("input#filterTo.filterTo" + (ej.isMobile() ? " inputConditionMbl" : ""), "", {}, { name: 'inputVal', type: ej.isMobile() ? 'number' : 'text', inputmode: ej.isMobile() ? 'numeric' : '', pattern: ej.isMobile() ? '[0-9]*' : '', tabindex: 0, accesskey: 'd' })[0].outerHTML)[0].outerHTML;
-                    var fMeasureListLbl = ej.buildTag("label#filterMeasureListLbl.filterMeasureListLbl", this._getLocalizedLabels("Measure"))[0].outerHTML;
-                    var fMeasureList = ej.buildTag("input#fMeasuresList.fMeasuresList", "", {}, { type: 'text', tabindex: 0, accesskey: 'M' })[0].outerHTML;
-                    var fValueLbl = ej.buildTag("label#filterValueLbl.e-filterValueLbl", this._getLocalizedLabels("Value"), {}, { tabindex: 0, accesskey: 'a' })[0].outerHTML;
+                var sortDiv = ej.buildTag("div#sortingDlg.e-sortingDlg", "<table class='e-sortReportTbl'><tr><td style='vertical-align:top;'>" + sortingLbl + "</td><td>" + sortEnableRadio + sortDisableRadio + "</td></tr><tr><td>" + measureListLbl + "</td><td>" + measureListDropDown + "</td></tr> <tr><td>" + orderLbl + "</td><td>" + newascRadio + newdescRadio + "</td></tr><tr><td></td><td>" + preservHierarchy + "</td></tr></table>")[0].outerHTML;
+                var filterDiv = ej.buildTag("div#filteringDlg.e-filteringDlg", "<table class='e-sortReportTbl'><tr><td>" + filter + "</td><td>" + filterEnableRadio + filterDisableRadio + "</td></tr><tr><td>" + fMeasureListLbl + "</td><td>" + fMeasureList + "</td></tr><tr><td>" + conditionLbl + "</td><td>" + conditionDropDown + "</td></tr><tr><td>" + fValueLbl + "</td><td>" + filterFrom + filterbtw + filterTo + "</td></tr></table>")[0].outerHTML;
 
-                    var sortDiv = ej.buildTag("div#sortingDlg.e-sortingDlg", "<table class='e-sortReportTbl'><tr><td style='vertical-align:top;'>" + sortingLbl + "</td><td>" + sortEnableRadio + sortDisableRadio + "</td></tr><tr><td>" + measureListLbl + "</td><td>" + measureListDropDown + "</td></tr> <tr><td>" + orderLbl + "</td><td>" + newascRadio + newdescRadio + "</td></tr><tr><td></td><td>" + preservHierarchy + "</td></tr></table>")[0].outerHTML;
-                    var filterDiv = ej.buildTag("div#filteringDlg.e-filteringDlg", "<table class='e-sortReportTbl'><tr><td>" + filter + "</td><td>" + filterEnableRadio + filterDisableRadio + "</td></tr><tr><td>" + fMeasureListLbl + "</td><td>" + fMeasureList + "</td></tr><tr><td>" + conditionLbl + "</td><td>" + conditionDropDown + "</td></tr><tr><td>" + fValueLbl + "</td><td>" + filterFrom + filterbtw + filterTo + "</td></tr></table>")[0].outerHTML;
+                var sortTab = "<li><a style='font: bold 12px Segoe UI' href='#sortingDlg'>" + this._getLocalizedLabels("Sorting") + "</a></li>";
+                var filterTab = "<li><a style='font: bold 12px Segoe UI' href='#filteringDlg'>" + this._getLocalizedLabels("Filtering") + "</a></li>";
+                var sortfilterTab = ej.buildTag("div#sortfilterTab.sortfilterTab", "<ul class ='e-sortfiltTab'>" + (sortTab + filterTab + "</ul>" + sortDiv + filterDiv))[0].outerHTML;
 
-                    var sortTab = "<li><a style='font: bold 12px Segoe UI' href='#sortingDlg'>" + this._getLocalizedLabels("Sorting") + "</a></li>";
-                    var filterTab = "<li><a style='font: bold 12px Segoe UI' href='#filteringDlg'>" + this._getLocalizedLabels("Filtering") + "</a></li>";
-                    var sortfilterTab = ej.buildTag("div#sortfilterTab.sortfilterTab", "<ul class ='e-sortfiltTab'>" + (sortTab + filterTab + "</ul>" + sortDiv + filterDiv ))[0].outerHTML;
+                dialogContent = sortfilterTab;
+            }
+            else if (args_className.split(" ")[0] == "e-renameReportImg") {
+                dialogTitle = this._getLocalizedLabels("RenameReport");
+                currentTag = "Rename Report";
+                var currentReportName = !ej.isNullOrUndefined(this._currentReportName) ? this._currentReportName : this.element.find(".reportlist").val();
+                var renameReportLabel = "<p class='e-dialogPara'>" + this._getLocalizedLabels("ReportName") + "</p>";
+                var renameReport = "<input type=text id=reportName class='reportName' value='" + currentReportName + "' /></br>";
+                dialogContent = ej.buildTag("div#" + this._id + "_ReportDlg.e-reportDlg", "<table><tr><td>" + renameReportLabel + "</td><td>" + renameReport + "</td></tr></table>")[0].outerHTML;
+            }
+            else if (args_className.split(" ")[0] == "e-saveAsReportImg" || args_className.split(" ")[0] == "e-saveReportImg") {
+                dialogTitle = args_className.split(" ")[0] == "e-saveAsReportImg" ? this._getLocalizedLabels("SaveAs") : this._getLocalizedLabels("Save");
+                currentTag = "SaveAs Report";
+                var recordNameLabel = "<p class='e-dialogPara'>" + this._getLocalizedLabels("ReportName") + "</p>";
+                var recordName = "<input type=text id=reportName class='reportName'/></br>";
+                dialogContent = ej.buildTag("div#" + this._id + "_ReportDlg.e-reportDlg", "<table><tr><td>" + recordNameLabel + "</td><td>" + recordName + "</td></tr></table>")[0].outerHTML;
+            }
+            else if (args_className.split(" ")[0] == "LoadReport") {
+                dialogTitle = this._getLocalizedLabels("Load");
+                currentTag = "Load Report";
+                var recordNameLabel = "<table class='e-loadReportTbl'><tr><td class='e-loadReportTd'>" + this._getLocalizedLabels("ReportName") + "</td>";
+                var recordNamesDropdown = "<td><input type='text' id='reportNameList' class='reportNameList'/></td></tr></table>";
+                dialogContent = recordNameLabel + recordNamesDropdown;
+            }
+            else if (args_className.split(" ")[0] == "RemoveDBReport") {
+                dialogTitle = this._getLocalizedLabels("Remove");
+                currentTag = "RemoveDB Report";
+                var recordNameLabel = "<table class='e-removeDBReportTbl'><tr><td class='e-removeDBReportTd'>" + this._getLocalizedLabels("ReportName") + "</td>";
+                var recordNamesDropdown = "<td><input type='text' id='reportNameList' class='reportNameList'/></td></tr></table>";
+                dialogContent = recordNameLabel + recordNamesDropdown;
+            }
+            else if (args_className.split(" ")[0] == "RenameDBReport") {
+                dialogTitle = this._getLocalizedLabels("Rename");
+                currentTag = "RenameDB Report";
+                var recordNameLabel = "<table class='e-renameDBReportTbl'><tr><td class='e-renameDBReportTd'>" + this._getLocalizedLabels("SelectReport") + "</td>";
+                var recordNamesDropdown = "<td><input type='text' id='reportNameList' class='reportNameList'/></td></tr>";
+                var renameLabel = "<tr><td class='e-renameDBReportTd'>" + this._getLocalizedLabels("RenameReport") + "</td>";
+                var renameRecordTxtBox = "<td><input type='text' id='renameReport' class='renameReport' style='width:146px'/></td></tr></table>";
+                dialogContent = recordNameLabel + recordNamesDropdown + renameLabel + renameRecordTxtBox;
+            }
+            else if (args_className.split(" ")[0] == "mdx") {
+                dialogTitle = this._getLocalizedLabels("MDXQuery");
+                currentTag = "MDX Query";
+                var textarea = "<textarea readonly='readonly' style='width:460px; height:180px; resize:none; margin:3px'>" + args_innerHTML + "</textarea>";
+                dialogContent = textarea;
+            }
+            else if (args_className.split(" ")[0] == "e-chartTypesImg") {
+                dialogTitle = this._getLocalizedLabels("ChartTypes");
+                currentTag = "Chart Types";
+                var reportNameLabel = "<p class='e-dialogPara'>" + this._getLocalizedLabels("ChartTypes") + "</p>";
+                reportName = "<input type=text id=reportName class='reportName'/></br>";
+                dialogContent = reportNameLabel + reportName;
+            }
+            else if (args_className.indexOf("e-txt") > -1) {
 
-                    dialogContent = sortfilterTab;
-                }
-                else if (args_className.split(" ")[0] == "e-renameReportImg") {
-                    dialogTitle = this._getLocalizedLabels("RenameReport");
-                    currentTag = "Rename Report";
-                    var currentReportName = !ej.isNullOrUndefined(this._currentReportName) ? this._currentReportName : this.element.find(".reportlist").val();
-                    var renameReportLabel = "<p class='e-dialogPara'>" + this._getLocalizedLabels("ReportName") + "</p>";
-                    var renameReport = "<input type=text id=reportName class='reportName' value='" + currentReportName + "' /></br>";
-                    dialogContent = ej.buildTag("div#" + this._id + "_ReportDlg.e-reportDlg", "<table><tr><td>" + renameReportLabel + "</td><td>" + renameReport + "</td></tr></table>")[0].outerHTML;
-                }
-                else if (args_className.split(" ")[0] == "e-saveAsReportImg" || args_className.split(" ")[0] == "e-saveReportImg") {
-                    dialogTitle = args_className.split(" ")[0] == "e-saveAsReportImg" ? this._getLocalizedLabels("SaveAs") : this._getLocalizedLabels("Save");
-                    currentTag = "SaveAs Report";
-                    var recordNameLabel = "<p class='e-dialogPara'>" + this._getLocalizedLabels("ReportName") + "</p>";
-                    var recordName = "<input type=text id=reportName class='reportName'/></br>";
-                    dialogContent = ej.buildTag("div#" + this._id + "_ReportDlg.e-reportDlg", "<table><tr><td>" + recordNameLabel + "</td><td>" + recordName + "</td></tr></table>")[0].outerHTML;
-                }
-                else if (args_className.split(" ")[0] == "LoadReport") {
-                    dialogTitle = this._getLocalizedLabels("Load");
-                    currentTag = "Load Report";
-                    var recordNameLabel = "<table class='e-loadReportTbl'><tr><td class='e-loadReportTd'>" + this._getLocalizedLabels("ReportName") + "</td>";
-                    var recordNamesDropdown = "<td><input type='text' id='reportNameList' class='reportNameList'/></td></tr></table>";
-                    dialogContent = recordNameLabel + recordNamesDropdown;
-                }
-                else if (args_className.split(" ")[0] == "RemoveDBReport") {
-                    dialogTitle = this._getLocalizedLabels("Remove");
-                    currentTag = "RemoveDB Report";
-                    var recordNameLabel = "<table class='e-removeDBReportTbl'><tr><td class='e-removeDBReportTd'>" + this._getLocalizedLabels("ReportName") + "</td>";
-                    var recordNamesDropdown = "<td><input type='text' id='reportNameList' class='reportNameList'/></td></tr></table>";
-                    dialogContent = recordNameLabel + recordNamesDropdown;
-                }
-                else if (args_className.split(" ")[0] == "RenameDBReport") {
-                    dialogTitle = this._getLocalizedLabels("Rename");
-                    currentTag = "RenameDB Report";
-                    var recordNameLabel = "<table class='e-renameDBReportTbl'><tr><td class='e-renameDBReportTd'>" + this._getLocalizedLabels("SelectReport") + "</td>";
-                    var recordNamesDropdown = "<td><input type='text' id='reportNameList' class='reportNameList'/></td></tr>";
-                    var renameLabel = "<tr><td class='e-renameDBReportTd'>" + this._getLocalizedLabels("RenameReport") + "</td>";
-                    var renameRecordTxtBox = "<td><input type='text' id='renameReport' class='renameReport' style='width:146px'/></td></tr></table>";
-                    dialogContent = recordNameLabel + recordNamesDropdown + renameLabel + renameRecordTxtBox;
-                }
-                else if (args_className.split(" ")[0] == "mdx") {
-                    dialogTitle = this._getLocalizedLabels("MDXQuery");
-                    currentTag = "MDX Query";
-                    var textarea = "<textarea readonly='readonly' style='width:460px; height:180px; resize:none; margin:3px'>" + args_innerHTML + "</textarea>";
-                    dialogContent = textarea;
-                }
-                else if (args_className.split(" ")[0] == "e-chartTypesImg") {
-                    dialogTitle = this._getLocalizedLabels("ChartTypes");
-                    currentTag = "Chart Types";
-                    var reportNameLabel = "<p class='e-dialogPara'>" + this._getLocalizedLabels("ChartTypes") + "</p>";
-                    reportName = "<input type=text id=reportName class='reportName'/></br>";
-                    dialogContent = reportNameLabel + reportName;
-                }
-                else if (args_className.indexOf("e-txt") > -1) {
-
-                    if (args_innerHTML == this._getLocalizedLabels("Measures")) {
-                        dialogTitle = this._getLocalizedLabels("MeasureEditor");
-                        dialogContent = "<p class='e-editorPara'>" + this._getLocalizedLabels("Measures") + "</p>"
-                    }
-                    else {
-                        this._isOptionSearch = false; this._isEditorDrillPaging = false; this._currentFilterList = {}; this._editorSearchTreeData = []; this._editorDrillTreeData = {}; this._editorDrillTreePageSettings = {}, this._lastSavedTree = [];
-                        dialogTitle = this._getLocalizedLabels("MemberEditor");
-                        dialogContent = (this._hierarchyCaption != this._getLocalizedLabels("KPIs") && this.model.enableAdvancedFilter && !isSlicerAxis ? "" : "<p class='e-editorPara'>" + this._hierarchyCaption + "</p>");
-                    }
-                    var memberSearchEditor = ""; var memberEditor; var checkOption = "";
-                    $(innerDiv).appendTo(EditorDiv);
-                    if (args_innerHTML != this._getLocalizedLabels("Measures")) {
-                        var checkAll = ej.buildTag("div.e-checkAll e-icon").attr("role", "button").attr("aria-label", "checkall")[0].outerHTML;
-                        var unCheckAll = ej.buildTag("div.e-unCheckAll e-icon").attr("role", "button").attr("aria-label", "uncheckall")[0].outerHTML;
-                        checkOption = ej.buildTag("div.e-checkOptions", checkAll + unCheckAll, { "height": "19px", margin: "10px 0px 0px 31px" })[0].outerHTML;
-                        memberSearchEditor = ej.buildTag("div.e-memberSearchEditorDiv", ej.buildTag("input#searchEditorTreeView.searchEditorTreeView").attr("type", "text")[0].outerHTML + (!ej.isNullOrUndefined(editorTreeInfo) && args_innerHTML != this._getLocalizedLabels("Measures") && this.model.enableMemberEditorPaging && $.parseJSON(editorTreeInfo).length >= this.model.memberEditorPageSize ? ej.buildTag("span.e-icon e-searchEditorTree", {})[0].outerHTML : ""), { "padding": (this.model.enableAdvancedFilter ? "5px 0px 0px 0px" : 0) })[0].outerHTML;
-                    }
-                    if (args_innerHTML == this._getLocalizedLabels("Measures")) {
-                        this._isMembersFiltered = false;
-                        memberEditor = this._createMeasureEditor(editorTree);
-                    }
-                    else
-                        memberEditor = ej.buildTag("div#editorTreeView.e-editorTreeView")[0].outerHTML;
-                    var memberEditorDiv = ej.buildTag("div.e-memberEditorDiv", (this._selectedFieldName != "" || args_innerHTML == this._getLocalizedLabels("KPIs") ? checkOption : "") + memberEditor)[0].outerHTML;
-                    var labelFilterTag = "", levelList = "";
-
-                    if (this._selectedFieldName != "" && !isSlicerAxis && this.model.enableAdvancedFilter) {
-                        levelList = ej.buildTag("div.e-ddlGroupWrap", this._getLocalizedLabels("SelectField") + ":" + ej.buildTag("input#GroupLabelDrop.groupLabelDrop").attr("type", "text")[0].outerHTML, {})[0].outerHTML;
-                        labelFilterTag = ej.buildTag("div.e-filterElementTag")[0].outerHTML;
-                        var filterTag = ej.Pivot.createAdvanceFilterTag({ action: "filterTag" }, this)
-                        levelInfo = $.map(this.element.find(".e-treeview li[data-tag='" + this._selectedFieldName + "'] li"), function (item, index) { return { text: $(item).text(), value: $(item).attr("data-tag") }; });
-                    }
-                    else
-                        delete this._selectedLevelUniqueName;
-                    var innerDiv = ej.buildTag("div", (labelFilterTag != "" && !isSlicerAxis && this.model.enableAdvancedFilter ? (levelList + ej.buildTag("div.e-seperator", {}, { "padding": "2px" }, cancelBtn)[0].outerHTML + labelFilterTag + ej.buildTag("div.e-seperator", {}, { "padding": "2px" })[0].outerHTML) : "") + memberSearchEditor + memberEditorDiv)[0].outerHTML;
-                    var EditorDiv = ej.buildTag("div#EditorDiv.e-editorDiv", innerDiv, { "margin-left": this.model.enableAdvancedFilter ? "5px" : "0px" })[0].outerHTML;
-                    dialogContent += EditorDiv;
-                    editorNavPanel = ej.buildTag("div.e-memberPager", ej.buildTag("div#NextpageDiv.e-nextPageDiv", ej.buildTag("div.e-icon e-media-backward_01 e-firstPage", {})[0].outerHTML + ej.buildTag("div.e-icon e-arrowhead-left e-prevPage", {})[0].outerHTML + ej.buildTag("input.e-memberCurrentPage#memberCurrentPage", {}, { "width": "20px", "height": "10px" })[0].outerHTML + ej.buildTag("span.e-memberPageCount#memberPageCount")[0].outerHTML + ej.buildTag("div.e-icon e-arrowhead-right e-nextPage", {})[0].outerHTML + ej.buildTag("div.e-icon e-media-forward_01 e-lastPage", {})[0].outerHTML)[0].outerHTML, {})[0].outerHTML;
-                    editorSearchNavPanel = ej.buildTag("div.e-memberSearchPager", ej.buildTag("div#NextSearchpageDiv.e-nextPageDiv", ej.buildTag("div.e-icon e-media-backward_01 e-firstPage", {})[0].outerHTML + ej.buildTag("div.e-icon e-arrowhead-left e-prevPage", {})[0].outerHTML + ej.buildTag("input.e-memberCurrentSearchPage#memberCurrentSearchPage", {}, { "width": "20px", "height": "10px" })[0].outerHTML + ej.buildTag("span.e-memberSearchPageCount#memberSearchPageCount")[0].outerHTML + ej.buildTag("div.e-icon e-arrowhead-right e-nextPage", {})[0].outerHTML + ej.buildTag("div.e-icon e-media-forward_01 e-lastPage", {})[0].outerHTML)[0].outerHTML, {}).css("display", "none")[0].outerHTML;
-                    editorDrillNavPanel = ej.buildTag("div.e-memberDrillPager", ej.buildTag("div#NextDrillpageDiv.e-nextPageDiv", ej.buildTag("div.e-icon e-media-backward_01 e-firstPage", {})[0].outerHTML + ej.buildTag("div.e-icon e-arrowhead-left e-prevPage", {})[0].outerHTML + ej.buildTag("input.e-memberCurrentDrillPage#memberCurrentDrillPage", {}, { "width": "20px", "height": "10px" })[0].outerHTML + ej.buildTag("span.e-memberDrillPageCount#memberDrillPageCount")[0].outerHTML + ej.buildTag("div.e-icon e-arrowhead-right e-nextPage", {})[0].outerHTML + ej.buildTag("div.e-icon e-media-forward_01 e-lastPage", {})[0].outerHTML)[0].outerHTML, {}).css("display", "none")[0].outerHTML;
-                    editorLinkPanel = ej.buildTag("div.e-linkOuterPanel", ej.buildTag("span.e-infoImg e-icon", "", {}).css({ "float": "left", "margin-top": "4px", "font-size": "16px" })[0].outerHTML + ej.buildTag("a.e-linkPanel", this._getLocalizedLabels('NotAllItemsShowing')).css({ "display": "inline-block", "margin-left": "3px", "margin-top": "4px" })[0].outerHTML, {}).css({ "display": "none", "margin-left": "3px", "margin-left": isAdvancedFilter ? "6px" : "0px" })[0].outerHTML;
-                }
-                var dialogFooter;
-                if (args_className.split(" ")[0] == "mdx") {
-                    var cancelBtn = "<button id=CancelBtn class='e-dialogCancelBtn' title=" + this._getLocalizedLabels("OK").replace(/(<([^>]+)>)/ig, "") + " >" + this._getLocalizedLabels("OK") + "</button>";
-                    dialogFooter = ej.buildTag("div.e-dialogFooter", cancelBtn)[0].outerHTML;
-                    $(ejDialog).appendTo("#" + this._id);
-                    $(dialogContent + dialogFooter).appendTo(this.element.find(".e-clientDialog"));
-                    this.element.find(".e-clientDialog").ejDialog({ enableRTL: this.model.enableRTL, width: 500, target: "#" + this._id, enableResize: false, close: ej.proxy(ej.Pivot.closePreventPanel, this) });
+                if (args_innerHTML == this._getLocalizedLabels("Measures")) {
+                    dialogTitle = this._getLocalizedLabels("MeasureEditor");
+                    dialogContent = "<p class='e-editorPara'>" + this._getLocalizedLabels("Measures") + "</p>"
                 }
                 else {
-                    var okBtn = "<button id=OKBtn class='e-dialogOKBtn' title=" + (args_className.split(" ")[0] == "RemoveDBReport" ? this._getLocalizedLabels("Remove") : this._getLocalizedLabels("OK").replace(/(<([^>]+)>)/ig, "")) + ">" + (args_className.split(" ")[0] == "RemoveDBReport" ? this._getLocalizedLabels("Remove") : this._getLocalizedLabels("OK")) + "</button>";
-                    var cancelBtn = "<button id=CancelBtn class='e-dialogCancelBtn' title=" + this._getLocalizedLabels("Cancel").replace(/(<([^>]+)>)/ig, "") + ">" + this._getLocalizedLabels("Cancel") + "</button>";
-                    dialogFooter = ej.buildTag("div.e-dialogFooter", okBtn + ((args_className.split(" ")[0] == "e-removeReportImg" && this.reportsCount == 1) ? "" : cancelBtn))[0].outerHTML;
-                    $(ejDialog).appendTo("#" + this._id);
-                    $(dialogContent + (!ej.isNullOrUndefined(editorTreeInfo) && args_innerHTML != this._getLocalizedLabels("Measures") && this.model.enableMemberEditorPaging ? ($.parseJSON(editorTreeInfo).length >= this.model.memberEditorPageSize ? editorDrillNavPanel + editorSearchNavPanel + editorNavPanel : editorDrillNavPanel + editorSearchNavPanel) : editorLinkPanel) + dialogFooter).appendTo(this.element.find(".e-clientDialog"));
-                    if(args_className.split(" ")[0] == "e-SortFilterDlg")
-                        this.element.find(".e-clientDialog").ejDialog({ enableRTL: this.model.enableRTL, width: 'auto', target: "#" + this._id, cssClass: "e-SortFilterDlg", enableResize: false, close: ej.proxy(ej.Pivot.closePreventPanel, this) });
-                    else
-                        this.element.find(".e-clientDialog").ejDialog({ enableRTL: this.model.enableRTL, width: 'auto', target: "#" + this._id, enableResize: false, close: ej.proxy(ej.Pivot.closePreventPanel, this) });
-                    if (args_className.split(" ")[0] == "e-removeReportImg") {
-                        this.element.find(".e-clientDialog").css("min-height", "60px");
-                        this.element.find("#" + this._id + "_ClientDialog_wrapper").css("min-height", "100px");
-                    }                    
+                    this._isOptionSearch = false; this._isEditorDrillPaging = false; this._currentFilterList = {}; this._editorSearchTreeData = []; this._editorDrillTreeData = {}; this._editorDrillTreePageSettings = {}, this._lastSavedTree = [];
+                    dialogTitle = this._getLocalizedLabels("MemberEditor");
+                    dialogContent = (this._hierarchyCaption != this._getLocalizedLabels("KPIs") && this.model.enableAdvancedFilter && !isSlicerAxis ? "" : "<p class='e-editorPara'>" + this._hierarchyCaption + "</p>");
                 }
-        
-                this.element.find(".e-dialog:not(.e-calcMemberDialog, .e-calcMemberDialog .e-dialog) .e-titlebar").prepend(ej.buildTag("div", dialogTitle, { "display": "inline" })[0].outerHTML)[0].setAttribute("data-tag", currentTag);
-                this.element.find(".reportName, .renameReport").ejMaskEdit({ width: "149px", textAlign: this.model.enableRTL ? "right" : "left" });
-                this.element.find(".e-reportDlg .e-mask").css("padding-left", "6px");
-                this.element.find(".e-memberSearchEditorDiv .e-mask").addClass("e-dialogInput");
-                this.element.find(".e-prevPage, .e-firstPage").addClass("e-pageDisabled");
-                this.element.find(".e-nextPage, .e-lastPage").addClass("e-pageEnabled");
-                this.element.find(".e-dialogOKBtn, .e-dialogCancelBtn").ejButton({ type: ej.ButtonType.Button});
-                $(".sortfilterTab").ejTab({ enableRTL: this.model.enableRTL });
-                $(".reportNameList").ejDropDownList({
-                    dataSource: args_innerHTML.split("__"),
-                    enableRTL: this.model.enableRTL,
-                    width: "150px",
-                    height: "20px",
-                    create: function () { $(this.wrapper.find('.e-input')).focus(function () { $(this).blur(); }) }
+                var memberSearchEditor = ""; var memberEditor; var checkOption = "";
+                $(innerDiv).appendTo(EditorDiv);
+                if (args_innerHTML != this._getLocalizedLabels("Measures")) {
+                    var checkAll = ej.buildTag("div.e-checkAll e-icon").attr("role", "button").attr("aria-label", "checkall")[0].outerHTML;
+                    var unCheckAll = ej.buildTag("div.e-unCheckAll e-icon").attr("role", "button").attr("aria-label", "uncheckall")[0].outerHTML;
+                    checkOption = ej.buildTag("div.e-checkOptions", checkAll + unCheckAll, { "height": "19px", margin: "10px 0px 0px 31px" })[0].outerHTML;
+                    memberSearchEditor = ej.buildTag("div.e-memberSearchEditorDiv", ej.buildTag("input#searchEditorTreeView.searchEditorTreeView").attr("type", "text")[0].outerHTML + (!ej.isNullOrUndefined(editorTreeInfo) && args_innerHTML != this._getLocalizedLabels("Measures") && this.model.enableMemberEditorPaging && $.parseJSON(editorTreeInfo).length >= this.model.memberEditorPageSize ? ej.buildTag("span.e-icon e-searchEditorTree", {})[0].outerHTML : ""), { "padding": (this.model.enableAdvancedFilter ? "5px 0px 0px 0px" : 0) })[0].outerHTML;
+                }
+                if (args_innerHTML == this._getLocalizedLabels("Measures")) {
+                    this._isMembersFiltered = false;
+                    memberEditor = this._createMeasureEditor(editorTree);
+                }
+                else
+                    memberEditor = ej.buildTag("div#editorTreeView.e-editorTreeView")[0].outerHTML;
+                var memberEditorDiv = ej.buildTag("div.e-memberEditorDiv", (this._selectedFieldName != "" || args_innerHTML == this._getLocalizedLabels("KPIs") ? checkOption : "") + memberEditor)[0].outerHTML;
+                var labelFilterTag = "", levelList = "";
+
+                if (this._selectedFieldName != "" && !isSlicerAxis && this.model.enableAdvancedFilter) {
+                    levelList = ej.buildTag("div.e-ddlGroupWrap", this._getLocalizedLabels("SelectField") + ":" + ej.buildTag("input#GroupLabelDrop.groupLabelDrop").attr("type", "text")[0].outerHTML, {})[0].outerHTML;
+                    labelFilterTag = ej.buildTag("div.e-filterElementTag")[0].outerHTML;
+                    var filterTag = ej.Pivot.createAdvanceFilterTag({ action: "filterTag" }, this)
+                    levelInfo = $.map(this.element.find(".e-treeview li[data-tag='" + this._selectedFieldName + "'] li"), function (item, index) { return { text: $(item).text(), value: $(item).attr("data-tag") }; });
+                }
+                else
+                    delete this._selectedLevelUniqueName;
+                var innerDiv = ej.buildTag("div", (labelFilterTag != "" && !isSlicerAxis && this.model.enableAdvancedFilter ? (levelList + ej.buildTag("div.e-seperator", {}, { "padding": "2px" }, cancelBtn)[0].outerHTML + labelFilterTag + ej.buildTag("div.e-seperator", {}, { "padding": "2px" })[0].outerHTML) : "") + memberSearchEditor + memberEditorDiv)[0].outerHTML;
+                var EditorDiv = ej.buildTag("div#EditorDiv.e-editorDiv", innerDiv, { "margin-left": this.model.enableAdvancedFilter ? "5px" : "0px" })[0].outerHTML;
+                dialogContent += EditorDiv;
+                editorNavPanel = ej.buildTag("div.e-memberPager", ej.buildTag("div#NextpageDiv.e-nextPageDiv", ej.buildTag("div.e-icon e-media-backward_01 e-firstPage", {})[0].outerHTML + ej.buildTag("div.e-icon e-arrowhead-left e-prevPage", {})[0].outerHTML + ej.buildTag("input.e-memberCurrentPage#memberCurrentPage", {}, { "width": "20px", "height": "10px" })[0].outerHTML + ej.buildTag("span.e-memberPageCount#memberPageCount")[0].outerHTML + ej.buildTag("div.e-icon e-arrowhead-right e-nextPage", {})[0].outerHTML + ej.buildTag("div.e-icon e-media-forward_01 e-lastPage", {})[0].outerHTML)[0].outerHTML, {})[0].outerHTML;
+                editorSearchNavPanel = ej.buildTag("div.e-memberSearchPager", ej.buildTag("div#NextSearchpageDiv.e-nextPageDiv", ej.buildTag("div.e-icon e-media-backward_01 e-firstPage", {})[0].outerHTML + ej.buildTag("div.e-icon e-arrowhead-left e-prevPage", {})[0].outerHTML + ej.buildTag("input.e-memberCurrentSearchPage#memberCurrentSearchPage", {}, { "width": "20px", "height": "10px" })[0].outerHTML + ej.buildTag("span.e-memberSearchPageCount#memberSearchPageCount")[0].outerHTML + ej.buildTag("div.e-icon e-arrowhead-right e-nextPage", {})[0].outerHTML + ej.buildTag("div.e-icon e-media-forward_01 e-lastPage", {})[0].outerHTML)[0].outerHTML, {}).css("display", "none")[0].outerHTML;
+                editorDrillNavPanel = ej.buildTag("div.e-memberDrillPager", ej.buildTag("div#NextDrillpageDiv.e-nextPageDiv", ej.buildTag("div.e-icon e-media-backward_01 e-firstPage", {})[0].outerHTML + ej.buildTag("div.e-icon e-arrowhead-left e-prevPage", {})[0].outerHTML + ej.buildTag("input.e-memberCurrentDrillPage#memberCurrentDrillPage", {}, { "width": "20px", "height": "10px" })[0].outerHTML + ej.buildTag("span.e-memberDrillPageCount#memberDrillPageCount")[0].outerHTML + ej.buildTag("div.e-icon e-arrowhead-right e-nextPage", {})[0].outerHTML + ej.buildTag("div.e-icon e-media-forward_01 e-lastPage", {})[0].outerHTML)[0].outerHTML, {}).css("display", "none")[0].outerHTML;
+                editorLinkPanel = ej.buildTag("div.e-linkOuterPanel", ej.buildTag("span.e-infoImg e-icon", "", {}).css({ "float": "left", "margin-top": "4px", "font-size": "16px" })[0].outerHTML + ej.buildTag("a.e-linkPanel", this._getLocalizedLabels('NotAllItemsShowing')).css({ "display": "inline-block", "margin-left": "3px", "margin-top": "4px" })[0].outerHTML, {}).css({ "display": "none", "margin-left": "3px", "margin-left": isAdvancedFilter ? "6px" : "0px" })[0].outerHTML;
+            }
+            var dialogFooter;
+            if (args_className.split(" ")[0] == "mdx") {
+                var cancelBtn = "<button id=CancelBtn class='e-dialogCancelBtn' title=" + this._getLocalizedLabels("OK").replace(/(<([^>]+)>)/ig, "") + " >" + this._getLocalizedLabels("OK") + "</button>";
+                dialogFooter = ej.buildTag("div.e-dialogFooter", cancelBtn)[0].outerHTML;
+                $(ejDialog).appendTo("#" + this._id);
+                $(dialogContent + dialogFooter).appendTo(this.element.find(".e-clientDialog"));
+                this.element.find(".e-clientDialog").ejDialog({ enableRTL: this.model.enableRTL, width: 500, target: "#" + this._id, enableResize: false, close: ej.proxy(ej.Pivot.closePreventPanel, this) });
+            }
+            else {
+                var okBtn = "<button id=OKBtn class='e-dialogOKBtn' title=" + (args_className.split(" ")[0] == "RemoveDBReport" ? this._getLocalizedLabels("Remove") : this._getLocalizedLabels("OK").replace(/(<([^>]+)>)/ig, "")) + ">" + (args_className.split(" ")[0] == "RemoveDBReport" ? this._getLocalizedLabels("Remove") : this._getLocalizedLabels("OK")) + "</button>";
+                var cancelBtn = "<button id=CancelBtn class='e-dialogCancelBtn' title=" + this._getLocalizedLabels("Cancel").replace(/(<([^>]+)>)/ig, "") + ">" + this._getLocalizedLabels("Cancel") + "</button>";
+                dialogFooter = ej.buildTag("div.e-dialogFooter", okBtn + ((args_className.split(" ")[0] == "e-removeReportImg" && this.reportsCount == 1) ? "" : cancelBtn))[0].outerHTML;
+                $(ejDialog).appendTo("#" + this._id);
+                $(dialogContent + (!ej.isNullOrUndefined(editorTreeInfo) && args_innerHTML != this._getLocalizedLabels("Measures") && this.model.enableMemberEditorPaging ? ($.parseJSON(editorTreeInfo).length >= this.model.memberEditorPageSize ? editorDrillNavPanel + editorSearchNavPanel + editorNavPanel : editorDrillNavPanel + editorSearchNavPanel) : editorLinkPanel) + dialogFooter).appendTo(this.element.find(".e-clientDialog"));
+                if (args_className.split(" ")[0] == "e-SortFilterDlg")
+                    this.element.find(".e-clientDialog").ejDialog({ enableRTL: this.model.enableRTL, width: 'auto', target: "#" + this._id, cssClass: "e-SortFilterDlg", enableResize: false, close: ej.proxy(ej.Pivot.closePreventPanel, this) });
+                else
+                    this.element.find(".e-clientDialog").ejDialog({ enableRTL: this.model.enableRTL, width: 'auto', target: "#" + this._id, enableResize: false, close: ej.proxy(ej.Pivot.closePreventPanel, this) });
+                if (args_className.split(" ")[0] == "e-removeReportImg") {
+                    this.element.find(".e-clientDialog").css("min-height", "60px");
+                    this.element.find("#" + this._id + "_ClientDialog_wrapper").css("min-height", "100px");
+                }
+            }
+
+            this.element.find(".e-dialog:not(.e-calcMemberDialog, .e-calcMemberDialog .e-dialog) .e-titlebar").prepend(ej.buildTag("div", dialogTitle, { "display": "inline" })[0].outerHTML)[0].setAttribute("data-tag", currentTag);
+            this.element.find(".reportName, .renameReport").ejMaskEdit({ width: "149px", textAlign: this.model.enableRTL ? "right" : "left" });
+            this.element.find(".e-reportDlg .e-mask").css("padding-left", "6px");
+            this.element.find(".e-memberSearchEditorDiv .e-mask").addClass("e-dialogInput");
+            this.element.find(".e-prevPage, .e-firstPage").addClass("e-pageDisabled");
+            this.element.find(".e-nextPage, .e-lastPage").addClass("e-pageEnabled");
+            this.element.find(".e-dialogOKBtn, .e-dialogCancelBtn").ejButton({ type: ej.ButtonType.Button });
+            $(".sortfilterTab").ejTab({ enableRTL: this.model.enableRTL });
+            $(".reportNameList").ejDropDownList({
+                dataSource: args_innerHTML.split("__"),
+                enableRTL: this.model.enableRTL,
+                width: "150px",
+                height: "20px",
+                create: function () { $(this.wrapper.find('.e-input')).focus(function () { $(this).blur(); }) }
+            });
+            if (args_className.indexOf("e-txt") > -1) {
+                this.element.find("#searchEditorTreeView").ejMaskEdit({
+                    name: "inputbox",
+                    width: "100%",
+                    inputMode: ej.InputMode.Text,
+                    watermarkText: this._getLocalizedLabels("Search") + " " + this._hierarchyCaption,
+                    maskFormat: "",
+                    textAlign: this.model.enableRTL ? "right" : "left",
+                    change: ej.proxy(function (args) { ej.Pivot._searchEditorTreeNodes(args, this); }, this)
                 });
-                if (args_className.indexOf("e-txt") > -1) {
-                    this.element.find("#searchEditorTreeView").ejMaskEdit({
-                        name: "inputbox",
-                        width: "100%",
-                        inputMode: ej.InputMode.Text,
-                        watermarkText: this._getLocalizedLabels("Search") + " " + this._hierarchyCaption,
-                        maskFormat: "",
-                        textAlign: this.model.enableRTL ? "right" : "left",
-                        change: ej.proxy(function (args) { ej.Pivot._searchEditorTreeNodes(args, this); }, this)
+            }
+            this.element.find(".e-filterElementTag").ejMenu({
+                fields: { dataSource: filterTag, id: "id", parentId: "parentId", text: "text", spriteCssClass: "spriteCssClass" },
+                menuType: ej.MenuType.NormalMenu,
+                width: "100%",
+                height: "25px",
+                enableRTL: this.model.enableRTL,
+                orientation: ej.Orientation.Vertical,
+                click: ej.proxy(this._filterElementClick, this)
+            });
+            this.element.find(".groupLabelDrop").ejDropDownList({
+                width: "100%",
+                height: "25px",
+                enableRTL: this.model.enableRTL,
+                dataSource: levelInfo,
+                fields: { id: "id", text: "text", value: "value" },
+                selectedIndices: [0],
+                change: ej.proxy(this._groupLabelChange, this),
+                create: function () { $(this.wrapper.find('.e-input')).focus(function () { $(this).blur(); }) }
+            });
+            $(".filterFrom,.filterTo").ejMaskEdit({ width: "80px", height: "20px", textAlign: this.model.enableRTL ? "right" : "left" });
+            $(".e-measuresList").ejDropDownList({
+                dataSource: args_innerHTML.split("||")[0].split("__"),
+                enableRTL: this.model.enableRTL,
+                width: "80%",
+                height: "20px",
+                create: function () { $(this.wrapper.find('.e-input')).focus(function () { $(this).blur(); }) }
+            });
+            $(".fMeasuresList").ejDropDownList({
+                dataSource: args_innerHTML.split("||")[0].split("__"),
+                width: "80%",
+                enableRTL: this.model.enableRTL,
+                height: "20px",
+                create: function () { $(this.wrapper.find('.e-input')).focus(function () { $(this).blur(); }) }
+            });
+            $(".e-filterCondition").ejDropDownList({
+                change: "_onActiveConditionChange",
+                enableRTL: this.model.enableRTL,
+                dataSource: [{ option: "EqualTo", value: this._getLocalizedLabels("EqualTo") },
+                             { option: "NotEquals", value: this._getLocalizedLabels("NotEquals") },
+                             { option: "GreaterThan", value: this._getLocalizedLabels("GreaterThan") },
+                             { option: "GreaterThanOrEqualTo", value: this._getLocalizedLabels("GreaterThanOrEqualTo") },
+                             { option: "LessThan", value: this._getLocalizedLabels("LessThan") },
+                             { option: "LessThanOrEqualTo", value: this._getLocalizedLabels("LessThanOrEqualTo") },
+                             { option: "Between", value: this._getLocalizedLabels("Between") },
+                             { option: "NotBetween", value: this._getLocalizedLabels("NotBetween") },
+                ],
+                fields: { text: "value", value: "option" },
+                width: "80%",
+                height: "20px",
+                create: function () { $(this.wrapper.find('.e-input')).focus(function () { $(this).blur(); }) }
+            });
+            this.element.find(".e-filterCondition").ejDropDownList("option", "change", ej.proxy(this._onActiveConditionChange, this));
+            this._dllSortMeasure = $(".e-measuresList").data("ejDropDownList");
+            this._dllFilterCondition = $(".e-filterCondition").data("ejDropDownList");
+            this._dllfMeasuresList = $(".fMeasuresList").data("ejDropDownList");
+            if (sortState != "") {
+                this.element.find(".e-radioBtnAsc")[0].checked = sortState[0] == "ASC" ? true : false;
+                this.element.find(".e-radioBtnDesc")[0].checked = sortState[0] == "DESC" ? true : false;
+                this.element.find(".e-sortDisable")[0].checked = !(this.element.find(".e-sortEnable")[0].checked = true);
+                this.element.find(".e-preserveHrchy")[0].checked = sortState[1] == "PH" ? true : false;
+                this._isSorted = true;
+                this._dllSortMeasure.setModel({ value: (sortState[2]) });
+            }
+            if (filterState != "") {
+                this.element.find(".e-filterEnable")[0].checked = true;
+                this._dllfMeasuresList.setModel({ value: (filterState[0]) });
+                this._dllFilterCondition.setModel({ value: (filterState[1]) });
+                this.element.find(".filterFrom").val(filterState[2]);
+                if (filterState[3] != undefined && filterState[3] != "" && (filterState[1] == "Between" || filterState[1] == "NotBetween"))
+                    this.element.find(".filterTo").val(filterState[3]);
+                else
+                    $(".filterTo").attr("disabled", "disabled");
+                this._isFiltered = true;
+            }
+            if (this.element.find(".e-sortDisable")[0] != undefined && this.element.find(".e-sortDisable")[0].checked == true) {
+                $('.measuresList_wrapper,.e-radioBtnAsc, .e-radioBtnDesc, .e-preserveHrchy').attr("disabled", "disabled");
+                $('.e-measureListLbl, .e-orderLbl, .e-radioBtnAscLbl, .e-radioBtnDescLbl, .e-preserveHrchyLbl').addClass('e-sortFilterDisable');
+                this._dllSortMeasure.disable();
+            }
+            if (this.element.find(".e-filterDisable")[0] != undefined && this.element.find(".e-filterDisable")[0].checked == true) {
+                $('.filterFrom, .filterTo').attr("disabled", "disabled");
+                $('.filterMeasureListLbl, .e-conditionLbl, .e-filterValueLbl, .e-filterBtw').addClass('e-sortFilterDisable');
+                this._dllFilterCondition.disable();
+                this._dllfMeasuresList.disable();
+            }
+            this.element.find(".e-widget-content").height("auto");
+            var isAdvancedFilter = false;
+            if (this._excelFilterInfo.length > 0) {
+                var cubeName = this.element.find('.cubeSelector').length > 0 ? this.element.find('.cubeSelector').data("ejDropDownList").model.value : "", reportName = this.element.find('#reportList').data("ejDropDownList").model.value, levelName = this._selectedLevelUniqueName, hierarchyName = this._selectedFieldName;
+
+                if (this.model.analysisMode == ej.Pivot.AnalysisMode.Olap) {
+                    $.map(this._excelFilterInfo, function (item, index) {
+                        if (item.cubeName == cubeName && item.report == reportName && (item.hierarchyUniqueName == hierarchyName || item.levelUniqueName == levelName))
+                            isAdvancedFilter = true;
                     });
                 }
-                this.element.find(".e-filterElementTag").ejMenu({
-                    fields: { dataSource: filterTag, id: "id", parentId: "parentId", text: "text", spriteCssClass: "spriteCssClass" },
-                    menuType: ej.MenuType.NormalMenu,
-                    width: "100%",
-                    height:"25px",
-                    enableRTL: this.model.enableRTL,
-                    orientation: ej.Orientation.Vertical,
-                    click: ej.proxy(this._filterElementClick, this)
-                });
-                this.element.find(".groupLabelDrop").ejDropDownList({
-                    width: "100%",
-                    height:"25px",
-                    enableRTL: this.model.enableRTL,
-                    dataSource: levelInfo,
-                    fields: { id: "id", text: "text", value: "value" },
-                    selectedIndices: [0],
-                    change: ej.proxy(this._groupLabelChange, this),
-                    create: function () { $(this.wrapper.find('.e-input')).focus(function () { $(this).blur(); }) }
-                });
-                $(".filterFrom,.filterTo").ejMaskEdit({ width: "80px", height: "20px", textAlign: this.model.enableRTL ? "right" : "left" });
-                $(".e-measuresList").ejDropDownList({
-                    dataSource: args_innerHTML.split("||")[0].split("__"),
-                    enableRTL: this.model.enableRTL,
-                    width: "80%",
-                    height: "20px",
-                    create: function () { $(this.wrapper.find('.e-input')).focus(function () { $(this).blur(); }) }
-                });
-                $(".fMeasuresList").ejDropDownList({
-                    dataSource: args_innerHTML.split("||")[0].split("__"),
-                    width: "80%",
-                    enableRTL: this.model.enableRTL,
-                    height: "20px",
-                    create: function () { $(this.wrapper.find('.e-input')).focus(function () { $(this).blur(); }) }
-                });
-                $(".e-filterCondition").ejDropDownList({
-                    change: "_onActiveConditionChange",
-                    enableRTL: this.model.enableRTL,
-                    dataSource: [{ option: "EqualTo", value: this._getLocalizedLabels("EqualTo") },
-                                 { option: "NotEquals", value: this._getLocalizedLabels("NotEquals") },
-                                 { option: "GreaterThan", value: this._getLocalizedLabels("GreaterThan") },
-                                 { option: "GreaterThanOrEqualTo", value: this._getLocalizedLabels("GreaterThanOrEqualTo") },
-                                 { option: "LessThan", value: this._getLocalizedLabels("LessThan") },
-                                 { option: "LessThanOrEqualTo", value: this._getLocalizedLabels("LessThanOrEqualTo") },
-                                 { option: "Between", value: this._getLocalizedLabels("Between") },
-                                 { option: "NotBetween", value: this._getLocalizedLabels("NotBetween") },
-                    ],
-                    fields: { text: "value", value: "option" },
-                    width: "80%",
-                    height: "20px",
-                    create: function () { $(this.wrapper.find('.e-input')).focus(function () { $(this).blur(); }) }
-                });
-                this.element.find(".e-filterCondition").ejDropDownList("option", "change", ej.proxy(this._onActiveConditionChange, this));
-                this._dllSortMeasure = $(".e-measuresList").data("ejDropDownList");
-                this._dllFilterCondition = $(".e-filterCondition").data("ejDropDownList");
-                this._dllfMeasuresList = $(".fMeasuresList").data("ejDropDownList");
-                if (sortState != "") {
-                    this.element.find(".e-radioBtnAsc")[0].checked = sortState[0] == "ASC" ? true : false;
-                    this.element.find(".e-radioBtnDesc")[0].checked = sortState[0] == "DESC" ? true : false;
-                    this.element.find(".e-sortDisable")[0].checked = !(this.element.find(".e-sortEnable")[0].checked = true);
-                    this.element.find(".e-preserveHrchy")[0].checked = sortState[1] == "PH" ? true : false;
-                    this._isSorted = true;
-                    this._dllSortMeasure.setModel({ value: (sortState[2]) });
+                else {
+                    $.map(this._excelFilterInfo, function (item, index) {
+                        if (item.report == reportName && (item.hierarchyUniqueName == hierarchyName || item.levelUniqueName == levelName))
+                            isAdvancedFilter = true;
+                    });
                 }
-                if (filterState != "") {
-                    this.element.find(".e-filterEnable")[0].checked = true;
-                    this._dllfMeasuresList.setModel({ value: (filterState[0]) });
-                    this._dllFilterCondition.setModel({ value: (filterState[1]) });
-                    this.element.find(".filterFrom").val(filterState[2]);
-                    if (filterState[3] != undefined && filterState[3] != "" && (filterState[1] == "Between" || filterState[1] == "NotBetween"))
-                        this.element.find(".filterTo").val(filterState[3]);
-                    else
-                        $(".filterTo").attr("disabled", "disabled");
-                    this._isFiltered = true;
-                }
-                if (this.element.find(".e-sortDisable")[0] != undefined && this.element.find(".e-sortDisable")[0].checked == true) {
-                    $('.measuresList_wrapper,.e-radioBtnAsc, .e-radioBtnDesc, .e-preserveHrchy').attr("disabled", "disabled");
-                    $('.e-measureListLbl, .e-orderLbl, .e-radioBtnAscLbl, .e-radioBtnDescLbl, .e-preserveHrchyLbl').addClass('e-sortFilterDisable');
-                    this._dllSortMeasure.disable();
-                }
-                if (this.element.find(".e-filterDisable")[0] != undefined && this.element.find(".e-filterDisable")[0].checked == true) {
-                    $('.filterFrom, .filterTo').attr("disabled", "disabled");
-                    $('.filterMeasureListLbl, .e-conditionLbl, .e-filterValueLbl, .e-filterBtw').addClass('e-sortFilterDisable');
-                    this._dllFilterCondition.disable();
-                    this._dllfMeasuresList.disable();
-                }
-                this.element.find(".e-widget-content").height("auto");
-                var isAdvancedFilter = false;                
-                if (this._excelFilterInfo.length > 0) {
-                    var cubeName = this.element.find('.cubeSelector').length>0?  this.element.find('.cubeSelector').data("ejDropDownList").model.value:"", reportName = this.element.find('#reportList').data("ejDropDownList").model.value, levelName = this._selectedLevelUniqueName, hierarchyName = this._selectedFieldName;
-
-                    if (this.model.analysisMode == ej.Pivot.AnalysisMode.Olap) {
-                        $.map(this._excelFilterInfo, function (item, index) {
-                            if (item.cubeName == cubeName && item.report == reportName && (item.hierarchyUniqueName == hierarchyName || item.levelUniqueName == levelName))
-                                isAdvancedFilter = true;
-                        });
-                    }
-                    else {
-                        $.map(this._excelFilterInfo, function (item, index) {
-                            if (item.report == reportName && (item.hierarchyUniqueName == hierarchyName || item.levelUniqueName == levelName))
-                                isAdvancedFilter = true;
-                        });
-                    }
-                }
-                if ( editorTree != "" && editorTree != undefined && args_innerHTML != this._getLocalizedLabels("Measures")) {
-                    var treeViewData = null;
-                    if (!isAdvancedFilter &&this._currentReportItems.length != 0) {
-                        for (var i = 0; i < this._currentReportItems.length; i++) {
-                            if (this._currentReportItems[i] == this._currentItem) {
-                                treeViewData = JSON.parse(JSON.stringify(this._treeViewData[this._currentItem]));
-                                break;
-                            }
+            }
+            if (editorTree != "" && editorTree != undefined && args_innerHTML != this._getLocalizedLabels("Measures")) {
+                var treeViewData = null;
+                if (!isAdvancedFilter && this._currentReportItems.length != 0) {
+                    for (var i = 0; i < this._currentReportItems.length; i++) {
+                        if (this._currentReportItems[i] == this._currentItem) {
+                            treeViewData = JSON.parse(JSON.stringify(this._treeViewData[this._currentItem]));
+                            break;
                         }
                     }
-                    if (treeViewData == null || !isAdvancedFilter)
-                        treeViewData = $.parseJSON(editorTreeInfo);
-                    this._editorTreeData = $.parseJSON(editorTreeInfo);
-                    if (this.model.enableMemberEditorPaging && args_innerHTML != this._getLocalizedLabels("Measures") && this.element.find(".e-nextPageDiv").length > 0) {
-                        var memberCount = this._editorTreeData.length;
-                        var pageCount = (memberCount / this.model.memberEditorPageSize);
-                        if (pageCount != Math.round(pageCount))
-                            pageCount = parseInt(pageCount) + 1;
-                        if (this._memberPageSettings.currentMemeberPage == pageCount)
-                            this.element.find(".e-nextPage, .e-lastPage").addClass("disabled");
-                        this.element.find(".e-memberPageCount").html("/ " + pageCount);
-                        this.element.find(".e-memberCurrentPage").val(this._memberPageSettings.currentMemeberPage);
-                        this._memberPageSettings.currentMemeberPage > 1 ? this.element.find(".e-prevPage, .e-firstPage").removeClass("e-pageDisabled").addClass("e-pageEnabled") : this.element.find(".e-prevPage, .e-firstPage").removeClass("e-pageEnabled").addClass("e-pageDisabled");
-                        this._memberPageSettings.currentMemeberPage == parseInt($.trim(this.element.find(".e-memberPageCount").text().split("/")[1])) ? this.element.find(".e-nextPage, .e-lastPage").removeClass("e-pageEnabled").addClass("e-pageDisabled") : this.element.find(".e-nextPage, .e-lastPage").removeClass("e-pageDisabled").addClass("e-pageEnabled");
-                    }
-                    this._appendTreeViewData(this.model.enableMemberEditorPaging && this.element.find(".e-nextPageDiv").length > 0 ? ej.DataManager(this._editorTreeData).executeLocal(ej.Query().where("pid", "equal", null || undefined).page(this._memberPageSettings.currentMemeberPage, this.model.memberEditorPageSize)) : treeViewData, isSlicerAxis);
-					if (!this.model.enableAdvancedFilter) 
-					    this.element.find(".e-memberEditorDiv").css({ "height": "286px" });
-					if (this.model.enableAdvancedFilter) {
-					    this.element.find("#clientDialog_wrapper").addClass("e-advancedFilterDlg");
-					    if (this.model.analysisMode == ej.Pivot.AnalysisMode.Olap && this.model.operationalMode == ej.Pivot.OperationalMode.ServerMode)
-					        this.element.find("#clientDialog_wrapper").addClass("e-advanceFltrElement");
-					}
                 }
-                this.element.find("#" + this._id + "_ClientDialog_closebutton").attr("title", this._getLocalizedLabels("Close"))
-                this._unWireEvents();
-                this._wireEvents();
-                this._isTimeOut = false;
-                this._waitingPopup.hide();
-            
+                if (treeViewData == null || !isAdvancedFilter)
+                    treeViewData = $.parseJSON(editorTreeInfo);
+                this._editorTreeData = $.parseJSON(editorTreeInfo);
+                if (this.model.enableMemberEditorPaging && args_innerHTML != this._getLocalizedLabels("Measures") && this.element.find(".e-nextPageDiv").length > 0) {
+                    var memberCount = this._editorTreeData.length;
+                    var pageCount = (memberCount / this.model.memberEditorPageSize);
+                    if (pageCount != Math.round(pageCount))
+                        pageCount = parseInt(pageCount) + 1;
+                    if (this._memberPageSettings.currentMemeberPage == pageCount)
+                        this.element.find(".e-nextPage, .e-lastPage").addClass("disabled");
+                    this.element.find(".e-memberPageCount").html("/ " + pageCount);
+                    this.element.find(".e-memberCurrentPage").val(this._memberPageSettings.currentMemeberPage);
+                    this._memberPageSettings.currentMemeberPage > 1 ? this.element.find(".e-prevPage, .e-firstPage").removeClass("e-pageDisabled").addClass("e-pageEnabled") : this.element.find(".e-prevPage, .e-firstPage").removeClass("e-pageEnabled").addClass("e-pageDisabled");
+                    this._memberPageSettings.currentMemeberPage == parseInt($.trim(this.element.find(".e-memberPageCount").text().split("/")[1])) ? this.element.find(".e-nextPage, .e-lastPage").removeClass("e-pageEnabled").addClass("e-pageDisabled") : this.element.find(".e-nextPage, .e-lastPage").removeClass("e-pageDisabled").addClass("e-pageEnabled");
+                }
+                this._appendTreeViewData(this.model.enableMemberEditorPaging && this.element.find(".e-nextPageDiv").length > 0 ? ej.DataManager(this._editorTreeData).executeLocal(ej.Query().where("pid", "equal", null || undefined).page(this._memberPageSettings.currentMemeberPage, this.model.memberEditorPageSize)) : treeViewData, isSlicerAxis);
+                if (!this.model.enableAdvancedFilter)
+                    this.element.find(".e-memberEditorDiv").css({ "height": "286px" });
+                if (this.model.enableAdvancedFilter) {
+                    this.element.find("#clientDialog_wrapper").addClass("e-advancedFilterDlg");
+                    if (this.model.analysisMode == ej.Pivot.AnalysisMode.Olap && this.model.operationalMode == ej.Pivot.OperationalMode.ServerMode)
+                        this.element.find("#clientDialog_wrapper").addClass("e-advanceFltrElement");
+                }
+            }
+            if (this.model.enableMemberEditorSorting) {
+                this._sortType = "";
+                ej.Pivot._separateAllMember(this);
+            }
+            this.element.find("#" + this._id + "_ClientDialog_closebutton").attr("title", this._getLocalizedLabels("Close"))
+            this._unWireEvents();
+            this._wireEvents();
+            this._isTimeOut = false;
+            this._waitingPopup.hide();
+
         },
-        
+
         _appendTreeViewData: function (treeViewData, isSlicerAxis) {
             if (!this._isSearchApplied && this._editorSearchTreeData.length == 0 && treeViewData.length > 0)
                 this._lastSavedTree = treeViewData;
@@ -6439,6 +6661,7 @@
                 showCheckbox: true,
                 loadOnDemand: true,
                 enableRTL: this.model.enableRTL,
+                height: this.model.enableMemberEditorSorting ? "235px": "initial", 
                 nodeUncheck: function (e, args) {
                     if (!ej.isNullOrUndefined(e.event) && e.event != "") {
                         var pivotClientObj = $(this.element).parents(".e-pivotclient").data("ejPivotClient");
@@ -6597,7 +6820,9 @@
             var isTreeNodeHasChild = $.grep(treeViewData, function (item, index) { if (item.hasChildren == true) return item; }).length > 0;
             if (!isTreeNodeHasChild)
                 this.element.find(".e-memberEditorDiv").addClass("noChildNode");
-
+            if (this.model.enableMemberEditorSorting)
+                this.element.find(".e-editorTreeView").height(235);
+            else
             this.element.find(".e-editorTreeView").height(256);
             if (this.element.find(".e-editorPara").text() != this._getLocalizedLabels("KPIs") && !isSlicerAxis && this.model.enableAdvancedFilter && !ej.isNullOrUndefined(this._memberTreeObj) && this.element.find(".groupLabelDrop").length > 0) {
                 if (!ej.isNullOrUndefined(this.element.find(".e-treeview li[data-tag='" + this._selectedLevelUniqueName + "']").attr("labelFiltering")))
@@ -6605,6 +6830,9 @@
                 this.element.find(".e-dialog:not(.e-calcMemberDialog, .e-calcMemberDialog .e-dialog) .e-titlebar").hide();
                 this._groupLabelChange({ selectedValue: (this.element.find(".groupLabelDrop").data("ejDropDownList").model.value || this.element.find(".groupLabelDrop").data("ejDropDownList").model.dataSource[0].value) });
                 this.element.find(".e-memberEditorDiv").height(286);
+                if (this.model.enableMemberEditorSorting)
+                    this.element.find(".e-editorTreeView").height(235);
+                else
                 this.element.find(".e-editorTreeView").height(256);
             }
             else
@@ -6629,9 +6857,9 @@
         _onNodeExpand: function (args) {
             var selectedItem = args.targetElement; var tagInfo;
             if (!this.model.enableMemberEditorPaging) this._isSearchApplied = false;
-			var onLoad = ej.buildTag("span.nodeExpand e-load e-icon")[0].outerHTML;
-			var childCount = $(selectedItem).parents("li").first().children().find("li").length;
-			jQuery.each(this._editorTreeData, function (index, value) { if (value.id == args.id) { value.expanded = true; value.isChildMerged = true; return false; } });
+            var onLoad = ej.buildTag("span.nodeExpand e-load e-icon")[0].outerHTML;
+            var childCount = $(selectedItem).parents("li").first().children().find("li").length;
+            jQuery.each(this._editorTreeData, function (index, value) { if (value.id == args.id) { value.expanded = true; value.isChildMerged = true; return false; } });
             for (var i = 0; i < this._memberTreeObj.dataSource().length; i++) {
                 if (this._memberTreeObj.dataSource()[i].parentId == args.id || this._memberTreeObj.dataSource()[i].pid == args.id) {
                     args.isChildLoaded = true;
@@ -6686,7 +6914,7 @@
                 this._parentHeight = $("#" + this._id).parent().height();
                 this.element.height(this._parentHeight);
                 this._calculateHeight();
-   				if (this.model.isResponsive && this._parentHeight != $("#" + this._id).parent().height()) {
+                if (this.model.isResponsive && this._parentHeight != $("#" + this._id).parent().height()) {
                     var heightDiff = $("#" + this._id).parent().height() - this._parentHeight;
                     this.element.height(this._parentHeight - heightDiff);
                     this._calculateHeight();
@@ -6701,7 +6929,7 @@
                     if (this.model.analysisMode == ej.Pivot.AnalysisMode.Olap && this.model.operationalMode == ej.Pivot.OperationalMode.ServerMode)
                         this.element.find(".e-serversplitresponsive").data("ejSplitter").refresh();
                     else
-                    this.element.find(".e-splitresponsive").data("ejSplitter").refresh();
+                        this.element.find(".e-splitresponsive").data("ejSplitter").refresh();
                 }
                 this._overflow();
                 if (this.displayMode() != ej.PivotClient.DisplayMode.GridOnly) {
@@ -6720,13 +6948,13 @@
                             this.chartObj.redraw();
                         }
                     }
-                  
+
                 }
                 if (this._isCollapseCB)
                     this._collapseCubeBrowser();
                 if (this.displayMode() != ej.PivotClient.DisplayMode.ChartOnly) {
-					if(this._pivotGrid.element.length > 0)
-                    this._pivotGrid._applyFrozenHeaderWidth(this._pivotGrid._JSONRecords);
+                    if (this._pivotGrid.element.length > 0)
+                        this._pivotGrid._applyFrozenHeaderWidth(this._pivotGrid._JSONRecords);
                 }
             }
         },
@@ -6768,9 +6996,9 @@
             }
             else {
                 //if (this.currentReport != undefined)
-                   // currentReport = this.currentReport;
+                // currentReport = this.currentReport;
                 //if (this.reports != undefined)
-                  //  reports = this.reports;
+                //  reports = this.reports;
                 if (this._pivotChart._startDrilldown && this._pivotGrid != null && this._pivotGrid != undefined)
                     this._renderPivotGrid(this._pivotChart._selectedTagInfo);
                 else if (this._pivotGrid != undefined && this._pivotGrid.element.find("table") == "block") {
@@ -6781,10 +7009,10 @@
         },
 
         _treemapDrillSuccess: function (sender) {
-           // if (this.currentReport != undefined)
-              //  currentReport = this.currentReport;
+            // if (this.currentReport != undefined)
+            //  currentReport = this.currentReport;
             //if (this.reports != undefined)
-                //reports = this.reports;
+            //reports = this.reports;
             if (this.otreemapObj._startDrilldown && this._pivotGrid != null && this._pivotGrid != undefined)
                 this._renderPivotGrid(this.otreemapObj._selectedTagInfo);
             else if (this._pivotGrid != undefined && this._pivotGrid.element.find("table") == "block") {
@@ -6808,36 +7036,36 @@
                     this._isChartDrillAction = false;
                     if (sender.axis == "rowheader" && this.displayMode() != ej.PivotClient.DisplayMode.GridOnly) {
                         //if (this._pivotChart._drillAction == "") {
-                            if (sender.drillAction == "drilldown")
-                                this._drillParams.push(sender.drilledMember);
-                            else
-                                this._drillParams = $.grep(this._drillParams, function (item) { return item.indexOf(sender.drilledMember) < 0; });
-                            var drillInfo = sender.drilledMember.split(">#>");
-                            this._pivotChart._labelCurrentTags.expandedMembers = drillInfo;
-                            if (sender.drillAction == "drillup") {
-                                this._pivotChart._labelCurrentTags.expandedMembers = [];
-                                if (this._drillParams.length > 0)
-                                    this._getDrilledMember(sender.drillAction);
-                                drillInfo = this._pivotChart._labelCurrentTags.expandedMembers;
-                            }
-                            drillInfo = this._pivotChart.model.enableMultiLevelLabels ? (sender.drillAction == "drillup" ? sender.drilledMember.split(">#>").slice(0, -1) : sender.drilledMember.split(">#>")) : drillInfo;
-                            this._pivotChart._drillAction = sender.drillAction;
-                            this._pivotChart._drillParams = this._drillParams;
-                            var report;
-                            try {
-                                report = JSON.parse(this.currentReport).Report;
-                            }
-                            catch (err) {
-                                report = this.currentReport;
-                            }
-                            if (this._pivotChart.model.enableMultiLevelLabels) {
-                                this._pivotChart._generateData({ JsonRecords: this.getJSONRecords(), PivotReport: this.getOlapReport() });
-                            }
-                            else {
-                                var serializedCustomObject = JSON.stringify(this.model.customObject);
-                                var params = { action: sender.drillAction, currentReport: report, drilledSeries: JSON.stringify(drillInfo) + "-##-" + JSON.stringify(this.model.valueSortSettings), clientReports: this.reports, "customObject": serializedCustomObject };
-                                this._pivotChart.doAjaxPost("POST", this.model.url + "/" + this._pivotChart.model.serviceMethodSettings.drillDown, JSON.stringify(params), this._pivotChart.renderControlSuccess);
-                            }
+                        if (sender.drillAction == "drilldown")
+                            this._drillParams.push(sender.drilledMember);
+                        else
+                            this._drillParams = $.grep(this._drillParams, function (item) { return item.indexOf(sender.drilledMember) < 0; });
+                        var drillInfo = sender.drilledMember.split(">#>");
+                        this._pivotChart._labelCurrentTags.expandedMembers = drillInfo;
+                        if (sender.drillAction == "drillup") {
+                            this._pivotChart._labelCurrentTags.expandedMembers = [];
+                            if (this._drillParams.length > 0)
+                                this._getDrilledMember(sender.drillAction);
+                            drillInfo = this._pivotChart._labelCurrentTags.expandedMembers;
+                        }
+                        drillInfo = this._pivotChart.model.enableMultiLevelLabels ? (sender.drillAction == "drillup" ? sender.drilledMember.split(">#>").slice(0, -1) : sender.drilledMember.split(">#>")) : drillInfo;
+                        this._pivotChart._drillAction = sender.drillAction;
+                        this._pivotChart._drillParams = this._drillParams;
+                        var report;
+                        try {
+                            report = JSON.parse(this.currentReport).Report;
+                        }
+                        catch (err) {
+                            report = this.currentReport;
+                        }
+                        if (this._pivotChart.model.enableMultiLevelLabels) {
+                            this._pivotChart._generateData({ JsonRecords: this.getJSONRecords(), PivotReport: this.getOlapReport() });
+                        }
+                        else {
+                            var serializedCustomObject = JSON.stringify(this.model.customObject);
+                            var params = { action: sender.drillAction, currentReport: report, drilledSeries: JSON.stringify(drillInfo) + "-##-" + JSON.stringify(this.model.valueSortSettings), clientReports: this.reports, "customObject": serializedCustomObject };
+                            this._pivotChart.doAjaxPost("POST", this.model.url + "/" + this._pivotChart.model.serviceMethodSettings.drillDown, JSON.stringify(params), this._pivotChart.renderControlSuccess);
+                        }
                         //}
                     }
                     else
@@ -6845,16 +7073,16 @@
                     return;
                 }
             }
-           // if (this.currentReport != undefined)
-              //  currentReport = this.currentReport;
+            // if (this.currentReport != undefined)
+            //  currentReport = this.currentReport;
             //if (this.reports != undefined)
-                //reports = this.reports;
+            //reports = this.reports;
             if (this._pivotGrid._startDrilldown && !ej.isNullOrUndefined(this._pivotChart)) {
                 var masktag; var levelCaption; var levelTag;
                 levelCaption = this._pivotGrid._drillCaption;
                 if (this.displayMode() != ej.PivotClient.DisplayMode.GridOnly) {
                     this.chartObj = null;
-                    if (this.model.displaySettings.enableFullScreen && $("#" + this._id + "_maxView").length>0)
+                    if (this.model.displaySettings.enableFullScreen && $("#" + this._id + "_maxView").length > 0)
                         this.chartObj = $("#" + this._id + "_maxView").find("#" + this._pivotChart._id + "Container").data("ejChart");
                     else
                         this.chartObj = this.element.find("#" + this._pivotChart._id + "Container").data("ejChart");
@@ -6937,7 +7165,7 @@
             var dropTarget = ($(sender.dropTarget).hasClass("e-pvtBtn") && $(sender.dropTarget).parent("div.e-splitBtn").length > 0) ? $(sender.dropTarget).parent("div.e-splitBtn") : $(sender.dropTarget);
             var pivotClientObj = this;
             if (dropTarget.prevObject != undefined)
-               dropTarget.prevObject.removeClass("targetAxis");
+                dropTarget.prevObject.removeClass("targetAxis");
             else
                 $(dropTarget).removeClass("targetAxis");
             pivotClientObj.isDragging = false;
@@ -6969,7 +7197,7 @@
             var axisName = (cssName.indexOf("e-categoricalAxis") > cssName.indexOf("e-rowAxis")) ? ((cssName.indexOf("e-categoricalAxis") > cssName.indexOf("e-slicerAxis")) ? "Categorical" : "Slicer") : ((cssName.indexOf("e-rowAxis") > cssName.indexOf("e-slicerAxis")) ? "Series" : (cssName.indexOf("e-slicerAxis") >= 0) ? "Slicer" : null);
             var tagVal;
             if ($(sender.droppedElement).parents("[data-tag='KPI']").length > 0) {
-                if(($(sender.droppedElement).text() == "Value" || $(sender.droppedElement).text() == "Goal" || $(sender.droppedElement).text() == "Status" || $(sender.droppedElement).text() == "Trend"))
+                if (($(sender.droppedElement).text() == "Value" || $(sender.droppedElement).text() == "Goal" || $(sender.droppedElement).text() == "Status" || $(sender.droppedElement).text() == "Trend"))
                     tagVal = ($(sender.droppedElement).attr("data-tag") + ":" + $(sender.droppedElement).parent().closest("li").attr("data-tag") + ":" + this._getLocalizedLabels("KPIs"));
                 else
                     tagVal = ($(sender.droppedElement).attr("data-tag") + ":" + this._getLocalizedLabels("KPIs"));
@@ -7084,8 +7312,8 @@
             }
             if (this.currentCubeName == sender.text)
                 return false
-            else 
-                this.currentCubeName = sender.text;            
+            else
+                this.currentCubeName = sender.text;
             var currentReport = "", reports = "";
             $.map(this._repCol, function (value, index) {
                 if (value.CubeName == pivotClientObj.currentCubeName) {
@@ -7132,7 +7360,7 @@
             this._fieldSelectedMembers = {};
             var pivotClientObj = this;
             if (this.model.analysisMode == ej.Pivot.AnalysisMode.Olap && this.model.operationalMode == ej.Pivot.OperationalMode.ServerMode)
-               pivotClientObj._updateSlicerBtnText(pivotClientObj.currentCubeName);
+                pivotClientObj._updateSlicerBtnText(pivotClientObj.currentCubeName);
             this.reportDropTarget = this.element.find('#reportList').data("ejDropDownList");
             if (this.model.operationalMode == ej.Pivot.OperationalMode.ClientMode) {
                 var dataSourceInfo = $.map(this._clientReportCollection, function (obj, index) { if (obj.reportName == pivotClientObj.reportDropTarget.getValue()) return obj; });
@@ -7159,17 +7387,17 @@
                     var serializedCustomObject = JSON.stringify(this.model.customObject);
                     this.doAjaxPost("POST", this.model.url + "/" + this.model.serviceMethodSettings.toolbarServices, JSON.stringify({ "action": "Change Report", "args": JSON.stringify({ "currentReport": dataSourceInfo[0].report }), "customObject": serializedCustomObject }), this._toolbarOperationSuccess);
                 }
-            else if (sender.selectedText != this._selectedReport) {
-                pivotClientObj._isTimeOut = true;
-                setTimeout(function () {
-                    if (pivotClientObj._isTimeOut)
-                        pivotClientObj._waitingPopup.show();
-                }, 800);
-                if (this.model.beforeServiceInvoke != null)
-                    this._trigger("beforeServiceInvoke", { action: "toolbarOperation", element: this.element, customObject: this.model.customObject });
-                var serializedCustomObject = JSON.stringify(this.model.customObject);
-                this.doAjaxPost("POST", this.model.url + "/" + this.model.serviceMethodSettings.toolbarServices, JSON.stringify({ "action": "toolbarOperation", "toolbarOperation": "Report Change", "clientInfo": sender.text, "olapReport": null, "clientReports": this.reports, "customObject": serializedCustomObject }), this._toolbarOperationSuccess);
-            }
+                else if (sender.selectedText != this._selectedReport) {
+                    pivotClientObj._isTimeOut = true;
+                    setTimeout(function () {
+                        if (pivotClientObj._isTimeOut)
+                            pivotClientObj._waitingPopup.show();
+                    }, 800);
+                    if (this.model.beforeServiceInvoke != null)
+                        this._trigger("beforeServiceInvoke", { action: "toolbarOperation", element: this.element, customObject: this.model.customObject });
+                    var serializedCustomObject = JSON.stringify(this.model.customObject);
+                    this.doAjaxPost("POST", this.model.url + "/" + this.model.serviceMethodSettings.toolbarServices, JSON.stringify({ "action": "toolbarOperation", "toolbarOperation": "Report Change", "clientInfo": sender.text, "olapReport": null, "clientReports": this.reports, "customObject": serializedCustomObject }), this._toolbarOperationSuccess);
+                }
             }
             this._selectedReport = this.reportDropTarget._currentText;
         },
@@ -7219,16 +7447,21 @@
             }
             else if (!ej.isNullOrUndefined(this.chartObj)) {
                 this._currentTab = "chart";
+                if (this.model.enableRTL && ej.browserInfo().name == "msie") {                    
+                    if (!(this.model.operationalMode == ej.Pivot.OperationalMode.ServerMode && this.model.analysisMode == ej.Pivot.AnalysisMode.Olap))
+                        this.element.find(".e-chartPanel").addClass("e-clientChartTabRtl");
+                    else
+                        this.element.find(".e-chartPanel").addClass("e-serverChartTabRtl");
+                }
                 this.element.find(".e-chartTypesImg").removeClass("e-chartTypesOnGridView");
                 if (!ej.isNullOrUndefined(this.chartObj))
-                (this.chartObj.sfType.split(".")).pop().toLowerCase() == "treemap" ? this.otreemapObj._treeMap.refresh() : this.chartObj.redraw();
+                    (this.chartObj.sfType.split(".")).pop().toLowerCase() == "treemap" ? this.otreemapObj._treeMap.refresh() : this.chartObj.redraw();
                 if (this.model.enableSplitter)
                     this._splitterChartResizing(this);
-                if (this.model.enableToolBar)
-                   {
-                     this._unWireEvents();
-                     this._wireEvents();
-                 }
+                if (this.model.enableToolBar) {
+                    this._unWireEvents();
+                    this._wireEvents();
+                }
             }
         },
 
@@ -7250,6 +7483,8 @@
                     withCredentials: withCred
                 },
                 complete: ej.proxy(function () {
+					if(ej.isNullOrUndefined(this.model))
+				      return false;
                     var eventArgs = { "action": !ej.isNullOrUndefined(customArgs) && !ej.isNullOrUndefined(customArgs.action) ? customArgs.action : JSON.parse(data)["action"], "customObject": this.model.customObject, "element": this.element };
                     this._trigger("renderComplete", eventArgs);
                 }, this),
@@ -7279,7 +7514,7 @@
             for (var item in params)
                 addParam(item, params[item]);
             form.appendTo(document.body).submit().remove();
-            }
+        }
     });
 
     ej.PivotClient.Locale = ej.PivotClient.Locale || {};
@@ -7298,17 +7533,17 @@
 
         LabelFilters: "Label Filters  ",
         BeginsWith: "Begins With",
-        DoesNotBeginsWith: "Does Not Begins With",
+        DoesNotBeginsWith: "Does Not Begin With",
         EndsWith: "Ends With",
         NotEndsWith: "Not Ends With",
-        DoesNotEndsWith: "Does Not Ends With",
+        DoesNotEndsWith: "Does Not End With",
         Contains: "Contains",
-        DoesNotContains: "Does Not Contains",
+        DoesNotContains: "Does Not Contain",
 
         ValueFilters: "Value Filters",
         ClearFilter: "Clear Filter",
         Equals: "Equals",
-        DoesNotEquals: "Does Not Equals",
+        DoesNotEquals: "Does Not Equal",
         NotEquals: "Not Equals",
         GreaterThan: "Greater Than",
         GreaterThanOrEqualTo: "Greater Than Or Equal To",
@@ -7316,7 +7551,7 @@
         LessThanOrEqualTo: "Less Than Or Equal To",
         Between: "Between",
         NotBetween: "Not Between",
-        Top10:"Top Count",
+        Top10: "Top Count",
 
         GreaterThan: "Greater Than",
         IsGreaterThan: "Is Greater Than",
@@ -7334,11 +7569,11 @@
         CubeDimensionBrowser: "Cube Dimension Browser",
         AddReport: "Add Report",
         RemoveReport: "Remove Report",
-        CannotRemoveSingleReport: "Can not remove single report",
+        CannotRemoveSingleReport: "Cannot remove single report",
         AreYouSureToDeleteTheReport: "Are you sure to delete the Report",
         RenameReport: "Rename Report",
         ChartTypes: "Chart Types",
-	    ToggleAxis: "Toggle Axis",
+        ToggleAxis: "Toggle Axis",
         Load: "Load",
         ExportToExcel: "Export To Excel",
         ExportToWord: "Export To Word",
@@ -7378,7 +7613,7 @@
         LessThanOrEqualTo: "LessThanOrEqualTo",
         Between: "Between",
         NotBetween: "NotBetween",
-        ReportList:"Report List",
+        ReportList: "Report List",
         Line: "Line",
         Spline: "Spline",
         Column: "Column",
@@ -7396,15 +7631,15 @@
         Doughnut: "Doughnut",
         Scatter: "Scatter",
         Bubble: "Bubble",
-		WaterFall: "WaterFall",
+        WaterFall: "WaterFall",
         TreeMap: "TreeMap",
         Alert: "Alert",
-        MDXAlertMsg: "Please add a measure, dimension or hierarchy in an appropriate axis to view the MDX Query.",
-        FilterSortRowAlertMsg: "Dimension not found in row axis. Please add Dimension element in row axis for sorting/filtering.",
-        FilterSortColumnAlertMsg: "Dimension not found in column axis. Please add Dimension element in column axis for sorting/filtering.",
-        FilterSortcolMeasureAlertMsg: "Please add measure to the Column axis",
-        FilterSortrowMeasureAlertMsg: "Please add measure to the Row axis",
-        FilterSortElementAlertMsg: "Element not found in column axis. Please add an element in column axis for sorting/filtering.",
+        MDXAlertMsg: "Please add a measure, dimension, or hierarchy in an appropriate axis to view the MDX Query.",
+        FilterSortRowAlertMsg: "Dimension is not found in the row axis. Please add Dimension element in the row axis for sorting/filtering.",
+        FilterSortColumnAlertMsg: "Dimension is not found in the column axis. Please add Dimension element in the column axis for sorting/filtering.",
+        FilterSortcolMeasureAlertMsg: "Please add measure to the column axis",
+        FilterSortrowMeasureAlertMsg: "Please add measure to the row axis",
+        FilterSortElementAlertMsg: "Element is not found in the column axis. Please add an element in column axis for sorting/filtering.",
         SelectRecordAlertMsg: "Please select a valid report.",
         FilterMeasureSelectionAlertMsg: "Please select a valid measure.",
         FilterConditionAlertMsg: "Please set a valid condition.",
@@ -7413,9 +7648,9 @@
         FilterInvalidAlertMsg: "Invalid operation !",
         Remove: "Remove",
         Save: "Save",
-        SaveAs:"Save As",
+        SaveAs: "Save As",
         SelectReport: "Select Report",
-		DBReport: "Report Manipulation in DB",
+        DBReport: "Report Manipulation in DB",
         Rename: "Rename",
         Remove: "Remove",
         SetReportNameAlertMsg: "Please set report name.",
@@ -7427,11 +7662,11 @@
         MemberType: "MemberType:",
         FormatString: "Format String:",
         MultipleMeasure: "More than one measure cannot be sliced.",
-        DuplicateCalcMeasure: "Calculated Member with same name already exist.",
-        EmptyField: "Calculated Member name or Expression cannot be empty.",
+        DuplicateCalcMeasure: "Calculated Member with same name already exists.",
+        EmptyField: "Calculated Member name or Expression should not be empty.",
         EmptyFormat: "Format String for Calculated Member is empty.",
         Warning: "Warning",
-        Confirm: "Calculated Member with the same name already exists. Due to want to Replace ?",
+        Confirm: "Calculated Member with the same name already exists. Do you want to replace?",
         KPIs: "KPIs",
         Collection: "Collection",
         Report: "Report",
@@ -7442,8 +7677,9 @@
         Success: "Success",
         KpiAlertMsg: "The field you are moving cannot be placed in that area of the report",
         NotAllItemsShowing: "Not all child nodes are shown",
-        EditorLinkPanelAlert: "The members has more than 1000 items under one or more parent. Only the first 1000 items are displayed under each parent.",
-        NamedSetAlert: "A named set cannot be added to the PivotTable report at the same time as another named set based on the same field. Click OK to remove ' <Set 1> ' named set and add ' <Set 2> ' named set."
+        EditorLinkPanelAlert: "The members have more than 1000 items under one or more parent. Only the first 1000 items are displayed under each parent.",
+        NamedSetAlert: "Named sets of same field cannot be added to the PivotTable report at the same time. Click OK to remove ' <Set 1> ' named set and add ' <Set 2> ' named set.",
+        Exception: "Exception"
     };
 
     ej.PivotClient.ControlPlacement = {
@@ -7469,6 +7705,10 @@
     ej.PivotClient.DefaultView = {
         Chart: "chart",
         Grid: "grid"
+    };
+    ej.PivotClient.MemberType = {
+        Dimension: "dimension",
+        Measure: "measure"
     };
 
 })(jQuery, Syncfusion);

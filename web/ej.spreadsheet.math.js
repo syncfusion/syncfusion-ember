@@ -15,12 +15,20 @@
 
         toExponential: function (val, decimalplaces) {
             if (this.isNumber(val)) {
-                var expval, input = Number(val);
+                var expVal, input = Number(val), splt;
                 decimalplaces = decimalplaces || 2;
                 if (decimalplaces > 20)
                     decimalplaces = 20;
-                expval = input.toExponential(decimalplaces).split("e+");
-                return expval[0] + "E+" + this.padZeros(expval[1]);
+                expVal = input.toExponential(decimalplaces);
+				if(expVal.indexOf("e+") > -1) {
+					splt = expVal.split("e+");
+					return splt[0] + "E+" + this.padZeros(splt[1]);
+				}
+				else {
+					splt = expVal.split("e-");
+					return splt[0] + "E-" + this.padZeros(splt[1]);
+				}
+               
             }
             return null;
         },

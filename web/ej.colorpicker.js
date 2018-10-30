@@ -417,6 +417,7 @@
         _createWrapper: function () {
             if (this.element.is("input")) {
                 this.element.addClass('e-input e-widget');
+                this.element.attr("aria-label","colorpicker");
                 this.spanElement = ej.buildTag("span.e-selected-color");
                 this.wrapper = ej.buildTag("span.e-colorwidget e-picker e-widget " + this.model.cssClass).attr({ 'tabindex': '0', "aria-expanded": false, "aria-haspopup": true, "aria-owns": "popup" });
                 if (this._id) this.wrapper.attr('id', this._id + "Wrapper");
@@ -501,7 +502,7 @@
             this._codeEditor = ej.buildTag("div.e-codeeditor");
             this._inputTag = ej.buildTag("input.e-color-code", "", {}, { "type": "text", 'tabindex': '0', "maxLength": "22" });
             this._codeEditor.append(this._inputTag);
-
+            this._inputTag.attr("aria-label", "color-code");
             this._formEle.append(this._groupTag, this._codeEditor);
 
             this._previewTag = ej.buildTag("div.e-preview").attr({ 'tabindex': '0' });
@@ -650,6 +651,8 @@
             this._hexCode.ejButton({ text: "HEX", type: "button" });
             this._hsva.ejButton({ text: "HSVA", type: "button" });
             this._splitObj = this._presetTag.ejSplitButton({ size: "normal", showRoundedCorner: true, contentType: "imageonly" }).data('ejSplitButton');
+            this._splitObj.element.attr("aria-label","Presets");
+            this._splitObj.dropbutton.attr("aria-label","Select");
             this._splitObj.option("beforeOpen", function (e) { proxy._bindClickOperation(e); });
             this._presetTag.parents('.e-split.e-widget').css({ "height": "27px" });
             this.model.custom.length == 0 ? this._splitObj.option('prefixIcon', "e-icon e-color-image e-" + this.model.presetType) : "";
@@ -1618,9 +1621,9 @@
 
         HSVToRGB: function (hsv) {
             var rgb = {};
-            var h = Math.round(hsv.h);
-            var s = Math.round(hsv.s * 255 / 100);
-            var v = Math.round(hsv.v * 255 / 100);
+            var h = parseFloat(hsv.h);
+            var s = parseFloat(hsv.s * 255 / 100);
+            var v = parseFloat(hsv.v * 255 / 100);
             if (s == 0) {
                 rgb.r = rgb.g = rgb.b = v;
             } else {

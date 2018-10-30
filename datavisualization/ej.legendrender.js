@@ -30,6 +30,7 @@
                 var chart = this.chartObj,
                     chartModel = chart.model,
                     legend = chartModel.legend,
+                    isRTL = legend.isReversed,
                     legendBounds = chartModel.LegendBounds,
                     elementSpacing = chartModel.elementSpacing,
                     legendTitle = legend.title,
@@ -45,7 +46,7 @@
 
                 switch (textAlignment) {
                     case 'far':
-                        startX = legendBoundsWidth - titleWidth - startX;
+                        startX = isRTL ? startX : legendBoundsWidth - titleWidth - startX;
                         break;
                     case 'center':
                         startX = legendBoundsWidth / 2 - (titleWidth) / 2;
@@ -61,7 +62,7 @@
 
                 var options = {
                     'id': chart.svgObject.id + '_LegendTitleText',
-                    'x': startX,
+                    'x': isRTL && textAlignment == "near" ? legendBoundsWidth - titleWidth - startX : startX,
                     'y': startY,
                     'fill': font.color,
                     'font-size': font.size,
@@ -69,6 +70,7 @@
                     'font-family': font.fontFamily,
                     'font-weight': font.fontWeight,
                     'text-anchor': 'start',
+                    'direction': 'ltr',
                     'lgndCtx': true
                 };
 
@@ -80,6 +82,7 @@
                 var chart = this.chartObj,
                     chartModel = chart.model,
                     legend = chartModel.legend,
+                    isRTL = legend.isReversed,
                     textOverflow = legend.textOverflow.toLowerCase(),
                     textMaxWidth = legend.textWidth,
                     legendBounds = chartModel.LegendBounds,
@@ -92,11 +95,6 @@
                     symbolShape = chartModel.symbolShape,
                     isCanvas = chartModel.enableCanvasRendering,
                     shapeSize = legend.itemStyle,
-                    textHeight = measureText(legendItem.Text, legendBounds.Width, legendFont).height,
-                    location = {
-                        startX: x + shapeSize.width / 2,
-                        startY: (y + (textHeight > shapeSize.height ? textHeight : shapeSize.height) / 2)
-                    },
                     pointIndex = legendItem.PointIndex,
                     seriesIndex = legendItem.SeriesIndex,
                     index = pointIndex ? pointIndex : seriesIndex,
@@ -108,7 +106,26 @@
                     color, itemInfo, data, style, startLocation,
                     seriesType = series.type.toLowerCase(),
                     drawType = series.drawType,
-                    symbolName, symbol, textinfo, legendTextRegion, textLength;
+                    symbolName, symbol, textinfo, legendTextRegion, textLength, textHeight, textWidth, location;
+                textHeight = measureText(legendItem.Text, legendBounds.Width, legendFont).height;
+                if(typeof legendItem.Text == "object" && isRTL){
+                    var w = 0, legText, legWidth, maxLegWidth, largestLabel;
+                    for (var r = 0; r < legendItem.Text.length; r++) {
+                        legText = legendItem.Text[r];
+                        legWidth = ej.EjSvgRender.utils._measureText(legText, legendBounds.Width, legendFont).width;
+                        if (w < legWidth) {
+                            w = legWidth;
+                            largestLabel = legText;
+                        }
+                    }
+                    textWidth = measureText(largestLabel, null, legendFont).width;
+                }
+                else
+                    textWidth = measureText(legendItem.Text, null, legendFont).width;
+                location = {
+                    startX: isRTL ? textWidth + x + elementSpacing : x + shapeSize.width / 2,
+                    startY: (y + (textHeight > shapeSize.height ? textHeight : shapeSize.height) / 2)
+                };
 
                 for (name in symbolShape) {
                     if (legendItem.Shape.toLowerCase() == name.toLowerCase()) {
@@ -160,10 +177,10 @@
                     itemInfo = legendItem;
                     textLength = itemInfo.Text.length;
                     if (legend.shape == "seriestype" || legend.shape == "seriesType")
-                        x += elementSpacing / 2;
+                        x = isRTL ? x - elementSpacing / 2 : x + elementSpacing / 2;
                     var options = {
                         'id': this.chartObj.svgObject.id + '_LegendItemText' + index,
-                        'x': shapeSize.width + x + elementSpacing / 2,
+                        'x': isRTL ? x : shapeSize.width + x + elementSpacing / 2,
                         'y': location.startY,
                         'fill': color,
                         'font-size': legendFont.size,
@@ -171,6 +188,7 @@
                         'font-family': legendFont.fontFamily,
                         'font-weight': legendFont.fontWeight,
                         'text-anchor': 'start',
+                        'direction': 'ltr',
 
                     };
                     if (isCanvas)
@@ -203,11 +221,12 @@
                         Y: legendBounds.Y + legendBorder
                     };
 
-                    x = (startLocation) ? startLocation : x;
+                    x = (startLocation) ? isRTL ? location.startX - textWidth - elementSpacing : startLocation : x;
                     var itembound = {
                         X: (x), Y: (y), _Width: legendItem.Bounds._Width, Width: legendItem.Bounds.Width, Height: legendItem.Bounds.Height
                     };
                     var bounds = { LegendBound: legendbound, ItemBound: itembound };
+                    location.startX = isRTL ? Math.abs(location.startX - textWidth - (elementSpacing / 2) ): location.startX;
                     var legendRegion = {
                         LegendItem: legendItem,
                         Location: location, SymbolShape: symbolName, Style: legendItem.CommonEventArgs.data.style, Bounds: bounds
@@ -220,6 +239,7 @@
                 var chart = this.chartObj,
                     chartModel = chart.model,
                     legend = chartModel.legend,
+                    isRTL = legend.isReversed,
                     legendViewerBounds = chartModel.LegendViewerBounds,
                     legendBounds = chartModel.LegendBounds,
                     actualBounds = chartModel.LegendActualBounds,
@@ -368,10 +388,10 @@
                                     legendBounds.X = (svgWidth / 2) - ((actualBounds.Width + legendBorder * 2) / 2) + (elementSpacing / 2);
                                     break;
                                 case "near":
-                                    legendBounds.X = borderSize + (elementSpacing * 2);
+                                    legendBounds.X = isRTL ? svgWidth - (actualBounds.Width + (legendBorder)) - (elementSpacing * 2) : borderSize + (elementSpacing * 2);
                                     break;
                                 case "far":
-                                    legendBounds.X = svgWidth - (actualBounds.Width + (legendBorder)) - (elementSpacing * 2);
+                                    legendBounds.X = isRTL ? borderSize + (elementSpacing * 2) : svgWidth - (actualBounds.Width + (legendBorder)) - (elementSpacing * 2);
                                     break;
                             }
                         }
@@ -444,6 +464,12 @@
                     var legnTx = (chart.vmlRendering) ? offsetVal : legendBounds.X + (offsetVal <= 0 ? 0 : offsetVal);
                     legendContainer.attr('style', '');
                     legendContainer.show();
+                    if (!legend._ejScroller) {
+                        if (isRTL)
+                            legendContainer.css({ "direction": "rtl" });
+                        else
+                            legendContainer.css({ "direction": "ltr" });
+                    }
                     legendContainer.css({ "position": "absolute", "background": legend.background, "left": legnTx, "top": legendBounds.Y, "width": actualBounds.Width, "height": actualBounds.Height, "border-width": legend.border.width, "border-color": legend.border.color, "border-style": "solid" });
                     legendContainer.addClass("e-legendborder");
                     legendSvgContainer.css({ "height": legendBounds.Height, "width": legendBounds.Width });

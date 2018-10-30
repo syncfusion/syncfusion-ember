@@ -540,7 +540,7 @@
             xlObj.addClass(xlObj.getCell(sheet._activeCell.rowIndex, sheet._activeCell.colIndex), "e-activecell")
             if(xlObj.model.allowFormulaBar)
             xlObj.updateFormulaBar();
-            xlObj.setSheetFocus();
+            xlObj._setSheetFocus();
         },
 
         _isValidParameter: function (val) {

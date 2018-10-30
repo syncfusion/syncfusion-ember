@@ -510,7 +510,7 @@
         _selectUnSelectValue: function(val, selectValue, ignoreCasing){
              var items = this._toArray(val, true);
                 for (var k = 0; k < items.length; k++) {
-                    for (i = 0; i < this.listitems.length; i++) {
+                    for (var i = 0; i < this.listitems.length; i++) {
                         if (!$(this.listitems[i]).hasClass('e-disable') && (selectValue=="selectValue" || selectValue=="selectText")) {
                             if(selectValue=="selectValue"){
                                 var fieldValue = (!ej.isNullOrUndefined(this._getAttributeValue(this.listitems[i])))? this._getAttributeValue(this.listitems[i])  : $(this.listitems[i]).text();
@@ -697,16 +697,18 @@
         },
         _checkContains: function (chkValue) {
             this.contains = false;
-            for (i = 0; i < this._valueContainer.length; i++) {
-                if (this._parseValue(this._valueContainer[i]) === this._parseValue(chkValue)) {
-                    this.contains = true;
-                    break;
-                }
+			if(this._rawList !== undefined && (this.model.dataSource !== null || this.selectOptions !== undefined || this.model.targetID !== null)){
+				for (i = 0; i < this._valueContainer.length; i++) {
+					if (this._parseValue(this._valueContainer[i]) === this._parseValue(chkValue)) {
+						this.contains = true;
+						break;
+					}
+				}
             }
             return this.contains;
         },
 		_parseValue: function (value){
-			return isNaN(parseInt(value)) || (typeof(this._rawList[0][this.mapFld._value]) == 'string') ? value : parseInt(value);
+			return isNaN(parseInt(value)) || (this.mapFld && typeof(this._rawList[0][this.mapFld._value]) == 'string') ? value : parseInt(value);
 		},
         _updateLocalConstant: function () {
             this._localizedLabels = ej.getLocalizedConstants("ej.DropDownList", this.model.locale);
@@ -1088,7 +1090,7 @@
         _render: function () {
             this._renderDropdown();
             this._setWatermark();
-            if (this.model.loadOnDemand && (!this._dataSource() || this._dataSource().length < 1)) {
+            if (this.model.loadOnDemand && (!this._dataSource() || (this._dataSource().length !== 0 && this._dataSource().length < 1))) {
             var predecessor = this.element.parents().last();
             this.docbdy = this.model.targetID ? predecessor.find("#" + this.model.targetID) : this.optionDiv ? this.optionDiv : null;
             this.itemsContainer = this.docbdy[0].nodeName == "UL" ? this.docbdy : this.docbdy.children("ol,ul");
@@ -1119,32 +1121,31 @@
         },
 
         _isEqualDataSource: function (source) {
-            if (!this._dataSource() || !source || !(this._dataSource().length === source.length) || (ej.DataManager && source instanceof ej.DataManager)) return false;
-            if(ej.isNullOrUndefined(this._rawList)) return false;
-			var equal = true;
-            for (var i = 0, len = this._dataSource().length; i < len; i++) {
-                if (this._dataSource()[i] !== source[i]) {
-                    equal = false;
-                    break;
-                }
-            }
-            return equal;
+            if (!this._dataSource() || !source || (this._rawList && !(this._rawList.length === source.length)) || (ej.DataManager && source instanceof ej.DataManager)) return false;
+            if (ej.isNullOrUndefined(this._rawList) || this._dataSource().length === 0) return false;
+            return JSON.stringify(this._dataSource()) == JSON.stringify(source);
         },
 
         _checkModelDataBinding: function (source, query) {
             this.element.val("");
             this._visibleInput.val("");
-            this._updateValue("");
+            (this.value()!==null && this.value()!=='') && this._updateValue("");
             this.selectedTextValue = this._selectedValue = this._hiddenValue = "";
             this._updateText();
             this.selectedIndexValue = this._hiddenDelimiterIndex = this._activeItem = -1;
             this._selectedItemsID = [];
             this._textContainer = [];
             this._valueContainer = [];
+            if(ej.isNullOrUndefined(source) && ej.isNullOrUndefined(this.model.query) && ej.isNullOrUndefined(this.model.template) && this.model.itemsCount == 0 ){
+                this._rawList = [];
+                this.popupListItems = []; 
+                this.listitems = [];
+                this.ultag = this.popupListWrapper.find(".e-ul");
+            }
             this.model.selectedItems = this.model.selectedIndices = this._selectedIndices = [];
             this.model.selectedIndex = this.model.selectedItemIndex = -1;
             if (this.model.multiSelectMode == "visualmode") this._destroyBoxModel();
-            this._dataSource(source);
+            if(JSON.stringify(this._dataSource())!=JSON.stringify(source))this._dataSource(source);
             this.model.query = query;
             !ej.isNullOrUndefined(this.ultag) && this.ultag.empty();
             this._showFullList();
@@ -1273,6 +1274,7 @@
                 else if (keyName == "disabled" && value == "disabled") proxy.disable();
                 else if (keyName == "readOnly" && value == "readOnly") proxy.model.readOnly = true; 
                 else if (keyName == "style") proxy.wrapper.attr(key, value);
+                else if (keyName == "name") $(proxy.element).attr(key, value);
 				else if (ej.isValidAttr(proxy._visibleInput[0], key)) $(proxy._visibleInput).attr(key, value);
                 else proxy.wrapper.attr(key, value)
             });
@@ -1524,6 +1526,7 @@
             }
             this.popupListItems = this.resultList;
             this.ultag.empty();
+            this._valueContainer = [];
             this._isPlainType(this.popupListItems) ? this._plainArrayTypeBinding(this.resultList) :
             this._objectArrayTypeBinding(this.resultList, "search");
             if (flag && this.ultag.find("li").length == 1) {
@@ -2155,10 +2158,12 @@
             var arrayEle = this.container.find("[id='#" + value + "']");
 			this._hiddenInputElement.splice($.inArray(arrayEle.value,this._hiddenInputElement),1);
             $(arrayEle).remove();
-			if (!this._isSingleSelect())this.element.attr("name", this._name);
+			if (!this._isSingleSelect() && this.element.val() == "") this.element.attr("name", this._name);
         },
         _getAttributeValue: function (val) {
-			var eleValue = ej.isNullOrUndefined(val.getAttribute("data-value"))? val.getAttribute("value") : val.getAttribute("data-value");
+			if(!ej.isNullOrUndefined(val)) {
+				var eleValue = ej.isNullOrUndefined(val.getAttribute("data-value"))? val.getAttribute("value") : val.getAttribute("data-value");
+			}
             return val ? eleValue : null;
         },
        
@@ -2393,6 +2398,8 @@
             if(ej.isNullOrUndefined(this.ultag) || this.ultag.children().length==0){
             this._showFullList();
             }
+            if (this.model.allowGrouping && !ej.isNullOrUndefined(this.popupListWrapper))
+              this.popupListWrapper.addClass("e-atc-popup");
             this._renderRemaining();
             }
             var args = { text: this._visibleInput[0].value, value: this._selectedValue, refreshPopup: true };
@@ -3476,9 +3483,9 @@
                             this._selectAndUnselect();
                         else if (this._isPopupShown() && !e.ctrlKey && !e.shiftKey){
 							if(!ej.isNullOrUndefined(this.inputSearch)){
-								if(this.getSelectedItem().length == 0 || !this.listitems[0].classList.contains("e-active") ) {
-									this.selectItemByIndex(0);
-									$(this.listitems[0]).removeClass("e-hover");
+								if(this.getSelectedItem().length == 0 || !this.listitems[0].classList.contains("e-active") && this._activeItem >= 0) {
+									this.selectItemByIndex(this._activeItem);
+									$(this.listitems[this._activeItem]).removeClass("e-hover");
 								}
 								else {		
 									var focusedItems = this._getLastFocusedLi();

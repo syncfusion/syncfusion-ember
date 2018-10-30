@@ -60,6 +60,7 @@
             allowClientBuffering: false,
             documentUnload: "",
             ajaxRequestFailure: "",
+            ajaxRequestSuccess:"",
             annotationType: null,
             enableTextMarkupAnnotations: true,
             enableHighlightAnnotation: true,
@@ -286,6 +287,16 @@
         _signatureLayer: [],
         _renderedCanvasList: null,
         _textureobj: [],
+        _isToolbarHeightChanged: false,
+        _isPinchZoomed: false,
+        _isTouchEnded: false,
+        _prevZoomX: 0,
+        _zoomX: 0,
+        _zoomY: 0,
+        _textlayout: [],
+        _responseData: null,
+        _isSelectionDisabled: false,
+
         //#endregion
 
         //#region public members
@@ -393,6 +404,7 @@
         _initViewer: function () {
             this._wireEvents();
             this._initToolbar();
+            this._ideviceScrolling();
             this._currentPage = 1;
             this._textMarkupAnnotationList = new Array();
             this._newAnnotationList = new Array();
@@ -593,10 +605,13 @@
                     this._appendToolbarItems($ulsearch, 'search');
                     div.append($ulsearch);
                     $('#' + this._id + '_toolbar_zoomSelection').ejDropDownList({ height: "27px", width: "75px", cssClass: "e-pdfviewer-ddl", change: this._zoomValChange, selectedItem: 0 });
+                    var hiddenZoomSelection = $('#' + this._id + '_toolbar_zoomSelection_hidden');
+                    if (hiddenZoomSelection)
+                        $(hiddenZoomSelection).attr('aria-label', 'zoomselection hidden');
                 }
                 div.ejToolbar({ enableSeparator: !this._isDevice, click: $.proxy(this._toolbarClick, this), itemHover: $.proxy(this._toolbarHover, this), isResponsive: true, overflowClose: $.proxy(this._overflowToolbarClose, this) });
                 this._toolbar = $('#' + this._id + '_toolbarContainer').data('ejToolbar');
-                $('#' + this._id + '_toolbarContainer_hiddenlist').removeClass("e-responsive-toolbar").addClass("e-pdfviewer-responsivesecondarytoolbar");
+                $('#' + this._id + '_toolbarContainer_hiddenlist').removeClass("e-responsive-toolbar").addClass('e-pdfviewer e-pdfviewer-responsivesecondarytoolbar');
                 $('#' + this._id + '_pdfviewer_searchul').removeClass('e-separator');
                 $('#' + this._id + '_pdfviewer_printul').removeClass('e-separator');
                 $('#' + this._id + '_pdfviewer_signatureul').removeClass('e-separator');
@@ -648,7 +663,7 @@
                 case 'gotopage':
                     $divouter = ej.buildTag("li.e-pdfviewer-toolbarli-label", "", {}, { 'id': this._id + '_pdfviewer_toolbar_pageli' });
                     var $divouterdiv = ej.buildTag("div.e-pdfviewer-tbpage", "", { 'display': 'block', 'overflow': 'visible' }, {});
-                    var $inputpageno = ej.buildTag("input.e-pdfviewer-pagenumber e-pdfviewer-elementalignments ejinputtext", "", {}, { 'type': 'text', 'value': '0', 'id': this._id + '_txtpageNo', 'data-role': 'none' });
+                    var $inputpageno = ej.buildTag("input.e-pdfviewer-pagenumber e-pdfviewer-elementalignments ejinputtext", "", {}, { 'type': 'text', 'value': '0', 'id': this._id + '_txtpageNo', 'data-role': 'none', 'aria-label': 'pageNo' });
                     var $spanpageno = ej.buildTag("span.e-pdfviewer-labelpageno", "", {}, {});
                     $divouterdiv.append($inputpageno);
                     $divouterdiv.append($spanpageno);
@@ -667,7 +682,7 @@
                 case 'zoom':
                     $divouter = ej.buildTag("li.e-pdfviewer-toolbarli-label", "", {}, { 'id': this._id + '_pdfviewer_toolbar_zoomli' });
                     var $divouterdiv = ej.buildTag("div.e-pdfviewer-ejdropdownlist", "", {}, { 'id': this._id + '_pdfviewer_toolbar_zoom' });
-                    var $sltzoom = ej.buildTag("select.e-pdfviewer-tbdiv e-pdfviewer-zoomlist", "", {}, { 'id': this._id + '_toolbar_zoomSelection', 'data-role': 'none' });
+                    var $sltzoom = ej.buildTag("select.e-pdfviewer-tbdiv e-pdfviewer-zoomlist", "", {}, { 'id': this._id + '_toolbar_zoomSelection', 'data-role': 'none', 'aria-label': 'zoomSelection'});
                     var localeObj = ej.PdfViewer.Locale[this.model.locale] ? ej.PdfViewer.Locale[this.model.locale] : ej.PdfViewer.Locale["default"];
                     var text = localeObj['contextMenu']['auto']['contentText'];
                     $sltzoom.append("<option Selected>" + text + "</option>");
@@ -804,6 +819,7 @@
 
             this.element.append(viewer);
             this._renderToolBar(viewer);
+            this._toolbarResizeHandler();
             if (!this._isDevice) {
                 this._renderViewerBlockinWeb(viewer);
                 var tooltip = this._renderToolTip();
@@ -820,7 +836,7 @@
             var inputLi = ej.buildTag('li.e-pdfviewer-toolbarli-label', "", {}, {});
             var inputContainer = ej.buildTag('div.e-pdfviewer-searchboxitem e-pdfviewer-search-inputcontainer', "", {}, {});
             var findLabel = ej.buildTag('span.e-pdfviewer-label e-pdfviewer-searchboxitem', "Find : ", { 'float': 'left', 'padding-top': '1px', 'margin-right': '5px', 'width': '32px', 'overflow': 'hidden', 'text-overflow': 'ellipsis', 'white-space': 'nowrap' }, { id: this._id + '_pdfviewer_findlabel' });
-            var input = ej.buildTag('input.e-pdfviewer-searchinput e-pdfviewer-elementalignments ejinputtext', '', { 'width': '150px' }, { 'id': this._id + '_pdfviewer_searchinput' });
+            var input = ej.buildTag('input.e-pdfviewer-searchinput e-pdfviewer-elementalignments ejinputtext', '', { 'width': '150px' }, { 'id': this._id + '_pdfviewer_searchinput','aria-label':'search input' });
             inputContainer.append(findLabel);
             inputContainer.append(input);
             inputLi.append(inputContainer);
@@ -835,7 +851,7 @@
             nextbutton.append(nextBtnSpan);
             var checkboxLi = ej.buildTag('li.e-pdfviewer-toolbarli-label', "", {}, {});
             var checkboxContainer = ej.buildTag('div.e-pdfviewer-searchboxitem e-pdfviewer-search-checkboxcontainer', "", { 'float': 'left', 'overflow': 'visible' }, {});
-            var checkbox = ej.buildTag("input", "", {}, { 'type': 'checkbox' });
+            var checkbox = ej.buildTag("input", "", {}, { 'type': 'checkbox', 'aria-label':'search matchcase'});
             var spanElement = ej.buildTag("span.e-pdfviewer-label e-pdfviewer-searchboxitem", "Match case", { 'float': 'left', 'padding-top': '3px', 'margin-left': '5px', 'margin-top': '4px', 'width': '70.5px', 'overflow': 'hidden', 'text-overflow': 'ellipsis', 'white-space': 'nowrap' }, { id: this._id + '_pdfviewer_matchlabel' });
             checkboxContainer.append(checkbox);
             checkboxContainer.append(spanElement);
@@ -851,6 +867,9 @@
             checkbox.ejCheckBox({ cssClass: 'e-pdfviewer-match-checkbox', id: this._id + '_search_matchcase', size: ej.CheckboxSize.Medium, change: $.proxy(this._matchcase, this) });
             checkbox.ejCheckBox("disable");
             $('#' + this._id + '_pdfviewerContainer').append(div);
+            var searchHiddenField = $('#' + this._id + '_search_matchcase_hidden');
+            if (searchHiddenField)
+                $(searchHiddenField).attr('aria-label', "search hidden matchcase");
         },
 
         _createColorPalette: function () {
@@ -1403,13 +1422,15 @@
                     var zoomddl = $('#' + proxy._id + '_toolbar_zoomSelection').data('ejDropDownList');
                     if (zoomddl) {
                         var values = $('#' + proxy._id + '_toolbar_zoomSelection_hidden').val();
-                        $('#' + proxy._id + '_toolbar_zoomSelection_popup li')[0].innerHTML = text;
-                        var index = zoomddl.selectedIndex();
-                        if (index == 0 && isNaN(parseFloat(values))) {
-                            $('#' + proxy._id + '_toolbar_zoomSelection_hidden').val(text);
-                            proxy._ejDropDownInstance.model.value = text;
+                        if (values != text) {
+                            $('#' + proxy._id + '_toolbar_zoomSelection_popup li')[0].innerHTML = text;
+                            var index = zoomddl.selectedIndex();
+                            if (index == 0 && isNaN(parseFloat(values))) {
+                                $('#' + proxy._id + '_toolbar_zoomSelection_hidden').val(text);
+                                proxy._ejDropDownInstance.model.value = text;
+                            }
+                            proxy._searchBoxLocalization();
                         }
-                        proxy._searchBoxLocalization();
                     }
                 }
                 if (proxy._selectionRange != null && !proxy._displaySearch) {
@@ -1450,6 +1471,7 @@
                 traditional: true,
                 success: function (data) {
                     proxy._ajaxInProgress = false;
+                    data = proxy._ajaxResponseData(data);
                     if (typeof data === 'object')
                         proxy._drawPdfPage(JSON.stringify(data));
                     else
@@ -1517,8 +1539,8 @@
                 var context = canvas.getContext('2d');
                 var ratio = this._scalingTextContent(context);
                 if (this._pageSize[pageindex - 1].PageRotation == 90 || this._pageSize[pageindex - 1].PageRotation == 270) {
-                    canvas.width = this._zoomVal * this._pageSize[pageindex - 1].PageWidth;
-                    canvas.height = this._zoomVal * this._pageSize[pageindex - 1].PageHeight;
+                    canvas.width = this._zoomVal * this._pageSize[pageindex - 1].PageWidth * ratio;
+                    canvas.height = this._zoomVal * this._pageSize[pageindex - 1].PageHeight * ratio;
                     canvas.style.height = this._zoomVal * this._pageSize[pageindex - 1].PageHeight + 'px';
                     canvas.style.width = this._zoomVal * this._pageSize[pageindex - 1].PageWidth + 'px';
                 }
@@ -1607,7 +1629,6 @@
                             aTag.onclick = function () {
                                 var hyperlink = { hyperlink: this.href }
                                 ins._raiseClientEvent("hyperlinkClick", hyperlink);
-
                             }
                         } else if (this.model.hyperlinkOpenState == ej.PdfViewer.LinkTarget.NewWindow) {
 
@@ -1648,7 +1669,6 @@
                 var pageDataCollection = new Array();
                 var textureBrushImage = new Array();
                 var textureDataCollection = new Array();
-                var imageFilter = new Array();
                 var textureImage = 0;
                 var zoomFactor;
                 var browserUserAgent = navigator.userAgent;
@@ -1679,7 +1699,6 @@
                     var charID = pathdata["charID"];
                     var rectangle = pathdata["rectvalue"];
                     var alpha = pathdata["alpha"];
-                    var filter = pathdata["filters"];
                     var dashedPattern = pathdata["dashPattern"];
                     if (dashedPattern != null && dashedPattern.length > 0) {
                         context.setLineDash(dashedPattern);
@@ -1696,11 +1715,7 @@
                         context.save();
                     }
                     if (pathValue != undefined) {
-                        if (this._pageSize[pageindex - 1].PageRotation == 90) {
-                            context.setTransform(matrix[0] * this._zoomVal, matrix[1] * this._zoomVal, matrix[2] * this._zoomVal, matrix[3] * this._zoomVal, matrix[4] * this._zoomVal, matrix[5] * this._zoomVal);
-                        } else {
                             context.setTransform(matrix[0] * this._zoomVal * ratio, matrix[1] * this._zoomVal * ratio, matrix[2] * this._zoomVal * ratio, matrix[3] * this._zoomVal * ratio, matrix[4] * this._zoomVal * ratio, matrix[5] * this._zoomVal * ratio);
-                        }
                     }
                     if (pathValue != null) {
                         context.beginPath();
@@ -1734,7 +1749,6 @@
                                 context.clip(fillMode);
                             }
                             context.clip();
-
                         }
                         else {
                             if (fillStroke == undefined) {
@@ -1759,7 +1773,6 @@
                                 }
                                 else if (brushMode == "FillandStroke") {
                                     context.fillStyle = color;
-                                    context.lineWidth = lineWidth;
                                     context.fill();
                                     context.strokeStyle = strokeColor;
                                     context.stroke();
@@ -1808,7 +1821,6 @@
                             imageTransformCollection.push(matrix);
                             pageDataCollection.push(shapes);
                             currentIndexCollection.push(j);
-                            imageFilter.push(filter);
                             zoomFactor = this._zoomVal;
                             this._isContainImage = true;
                             break;
@@ -1842,28 +1854,29 @@
                 }
                 if ((offsett = browserUserAgent.indexOf("Firefox")) != -1 || (offsett = browserUserAgent.indexOf("Chrome")) != -1 || (offsett = browserUserAgent.indexOf("Safari")) != -1 || (offsett = browserUserAgent.indexOf("AppleWebKit")) != -1) {
                     for (var k = 0; k < imageObjCollection.length; k++) {
-                        this._imageRendering(shapes, imageDataCollection, imageObjCollection, imageTransformCollection, context, k, pageDataCollection, currentIndexCollection, charPath, canvas, index, imageIndex, imageFilter);
+                        this._imageRendering(shapes, imageDataCollection, imageObjCollection, imageTransformCollection, context, k, pageDataCollection, currentIndexCollection, charPath, canvas, index, imageIndex);
                         imageIndex++;
                     }
                 }
                 var tempcanvas = canvas;
                 var proxy = this;
-                if (this._pageSize[index - 1].PageRotation != 0) {
+                if (this._pageSize[index - 1].PageRotation != 0 && !this._isContainImage) {
                     if (!(imageData != undefined && browserUserAgent.indexOf("Firefox") != -1)) {
                         tempcanvas = document.getElementById(this._id + 'pagecanvas_' + parseInt(jsondata["currentpage"]));
                         var canvasUrl = tempcanvas.toDataURL();
                         var context = tempcanvas.getContext('2d');
+                        var ratio = proxy._scalingTextContent(context);
                         var image = new Image();
                         image.onload = function () {
                             context.clearRect(0, 0, tempcanvas.width, tempcanvas.height);
                             if (proxy._pageSize[index - 1].PageRotation == 90 || proxy._pageSize[index - 1].PageRotation == 270) {
-                                tempcanvas.width = proxy._zoomVal * proxy._pageSize[index - 1].PageHeight;
-                                tempcanvas.height = proxy._zoomVal * proxy._pageSize[index - 1].PageWidth;
+                                tempcanvas.width = proxy._zoomVal * proxy._pageSize[index - 1].PageHeight * ratio;
+                                tempcanvas.height = proxy._zoomVal * proxy._pageSize[index - 1].PageWidth * ratio;
                                 tempcanvas.style.height = proxy._zoomVal * proxy._pageSize[index - 1].PageWidth + 'px';
                                 tempcanvas.style.width = proxy._zoomVal * proxy._pageSize[index - 1].PageHeight + 'px';
                             } else {
-                                tempcanvas.width = proxy._zoomVal * proxy._pageSize[index - 1].PageWidth;
-                                tempcanvas.height = proxy._zoomVal * proxy._pageSize[index - 1].PageHeight;
+                                tempcanvas.width = proxy._zoomVal * proxy._pageSize[index - 1].PageWidth * ratio;
+                                tempcanvas.height = proxy._zoomVal * proxy._pageSize[index - 1].PageHeight * ratio;
                                 tempcanvas.style.width = proxy._zoomVal * proxy._pageSize[index - 1].PageWidth + 'px';
                                 tempcanvas.style.height = proxy._zoomVal * proxy._pageSize[index - 1].PageHeight + 'px';
                             }
@@ -2220,6 +2233,8 @@
                     if ((TextBoxField[l].PageIndex + 1) == pageindex) {
                         var boundingRect = TextBoxField[l].LineBounds;
                         if (TextBoxField[l].Name == "Textbox") {
+                            if (TextBoxField[l].Visible == 1)
+                                continue;
                             if (TextBoxField[l].Multiline) {
                                 inputdiv = document.createElement("textarea");
                                 $(inputdiv).css("resize", "none");
@@ -2305,8 +2320,9 @@
                                 $(inputdiv).css("background-color", "none");
                                 $(inputdiv).css("cursor", "default");
                             }
-                            if (browserUserAgent.indexOf('Chrome') != -1)
+                            if (browserUserAgent.indexOf('Chrome') != -1) {
                                 $(inputdiv).css("-webkit-apperance", "none");
+                            }
                         }
                         else if (TextBoxField[l].Name == "CheckBox") {
                             inputdiv = document.createElement("input");
@@ -2315,12 +2331,12 @@
                                 $(inputdiv).css("border", "1px solid red");
                                 $(inputdiv).css("outline", "1px solid red");
                             }
-                            else
-                                $(inputdiv).css("border", TextBoxField[l].BorderWidth);
-                            if (TextBoxField[l].Selected == true)
+                            if (TextBoxField[l].Selected == true) {
                                 $(inputdiv).prop('checked', true);
-                            else if (browserUserAgent.indexOf('Chrome') != -1)
+                            }
+                            else if (browserUserAgent.indexOf('Chrome') != -1) {
                                 $(inputdiv).css("-webkit-appearance", "none");
+                            }
                             $(inputdiv).attr("name", TextBoxField[l].GroupName);
                             var backColor = TextBoxField[l].BackColor;
                             if (TextBoxField[l].IsReadonly || this._isFormFieldsDisabled) {
@@ -2411,16 +2427,21 @@
                             var heights = this._convertPointToPixel(TextBoxField[l].Font.Height * this._zoomVal) + 'px';
                             $(inputdiv).css("font-size", heights);
                         }
-                        if ($(inputdiv).css("background-color") == "rgba(255, 255, 255, 0.2)") {
+                        if ($(inputdiv).css("background-color") == "rgba(255, 255, 255, 0.2)" || $(inputdiv).css("background-color") == "rgba(0, 0, 0, 0.2)") {
                             $(inputdiv).css("background-color", "rgba(0, 20, 200, 0.2)");
                         }
                         if (!cropBoxValue)
                             cropBoxValue = 0;
+                        $(inputdiv).css("box-sizing", "border-box");
+                        $(inputdiv).attr('aria-label', "form fields");
+                        $(inputdiv).css("margin", "0px");
                         inputdiv.style.borderStyle = "solid";
+                        var borderColor = TextBoxField[l].BorderColor;
+                        $(inputdiv).css("border-color", "rgba(" + borderColor.R + "," + borderColor.G + "," + borderColor.B + "," + 1 + ")");
                         inputdiv.id = this._id + 'input_' + pageindex + '_' + l;
                         inputdiv.className = 'e-pdfviewer-formFields';
-                        inputdiv.style.margin = "0px";
                         inputdiv.style.zIndex = 1000;
+                        inputdiv.style.maxWidth = "none";
                         inputdiv.style.left = this._convertPointToPixel((boundingRect.X + cropBoxValue) * this._zoomVal) + 'px';
                         inputdiv.style.top = this._convertPointToPixel((boundingRect.Y + cropBoxValue) * this._zoomVal) + 'px';
                         inputdiv.style.width = this._convertPointToPixel(boundingRect.Width * this._zoomVal) + 'px';
@@ -2458,12 +2479,11 @@
                                 $(e.target).css("background-color", colors);
                             }
                             else {
+                                if (type == "checkbox")
+                                    $(e.target).css("-webkit-appearance", "none");
                                 var color = backgroundColour.slice(0, currentIndex + 1) + 0.2 + ")";
                                 $(e.target).css("background-color", color);
                             }
-                            if (parseFloat(borderwidth) == 0)
-                                $(e.target).css('border-width', "1px");
-                            else
                                 $(e.target).css('border-width', borderwidth);
                             proxy._isFormFields = false;
                         });
@@ -2474,7 +2494,6 @@
                             var type = $(e.target).attr('type');
                             var list = $(e.target)[0].type;
                             if (type == "password" || type == "text") {
-                                $(e.target).select();
                                 var target = $(e.target)[0];
                                 $(target).on('keypress', function (e) {
                                     var MaxLength = $(target).attr("maxlength");
@@ -2484,6 +2503,7 @@
                                         $(target).blur();
 
                                     }
+                                    proxy.isDocumentEdited = true;
                                 });
                                 $(target).on("keyup", function (e) {
                                     var value = $(target).val();
@@ -2492,6 +2512,16 @@
                                     var TextBoxField = jsdata["pdfRenderedFields"];
                                     var field = (target.id).split("_");
                                     var fieldPosition = field[field.length - 1];
+                                    var type = $(e.target).attr('type');
+                                    var name = $(e.target).attr("name");
+                                    var textBoxes = $('.e-pdfviewer-formFields');
+                                    if (type == "text" || type == "password" || input[i].type == "textarea") {
+                                        for (var m = 0; m < textBoxes.length; m++) {
+                                            if ($(textBoxes[m]).attr("name") == name) {
+                                                $(textBoxes[m]).val(value);
+                                            }
+                                        }
+                                    }
                                     if (value != TextBoxField[fieldPosition].Text) {
                                         proxy.isDocumentEdited = true;
                                     } else {
@@ -2522,8 +2552,6 @@
                                 }
                                 else {
                                     $(e.target).prop("checked", false);
-                                    if (is_chrome)
-                                        $(e.target).css("-webkit-appearance", "none");
                                 }
                             }
                             else if (list == "select-one") {
@@ -2570,7 +2598,7 @@
             var input = $('.e-pdfviewer-formFields');
             if (input != null) {
                 for (var i = 0; i < input.length; i++) {
-                    if (input[i].type == "text" || input[i].type == "password")
+                    if (input[i].type == "text" || input[i].type == "password" || input[i].type == "textarea")
                         result[input[i].name] = input[i].value;
                     else if (input[i].type == "radio" && $(input[i]).prop("checked") == true)
                         result[input[i].name] = input[i].value;
@@ -2673,6 +2701,7 @@
             values["savetextMarkupAnnotation"] = JSON.stringify(newAnnotationList);
             values["existingAnnotations"] = JSON.stringify(annotationList);
             values["savedFields"] = JSON.stringify(result);
+            values["isEdited"] = this.isDocumentEdited;
             values["signatureFields"] = JSON.stringify(this._completeSign);
             values["id"] = this._fileId;
             var newFileID;
@@ -2774,13 +2803,13 @@
                     var inputdiv = document.getElementById(this._id + 'input_' + pageindex + '_' + l);
                     if ((TextBoxField[l].PageIndex + 1) == pageindex) {
                         if (TextBoxField[l].Name == "Password" || TextBoxField[l].Name == "Textbox") {
+                            if (TextBoxField[l].Visible == 1)
+                                continue;
                             var backColor = TextBoxField[l].BackColor;
                             var foreColor = TextBoxField[l].FontColor;
                             this._addAlignmentPropety(TextBoxField[l], inputdiv);
                             if (TextBoxField[l].IsRequired)
                                 $(inputdiv).css("border", "1px solid red");
-                            else
-                                $(inputdiv).css("border", TextBoxField[l].BorderWidth);
                             if (TextBoxField[l].IsReadonly || this._isFormFieldsDisabled) {
                                 $(inputdiv).attr("disabled", true);
                                 $(inputdiv).css("background-color", "none");
@@ -2825,8 +2854,6 @@
                                 $(inputdiv).css("border", "1px solid red");
                                 $(inputdiv).css("outline", "1px solid red");
                             }
-                            else
-                                $(inputdiv).css("border", TextBoxField[l].BorderWidth);
                             if (TextBoxField[l].IsReadonly || this._isFormFieldsDisabled)
                                 $(inputdiv).css("disabled", true);
                             if ($(inputdiv).prop("checked") == true)
@@ -2914,14 +2941,19 @@
                             var heights = this._convertPointToPixel(TextBoxField[l].Font.Height * this._zoomVal) + 'px';
                             $(inputdiv).css("font-size", heights);
                         }
-                        if ($(inputdiv).css("background-color") == "rgba(255, 255, 255, 0.2)") {
+                        if ($(inputdiv).css("background-color") == "rgba(255, 255, 255, 0.2)" || $(inputdiv).css("background-color") == "rgba(0, 0, 0, 0.2)") {
                             $(inputdiv).css("background-color", "rgba(0, 20, 200, 0.2)");
                         }
                         if (!cropBoxValue)
                             cropBoxValue = 0;
+                        $(inputdiv).css("box-sizing", "border-box");
+                        $(inputdiv).attr('aria-label', "form fields");
+                        $(inputdiv).css("margin", "0px");
                         inputdiv.style.borderStyle = "solid";
-                        inputdiv.style.margin = "0px";
+                        var borderColor = TextBoxField[l].BorderColor;
+                        $(inputdiv).css("border-color", "rgba(" + borderColor.R + "," + borderColor.G + "," + borderColor.B + "," + 1 + ")");
                         inputdiv.style.zIndex = 1000;
+                        inputdiv.style.maxWidth = "none";
                         inputdiv.style.left = this._convertPointToPixel((boundingRect.X + cropBoxValue) * this._zoomVal) + 'px';
                         inputdiv.style.top = this._convertPointToPixel((boundingRect.Y + cropBoxValue) * this._zoomVal) + 'px';
                         inputdiv.style.width = this._convertPointToPixel(boundingRect.Width * this._zoomVal) + 'px';
@@ -2963,15 +2995,12 @@
                 else {
                     textContents.push(selectionlines[l].Line.toString());
                 }
-                if (is_edgeNew && !is_ie) {
-                    textdiv.innerHTML = text;
-                }
-                else {
                     if (this._previousBounds == parseInt(boundingRect.Y) || this._previousBounds == parseInt((boundingRect.Y) + 1) || this._previousBounds == parseInt((boundingRect.Y) - 1)) {
                         innerText = document.getElementById(this._id + 'text_' + pageindex + '_' + (l - 1));
                         if (innerText.innerHTML != " ") {
                             innerText.innerHTML = innerText.innerHTML.replace(/&nbsp;/g, ' ');
                             innerText.innerHTML = innerText.innerHTML.replace(/(\r\n|\n|\r)/gm, "");
+                            this._textlayout.pop(innerText);
                         }
                     }
                     this._previousBounds = parseInt(boundingRect.Y);
@@ -2983,7 +3012,6 @@
                         this._isNonBreackingCharacter = true;
                     }
                     textdiv.innerHTML = textdiv.innerHTML.replace(/&nbsp;/g, ' ');
-                }
                 textdiv.innerHTML = textdiv.innerHTML.replace(/&nbsp;/g, ' ')
                 var newLines = text.replace(/  +/g, ' ');
                 if (newLines != " ") {
@@ -3018,6 +3046,7 @@
                     $(textdiv).css("width", newWidth + "px");
                 }
                 textDivs.push(textdiv);
+                this._textlayout.push(textdiv);
             }
             this._previousBounds = null;
             this._textDivs[pageindex] = textDivs;
@@ -3092,194 +3121,10 @@
             }
         },
 
-        _imageRendering: function (shapes, imageDataCollection, imageObjCollection, imageTransformCollection, context, index, pageDataCollection, currentIndexCollection, charPath, canvas, currentindex, imageIndex, imageFilter) {
+        _imageRendering: function (shapes, imageDataCollection, imageObjCollection, imageTransformCollection, context, index, pageDataCollection, currentIndexCollection, charPath, canvas, currentindex, imageIndex) {
             var zoomValue = this._zoomVal;
             var imageObject = new Image();
             var proxy = this;
-            var browserUserAgent = navigator.userAgent;
-            var is_chrome = navigator.userAgent.indexOf('Chrome') != -1;
-            var is_firefox = navigator.userAgent.indexOf('Firefox') != -1;
-            if ((is_chrome || is_firefox) && imageFilter == "CCITTFaxDecode") {
-                var isImageContentChanged = false;
-                var ratio = proxy._scalingTextContent(context);
-                for (var l = 0; l < imageTransformCollection.length; l++) {
-                    if (isImageContentChanged == false) {
-                        var matrixData = imageTransformCollection[l];
-                        context.setTransform(matrixData[0] * zoomValue * ratio, matrixData[1] * zoomValue * ratio, matrixData[2] * zoomValue * ratio, matrixData[3] * zoomValue * ratio, matrixData[4] * zoomValue * ratio, matrixData[5] * zoomValue * ratio);
-                        if (imageDataCollection[imageIndex] != undefined) {
-                            context.drawImage(imageDataCollection[imageIndex], 0, 0, 1, 1);
-                        }
-                        var dataIndex = currentIndexCollection[l];
-                        dataIndex = dataIndex + 1;
-                        var data = pageDataCollection[l];
-                        while (dataIndex < data.length) {
-                            var pathdata = data[dataIndex];
-                            var color = pathdata["color"];
-                            var matrix = pathdata["matrix"];
-                            if (matrix != null)
-                                matrix = matrix["Elements"];
-                            var brushMode = pathdata["brush"];
-                            var pathValue = pathdata["pathValue"];
-                            var isClipping = pathdata["iscliping"];
-                            var restoreCanvas = pathdata["restorecanvas"];
-                            var imageData = pathdata["imagedata"];
-                            var fillMode = pathdata["fillrule"];
-                            var fillStroke = pathdata["isFillandStroke"];
-                            var fillColor = pathdata["fillcolor"];
-                            var strokeColor = pathdata["strokecolor"];
-                            var lineWidth = pathdata["linewidth"];
-                            var lineCap = pathdata["linecap"];
-                            var linearGradient = pathdata["linearGradientBrush"];
-                            var textureBrush = pathdata["textureBrushs"];
-                            var charID = pathdata["charID"];
-                            var rectangle = pathdata["rectvalue"];
-                            var alpha = pathdata["alpha"];
-                            var filter = pathdata["filters"];
-                            var dashedPattern = pathdata["dashPattern"];
-                            if (dashedPattern != null && dashedPattern.length > 0) {
-                                context.setLineDash(dashedPattern);
-                            }
-                            if (pathValue != null) {
-                                pathValue = pathValue.split(";");
-                                if (charID)
-                                    charPath[charID] = pathValue;
-                            }
-                            else if (pathValue == null && charID) {
-                                pathValue = charPath[charID];
-                            }
-                            if (restoreCanvas == false) {
-                                context.save();
-                            }
-                            if (pathValue != undefined) {
-                                context.setTransform(matrix[0] * zoomValue * ratio, matrix[1] * zoomValue * ratio, matrix[2] * zoomValue * ratio, matrix[3] * zoomValue * ratio, matrix[4] * zoomValue * ratio, matrix[5] * zoomValue * ratio);
-                            }
-
-                            if (pathValue != null) {
-                                context.beginPath();
-
-                                for (var i = 0; i < pathValue.length; i++) {
-                                    var val = pathValue[i];
-                                    var pathType = val[0];
-                                    if (pathType == "M") {
-                                        val = val.substring(1, val.length);
-                                        val = val.split(" ");
-                                        context.moveTo((val[0]), val[1]);
-                                    }
-                                    else if (pathType == "L") {
-                                        val = val.substring(1, val.length);
-                                        val = val.split(" ");
-                                        context.lineTo((val[0]), val[1]);
-                                    }
-                                    else if (pathType == "C") {
-                                        val = val.substring(1, val.length);
-                                        val = val.split(" ");
-                                        context.bezierCurveTo(val[0], val[1], val[2], val[3], val[4], val[5]);
-                                    }
-                                    else if (pathType == "Z") {
-                                        context.closePath();
-                                    }
-                                }
-                                if (isClipping == true) {
-                                    if (fillMode == "evenodd") {
-                                        context.msFillRule = "evenodd";
-                                        context.mozFillRule = "evenodd";
-                                        context.clip(fillMode);
-                                    }
-                                    context.clip();
-
-                                }
-                                else {
-                                    if (fillStroke == undefined) {
-                                        if (brushMode == "Fill") {
-                                            if (linearGradient != undefined) {
-                                                context.fillStyle = proxy._getGradientBrush(linearGradient, context);
-                                            }
-                                            else if (textureBrush != undefined) {
-                                                context.fillStyle = proxy._createTextureBrush(textureBrush, context, pathdata);
-                                            }
-                                            else {
-                                                if (alpha != undefined)
-                                                    context.globalAlpha = alpha;
-                                                context.fillStyle = color;
-                                            }
-                                            if (fillMode == "evenodd") {
-                                                context.msFillRule = "evenodd";
-                                                context.mozFillRule = "evenodd";
-                                                context.fill(fillMode);
-                                            }
-                                            context.fill();
-                                        }
-                                        else if (brushMode == "FillandStroke") {
-                                            context.fillStyle = color;
-                                            context.lineWidth = lineWidth;
-                                            context.fill();
-                                            context.strokeStyle = strokeColor;
-                                            context.stroke();
-                                        }
-                                        else if (brushMode == "Stroke") {
-                                            context.strokeStyle = strokeColor;
-                                            context.lineWidth = lineWidth;
-                                            context.lineCap = lineCap;
-                                            context.stroke();
-                                        }
-                                        else {
-                                            context.strokeStyle = color;
-                                            context.lineWidth = lineWidth;
-                                            context.lineCap = lineCap;
-                                            context.stroke();
-                                        }
-                                    }
-                                    else {
-                                        context.strokeStyle = strokeColor;
-                                        context.lineWidth = lineWidth;
-                                        context.lineCap = lineCap;
-                                        context.stroke();
-                                        if (linearGradient != undefined) {
-                                            context.fillStyle = proxy._getGradientBrush(linearGradient, context);
-                                        }
-                                        else if (textureBrush != undefined) {
-                                            context.fillStyle = proxy._createTextureBrush(textureBrush, context, pathdata);
-                                        }
-                                        else
-                                            context.fillStyle = fillColor;
-                                        if (fillMode == "evenodd") {
-                                            context.msFillRule = "evenodd";
-                                            context.mozFillRule = "evenodd";
-                                            context.fill(fillMode);
-                                        }
-                                        context.fill();
-                                    }
-                                }
-                            }
-
-                            if (restoreCanvas)
-                                context.restore();
-                            if (imageData != undefined) {
-                                isImageContentChanged = true;
-                                imageObjCollection.pop();
-                                imageTransformCollection.pop();
-                                pageDataCollection.pop();
-                                currentIndexCollection.pop();
-                                imageObjCollection.push(imageData);
-                                imageTransformCollection.push(matrix);
-                                pageDataCollection.push(shapes);
-                                currentIndexCollection.push(dataIndex);
-                                imageFilter.pop();
-                                imageFilter.push(filter);
-                                l = -1;
-                                imageIndex++;
-                                break;
-                            }
-                            dataIndex++;
-                        }
-                    }
-                    else {
-                        proxy._imageRendering(shapes, imageDataCollection, imageObjCollection, imageTransformCollection, context, l, pageDataCollection, currentIndexCollection, charPath, canvas, currentindex, imageIndex, imageFilter);
-                        imageIndex++;
-                    }
-                }
-            }
-            else {
                 imageObject.onload = function () {
                     var isImageContentChanged = false;
                     var ratio = proxy._scalingTextContent(context);
@@ -3390,7 +3235,6 @@
                                             }
                                             else if (brushMode == "FillandStroke") {
                                                 context.fillStyle = color;
-                                                context.lineWidth = lineWidth;
                                                 context.fill();
                                                 context.strokeStyle = strokeColor;
                                                 context.stroke();
@@ -3460,17 +3304,18 @@
                             var tempcanvas = document.getElementById(proxy._id + 'pagecanvas_' + currentindex);
                             var canvasUrl = tempcanvas.toDataURL();
                             var ctx = tempcanvas.getContext('2d');
+                            var ratio = proxy._scalingTextContent(context);
                             var image = new Image();
                             image.onload = function () {
                                 ctx.clearRect(0, 0, tempcanvas.width, tempcanvas.height);
                                 if (proxy._pageSize[currentindex - 1].PageRotation == 90 || proxy._pageSize[currentindex - 1].PageRotation == 270) {
-                                    tempcanvas.width = proxy._zoomVal * proxy._pageSize[currentindex - 1].PageHeight;
-                                    tempcanvas.height = proxy._zoomVal * proxy._pageSize[currentindex - 1].PageWidth;
+                                    tempcanvas.width = proxy._zoomVal * proxy._pageSize[currentindex - 1].PageHeight * ratio;
+                                    tempcanvas.height = proxy._zoomVal * proxy._pageSize[currentindex - 1].PageWidth * ratio;
                                     tempcanvas.style.height = proxy._zoomVal * proxy._pageSize[currentindex - 1].PageWidth + 'px';
                                     tempcanvas.style.width = proxy._zoomVal * proxy._pageSize[currentindex - 1].PageHeight + 'px';
                                 } else {
-                                    tempcanvas.width = proxy._zoomVal * proxy._pageSize[currentindex - 1].PageWidth;
-                                    tempcanvas.height = proxy._zoomVal * proxy._pageSize[currentindex - 1].PageHeight;
+                                    tempcanvas.width = proxy._zoomVal * proxy._pageSize[currentindex - 1].PageWidth * ratio;
+                                    tempcanvas.height = proxy._zoomVal * proxy._pageSize[currentindex - 1].PageHeight * ratio;
                                     tempcanvas.style.width = proxy._zoomVal * proxy._pageSize[currentindex - 1].PageWidth + 'px';
                                     tempcanvas.style.height = proxy._zoomVal * proxy._pageSize[currentindex - 1].PageHeight + 'px';
                                 }
@@ -3487,7 +3332,6 @@
                 imageObject.src = imageObjCollection[index];
                 imageDataCollection.push(imageObject);
                 this._imageObj.push(imageObject);
-            }
         },
 
         _createTextureBrush: function (textureBrush, context, pathdata) {
@@ -3545,6 +3389,17 @@
             var nybHexString = "0123456789ABCDEF";
             return String(nybHexString.substr((n >> 4) & 0x0F, 1)) + nybHexString.substr(n & 0x0F, 1);
         },
+        _ajaxResponseData: function (data) {
+            var proxy = this;
+            proxy._responseData = null;
+            var responseData = { responseData: data }
+            proxy._raiseClientEvent("ajaxRequestSuccess", responseData);
+            if (proxy._responseData != null && proxy._responseData != "" && typeof proxy._responseData === 'object')
+                data = JSON.stringify(proxy._responseData);
+            else if (proxy._responseData != null && proxy._responseData != "")
+                data = proxy._responseData;
+            return data;
+        },
         //-------------------- Apply Page Style and Actions [End] -------------------------//
 
         //-------------------- Ajax Web API Call back methods[start] -------------------------//
@@ -3564,6 +3419,7 @@
                 data: jsonResult,
                 traditional: true,
                 success: function (data) {
+                    data = proxy._ajaxResponseData(data);
                     if (proxy.model.allowClientBuffering) {
                         proxy._initPages();
                         if (typeof data === 'object')
@@ -3587,47 +3443,10 @@
                             data = JSON.stringify(data);
                     }
                     var jsData = JSON.parse(data);
-                    var splittedFileName = null;
-                    var pdfFileName;
                     var pagecount = jsData["pagecount"];
-                    var name = (jsData["filename"]);
-                    if (name && pagecount && pagecount != 0) {
-                        name = (jsData["filename"]).split('\\');
-                        if (name.length > 0) {
-                            name = name[name.length - 1];
-                        }
-                        pdfFileName = name;
-                        if (proxy._fileName && proxy._fileName != "") {
-                            splittedFileName = proxy._fileName.split('\\');
-                            if (splittedFileName.length > 0) {
-                                splittedFileName = splittedFileName[splittedFileName.length - 1];
-                            }
-                            if (splittedFileName && splittedFileName.indexOf(".pdf") >= 0) {
-                                splittedFileName = splittedFileName;
-                            }
-                            else
-                                splittedFileName = splittedFileName + ".pdf";
-                        }
-                    }
-                    pdfFileName = name;
                     if (pagecount == 0) {
                         this.pageCount = 0;
                         proxy._unLoad();
-                    }
-                    else if (proxy._fileName && proxy._fileName != "" && pdfFileName && pdfFileName != "undefined.pdf" && splittedFileName && splittedFileName != "" && splittedFileName != pdfFileName) {
-                        var jsonResult = new Object();
-                        jsonResult["viewerAction"] = "GetPageModel";
-                        jsonResult["controlId"] = proxy._id;
-                        jsonResult["pageindex"] = "1";
-                        jsonResult["isInitialLoading"] = "true";
-                        jsonResult["newFileName"] = proxy._fileName;
-                        proxy._fileId = proxy._createGUID();
-                        jsonResult["id"] = proxy._fileId;
-                        proxy._actionUrl = proxy.model.serviceUrl + "/" + proxy.model.serverActionSettings.load;
-                        if (proxy._pdfService == ej.PdfViewer.PdfService.Local)
-                            proxy._doAjaxPost("POST", proxy._actionUrl, JSON.stringify(jsonResult), "_getPageModel");
-                        else
-                            proxy._doAjaxPost("POST", proxy.model.serviceUrl, JSON.stringify({ 'jsonResult': jsonResult }), "_getPageModel");
                     }
                     else {
                         if (typeof data === 'object')
@@ -3685,6 +3504,7 @@
             this._pageContents = new Array();
             this._pageText = new Array();
             this._textDivs = new Array();
+            this._textlayout = new Array();
             this._textContents = new Array();
             this._searchMatches = new Array();
             this._searchCollection = new Array();
@@ -3742,6 +3562,8 @@
                         args = { fileName: argument.fileName };
                     else if (eventName == "ajaxRequestFailure")
                         args = { message: argument };
+                    else if (eventName == "ajaxRequestSuccess")
+                        args = { responseData: argument.responseData };
                     else if (eventName == "annotationAdd")
                         args = { annotationSettings: argument.annotationSettings, annotationID: argument.annotationId, pageID: argument.pageId, annotationBound: argument.annotationBound, annotationType: argument.annotationType };
                     else if (eventName == "annotationRemove")
@@ -3983,7 +3805,7 @@
                 else {
                     //ie
                     frameDoc.document.write('<!DOCTYPE html>');
-                    frameDoc.document.write('<html><head><style>html, body { height: 99%; } img { height: 99%; width: 100%; }@media print { body { margin: 0cm; }img { box-sizing: border-box; }br, button { display: none; }} @page{margin:0cm; size: 816px 1056px;}</style></head><body><center>');
+                    frameDoc.document.write('<html><head><style>html, body { height: 99%; } img { height: 99%; width: 100%; }@media print { body { margin: 0cm; }img { box-sizing: border-box; }br, button { display: none; }} @page{margin:0.5cm; size: 816px 1056px;}</style></head><body><center>');
 
                 }
             }
@@ -4024,8 +3846,8 @@
                         var childrens = currentInput.children;
                         $(childrens[index]).prop("selected", true);
                     }
-                    var PagesWidth = proxy._pageSize[i - 1].PageWidth;
-                    var PagesHeight = proxy._pageSize[i - 1].PageHeight;
+                    var PagesWidth = proxy._pageSize[i - 1].PageWidth * proxy._zoomVal;
+                    var PagesHeight = proxy._pageSize[i - 1].PageHeight * proxy._zoomVal;
                     if (PagesWidth > PagesHeight) {
                         var heightRatio = PagesHeight / 816;
                         var widthRatio = PagesWidth / 1056;
@@ -4055,6 +3877,7 @@
                         $(currentInput).css("left", currentHeightPosition - currentWidthPosition + (parseFloat($(currentInput).css("top"))) + "px");
                         $(currentInput).css("top", currentWidthPosition - currentHeightPosition + previousLeft + "px");
                     }
+                    $(currentInput).css("margin", "-1px");
                     $(frameDoc.document.getElementById('fields_' + i)).append(currentInput);
                 }
                 var signature = $(pagediv).find('.e-pdfviewer-imagecanvasDraw');
@@ -4201,6 +4024,7 @@
                     data: jsonResult,
                     traditional: true,
                     success: function (data) {
+                        data = proxy._ajaxResponseData(data);
                         if (typeof data === 'object')
                             proxy._printPdfPages(JSON.stringify(data));
                         else
@@ -4284,8 +4108,8 @@
             var context = canvas.getContext('2d');
             var ratio = this._scalingTextContent(context);
             if (this._pageSize[index - 1].PageRotation == 90 || this._pageSize[index - 1].PageRotation == 270) {
-                canvas.height = this._zoomVal * this._pageSize[index - 1].PageHeight;
-                canvas.width = this._zoomVal * this._pageSize[index - 1].PageWidth;
+                canvas.height = this._zoomVal * this._pageSize[index - 1].PageHeight * ratio;
+                canvas.width = this._zoomVal * this._pageSize[index - 1].PageWidth * ratio;
                 canvas.style.width = this._zoomVal * this._pageSize[index - 1].PageWidth + 'px';
                 canvas.style.height = this._zoomVal * this._pageSize[index - 1].PageHeight + 'px';
             }
@@ -4406,7 +4230,6 @@
                             }
                             else if (brushMode == "FillandStroke") {
                                 context.fillStyle = color;
-                                context.lineWidth = lineWidth;
                                 context.fill();
                                 context.strokeStyle = strokeColor;
                                 context.stroke();
@@ -4479,18 +4302,19 @@
                     tempcanvas = document.getElementById(this._id + 'pagecanvas_' + parseInt(jsondata["currentpage"]));
                     var canvasUrl = tempcanvas.toDataURL();
                     var context = tempcanvas.getContext('2d');
+                    var ratio = proxy._scalingTextContent(context);
                     var image = new Image();
                     if ((browserUserAgent.indexOf("Firefox")) != -1) {
                         image.onload = function () {
                             context.clearRect(0, 0, tempcanvas.width, tempcanvas.height);
                             if (proxy._pageSize[index - 1].PageRotation == 270) {
-                                tempcanvas.width = proxy._zoomVal * proxy._pageSize[index - 1].PageHeight;
-                                tempcanvas.height = proxy._zoomVal * proxy._pageSize[index - 1].PageWidth;
+                                tempcanvas.width = proxy._zoomVal * proxy._pageSize[index - 1].PageHeight * ratio;
+                                tempcanvas.height = proxy._zoomVal * proxy._pageSize[index - 1].PageWidth * ratio;
                                 tempcanvas.style.height = proxy._zoomVal * proxy._pageSize[index - 1].PageWidth + 'px';
                                 tempcanvas.style.width = proxy._zoomVal * proxy._pageSize[index - 1].PageHeight + 'px';
                             } else {
-                                tempcanvas.width = proxy._zoomVal * proxy._pageSize[index - 1].PageWidth;
-                                tempcanvas.height = proxy._zoomVal * proxy._pageSize[index - 1].PageHeight;
+                                tempcanvas.width = proxy._zoomVal * proxy._pageSize[index - 1].PageWidth * ratio;
+                                tempcanvas.height = proxy._zoomVal * proxy._pageSize[index - 1].PageHeight * ratio;
                                 tempcanvas.style.height = proxy._zoomVal * proxy._pageSize[index - 1].PageHeight + 'px';
                                 tempcanvas.style.width = proxy._zoomVal * proxy._pageSize[index - 1].PageWidth + 'px';
                             }
@@ -4504,13 +4328,13 @@
                     } else {
                         context.clearRect(0, 0, tempcanvas.width, tempcanvas.height);
                         if (proxy._pageSize[index - 1].PageRotation == 270) {
-                            tempcanvas.width = proxy._zoomVal * proxy._pageSize[index - 1].PageHeight;
-                            tempcanvas.height = proxy._zoomVal * proxy._pageSize[index - 1].PageWidth;
+                            tempcanvas.width = proxy._zoomVal * proxy._pageSize[index - 1].PageHeight * ratio;
+                            tempcanvas.height = proxy._zoomVal * proxy._pageSize[index - 1].PageWidth * ratio;
                             tempcanvas.style.height = proxy._zoomVal * proxy._pageSize[index - 1].PageWidth + 'px';
                             tempcanvas.style.width = proxy._zoomVal * proxy._pageSize[index - 1].PageHeight + 'px';
                         } else {
-                            tempcanvas.width = proxy._zoomVal * proxy._pageSize[index - 1].PageWidth;
-                            tempcanvas.height = proxy._zoomVal * proxy._pageSize[index - 1].PageHeight;
+                            tempcanvas.width = proxy._zoomVal * proxy._pageSize[index - 1].PageWidth * ratio;
+                            tempcanvas.height = proxy._zoomVal * proxy._pageSize[index - 1].PageHeight * ratio;
                             tempcanvas.style.height = proxy._zoomVal * proxy._pageSize[index - 1].PageHeight + 'px';
                             tempcanvas.style.width = proxy._zoomVal * proxy._pageSize[index - 1].PageWidth + 'px';
                         }
@@ -4678,7 +4502,6 @@
                                         }
                                         else if (brushMode == "FillandStroke") {
                                             context.fillStyle = color;
-                                            context.lineWidth = lineWidth;
                                             context.fill();
                                             context.strokeStyle = strokeColor;
                                             context.stroke();
@@ -4748,17 +4571,18 @@
                         var tempcanvas = document.getElementById(proxy._id + 'pagecanvas_' + currentindex);
                         var canvasUrl = tempcanvas.toDataURL();
                         var ctx = tempcanvas.getContext('2d');
+                        var ratio = proxy._scalingTextContent(context);
                         var image = new Image();
                         image.onload = function () {
                             ctx.clearRect(0, 0, tempcanvas.width, tempcanvas.height);
                             if (proxy._pageSize[currentindex - 1].PageRotation == 90 || proxy._pageSize[currentindex - 1].PageRotation == 270) {
-                                tempcanvas.width = proxy._zoomVal * proxy._pageSize[currentindex - 1].PageHeight;
-                                tempcanvas.height = proxy._zoomVal * proxy._pageSize[currentindex - 1].PageWidth;
+                                tempcanvas.width = proxy._zoomVal * proxy._pageSize[currentindex - 1].PageHeight * ratio;
+                                tempcanvas.height = proxy._zoomVal * proxy._pageSize[currentindex - 1].PageWidth* ratio;
                                 tempcanvas.style.height = proxy._zoomVal * proxy._pageSize[currentindex - 1].PageWidth + 'px';
                                 tempcanvas.style.width = proxy._zoomVal * proxy._pageSize[currentindex - 1].PageHeight + 'px';
                             } else {
-                                tempcanvas.width = proxy._zoomVal * proxy._pageSize[currentindex - 1].PageWidth;
-                                tempcanvas.height = proxy._zoomVal * proxy._pageSize[currentindex - 1].PageHeight;
+                                tempcanvas.width = proxy._zoomVal * proxy._pageSize[currentindex - 1].PageWidth * ratio;
+                                tempcanvas.height = proxy._zoomVal * proxy._pageSize[currentindex - 1].PageHeight * ratio;
                                 tempcanvas.style.width = proxy._zoomVal * proxy._pageSize[currentindex - 1].PageWidth + 'px';
                                 tempcanvas.style.height = proxy._zoomVal * proxy._pageSize[currentindex - 1].PageHeight + 'px';
                             }
@@ -4930,8 +4754,13 @@
             this._setPageSize(this._pageHeight, this._pageWidth, null, null);
             var pagenumber = parseInt(pageNo);
             this._updatePageNavigation(pagenumber, this._totalPages);
+            var previousHeight = parseFloat($('#' + this._id + '_toolbarContainer').css("height"));
             if (this._totalPages > 0 && this._totalPages) {
                 $('#' + this._id + '_toolbarContainer span.e-pdfviewer-labelpageno').html(" / " + this._totalPages);
+                var CurrentHeight = parseFloat($('#' + this._id + '_toolbarContainer').css("height"));
+                if (previousHeight != CurrentHeight) {
+                    this._isToolbarHeightChanged = true;
+                }
                 $('#' + this._id + '_txtpageNo').val(pagenumber);
             }
         },
@@ -5762,32 +5591,38 @@
                     pagediv[0].style.height = height + 'px';
 
                     var selectionlayer = document.getElementById(this._id + 'selectioncanvas_' + i);
-                    selectionlayer.style.height = height + 'px';
-                    selectionlayer.style.width = width + 'px';
-                    selectionlayer.style.position = 'absolute';
-                    selectionlayer.style.left = 0;
-                    selectionlayer.style.top = 0;
-                    selectionlayer.style.backgroundColor = 'transparent';
-                    selectionlayer.style.zIndex = '2';
-                    //resizing the loding indicator of the page
-                    var jsonData = this._pageContents[parseInt(i)];
-                    var jsondata;
-                    if (jsonData && this._renderedCanvasList.indexOf(i) != -1) {
-                        if (this._pdfService == ej.PdfViewer.PdfService.Local)
-                            jsondata = JSON.parse(jsonData);
-                        else
-                            jsondata = JSON.parse(jsonData["d"]);
-                        var children = $('#' + this._id + 'selectioncanvas_' + i).children();
-                        for (var k = 0; k < children.length; k++) {
-                            if ($(children[k]).hasClass('e-pdfviewer-textLayer')) {
-                                $(children[k]).remove();
-                                $('#' + this._id + 'selectioncanvas_' + i).removeClass('text_container');
+                    if (this._isPinchZoomed) {
+                        selectionlayer.style.display = 'none';
+                    } else {
+                        selectionlayer.style.display = 'block';
+                        selectionlayer.style.height = height + 'px';
+                        selectionlayer.style.width = width + 'px';
+                        selectionlayer.style.position = 'absolute';
+                        selectionlayer.style.left = 0;
+                        selectionlayer.style.top = 0;
+                        selectionlayer.style.backgroundColor = 'transparent';
+                        selectionlayer.style.zIndex = '2';
+                        //resizing the loding indicator of the page
+                        var jsonData = this._pageContents[parseInt(i)];
+                        if (!this._isTouchEnded)
+                            var jsondata;
+                        if (jsonData || this._renderedCanvasList.indexOf(i) != -1) {
+                            if (this._pdfService == ej.PdfViewer.PdfService.Local)
+                                jsondata = JSON.parse(jsonData);
+                            else
+                                jsondata = JSON.parse(jsonData["d"]);
+                            var children = $('#' + this._id + 'selectioncanvas_' + i).children();
+                            for (var k = 0; k < children.length; k++) {
+                                if ($(children[k]).hasClass('e-pdfviewer-textLayer')) {
+                                    $(children[k]).remove();
+                                    $('#' + this._id + 'selectioncanvas_' + i).removeClass('text_container');
+                                }
                             }
-                        }
-                        if (!$('#' + this._id + 'selectioncanvas_' + i).hasClass('text_container')) {
-                            this._textSelection(jsondata, i, context);
-                        } else {
-                            this._resizeSelection(jsondata, i, context);
+                            if (!$('#' + this._id + 'selectioncanvas_' + i).hasClass('text_container')) {
+                                this._textSelection(jsondata, i, context);
+                            } else {
+                                this._resizeSelection(jsondata, i, context);
+                            }
                         }
                     }
                 }
@@ -5805,6 +5640,21 @@
             }
             $("#" + this._id + "_popupmenu").hide();
             this._isPopupNoteVisible = false;
+            var is_ie = navigator.userAgent.indexOf("MSIE") != -1 || !!document.documentMode == true;
+            if (this._isPinchZoomed && !is_ie) {
+                var value = vscrolValue;
+                var currentPageBounds = document.getElementById(this._id + 'pagecanvas_' + this._currentPage).getBoundingClientRect();
+                var prevPageTop = (currentPageBounds.top - (this._currentPage * 5)) * this._preZoomVal + this._currentPage * 5;
+                var zoomY = this._zoomY;
+                var prevY = value + zoomY;
+                var currentY = (currentPageBounds.top - (this._currentPage * 5)) * this._zoomVal + this._currentPage * 5
+                + ((prevY - prevPageTop) < 0 ? prevY - prevPageTop : (prevY - prevPageTop) * (this._zoomVal / this._preZoomVal));
+                scrollValue = currentY - zoomY;
+
+                var valueX = (vscrolBar.scrollLeft + this._prevZoomX) * (this._zoomVal/this._preZoomVal) - this._zoomX;
+                vscrolBar.scrollLeft = valueX;
+                this._prevZoomX = this._zoomX;
+            }
             vscrolBar.scrollTop = scrollValue;
             this._eventpreviouszoomvalue = this._preZoomVal;
             this._eventzoomvalue = this._zoomVal;
@@ -5865,7 +5715,7 @@
                     height = this._pageSize[i - 1].PageHeight * this._zoomVal;
                     width = this._pageSize[i - 1].PageWidth * this._zoomVal;
                 }
-                newCanvas.style.visibility = 'hidden';
+                newCanvas.style.display = 'none';
                 newCanvas.style.width = width + "px";
                 newCanvas.style.height = height + "px";
                 newCanvas.style.backgroundColor = 'white';
@@ -5891,7 +5741,7 @@
                 var canvas = document.getElementById(this._id + 'pagecanvas_' + i);
                 var oldcanvas = document.getElementById(this._id + 'oldcanvas_' + i);
                 if (canvas != undefined && canvas != null) {
-                    canvas.style.visibility = 'visible';
+                    canvas.style.display = 'block';
                 }
                 if (oldcanvas != undefined && oldcanvas != null) {
                     pageDiv.removeChild(oldcanvas);
@@ -5929,6 +5779,12 @@
                 for (var i = 1; i <= this._totalPages; i++) {
                     if (this._renderedCanvasList.indexOf(i) == -1) {
                         $('#' + this._id + 'pageDiv_' + i + '_WaitingPopup').css({ 'display': 'block' });
+                    }
+                    var loadingindicator = document.getElementById(this._id + 'pageDiv_' + i + '_WaitingPopup');
+                    if (loadingindicator) {
+                        var canvas = document.getElementById(this._id + 'pagecanvas_' + i);
+                        var spanDiv = loadingindicator.childNodes[0];
+                        spanDiv.style.top = (canvas.height - spanDiv.clientHeight) / 2 + 'px';
                     }
                 }
                 this._renderCount = 0;
@@ -6030,8 +5886,8 @@
                     var context = canvas.getContext('2d');
                     var ratio = this._scalingTextContent(context);
                     if (this._pageSize[index - 1].PageRotation == 90 || this._pageSize[index - 1].PageRotation == 270) {
-                        canvas.height = this._zoomVal * this._pageSize[index - 1].PageHeight;
-                        canvas.width = this._zoomVal * this._pageSize[index - 1].PageWidth;
+                        canvas.height = this._zoomVal * this._pageSize[index - 1].PageHeight * ratio;
+                        canvas.width = this._zoomVal * this._pageSize[index - 1].PageWidth * ratio;
                         canvas.style.width = this._zoomVal * this._pageSize[index - 1].PageWidth + 'px';
                         canvas.style.height = this._zoomVal * this._pageSize[index - 1].PageHeight + 'px';
                     }
@@ -6046,7 +5902,6 @@
                     var imageTransformCollection = new Array();
                     var imageDataCollection = new Array();
                     var currentIndexCollection = new Array();
-                    var imageFilter = new Array();
                     var pageDataCollection = new Array();
                     var zoomFactor;
                     var browserUserAgent = navigator.userAgent;
@@ -6076,7 +5931,6 @@
                         var textureBrush = pathdata["textureBrushs"];
                         var charID = pathdata["charID"];
                         var alpha = pathdata["alpha"];
-                        var filter = pathdata["filters"];
                         var dashedPattern = pathdata["dashPattern"];
                         if (dashedPattern != null && dashedPattern.length > 0) {
                             context.setLineDash(dashedPattern);
@@ -6093,11 +5947,7 @@
                             context.save();
                         }
                         if (pathValue != undefined) {
-                            if (this._pageSize[pageindex - 1].PageRotation == 90) {
-                                context.setTransform(matrix[0] * this._zoomVal, matrix[1] * this._zoomVal, matrix[2] * this._zoomVal, matrix[3] * this._zoomVal, matrix[4] * this._zoomVal, matrix[5] * this._zoomVal);
-                            } else {
                                 context.setTransform(matrix[0] * this._zoomVal * ratio, matrix[1] * this._zoomVal * ratio, matrix[2] * this._zoomVal * ratio, matrix[3] * this._zoomVal * ratio, matrix[4] * this._zoomVal * ratio, matrix[5] * this._zoomVal * ratio);
-                            }
                         }
 
                         if (pathValue != null) {
@@ -6157,7 +6007,6 @@
                                     }
                                     else if (brushMode == "FillandStroke") {
                                         context.fillStyle = color;
-                                        context.lineWidth = lineWidth;
                                         context.fill();
                                         context.strokeStyle = strokeColor;
                                         context.stroke();
@@ -6206,7 +6055,6 @@
                                 imageTransformCollection.push(matrix);
                                 pageDataCollection.push(shapes);
                                 currentIndexCollection.push(j);
-                                imageFilter.push(filter);
                                 zoomFactor = this._zoomVal;
                                 this._isContainImage = true;
                                 break;
@@ -6222,27 +6070,28 @@
 
                     if ((offsett = browserUserAgent.indexOf("Firefox")) != -1 || (offsett = browserUserAgent.indexOf("Chrome")) != -1 || (offsett = browserUserAgent.indexOf("Safari")) != -1 || (offsett = browserUserAgent.indexOf("AppleWebKit")) != -1) {
                         for (var k = 0; k < imageObjCollection.length; k++) {
-                            this._imageRenderingPinch(shapes, imageDataCollection, imageObjCollection, imageTransformCollection, context, k, pageDataCollection, currentIndexCollection, charPath, canvas, index, imageIndex, imageFilter);
+                            this._imageRenderingPinch(shapes, imageDataCollection, imageObjCollection, imageTransformCollection, context, k, pageDataCollection, currentIndexCollection, charPath, canvas, index, imageIndex);
                             imageIndex++;
                         }
                     }
                     var tempcanvas = canvas;
                     var proxy = this;
-                    if (this._pageSize[index - 1].PageRotation != 0) {
+                    if (this._pageSize[index - 1].PageRotation != 0 && !this._isContainImage) {
                         tempcanvas = document.getElementById(this._id + 'pagecanvas_' + parseInt(jsondata["currentpage"]));
                         var canvasUrl = tempcanvas.toDataURL();
                         var context = tempcanvas.getContext('2d');
+                        var ratio = proxy._scalingTextContent(context);
                         var image = new Image();
                         image.onload = function () {
                             context.clearRect(0, 0, tempcanvas.width, tempcanvas.height);
                             if (proxy._pageSize[index - 1].PageRotation == 90 || proxy._pageSize[index - 1].PageRotation == 270) {
-                                tempcanvas.width = proxy._zoomVal * proxy._pageSize[index - 1].PageHeight;
-                                tempcanvas.height = proxy._zoomVal * proxy._pageSize[index - 1].PageWidth;
+                                tempcanvas.width = proxy._zoomVal * proxy._pageSize[index - 1].PageHeight * ratio;
+                                tempcanvas.height = proxy._zoomVal * proxy._pageSize[index - 1].PageWidth * ratio;
                                 tempcanvas.style.height = proxy._zoomVal * proxy._pageSize[index - 1].PageWidth + 'px';
                                 tempcanvas.style.width = proxy._zoomVal * proxy._pageSize[index - 1].PageHeight + 'px';
                             } else {
-                                tempcanvas.width = proxy._zoomVal * proxy._pageSize[index - 1].PageWidth;
-                                tempcanvas.height = proxy._zoomVal * proxy._pageSize[index - 1].PageHeight;
+                                tempcanvas.width = proxy._zoomVal * proxy._pageSize[index - 1].PageWidth * ratio;
+                                tempcanvas.height = proxy._zoomVal * proxy._pageSize[index - 1].PageHeight * ratio;
                                 tempcanvas.style.height = proxy._zoomVal * proxy._pageSize[index - 1].PageHeight + 'px';
                                 tempcanvas.style.width = proxy._zoomVal * proxy._pageSize[index - 1].PageWidth + 'px';
 
@@ -6271,6 +6120,8 @@
                         var boundingRect = TextBoxField[l].LineBounds;
                         var inputdiv = document.getElementById(this._id + 'input_' + pageindex + '_' + l);
                         if (TextBoxField[l].Name == "Textbox") {
+                            if (TextBoxField[l].Visible == 1)
+                                continue;
                             var name = $(inputdiv).attr("name");
                             if (TextBoxField[l].FieldName == name)
                                 TextBoxField[l].Text = $(inputdiv).val();
@@ -6334,192 +6185,10 @@
 
 
         },
-        _imageRenderingPinch: function (shapes, imageDataCollection, imageObjCollection, imageTransformCollection, context, index, pageDataCollection, currentIndexCollection, charPath, canvas, currentindex, imageIndex, imageFilter) {
+        _imageRenderingPinch: function (shapes, imageDataCollection, imageObjCollection, imageTransformCollection, context, index, pageDataCollection, currentIndexCollection, charPath, canvas, currentindex, imageIndex) {
             var proxy = this;
             var zoomValue = proxy._zoomVal;
-            var is_chrome = navigator.userAgent.indexOf('Chrome') != -1;
-            var is_firefox = navigator.userAgent.indexOf('Firefox') != -1;
             var imageObject = new Image();
-            if ((is_chrome || is_firefox) && imageFilter == "CCITTFaxDecode") {
-                var isImageContentChanged = false;
-                var ratio = proxy._scalingTextContent(context);
-                for (var l = 0; l < imageTransformCollection.length; l++) {
-                    if (isImageContentChanged == false) {
-                        var matrixData = imageTransformCollection[l];
-                        context.setTransform(matrixData[0] * zoomValue * ratio, matrixData[1] * zoomValue * ratio, matrixData[2] * zoomValue * ratio, matrixData[3] * zoomValue * ratio, matrixData[4] * zoomValue * ratio, matrixData[5] * zoomValue * ratio);
-                        if (imageDataCollection[imageIndex] != undefined) {
-                            context.drawImage(imageDataCollection[imageIndex], 0, 0, 1, 1);
-                        }
-                        var dataIndex = currentIndexCollection[l];
-                        dataIndex = dataIndex + 1;
-                        var data = pageDataCollection[l];
-                        while (dataIndex < data.length) {
-                            var pathdata = data[dataIndex];
-                            var color = pathdata["color"];
-                            var matrix = pathdata["matrix"];
-                            if (matrix != null)
-                                matrix = matrix["Elements"];
-                            var brushMode = pathdata["brush"];
-                            var pathValue = pathdata["pathValue"];
-                            var isClipping = pathdata["iscliping"];
-                            var restoreCanvas = pathdata["restorecanvas"];
-                            var imageData = pathdata["imagedata"];
-                            var fillMode = pathdata["fillrule"];
-                            var fillStroke = pathdata["isFillandStroke"];
-                            var fillColor = pathdata["fillcolor"];
-                            var strokeColor = pathdata["strokecolor"];
-                            var lineWidth = pathdata["linewidth"];
-                            var lineCap = pathdata["linecap"];
-                            var linearGradient = pathdata["linearGradientBrush"];
-                            var textureBrush = pathdata["textureBrushs"];
-                            var charID = pathdata["charID"];
-                            var alpha = pathdata["alpha"];
-                            var filter = pathdata["filters"];
-                            var dashedPattern = pathdata["dashPattern"];
-                            if (dashedPattern != null && dashedPattern.length > 0) {
-                                context.setLineDash(dashedPattern);
-                            }
-                            if (pathValue != null) {
-                                pathValue = pathValue.split(";");
-                                if (charID)
-                                    charPath[charID] = pathValue;
-                            }
-                            else if (pathValue == null && charID) {
-                                pathValue = charPath[charID];
-                            }
-                            if (restoreCanvas == false) {
-                                context.save();
-                            }
-                            if (pathValue != undefined) {
-                                context.setTransform(matrix[0] * zoomValue * ratio, matrix[1] * zoomValue * ratio, matrix[2] * zoomValue * ratio, matrix[3] * zoomValue * ratio, matrix[4] * zoomValue * ratio, matrix[5] * zoomValue * ratio);
-                            }
-
-                            if (pathValue != null) {
-                                context.beginPath();
-
-                                for (var i = 0; i < pathValue.length; i++) {
-                                    var val = pathValue[i];
-                                    var pathType = val[0];
-                                    if (pathType == "M") {
-                                        val = val.substring(1, val.length);
-                                        val = val.split(" ");
-                                        context.moveTo((val[0]), val[1]);
-                                    }
-                                    else if (pathType == "L") {
-                                        val = val.substring(1, val.length);
-                                        val = val.split(" ");
-                                        context.lineTo((val[0]), val[1]);
-                                    }
-                                    else if (pathType == "C") {
-                                        val = val.substring(1, val.length);
-                                        val = val.split(" ");
-                                        context.bezierCurveTo(val[0], val[1], val[2], val[3], val[4], val[5]);
-                                    }
-                                    else if (pathType == "Z") {
-                                        context.closePath();
-                                    }
-                                }
-                                if (isClipping == true) {
-                                    if (fillMode == "evenodd") {
-                                        context.msFillRule = "evenodd";
-                                        context.mozFillRule = "evenodd";
-                                        context.clip(fillMode);
-                                    }
-                                    context.clip();
-
-                                }
-                                else {
-                                    if (fillStroke == undefined) {
-                                        if (brushMode == "Fill") {
-                                            if (linearGradient != undefined) {
-                                                context.fillStyle = proxy._getGradientBrush(linearGradient, context);
-                                            }
-                                            else if (textureBrush != undefined) {
-                                                context.fillStyle = proxy._createTextureBrush(textureBrush, context, pathdata);
-                                            }
-                                            else {
-                                                if (alpha != undefined)
-                                                    context.globalAlpha = alpha;
-                                                context.fillStyle = color;
-                                            }
-                                            if (fillMode == "evenodd") {
-                                                context.msFillRule = "evenodd";
-                                                context.mozFillRule = "evenodd";
-                                                context.fill(fillMode);
-                                            }
-                                            context.fill();
-                                        }
-                                        else if (brushMode == "FillandStroke") {
-                                            context.fillStyle = color;
-                                            context.lineWidth = lineWidth;
-                                            context.fill();
-                                            context.strokeStyle = strokeColor;
-                                            context.stroke();
-                                        }
-                                        else if (brushMode == "Stroke") {
-                                            context.strokeStyle = strokeColor;
-                                            context.lineWidth = lineWidth;
-                                            context.lineCap = lineCap;
-                                            context.stroke();
-                                        }
-                                        else {
-                                            context.strokeStyle = color;
-                                            context.lineWidth = lineWidth;
-                                            context.lineCap = lineCap;
-                                            context.stroke();
-                                        }
-                                    }
-                                    else {
-                                        context.strokeStyle = strokeColor;
-                                        context.lineWidth = lineWidth;
-                                        context.lineCap = lineCap;
-                                        context.stroke();
-                                        if (linearGradient != undefined) {
-                                            context.fillStyle = proxy._getGradientBrush(linearGradient, context);
-                                        }
-                                        else if (textureBrush != undefined) {
-                                            context.fillStyle = proxy._createTextureBrush(textureBrush, context, pathdata);
-                                        }
-                                        else
-                                            context.fillStyle = fillColor;
-                                        if (fillMode == "evenodd") {
-                                            context.msFillRule = "evenodd";
-                                            context.mozFillRule = "evenodd";
-                                            context.fill(fillMode);
-                                        }
-                                        context.fill();
-                                    }
-                                }
-                            }
-
-                            if (restoreCanvas)
-                                context.restore();
-                            if (imageData != undefined) {
-                                isImageContentChanged = true;
-                                imageObjCollection.pop();
-                                imageTransformCollection.pop();
-                                pageDataCollection.pop();
-                                currentIndexCollection.pop();
-                                imageObjCollection.push(imageData);
-                                imageTransformCollection.push(matrix);
-                                pageDataCollection.push(shapes);
-                                currentIndexCollection.push(dataIndex);
-                                imageFilter.pop();
-                                imageFilter.push(filter);
-                                l = -1;
-                                imageIndex++;
-                                break;
-                            }
-                            dataIndex++;
-                        }
-                    }
-                    else {
-                        proxy._imageRenderingPinch(shapes, imageDataCollection, imageObjCollection, imageTransformCollection, context, l, pageDataCollection, currentIndexCollection, charPath, canvas, currentindex, imageIndex, imageFilter);
-                        imageIndex++;
-                    }
-                }
-            }
-            else {
                 imageObject.onload = function () {
                     var isImageContentChanged = false;
                     var ratio = proxy._scalingTextContent(context);
@@ -6630,7 +6299,6 @@
                                             }
                                             else if (brushMode == "FillandStroke") {
                                                 context.fillStyle = color;
-                                                context.lineWidth = lineWidth;
                                                 context.fill();
                                                 context.strokeStyle = strokeColor;
                                                 context.stroke();
@@ -6695,10 +6363,38 @@
                             imageIndex++;
                         }
                     }
+                    if (dataIndex == shapes.length) {
+                        if (proxy._pageSize[currentindex - 1].PageRotation != 0) {
+                            var tempcanvas = document.getElementById(proxy._id + 'pagecanvas_' + currentindex);
+                            var canvasUrl = tempcanvas.toDataURL();
+                            var ctx = tempcanvas.getContext('2d');
+                            var ratio = proxy._scalingTextContent(context);
+                            var image = new Image();
+                            image.onload = function () {
+                                ctx.clearRect(0, 0, tempcanvas.width, tempcanvas.height);
+                                if (proxy._pageSize[currentindex - 1].PageRotation == 90 || proxy._pageSize[currentindex - 1].PageRotation == 270) {
+                                    tempcanvas.width = proxy._zoomVal * proxy._pageSize[currentindex - 1].PageHeight * ratio;
+                                    tempcanvas.height = proxy._zoomVal * proxy._pageSize[currentindex - 1].PageWidth * ratio;
+                                    tempcanvas.style.height = proxy._zoomVal * proxy._pageSize[currentindex - 1].PageWidth + 'px';
+                                    tempcanvas.style.width = proxy._zoomVal * proxy._pageSize[currentindex - 1].PageHeight + 'px';
+                                } else {
+                                    tempcanvas.width = proxy._zoomVal * proxy._pageSize[currentindex - 1].PageWidth * ratio;
+                                    tempcanvas.height = proxy._zoomVal * proxy._pageSize[currentindex - 1].PageHeight * ratio;
+                                    tempcanvas.style.width = proxy._zoomVal * proxy._pageSize[currentindex - 1].PageWidth + 'px';
+                                    tempcanvas.style.height = proxy._zoomVal * proxy._pageSize[currentindex - 1].PageHeight + 'px';
+                                }
+                                ctx.save();
+                                ctx.translate(tempcanvas.width / 2, tempcanvas.height / 2);
+                                ctx.rotate((proxy._pageSize[currentindex - 1].PageRotation / 2) * Math.PI / 2);
+                                ctx.drawImage(image, -image.width / 2, -image.height / 2);
+                                ctx.restore();
+                            }
+                            image.src = canvasUrl;
+                        }
+                    }
                 }
                 imageObject.src = imageObjCollection[index];
                 imageDataCollection.push(imageObject);
-            }
         },
         //-------------------- Pinch Zoom [Start] -----------------------------//
 
@@ -6710,6 +6406,8 @@
             var ejViewer = $(event.target).parents('.e-pdfviewer.e-js');
             var ejViewerInstance = ejViewer.ejPdfViewer("instance");
             ejViewerInstance._touched = false;
+            ejViewerInstance._zoomY = eventTouch[0].clientY;
+            ejViewerInstance._zoomX = eventTouch[0].clientX;
         },
         _touchMove: function (event) {
             var eventTouch = event.touches;
@@ -6720,6 +6418,9 @@
                 if (!ejViewerInstance._isRerenderCanvasCreated) {
                     $('.e-pdfviewer-formFields').hide();
                     var currentDiff = Math.sqrt(Math.pow((eventTouch[0].clientX - eventTouch[1].clientX), 2) + Math.pow((eventTouch[0].clientY - eventTouch[1].clientY), 2));
+                    ejViewerInstance._zoomY = (eventTouch[0].clientY + eventTouch[1].clientY) / 2;
+                    ejViewerInstance._zoomX = (eventTouch[0].clientX + eventTouch[1].clientX) / 2;
+                    ejViewerInstance._isPinchZoomed = true;
                     if (ejViewerInstance._prevDiff > -1) {
                         if (currentDiff > ejViewerInstance._prevDiff) {
                             ejViewerInstance._pinchOut(event);
@@ -6747,6 +6448,12 @@
         _touchEnd: function (event) {
             var ejViewer = $(event.target).parents('.e-pdfviewer.e-js');
             var ejViewerInstance = ejViewer.ejPdfViewer("instance");
+            if (ejViewerInstance._isPinchZoomed) {
+                ejViewerInstance._isPinchZoomed = false;
+                ejViewerInstance._isTouchEnded = true;
+                ejViewerInstance._fitToAutoSize();
+                ejViewerInstance._calculateZoomLevel(ejViewerInstance._zoomVal);
+            }
             ejViewerInstance._prevDiff = -1;
             if (ejViewerInstance._isRenderedByPinch) {
                 if (ejViewerInstance._renderedCanvasList.length != 0) {
@@ -6781,6 +6488,8 @@
                     if (this._pointerCount == 2)
                         this._pointerCount = 0;
                 }
+                this._zoomY = event.originalEvent.clientY;
+                this._zoomX = event.originalEvent.clientX;
             }
         },
 
@@ -6796,6 +6505,9 @@
                     }
                     if (!this._isRerenderCanvasCreated) {
                         var currentDiff = Math.sqrt(Math.pow((this._pointers[0].clientX - this._pointers[1].clientX), 2) + Math.pow((this._pointers[0].clientY - this._pointers[1].clientY), 2));
+                        this._zoomY = (this._pointers[0].clientY + this._pointers[1].clientY) / 2;
+                        this._zoomX = (this._pointers[0].clientX + this._pointers[1].clientX) / 2;
+                        this._isPinchZoomed = true;
                         if (this._prevDiff > -1) {
                             if (currentDiff > this._prevDiff) {
                                 this._pinchOut(event);
@@ -6827,6 +6539,12 @@
                     event.preventDefault();
                     if (this._renderedCanvasList.length != 0) {
                         if (!this._isRerenderCanvasCreated) {
+                            if (this._isPinchZoomed) {
+                                this._isPinchZoomed = false;
+                                this._isTouchEnded = true;
+                                this._fitToAutoSize();
+                                this._calculateZoomLevel(this._zoomVal);
+                            }
                             this._designNewCanvas();
                             var renderList = [];
                             var currentPage = this._currentPage;
@@ -6919,6 +6637,7 @@
         //-------------------------------Text Select and Search [start] ---------------------------//
 
         _textSearch: function () {
+            this._removeSearch = false;
             this._clearAllOccurrences();
             this._selectedIndex = 0;
             this._isTextSearch = true;
@@ -7321,31 +7040,43 @@
 
         _clearAllOccurrences: function () {
             this._searchedText = "";
-            var customMenu = document.getElementById(this._id + "custom-menu");
-            $(customMenu).hide();
-            this._isTextHighlighted = false;
-            this._isTextSearch = false;
-            if (this._searchAjaxRequestState != null) {
-                this._searchAjaxRequestState.abort();
-                this._searchAjaxRequestState = null;
-            }
-            if (this._ajaxRequestState != null) {
-                this._ajaxRequestState.abort();
-                this._ajaxRequestState = null;
-            }
-            $('#' + this._id + '_pdfviewer_searchinput').removeClass('e-pdfviewer-nooccurrence');
-            for (var i = 1; i <= this._totalPages; i++) {
-                if (this._renderedCanvasList.indexOf(parseInt(i)) !== -1) {
-                    var textDiv = this._textDivs[i];
-                    var textContent = this._textContents[i];
-                    if (!textDiv || textDiv == undefined) {
-                        break;
-                    }
-                    for (var j = 0; j < textDiv.length; j++) {
-                        textDiv[j].textContent = textContent[j];
-                        if (!this._isFindboxPresent) {
-                            textDiv[j].textContent = '';
-                            textDiv[j].textContent = textContent[j] + '\r\n';
+            if (this._isTextSearch) {
+                var customMenu = document.getElementById(this._id + "custom-menu");
+                $(customMenu).hide();
+                this._isTextHighlighted = false;
+                this._isTextSearch = false;
+                if (this._searchAjaxRequestState != null) {
+                    this._searchAjaxRequestState.abort();
+                    this._searchAjaxRequestState = null;
+                }
+                if (this._ajaxRequestState != null) {
+                    this._ajaxRequestState.abort();
+                    this._ajaxRequestState = null;
+                }
+                $('#' + this._id + '_pdfviewer_searchinput').removeClass('e-pdfviewer-nooccurrence');
+                for (var i = 1; i <= this._totalPages; i++) {
+                    if (this._renderedCanvasList.indexOf(parseInt(i)) !== -1) {
+                        var textDiv = this._textDivs[i];
+                        var textContent = this._textContents[i];
+                        if (!textDiv || textDiv == undefined) {
+                            break;
+                        }
+                        for (var j = 0; j < textDiv.length; j++) {
+                            var isBreakCharacter = false;
+                            textDiv[j].textContent = textContent[j];
+                            if (!this._isFindboxPresent || this._removeSearch) {
+                                textDiv[j].textContent = '';
+                                for (var k = 0; k < this._textlayout.length; k++) {
+                                    if (this._textlayout[k].id == textDiv[j].id) {
+                                        isBreakCharacter = true;
+                                        break;
+                                    }
+                                }
+                                if (isBreakCharacter)
+                                    textDiv[j].textContent = textContent[j] + '\r\n';
+                                else
+                                    textDiv[j].textContent = textContent[j];
+                            }
                         }
                     }
                 }
@@ -7363,6 +7094,7 @@
                 data: jsonResult,
                 traditional: true,
                 success: function (data) {
+                    data = proxy._ajaxResponseData(data);
                     if (typeof data === 'object')
                         var backupjson = (JSON.stringify(data));
                     else
@@ -8255,6 +7987,7 @@
             args.annotationId = newCanvas.id;
             args.pageId = pageIndex;
             args.annotationBound = bounds;
+            this.isDocumentEdited = true;
             this._raiseClientEvent("signatureAdd", args);
         },
         _addingHistoryMove: function (newCanvas) {
@@ -8978,7 +8711,7 @@
             var annotation = this._currentAnnotationRectangle[0];
             var note = annotation.Note ? annotation.Note : annotation.note;
             if (note) {
-                noteContent.textContent = note;
+                noteContent.innerText = note;
                 var r = annotation.Color ? annotation.Color.R : annotation.colorR;
                 var g = annotation.Color ? annotation.Color.G : annotation.colorG;
                 var b = annotation.Color ? annotation.Color.B : annotation.colorB;
@@ -9085,7 +8818,7 @@
                         } else if (annotationType == "StrikeOut") {
                             annotation.modifiedDate = this.model.strikethroughSettings.modifiedDate ? this.model.strikethroughSettings.modifiedDate : date.toLocaleString();
                         }
-                        annotation.note = popupContent.textContent;
+                        annotation.note = popupContent.innerText;
                     }
                     break;
                 }
@@ -9390,7 +9123,7 @@
             applyProperties.style.paddingBottom = "11px";
             var ok = ej.buildTag("button.e-pdfviewer-properties-okbtn", "OK", { "float": "right", "margin-right": "18px" }, { "id": this._id + "_ok", });
             var cancel = ej.buildTag("button.e-pdfviewer-properties-cancelbtn", "Cancel", { "float": "right" }, { "id": this._id + "_cancel", });
-            var lockedCheckbox = ej.buildTag("input", "", {}, { 'type': 'checkbox' });
+            var lockedCheckbox = ej.buildTag("input", "", {}, { 'type': 'checkbox', 'aria-label':'locked Checkbox'});
             var lockedContent = document.createElement("label");
             lockedContent.id = this._id + "_lockedprop";
             lockedContent.className = "e-pdfviewer-properties-label";
@@ -9431,6 +9164,7 @@
             var input = document.createElement("input");
             input.type = "text";
             input.id = this._id + "_colorpicker";
+            $(input).attr('aria-label', "colorpicker");
             tableData2.appendChild(input);
             var tableRow2 = document.createElement("div");
             tableRow2.className = "e-pdfviewer-opacity-container";
@@ -9452,6 +9186,7 @@
             opacityInput.value = "100%"
             opacityInput.style.width = "50px";
             opacityInput.style.height = "20px";
+            $(opacityInput).attr('aria-label', "opacity");
             tableData4.appendChild(opacityInput);
             var sliderData = document.createElement("div");
             sliderData.className = "e-pdfviewer-slider-control";
@@ -9492,6 +9227,7 @@
             var authorinputValue = document.createElement("input");
             authorinputValue.id = this._id + "_author_input";
             authorinputValue.className = "e-pdfviewer-author-input";
+            $(authorinputValue).attr('aria-label',"author input");
             authorinput.appendChild(authorinputValue);
             var generalTableRow2 = document.createElement("div");
             generalTableRow2.className = "e-pdfviewer-subject-container";
@@ -9509,6 +9245,7 @@
             var subjectValue = document.createElement("input");
             subjectValue.id = this._id + "_subject_input";
             subjectValue.className = "e-pdfviewer-subject-input";
+            $(subjectValue).attr('aria-label', "subject input");
             subjectinput.appendChild(subjectValue);
             var generalTableRow3 = document.createElement("div");
             generalTableRow3.className = "e-pdfviewer-modifieddate-container";
@@ -9546,6 +9283,9 @@
             this._tabObject = $("#" + this._id + "_PropertiesDialogTab").data("ejTab");
             this._on($('#' + this._id + '_ok'), "click", this._applyAnnotationProperties);
             this._on($('#' + this._id + '_cancel'), "click", this._cancelAnnotationProperties);
+            var hiddenCheckbox = document.getElementById(this._id + '_lockedcheckbox_hidden');
+            if (hiddenCheckbox)
+                $(hiddenCheckbox).attr("aria-label", "hidden checkbox");
         },
         _applyAnnotationProperties: function () {
             var tab = this._tabObject;
@@ -10316,6 +10056,7 @@
             }
             $(window).on("keydown", function (e) {
                 proxy._onViewerKeypress(e);
+                proxy._onTextKeyboardCopy(e);
                 if (e.ctrlKey && (e.keyCode == 65 || e.keyCode == 97)) {
                     e.preventDefault();
                 } else if (e.keyCode == 46) {
@@ -10329,7 +10070,7 @@
             var viewer = document.getElementById(this._id + '_viewerContainer');
             $('#' + this._id + '_viewerContainer').css({ 'touch-action': 'pan-x pan-y' });
             $('#' + this._id + '_pdfviewerContainer').css({ 'touch-action': 'pan-x pan-y', 'position': 'relative' });
-            if (navigator.userAgent.match("Firefox") || navigator.userAgent.match("Chrome")) {
+            if (navigator.userAgent.match("Firefox") || navigator.userAgent.match("Chrome") || is_safari) {
                 if (viewer) {
                     viewer.addEventListener('touchstart', this._touchStart);
                     viewer.addEventListener('touchmove', this._touchMove);
@@ -10563,14 +10304,14 @@
             var proxy = this;
             var timer = setTimeout(function () {
                 proxy._controlSelectionRange = null;
-                this._selectionObject = null;
+                proxy._selectionObject = null;
                 clearTimeout(timer);
                 if (!$(event.target).parents().hasClass("e-pdfviewer")) {
                     if ($('#' + proxy._id + 'custom-menu'))
                         $('#' + proxy._id + 'custom-menu').hide();
                     proxy._waterDropletDivHide();
                     $('#' + proxy._id + 'touchcustom-menu').hide();
-                    this._clearHighlightDiv();
+                    proxy._clearHighlightDiv();
                 }
             }, 1000);
         },
@@ -11057,46 +10798,17 @@
                 var parent = document.getElementById(this._id + "_secondarycanvas_" + pageNumber);
                 pagePosition = parent.getBoundingClientRect();
             }
-            var leftClickPosition = event.clientX - pagePosition.left;
-            var topClickPosition = event.clientY - pagePosition.top;
-            var annotationList = this._newAnnotationList[pageNumber - 1];
-            for (var i = 0; i < annotationList.length; i++) {
-                var annotation = annotationList[i];
-                for (var k = 0; k < annotation.bounds.length; k++) {
-                    var bound = annotation.bounds[k];
-                    if (leftClickPosition >= bound.xPosition * this._zoomVal && leftClickPosition <= (bound.xPosition + bound.width) * this._zoomVal && topClickPosition >= bound.yPosition * this._zoomVal && topClickPosition <= (bound.yPosition + bound.height) * this._zoomVal) {
-                        this._currentAnnotationRectangle.push(annotationList[i]);
-                        this._currentAnnotationRectangleBackup.push(annotationList[i]);
-                        isAnnotationGot = true;
-                        currentAnnotations.push(annotation);
-                    } else {
-                        if (isAnnotationGot) {
-                            isAnnotationGot = false;
-                            break;
-                        }
-                        if (!this._isPopupNoteVisible) {
-                            this._currentAnnotationRectangleBackup = [];
-                        }
-                        this._currentAnnotationRectangle = [];
-                    }
-                }
-            }
-            annotationList = this._textMarkupAnnotationList[pageNumber];
-            if (annotationList) {
-                for (var j = 0; j < annotationList.length; j++) {
-                    var annotation = annotationList[j];
-                    for (var k = 0; k < annotation.Bounds.length; k++) {
-                        var bound = annotation.Bounds[k];
-                        var xPosition = this._convertPointToPixel(bound.X);
-                        var yPosition = this._convertPointToPixel(bound.Y);
-                        var width = this._convertPointToPixel(bound.Width);
-                        var height = this._convertPointToPixel(bound.Height);
-                        if (leftClickPosition >= xPosition * this._zoomVal &&
-                            leftClickPosition <= (xPosition + width) * this._zoomVal &&
-                            topClickPosition >= yPosition * this._zoomVal &&
-                            topClickPosition <= (yPosition + height) * this._zoomVal) {
-                            this._currentAnnotationRectangle.push(annotation);
-                            this._currentAnnotationRectangleBackup.push(annotation);
+            if (parent) {
+                var leftClickPosition = event.clientX - pagePosition.left;
+                var topClickPosition = event.clientY - pagePosition.top;
+                var annotationList = this._newAnnotationList[pageNumber - 1];
+                for (var i = 0; i < annotationList.length; i++) {
+                    var annotation = annotationList[i];
+                    for (var k = 0; k < annotation.bounds.length; k++) {
+                        var bound = annotation.bounds[k];
+                        if (leftClickPosition >= bound.xPosition * this._zoomVal && leftClickPosition <= (bound.xPosition + bound.width) * this._zoomVal && topClickPosition >= bound.yPosition * this._zoomVal && topClickPosition <= (bound.yPosition + bound.height) * this._zoomVal) {
+                            this._currentAnnotationRectangle.push(annotationList[i]);
+                            this._currentAnnotationRectangleBackup.push(annotationList[i]);
                             isAnnotationGot = true;
                             currentAnnotations.push(annotation);
                         } else {
@@ -11111,12 +10823,43 @@
                         }
                     }
                 }
+                annotationList = this._textMarkupAnnotationList[pageNumber];
+                if (annotationList) {
+                    for (var j = 0; j < annotationList.length; j++) {
+                        var annotation = annotationList[j];
+                        for (var k = 0; k < annotation.Bounds.length; k++) {
+                            var bound = annotation.Bounds[k];
+                            var xPosition = this._convertPointToPixel(bound.X);
+                            var yPosition = this._convertPointToPixel(bound.Y);
+                            var width = this._convertPointToPixel(bound.Width);
+                            var height = this._convertPointToPixel(bound.Height);
+                            if (leftClickPosition >= xPosition * this._zoomVal &&
+                                leftClickPosition <= (xPosition + width) * this._zoomVal &&
+                                topClickPosition >= yPosition * this._zoomVal &&
+                                topClickPosition <= (yPosition + height) * this._zoomVal) {
+                                this._currentAnnotationRectangle.push(annotation);
+                                this._currentAnnotationRectangleBackup.push(annotation);
+                                isAnnotationGot = true;
+                                currentAnnotations.push(annotation);
+                            } else {
+                                if (isAnnotationGot) {
+                                    isAnnotationGot = false;
+                                    break;
+                                }
+                                if (!this._isPopupNoteVisible) {
+                                    this._currentAnnotationRectangleBackup = [];
+                                }
+                                this._currentAnnotationRectangle = [];
+                            }
+                        }
+                    }
+                }
+                if (currentAnnotations.length > 1) {
+                    currentAnnotations = this._compareAnnotations(currentAnnotations);
+                }
+                this._currentAnnotationRectangle = currentAnnotations;
+                this._currentAnnotationRectangleBackup = currentAnnotations;
             }
-            if (currentAnnotations.length > 1) {
-                currentAnnotations = this._compareAnnotations(currentAnnotations);
-            }
-            this._currentAnnotationRectangle = currentAnnotations;
-            this._currentAnnotationRectangleBackup = currentAnnotations;
         },
         _compareAnnotations: function (currentAnnotations) {
             var prevXposition, currentAnnot;
@@ -11338,10 +11081,11 @@
                         '-ms-user-select': 'none',
                         'user-select': 'none'
                     }).bind('selectstart', function () { return false; });
+                this._isSelectionDisabled = true;
             }
         },
         _enableSelection: function () {
-            if (this.model.enableTextSelection) {
+            if (this.model.enableTextSelection && this._isSelectionDisabled) {
                 $('#' + this._id + '_viewerContainer').removeAttr("unselectable")
                     .css({
                         '-moz-user-select': 'text',
@@ -11351,6 +11095,7 @@
                         '-ms-user-select': 'text',
                         'user-select': 'text'
                     }).unbind('selectstart').bind('selectstart', function () { return true; });
+                this._isSelectionDisabled = false;
             }
         },
         _selectingTextByTouch: function (elem, x, y, type) {
@@ -12064,6 +11809,8 @@
             }
         },
         _copySelectedText: function (e) {
+            var selection, range = "";
+            var is_edgeNew = document.documentMode || /Edge/.test(navigator.userAgent);
             if (!this._isCopyRestrict && this._searchedText && this._searchedText.length > 0 && this._searchedText != "" && this.model.enableTextSelection) {
                 this._enableSelection();
                 if (window.clipboardData && window.clipboardData.setData) {
@@ -12103,8 +11850,8 @@
                         return data;
 
                     } else if (document.queryCommandSupported && document.queryCommandSupported("copy")) {
-                        var selection = window.getSelection();
-                        var range = document.createRange();
+                         selection = window.getSelection();
+                         range = document.createRange();
                         var position = selection.anchorNode.compareDocumentPosition(selection.focusNode)
                         var backward = false;
                         if (!position && selection.anchorOffset > selection.focusOffset ||
@@ -12124,16 +11871,23 @@
                         textarea.style.position = "fixed";  // Prevent scrolling to bottom of page in MS Edge.
                         document.body.appendChild(textarea);
                         textarea.select();
-                        selection.removeAllRanges();
-                        selection.addRange(range);
+                        if (!is_edgeNew) {
+                            selection.removeAllRanges();
+                            selection.addRange(range);
+                        }
                     }
                     try {
                         return document.execCommand("copy");
                     } catch (ex) {
                         console.warn("Copy to clipboard failed.", ex);
                     } finally {
-                        document.body.removeChild(textarea);
+                        if (textarea)
+                          document.body.removeChild(textarea);
                         $('#' + this._id + 'custom-menu').hide();
+                        if (is_edgeNew) {
+                            selection.removeAllRanges();
+                            selection.addRange(range);
+                        }
                     }
 
                     e.preventDefault();
@@ -13123,6 +12877,7 @@
                 this.model = $("#" + this._id).ejPdfViewer("instance").model;
             }
             var proxy = this;
+            proxy._isPinchZoomed = false;
             var elementWidth = proxy._isWidth ? proxy.element[0].parentElement.style.width : proxy.element[0].style.width;
             var elementHeight = proxy._isHeight ? proxy.element[0].parentElement.style.height : proxy.element[0].style.height;
             var _height = $(proxy.element).height();
@@ -13179,12 +12934,14 @@
                 newCanvas.style.height = "400px";
                 newCanvas.style.width = "470px";
                 var elemnts = proxy.element[0].parentElement.parentElement.parentElement;
-                var width = elemnts.offsetWidth;
-                var heights = elemnts.offsetHeight;
-                var newWidths = (width / 2) - (newCanvas.width / 2);
-                var newHeight = (window.innerHeight / 2) - (newCanvas.height / 2);
-                $('#' + this._id + "_signatureContainerDialogTab").ejDialog({ height: "503px" });
-                $('#' + this._id + "_signatureContainerDialogTab").ejDialog({ position: { X: newWidths + "px", Y: newHeight + "px" } });
+                if (elemnts) {
+                    var width = elemnts.offsetWidth;
+                    var heights = elemnts.offsetHeight;
+                    var newWidths = (width / 2) - (newCanvas.width / 2);
+                    var newHeight = (window.innerHeight / 2) - (newCanvas.height / 2);
+                    $('#' + this._id + "_signatureContainerDialogTab").ejDialog({ height: "503px" });
+                    $('#' + this._id + "_signatureContainerDialogTab").ejDialog({ position: { X: newWidths + "px", Y: newHeight + "px" } });
+                }
             }
             $('#' + proxy._id + '_pdfviewer_searchul').removeClass('e-separator');
             $('#' + proxy._id + '_pdfviewer_downloadul').removeClass('e-separator');
@@ -13193,9 +12950,6 @@
             proxy._toolbarResizeHandler();
             proxy._resizeSearchToolbar();
             var toolbarHeight = this.model.toolbarSettings.templateId ? $('#' + this.model.toolbarSettings.templateId).height() : $('#' + this._id + '_toolbarContainer').height();
-            if (window.innerHeight >= 300) {
-                $('#' + proxy._id + '_viewerContainer').css({ height: (window.innerHeight - toolbarHeight) + "px" });
-            }
             if (proxy.model && proxy.model.isResponsive && proxy._renderedCanvasList.length > 0 && proxy._isAutoZoom) {
                 proxy._applyFitToWidthAuto();
             }
@@ -13287,11 +13041,13 @@
                 }
             }
             if ($('#' + this._id + '_pdfviewer_selectul').parent()[0] != toolbar[0]) {
-                this._isZoomCntlHidden = true;
+                if ($('#' + this._id + '_pdfviewer_textmarkupul').parent()[0] != toolbar[0]) {
+                    this._isZoomCntlHidden = true;
+                    this._toolbar._liTemplte.append($('#' + this._id + '_pdfviewer_zoomul')[0]);
+                }
                 this._isSearchHidden = true;
                 toolbar.append($('#' + this._id + '_pdfviewer_selectul')[0]);
                 toolbar.append($('#' + this._id + '_pdfviewer_searchul')[0]);
-                this._toolbar._liTemplte.append($('#' + this._id + '_pdfviewer_zoomul')[0]);
                 this._toolbar._liTemplte.append($('#' + this._id + '_pdfviewer_textmarkupul')[0]);
                 this._toolbar._liTemplte.append($('#' + this._id + '_pdfviewer_signatureul')[0]);
                 this._toolbar._liTemplte.append($('#' + this._id + '_pdfviewer_printul')[0]);
@@ -13314,6 +13070,10 @@
                 $('#' + this._id + '_pdfviewer_printul').removeClass('e-separator');
                 $('#' + this._id + '_pdfviewer_selectul').removeClass('e-separator');
                 this._isZoomCntlHidden = false;
+            }
+            if (this._isToolbarHeightChanged) {
+                this._toolbar._liTemplte.append($('#' + this._id + '_pdfviewer_signatureul')[0]);
+                this._isToolbarHeightChanged = false;
             }
             if ($('#' + this._id + '_toolbarContainer_target').hasClass('e-display-block') && $('#' + this._id + '_toolbarContainer_hiddenlist')[0].childElementCount == 2) {
                 $('#' + this._id + '_pdfviewer_searchul').css({ 'float': 'left' });
@@ -13380,6 +13140,17 @@
                 style.addRule('.e-pdfviewer-arrow::after', 'left:' + left + 'px');
             } else {
                 $('#' + this._id + '_pdfviewer_searchbox').removeClass('e-pdfviewer-arrow');
+            }
+        },
+
+        _ideviceScrolling: function () {
+            var isIdevice = /iPhone|iPad|iPod/i.test(navigator.userAgent);
+            if (isIdevice) {
+                var styleSheet = document.createElement("Style");
+                styleSheet.id = this._id + '-pdfviewer-scrolling';
+                document.head.appendChild(styleSheet);
+                var style = styleSheet.sheet;
+                style.addRule('#' + this._id + "_viewerContainer", '-webkit-overflow-scrolling:touch');
             }
         },
 
@@ -13454,7 +13225,13 @@
         showToolbar: function (showToolbar) {
             this._showToolbar(showToolbar);
         },
-
+        setJSONData: function (data) {
+            if (data != null && data != "")
+                this._responseData = data;
+        },
+        updateViewerSize: function () {
+            this._setViewerContainerHeight();
+        },
         unload: function () {
             this._unLoad();
         },
@@ -13498,8 +13275,10 @@
             this._zoomVal = 1;
             this._zoomLevel = 3;
             this.fileName = null;
+            this._textlayout = [];
             this._fileName = "";
             this._signatureLayer = [];
+            this._newAnnotationList = new Array();
             var localeObj = ej.PdfViewer.Locale[this.model.locale] ? ej.PdfViewer.Locale[this.model.locale] : ej.PdfViewer.Locale["default"];
             var text = localeObj['contextMenu']['auto']['contentText'];
             $('#' + this._id + '_toolbar_zoomSelection_hidden').val(text);

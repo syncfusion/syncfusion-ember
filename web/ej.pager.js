@@ -89,7 +89,8 @@
 				$target.removeClass("e-hover")
 			}
 		},
-        _hidedrop: function () {
+        _hidedrop: function (e) {
+			if($(e.target.parentElement).hasClass("e-drpdwndiv") || $(e.target).hasClass("e-drpdwndiv")) return;
             if (this.$dropItem && this.$dropItem.css("display") != "none") this.$dropItem.hide();
         },
         _wireResizing: function () {
@@ -103,7 +104,7 @@
         },
         _reSizeHandler: function () {
             if (this.$dropItem) if (this.$dropItem.css("display") != "none") this.$dropItem.hide();
-            controlwidth = this._intervalWid + this._gotoWid + this.element.find('.e-pagercontainer').outerWidth() + this._msgWidth;
+            var controlwidth = this._intervalWid + this._gotoWid + this.element.find('.e-pagercontainer').outerWidth() + this._msgWidth;
             if (controlwidth > (this.element.outerWidth() - 20)) { if (this._msgWidth > 0) this.element.find(".e-parentmsgbar").addClass("e-msg-res"); }
             else if (this._msgWidth > 0) this.element.find(".e-parentmsgbar").removeClass("e-msg-res");
             if (this.element.outerWidth() - $(this.element.find(".e-pagercontainer")).outerWidth() < 40) {
@@ -479,16 +480,16 @@
                 if(this._$next)this._$next.addClass("e-nextpagedisabled e-disable").removeClass("e-nextpage").removeClass("e-default");
                 if(this._$NP)this._$NP.addClass("e-nextprevitemdisabled e-disable").removeClass("e-numericitem").removeClass("e-default");
                 if (this.model.pageSizeList) {
-                    $(".e-drpdwndiv").addClass("e-disable");
+                    this.element.find(".e-drpdwndiv").addClass("e-disable");
                 }
                 return;
             }
             else {
                 if (this.model.totalRecordsCount == 0 && this.model.pageSizeList) {
-                    $(".e-drpdwndiv").addClass("e-disable");
+                    this.element.find(".e-drpdwndiv").addClass("e-disable");
                 }
-                else if (this.model.totalRecordsCount != 0 && this.model.pageSizeList && $(".e-drpdwndiv").hasClass("e-disable")) {
-                    $(".e-drpdwndiv").removeClass("e-disable");
+                else if (this.model.totalRecordsCount != 0 && this.model.pageSizeList && this.element.find(".e-drpdwndiv").hasClass("e-disable")) {
+                    this.element.find(".e-drpdwndiv").removeClass("e-disable");
                 }
                 if (this.model.currentPage > 1 && this._$prev && this._$first) {
                     this._$prev.removeClass("e-prevpagedisabled").removeClass("e-disable").addClass("e-prevpage e-default");
@@ -694,7 +695,6 @@
 				 this._trigger("addRecord", { "currentPage": this.model.currentPage, "event": e });
 			}
             this.goToPage(this.model.currentPage, e);
-            return false;
         },
         goToPage: function (pageIndex, event) {
             if (pageIndex != this.model.currentPage)
@@ -712,28 +712,28 @@
 			if(this.model.totalRecordsCount != 0 && this.model.currentPage >= 1 && this.model.currentPage < this.model.totalPages){
 				this.model.currentPage = this.model.currentPage + 1;
 				this.refreshPager();
-                this._trigger("change", { "currentPage": this.model.currentPage, "isInteraction": true, "event": event });
+                this._trigger("change", { "currentPage": this.model.currentPage, "isInteraction": false });
 			}
 		},
 		goToLastPage: function () {
 			if(this.model.totalRecordsCount != 0 && this.model.currentPage >= 1 && this.model.currentPage < this.model.totalPages){
 				this.model.currentPage = this.model.totalPages;
 				this.refreshPager();
-                this._trigger("change", { "currentPage": this.model.currentPage, "isInteraction": true, "event": event });
+                this._trigger("change", { "currentPage": this.model.currentPage, "isInteraction": false });
 			}
 		},
 		goToFirstPage: function () {
 			if(this.model.totalRecordsCount != 0 && this.model.currentPage > 1){
 				this.model.currentPage = 1;
 				this.refreshPager();
-                this._trigger("change", { "currentPage": this.model.currentPage, "isInteraction": true, "event": event });
+                this._trigger("change", { "currentPage": this.model.currentPage, "isInteraction": false });
 			}
 		},
 		goToPrevPage: function () {
 			if(this.model.totalRecordsCount != 0 && this.model.currentPage > 1 ){
 				this.model.currentPage = this.model.currentPage - 1;
 				this.refreshPager();
-                this._trigger("change", { "currentPage": this.model.currentPage, "isInteraction": true, "event": event });
+                this._trigger("change", { "currentPage": this.model.currentPage, "isInteraction": false });
 			}
 		},
 		

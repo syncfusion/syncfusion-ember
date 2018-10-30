@@ -181,7 +181,7 @@ var ejSparkline;
                 var sparklineEle = document.getElementById(this.rootId), insideEvents = "", browserInfo = this.browserInfo(), isPointer = browserInfo.isMSPointerEnabled, isIE11Pointer = browserInfo.pointerEnabled, touchStopEvent = isPointer ? (isIE11Pointer ? "pointerup" : "MSPointerUp") : "touchend mouseup", touchMoveEvent = isPointer ? (isIE11Pointer ? "pointermove" : "MSPointerMove") : "touchmove mousemove";
                 insideEvents = touchStopEvent + " " + touchMoveEvent;
                 insideEvents = insideEvents.split(" ");
-                for (var event in insideEvents) {
+                for (var event = 0; event < insideEvents.length; event++) {
                     sparklineEle.removeEventListener(insideEvents[event], this.sparkMouseMove);
                 }
                 sparklineEle.removeEventListener("mouseout", this.sparkMouseLeave);
@@ -218,7 +218,7 @@ var ejSparkline;
                 var insideEvents = "", browserInfo = this.browserInfo(), isPointer = browserInfo.isMSPointerEnabled, isIE11Pointer = browserInfo.pointerEnabled, touchStopEvent = isPointer ? (isIE11Pointer ? "pointerup" : "MSPointerUp") : "touchend mouseup", touchMoveEvent = isPointer ? (isIE11Pointer ? "pointermove" : "MSPointerMove") : "touchmove mousemove";
                 insideEvents = touchStopEvent + " " + touchMoveEvent;
                 insideEvents = insideEvents.split(" ");
-                for (var event in insideEvents) {
+                for (var event = 0; event < insideEvents.length; event++) {
                     ele.addEventListener(insideEvents[event], this.sparkMouseMove);
                 }
                 ele.addEventListener("mouseout", this.sparkMouseLeave);
@@ -557,7 +557,7 @@ var ejSparkline;
                 var insideEvents = "", browserInfo = this.browserInfo(), isPointer = browserInfo.isMSPointerEnabled, isIE11Pointer = browserInfo.pointerEnabled, touchStopEvent = isPointer ? (isIE11Pointer ? "pointerup" : "MSPointerUp") : "touchend mouseup", touchMoveEvent = isPointer ? (isIE11Pointer ? "pointermove" : "MSPointerMove") : "touchmove mousemove";
                 insideEvents = touchStopEvent + " " + touchMoveEvent;
                 insideEvents = insideEvents.split(" ");
-                for (var event in insideEvents) {
+                for (var event = 0; event < insideEvents.length; event++) {
                     ele.addEventListener(insideEvents[event], this.pieTooltip);
                 }
                 ele.addEventListener("mouseout", this.pieTooltipHide);
@@ -570,7 +570,7 @@ var ejSparkline;
                 var insideEvents = "", browserInfo = this.browserInfo(), isPointer = browserInfo.isMSPointerEnabled, isIE11Pointer = browserInfo.pointerEnabled, touchStopEvent = isPointer ? (isIE11Pointer ? "pointerup" : "MSPointerUp") : "touchend mouseup", touchMoveEvent = isPointer ? (isIE11Pointer ? "pointermove" : "MSPointerMove") : "touchmove mousemove", sparklineEle = document.getElementById(this.rootId);
                 insideEvents = touchStopEvent + " " + touchMoveEvent;
                 insideEvents = insideEvents.split(" ");
-                for (var event in insideEvents) {
+                for (var event = 0; event < insideEvents.length; event++) {
                     sparklineEle.removeEventListener(insideEvents[event], this.pieTooltip);
                 }
                 sparklineEle.removeEventListener("mouseout", this.pieTooltipHide);

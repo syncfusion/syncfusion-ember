@@ -417,7 +417,9 @@
 
         _wireEvents: function (remove) {
             var eventType = remove ? "unbind" : "bind";
-            this._createDelegates();
+			if(!remove){
+				this._createDelegates();
+			}
             this._li = this.element.find("li");
             ej.listenEvents([this._li, this._li, this._li, window], [ej.startEvent(), ej.endEvent(), ej.moveEvent(), 'orientationchange'], [this._touchStartDelegate, this._touchEndDelegate, this._touchMoveDelegate, this._orientationDelegate], remove);
             this._tapEvent = (this.model.showOn == "taphold") ? ej.tapHoldEvent() : ej.tapEvent();
@@ -517,7 +519,7 @@
                 this.element.css("display", "none");
             this._overlay.addClass("e-m-overlay-hide").css("pointer-events", "none");
             if (this.model.hide && this.element.hasClass("e-m-menushow"))
-                this._trigger("hide");
+                if (this._trigger("hide")) return;
             this.element.removeClass("e-m-menushow");
         },
         _enableDisable: function (val) {

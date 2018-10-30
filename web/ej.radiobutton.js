@@ -258,7 +258,7 @@
             this.initialRender = true;
             var browserInfo = ej.browserInfo();
             if (browserInfo.name == 'msie' && browserInfo.version == '8.0')
-                this.div = $('<div class="e-radiobtn-wrap e-widget e-rad-outer" ></div>');
+                this.div = $('<div class="e-radiobtn-wrap e-widget e-rad-outer e-ie8" ></div>');
             else
                 this.div = $('<div class="e-radiobtn-wrap e-widget" ></div>');
             this.div.attr({ 'id': this.model.idPrefix + this.model.id, "role": "radio", "tabindex": 0, "aria-checked": false });
@@ -364,6 +364,8 @@
                     var prevObj = $(obj).data("ejRadioButton");
                     if (prevObj != null && prevObj.checked() != null && typeof prevObj.checked() == "boolean")
                         prevObj.model.checked = false;
+						prevObj.isChecked = false;
+						prevObj.radbtn.removeAttr("checked");
                 });
                 if (currObj != null && currObj.checked() != null && typeof currObj.checked() == "boolean")
                     currObj.model.checked = true;

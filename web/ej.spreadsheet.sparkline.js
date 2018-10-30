@@ -11,7 +11,7 @@
 
     ej.spreadsheetFeatures.sparkLine.prototype = {
         createSparkline: function (dataRange, locationRange, type, options, sheetIdx) {
-            var xlObj = this.XLObj, j, cnt, drow, dcol, lrow, lcol, sparklineString = false,sameDLRnge= false, dtRange, dollarToRnge, dollarToLocRnge, dataRange, sparkline, sparklineElem, sheet, details, sheetIdx, sparklineDiv, locnlen, cellInfo, selectedDataRnge, selectedLocRnge, sheetIndex, dataRngeValue, cell, dRowIdx, dColIdx, dRnglen, arr = [], range= [], tabUpdate = false, array = {};
+            var xlObj = this.XLObj, j, cnt, drow, dcol, lrow, lcol, sparklineString = false,sameDLRnge= false, dtRange, dollarToRnge, dollarToLocRnge, dataRange, sparkline, sparklineElem, sheet, details, sheetIdx, sparklineDiv,lRange, locnlen, cellInfo, selectedDataRnge, selectedLocRnge, sheetIndex, dataRngeValue, cell, dRowIdx, dColIdx, dRnglen, arr = [], range= [], tabUpdate = false, array = {};
             if (!xlObj.model.allowSparkline || xlObj.model.ReadOnly)
                 return;
             options = options || {};
@@ -25,7 +25,7 @@
             locRnge = xlObj._getSelectedCells(sheetIdx, dollarToLocRnge[1]) || xlObj._getSelectedCells();
             options.highPointColor = options.highPointColor || null;
             options.lowPointColor = options.lowPointColor || null;
-            options.NegativePointColor = options.NegativePointColor || null;
+            options.negativePointColor = options.negativePointColor || null;
             options.startPointColor = options.startPointColor || null;
             options.endPointColor = options.endPointColor || null;
             selectedDataRnge = dataRnge.range;
@@ -58,7 +58,7 @@
                             xlObj._showAlertDlg("Alert", "SparklineDataAlert", 630);
                         else if (typeof dataRngeValue === "number") {
                             sparklineElem = this._renderBaseElem(cellInfo, type, this.rowIdx, this.colIdx, sheetIdx);
-                            array = { dataSource: arr, type: type, isResponsive: true, id: sparklineElem[0].id, rowIndex: this.rowIdx, colIndex: this.colIdx, cellInfo: cellInfo, DataRange: dtRange, LocationRange: dollarToLocRnge[1], reqType: "sparkline", shapeType: "sparkline", action: "create", sparklineType: type, range: range,fill: "#33ccff" };
+                            array = { dataSource: arr, type: type, isResponsive: true, id: sparklineElem[0].id, rowIndex: this.rowIdx, colIndex: this.colIdx, cellInfo: cellInfo, DataRange: dtRange, LocationRange: dollarToLocRnge[1], reqType: "sparkline", shapeType: "sparkline", action: "create", sparklineType: type, range: range, fill: "#33ccff" };
                             sparklineElem.ejSparkline($.extend(array, options));
                             xlObj.XLShape._updateShapeMngr({ rowIndex: this.rowIdx, colIndex: this.colIdx }, { "sparkline": $.extend(array, options) }, "sparkline");
                             if (!xlObj._isUndoRedo) {
@@ -120,12 +120,13 @@
                             arr.push(dataRngeValue);
                             range.push(dRowIdx, dColIdx);
                         }
+                        lRange = xlObj._getAlphaRange(sheetIdx, this.rowIdx,this.colIdx,this.rowIdx,this.colIdx);
 						dtRange = xlObj._getAlphaRange(sheetIdx, range[0], range[1], range[range.length - 2], range[range.length - 1]);
                         if (sparklineString)
                             xlObj._showAlertDlg("Alert", "SparklineDataAlert", 630);
                         else if (typeof dataRngeValue === "number")
                             sparklineElem = this._renderBaseElem(cellInfo, type, this.rowIdx, this.colIdx, sheetIdx);
-                        array = { dataSource: arr, type: type, isResponsive: true, id: sparklineElem[0].id, rowIndex: this.rowIdx, colIndex: this.colIdx, cellInfo: cellInfo, DataRange: dtRange, LocationRange: dollarToLocRnge[1], reqType: "sparkline", shapeType: "sparkline", action: "create", sparklineType: type, range: range, fill: "#33ccff" }
+                        array = { dataSource: arr, type: type, isResponsive: true, id: sparklineElem[0].id, rowIndex: this.rowIdx, colIndex: this.colIdx, cellInfo: cellInfo, DataRange: dtRange, LocationRange: lRange, reqType: "sparkline", shapeType: "sparkline", action: "create", sparklineType: type, range: range, fill: "#33ccff" }
                         sparklineElem.ejSparkline($.extend(array, options));
                         xlObj.XLShape._updateShapeMngr({ rowIndex: this.rowIdx, colIndex: this.colIdx }, { "sparkline": $.extend(array, options) }, "sparkline");
                         dRowIdx++;
@@ -157,12 +158,13 @@
                             range.push(dRowIdx, dColIdx);
                             dRowIdx++;
                         }
+                        lRange = xlObj._getAlphaRange(sheetIdx, this.rowIdx,this.colIdx,this.rowIdx,this.colIdx);
 						dtRange = xlObj._getAlphaRange(sheetIdx, range[0], range[1], range[range.length - 2], range[range.length - 1]);
                         if (sparklineString)
                             xlObj._showAlertDlg("Alert", "SparklineDataAlert", 630);
                         else if (typeof dataRngeValue === "number")
                             sparklineElem = this._renderBaseElem(cellInfo, type, this.rowIdx, this.colIdx, sheetIdx);
-                        array = { dataSource: arr, type: type, isResponsive: true, id: sparklineElem[0].id, rowIndex: this.rowIdx, colIndex: this.colIdx, cellInfo: cellInfo, DataRange: dtRange, LocationRange: dollarToLocRnge[1], reqType: "sparkline", shapeType: "sparkline", action: "create", sparklineType: type, range: range, fill: "#33ccff" }
+                        array = { dataSource: arr, type: type, isResponsive: true, id: sparklineElem[0].id, rowIndex: this.rowIdx, colIndex: this.colIdx, cellInfo: cellInfo, DataRange: dtRange, LocationRange: lRange, reqType: "sparkline", shapeType: "sparkline", action: "create", sparklineType: type, range: range, fill: "#33ccff" };
                         sparklineElem.ejSparkline($.extend(array, options));
                         xlObj.XLShape._updateShapeMngr({ rowIndex: this.rowIdx, colIndex: this.colIdx }, { "sparkline": $.extend(array, options) }, "sparkline");
                         dColIdx++;
@@ -188,8 +190,8 @@
 
         _createSparkline: function (sparklineProp, cellInfo, sheetIdx) {
             var xlObj = this.XLObj, sparklineElem, sheetIdx = sheetIdx || xlObj.getActiveSheetIndex();
-            if (xlObj.isImport) {
-                sparklineElem = this._renderBaseElement(cellInfo.top, cellInfo.left, cellInfo.height, cellInfo.width, sparklineProp.rowIndex, sparklineProp.colIndex, sparklineProp.type, sheetIdx)
+            if (xlObj.isImport || xlObj.model.isImport) {
+                sparklineElem = this._renderBaseElement(cellInfo.top, cellInfo.left, cellInfo.height, cellInfo.width, sparklineProp.rowIndex, sparklineProp.colIndex, sparklineProp.type, sheetIdx, sparklineProp.id)
                 sparklineElem.ejSparkline(sparklineProp);
                 sparklineProp["cellInfo"] = cellInfo;
                 sparklineProp["id"] = sparklineElem[0].id;
@@ -197,14 +199,14 @@
             }
             else {
 				cellInfo = cellInfo || sparklineProp.cellInfo;
-                sparklineElem = this._renderBaseElement(cellInfo.top, cellInfo.left, sparklineProp.cellInfo.height, sparklineProp.cellInfo.width, sparklineProp.rowIndex, sparklineProp.colIndex, sparklineProp.type, sheetIdx);
+                sparklineElem = this._renderBaseElement(cellInfo.top, cellInfo.left, sparklineProp.cellInfo.height, sparklineProp.cellInfo.width, sparklineProp.rowIndex, sparklineProp.colIndex, sparklineProp.type, sheetIdx,sparklineProp.id);
                 sparklineElem.ejSparkline(sparklineProp);
             }
 			this._wireSparklineEvents("_on");
         },
-        _renderBaseElement: function (top, left, height, width, rowIndex, colIndex, type, sheetIndex) {
+        _renderBaseElement: function (top, left, height, width, rowIndex, colIndex, type, sheetIndex, sparklineId) {
             var xlObj = this.XLObj, div, actCell;
-            div = $("<div id='" + xlObj._id + "_" + "S" + sheetIndex + "_" + type + "_" + rowIndex + "_" + colIndex + "' class='e-ss-sparkline'  style='top:" + top + "px; left:" + left + "px; height:" + (height - 1) + "px; width:" + width + "px;' ></div>");
+            div = $("<div id='"+ sparklineId + "' class='e-ss-sparkline'  style='top:" + top + "px; left:" + left + "px; height:" + (height - 1) + "px; width:" + width + "px;' ></div>");
             div.data("parentID", xlObj._id);
 			actCell = xlObj.getCell(rowIndex, colIndex, sheetIndex);
 			if(actCell.find('div[id *= "_Merge"]').length)
@@ -227,7 +229,7 @@
             $canBtn.ejButton({ text: xlObj._getLocStr("Cancel"), click: ej.proxy(this._dlgSparklineCancel, this), showRoundedCorner: true, width: "25%" });
             $btndiv.append($btnctnr.append($okBtn, $canBtn));
             $dlg.append($btndiv);
-            $dlg.ejDialog({ enableModal: true, showOnInit: false, enableResize: false, allowKeyboardNavigation: false, title: xlObj._getLocStr("SparklineChart"), width: "auto", cssClass: "e-ss-dialog e-ss-cfdlf e-" + xlObj._id + "-dlg", close: ej.proxy(this._dialogClose, this) });
+            $dlg.ejDialog({ enableModal: true, showOnInit: false, enableResize: false, allowKeyboardNavigation: false, title: xlObj._getLocStr("SparklineChart"), width: "auto", cssClass: "e-ss-dialog e-ss-sparklinedlg e-" + xlObj._id + "-dlg", close: ej.proxy(this._dialogClose, this) });
         },
         _dlgSparklineOk: function () {
             var xlObj = this.XLObj, sheetIdx = xlObj.getActiveSheetIndex(), sheet = xlObj.getSheet(sheetIdx), sparkline, sparklineId,newLocationRange, newDataRange, details, sparklineDiv, dlg = $("#" + xlObj._id + "_SparklineDialog"), arr = [], i, newDataRnge, newLocRnge, dollarToDRnge, type;
@@ -241,8 +243,8 @@
                     sparklineId = xlObj.XLEdit.getPropertyValue(xlObj._getSelectedCells().selCells[0].rowIndex, xlObj._getSelectedCells().selCells[0].colIndex, "sparkline")[0];
                     sparkline = sheet.shapeMngr.sparkline[sparklineDiv[0].id];
                     type = sparkline.type;
-                    delete sparkline;
                     delete xlObj._dataContainer.sheets[sheetIdx][this.rowIdx][this.colIdx];
+                    delete sheet.shapeMngr.sparkline[sparklineDiv[0].id];
                     sparklineDiv.remove();
                     this.createSparkline(newDataRange, newLocationRange, type);
                     dlg.ejDialog("close");
@@ -271,12 +273,12 @@
         _dlgSparklineCancel: function () {
             var xlObj = this.XLObj;
             $("#" + xlObj._id + "_SparklineDialog").ejDialog("close");
-            xlObj.setSheetFocus();
+            xlObj._setSheetFocus();
         },
         _dlgSparklineDesignCancel: function () {
             var xlObj = this.XLObj;
             $("#" + xlObj._id + "_sparklinedesigndlg").ejDialog("close");
-            xlObj.setSheetFocus();
+            xlObj._setSheetFocus();
         },
 
         _renderSparklineDialog: function () {
@@ -506,7 +508,7 @@
         _sparklineDesignTabUpdate: function (sparklineId) {
             var xlObj = this.XLObj, sheet = xlObj.getSheet(xlObj.getActiveSheetIndex()), xlId = xlObj._id, sparkline;
             sparkline = sheet.shapeMngr.sparkline;
-            if (xlObj.model.showRibbon && !xlObj._phoneMode) {
+             if (xlObj.model.showRibbon) {
                 var rObj = $("#" + xlObj._id + '_Ribbon').data('ejRibbon');
                 rObj.showTab(xlObj._getLocStr("SPARKLINEDESIGN"));
                 if (!rObj._isCollapsed)
@@ -548,31 +550,33 @@
             xlObj.XLRibbon._toggleContextualTab(xlObj._getLocStr("SPARKLINEDESIGN"));
         },
         _undoForSparkline: function (val) {
-            var xlObj = this.XLObj, sheet = xlObj.getSheet(val.sheetIndex), sparklineObj = sheet.shapeMngr.sparkline, 
+            var xlObj = this.XLObj, sheet = xlObj.getSheet(val.sheetIndex), dataContainer = xlObj._dataContainer, sparklineObj = sheet.shapeMngr.sparkline; 
 				sparklineElem = xlObj._getContent(val.sheetIndex).find("#" + val.id);
             switch (val.action) {
                 case "create":
                     var sparklineDiv = sparklineElem;
-                    sparkline = xlObj.XLEdit.getPropertyValue(val.rowIndex, val.colIndex, "sparkline")
+                    sparkline = xlObj.XLEdit.getPropertyValue(val.rowIndex, val.colIndex, "sparkline");
                     if (sparkline) {
                         sparklineDiv.remove();
                         if (sparklineObj == sparklineDiv[0].id)
                             delete sparklineObj[sparklineDiv[0].id];
+                        delete sparklineObj[val.id];
+                        delete dataContainer.sheets[val.sheetIndex][val.rowIndex][val.colIndex];
                     }
                     val.action = "remove";
                     break;
                 case "sparklinehighpoint":
                     if (xlObj._isUndo)
-                        sparklineElem.ejSparkline({ highPointColor: val.prev["sparklinehighpoint"] })
+                        sparklineElem.ejSparkline({ highPointColor: val.prev["sparklinehighpoint"] });
                     else {
                         sparklineElem.ejSparkline({ highPointColor: val.sparklinehighpoint });
-                        sparklineObj[val.id]["HighPoint"] = true;;
+                        sparklineObj[val.id]["HighPoint"] = true;
                         sparklineObj[val.id]["highPointColor"] = val.sparklinehighpoint;
                     }
                     break;
                 case "sparklinenegativepoint":
                     if (xlObj._isUndo)
-                        sparklineElem.ejSparkline({ negativePointColor: val.prev["sparklinenegativepoint"] })
+                        sparklineElem.ejSparkline({ negativePointColor: val.prev["sparklinenegativepoint"] });
                     else {
                         sparklineElem.ejSparkline({ negativePointColor: val.sparklinenegativepoint });
                         sparklineObj[val.id]["NegativePoints"] = true;
@@ -581,7 +585,7 @@
                     break;
                 case "sparklinelowpoint":
                     if (xlObj._isUndo)
-                        sparklineElem.ejSparkline({ lowPointColor: val.prev["sparklinelowpoint"] })
+                        sparklineElem.ejSparkline({ lowPointColor: val.prev["sparklinelowpoint"] });
                     else {
                         sparklineElem.ejSparkline({ lowPointColor: val.sparklinelowpoint });
                         sparklineObj[val.id]["LowPoint"] = true;
@@ -590,16 +594,16 @@
                     break;
                 case "sparklinefirstpoint":
                     if (xlObj._isUndo)
-                        sparklineElem.ejSparkline({ startPointColor: val.prev["sparklinefirstpoint"] })
+                        sparklineElem.ejSparkline({ startPointColor: val.prev["sparklinefirstpoint"] });
                     else {
-                        sparklineElem.ejSparkline({ startPointColor: val.sparklinelowpoint });
+                        sparklineElem.ejSparkline({ startPointColor: val.sparklinefirstpoint });
                         sparklineObj[val.id]["FirstPoint"] = true;
-                        sparklineObj[val.id]["startPointColor"] = val.sparklinelowpoint;
+                        sparklineObj[val.id]["startPointColor"] = val.sparklinefirstpoint;
                     }
                     break;
                 case "sparklinelastpoint":
                     if (xlObj._isUndo)
-                        sparklineElem.ejSparkline({ endPointColor: val.prev["sparklinelastpoint"] })
+                        sparklineElem.ejSparkline({ endPointColor: val.prev["sparklinelastpoint"] });
                     else {
                         sparklineElem.ejSparkline({ endPointColor: val.sparklinelastpoint });
                         sparklineObj[val.id]["LastPoint"] = true;
@@ -607,11 +611,11 @@
                     }
                     break;
                 case "sparklinetype":
-                    xlObj._isUndo ? sparklineElem.ejSparkline({ type: val.prev["sparklineType"] }) : sparklineElem.ejSparkline({ type: val.sparklineType });
+                    xlObj._isUndo ?  this.changeType(val.id, val.prev["sparklineType"], val.sheetIndex) :  this.changeType(val.prev["sparklineId"], val.sparklineType, val.sheetIndex);
                     break;
                 case "sparklinecolor":
                     if (xlObj._isUndo)
-                        sparklineElem.ejSparkline({ fill: val.prev["sColor"] })
+                        sparklineElem.ejSparkline({ fill: val.prev["sColor"] });
                     else {
                         sparklineElem.ejSparkline({ fill: val.sColor });
                         sparklineObj[val.id]["sparklineColor"] = true;
@@ -619,97 +623,163 @@
                     }
                     break;
                 case "remove":
-                    this.createSparkline(val.DataRange, val.LocationRange, sparklineObj[val.id].sparklineType, { highPointColor: val.highPointColor, lowPointColor: val.lowPointColor, NegativePointColor: val.NegativePointColor, startPointColor: val.startPointColor, endPointColor: val.endPointColor });
+                    this.createSparkline(val.DataRange, val.LocationRange, val.sparklineType, { highPointColor: val.highPointColor, lowPointColor: val.lowPointColor, NegativePointColor: val.NegativePointColor, startPointColor: val.startPointColor, endPointColor: val.endPointColor });
                     val.action = "create";
                     break;
+				case "markerSettings":
+					if(val.isVisible) {
+						sparklineObj[val.id]["Markers"] = true;
+						sparklineObj[val.id]["markerSettings"] = { visible: true };
+						sparklineElem.ejSparkline({ markerSettings: {visible: true } });
+					}
+					else {
+						sparklineObj[val.id]["Markers"] = false;
+						sparklineObj[val.id]["markerSettings"] = { visible: false };
+						sparklineElem.ejSparkline({ markerSettings: {visible: null } });
+					}
+					val.isVisible = !val.isVisible;
+					break;
             }
         },
         changeType: function (sparklineId, type, sheetIdx) {
-             var xlObj = this.XLObj,sheetIdx = xlObj.getActiveSheetIndex(), sheet = xlObj.getSheet(sheetIdx), details, sparkline,
-				sparklineElem = xlObj._getContent(sheetIdx).find("#" + sparklineId); 
-            sparklineElem.ejSparkline({type: type});
-            details = { sheetIndex: sheetIdx, reqType: "sparkline", action: "sparklinetype", id: sparklineId };
-            sparkline = sheet.shapeMngr.sparkline;
-            details.prev = { sparklineType: sparkline[sparklineId]["type"] };
+            var xlObj = this.XLObj, sheetIdx = xlObj.getActiveSheetIndex(), sheet = xlObj.getSheet(sheetIdx), details, sparkline,sparklineProp,
+            sparklineElem = xlObj._getContent(sheetIdx).find("#" + sparklineId);
+            sparklineProp = sheet.shapeMngr.sparkline[sparklineId];
+            sparklineElem.remove();
+            delete xlObj._dataContainer.sheets[sheetIdx][sparklineProp.rowIndex][sparklineProp.colIndex];
+            sparklineProp.type = type;
+            sparklineProp.id = xlObj._id + "_" + "S" + sheetIdx +"_" + type +"_"+ sparklineProp.rowIndex +"_"+sparklineProp.colIndex;
+            this._createSparkline(sparklineProp, sparklineProp.cellInfo, sheetIdx);
+            delete sheet.shapeMngr.sparkline[sparklineId];
+            xlObj.XLShape._updateShapeMngr({ rowIndex: sparklineProp.rowIndex, colIndex: sparklineProp.colIndex }, { "sparkline": sparklineProp }, "sparkline");
+            details = { sheetIndex: sheetIdx, reqType: "sparkline", action: "sparklinetype", id: sparklineProp.id , cellInfo: sparklineProp.cellInfo, rowIndex: sparklineProp.rowIndex, colIndex:sparklineProp.colIndex, dataSource: sparklineProp.dataSource};
+            details.prev = { sparklineType: sparklineProp["sparklineType"], sparklineId : sparklineId };
             details.sparklineType = type;
-            sparkline[sparklineId]["type"] = type;
             xlObj._completeAction(details);
-            xlObj._trigActionComplete(details)
+            xlObj._trigActionComplete(details);
         },
 
-        changePointColor: function (sparklineId, options, sheetIdx) {
+        changePointColor: function (sparklineId, options, sheetIdx, isChecked) {
             var xlObj = this.XLObj, sheetIdx = sheetIdx || xlObj.getActiveSheetIndex(), sheet = xlObj.getSheet(sheetIdx), details, sparkline, 
-				sparklineElem = xlObj._getContent(sheetIdx).find("#" + sparklineId);
+				sparklineElem = xlObj._getContent(sheetIdx).find("#" + sparklineId), checkboxStatus, selColor;
             sparkline = sheet.shapeMngr.sparkline;
             for (option in options)
                 val = options[option];
             switch (option) {
                 case "highPointColor":
                     details = { sheetIndex: sheetIdx, reqType: "sparkline", action: "sparklinehighpoint", id: sparklineId };
-                    sparkline[sparklineId]["HighPoint"] = true;
-                    ej.isNullOrUndefined(sparkline[sparklineId].option) ? details.prev = { sparklinehighpoint: sparklineElem.data('ejSparkline').model.stroke } : details.prev = { sparklinehighpoint: sparkline[sparklineId].option }
+                    details.prev = (sparkline[sparklineId].type.toLowerCase() == "line") ? { sparklinehighpoint: sparklineElem.data('ejSparkline').model.stroke } : { sparklinehighpoint: sparkline[sparklineId][option] };
+					if(isChecked) {
+						sparkline[sparklineId]["HighPoint"] = true;
+						sparkline[sparklineId]["highPointColor"] = val;
+					}
+					else {
+						delete sparkline[sparklineId]["HighPoint"];
+						delete sparkline[sparklineId]["highPointColor"];
+						options = { highPointColor: null };
+					}					
                     sparklineElem.ejSparkline(options);
-                    sparkline[sparklineId]["highPointColor"] = val;
                     details.sparklinehighpoint = val;
-                    xlObj._completeAction(details);
-                    xlObj._trigActionComplete(details);
                     break;
-
                 case "lowPointColor":
                     details = { sheetIndex: sheetIdx, reqType: "sparkline", action: "sparklinelowpoint", id: sparklineId };
-                    sparkline[sparklineId]["LowPoint"] = true;
-                    ej.isNullOrUndefined(sparkline[sparklineId].option) ? details.prev = { sparklinelowpoint: sparklineElem.data('ejSparkline').model.stroke } : details.prev = { sparklinelowpoint: sparkline[sparklineId].option }
-                    sparklineElem.ejSparkline(options);
-                    sparkline[sparklineId]["lowPointColor"] = val;
+                    details.prev = (sparkline[sparklineId].type.toLowerCase() == "line") ? { sparklinelowpoint: sparklineElem.data('ejSparkline').model.stroke } : { sparklinelowpoint: sparkline[sparklineId][option] };
+                    if(isChecked) {
+						sparkline[sparklineId]["LowPoint"] = true;
+						sparkline[sparklineId]["lowPointColor"] = val;
+                    }
+					else {
+                        delete sparkline[sparklineId]["LowPoint"];
+                        delete sparkline[sparklineId]["lowPointColor"];
+                        options = { lowPointColor: null };
+                    }
+					sparklineElem.ejSparkline(options);
                     details.sparklinelowpoint = val;
-                    xlObj._completeAction(details);
-                    xlObj._trigActionComplete(details);
                     break;
 
                 case "startPointColor":
                     details = { sheetIndex: sheetIdx, reqType: "sparkline", action: "sparklinefirstpoint", id: sparklineId };
-                    sparkline[sparklineId]["FirstPoint"] = true;
-                    sparklineElem.ejSparkline(options);
-                    sparkline[sparklineId]["startPointColor"] = val;
-                    details.prev = { sparklinefirstpoint: null };
+                    details.prev = { sparklinefirstpoint:  sparklineElem.data('ejSparkline').model.stroke };
+					if(isChecked) {
+						sparkline[sparklineId]["FirstPoint"] = true;
+						sparkline[sparklineId]["startPointColor"] = val;
+					}
+					else {
+						delete sparkline[sparklineId]["FirstPoint"];
+                        delete sparkline[sparklineId]["startPointColor"];
+                        options = { startPointColor: null };
+					}
+                    sparklineElem.ejSparkline(options);                   
                     details.sparklinefirstpoint = val;
-                    xlObj._completeAction(details);
-                    xlObj._trigActionComplete(details);
                     break;
 
                 case "endPointColor":
                     details = { sheetIndex: sheetIdx, reqType: "sparkline", action: "sparklinelastpoint", id: sparklineId };
-                    sparkline[sparklineId]["LastPoint"] = true;
+                    details.prev = { sparklinelastpoint:  sparklineElem.data('ejSparkline').model.stroke };
+					if(isChecked) {
+						sparkline[sparklineId]["LastPoint"] = true;
+						sparkline[sparklineId]["endPointColor"] = val;
+					}
+					else {
+						delete sparkline[sparklineId]["LastPoint"];
+                        delete sparkline[sparklineId]["endPointColor"];
+                        options = { endPointColor: null };
+					}
                     sparklineElem.ejSparkline(options);
-                    sparkline[sparklineId]["endPointColor"] = val;
-                    details.prev = { sparklinelastpoint: null };
                     details.sparklinelastpoint = val;
-                    xlObj._completeAction(details);
-                    xlObj._trigActionComplete(details);
                     break;
 
                 case "negativePointColor":
                     details = { sheetIndex: sheetIdx, reqType: "sparkline", action: "sparklinenegativepoint", id: sparklineId };
-                    sparkline[sparklineId]["NegativePoints"] = true;
-                    ej.isNullOrUndefined(sparkline[sparklineId].option) ? details.prev = { sparklinenegativepoint: sparklineElem.data('ejSparkline').model.stroke } : details.prev = { sparklinenegativepoint: sparkline[sparklineId].option }
+                    details.prev = (sparkline[sparklineId].type.toLowerCase() == "line") ? { sparklinenegativepoint: sparklineElem.data('ejSparkline').model.stroke } : { sparklinenegativepoint: sparkline[sparklineId][option] };
+					if(isChecked) {
+	                    sparkline[sparklineId]["NegativePoints"] = true;
+						sparkline[sparklineId]["negativePointColor"] = val;
+					}
+					else {
+						delete sparkline[sparklineId]["NegativePoints"];
+                        delete sparkline[sparklineId]["negativePointColor"];
+                        options = { negativePointColor: null };
+					}
                     sparklineElem.ejSparkline(options);
-                    sparkline[sparklineId]["negativePointColor"] = val;
                     details.sparklinenegativepoint = val;
-                    xlObj._completeAction(details);
-                    xlObj._trigActionComplete(details);
                     break;
 
                 case "fill":
                     sparkline[sparklineId]["sparklinecolor"] = true;
-                    (sparkline[sparklineId].type == "Line" || sparkline[sparklineId].type  == "line") ? sparklineElem.ejSparkline("option", { stroke: val }) : sparklineElem.ejSparkline("option", { fill: val });
                     details = { sheetIndex: sheetIdx, reqType: "sparkline", action: "sparklinecolor", id: sparklineId };
-                    ej.isNullOrUndefined(sparkline[sparklineId].option) ? details.prev = { sColor: sparklineElem.data('ejSparkline').model.stroke } : details.prev = { sColor: sparkline[sparklineId].option }
                     details.sColor = val;
-                    sparkline[sparklineId].option = val;
-                    xlObj._completeAction(details);
-                    xlObj._trigActionComplete(details);
+                    if(sparkline[sparklineId].type.toLowerCase() == "line") {
+						sparkline[sparklineId]["stroke"] = val;
+						details.prev = { sColor: sparklineElem.data('ejSparkline').model.stroke };
+						sparklineElem.ejSparkline("option", { stroke: val });
+					}
+					else {
+						sparkline[sparklineId][option] = val;
+						details.prev = { sColor: sparklineElem.data('ejSparkline').model.fill };
+						sparklineElem.ejSparkline("option", { fill: val });
+					}
                     break;
+				case "markerSettings":
+					var visibleProp;
+                    details = { sheetIndex: sheetIdx, reqType: "sparkline", action: "markerSettings", id: sparklineId, isVisible: sparkline[sparklineId]["Markers"] };
+					if (sparkline[sparklineId].type == "Line") {
+                        if (isChecked) {
+							visibleProp = { visible: true };
+                            $("#" + sparklineId).ejSparkline("option", { markerSettings: { visible: true } });
+                            sparkline[sparklineId]["Markers"] = true;
+                        }
+                        else {
+							visibleProp = { visible: false };
+                            $("#" + sparklineId).ejSparkline("option", { markerSettings: { visible: null } });
+                            sparkline[sparklineId]["Markers"] = false;
+                        }
+                        sparkline[sparklineId]["markerSettings"] = visibleProp;
+                    }
+					break;
             }
+			xlObj._completeAction(details);
+            xlObj._trigActionComplete(details);
         },
 
         _sparklineResize: function (sparklineId, option, sheetIdx) {
@@ -743,9 +813,11 @@
                             for (j = 0, len = dataValue.length; j < len; j++) {
                                 dataSource = dataValue[j];
                                 if (dataSource == "")
-                                  dataValue[j] = 0;
-                               else if (typeof dataSource === "string")
-                                    sparklineStr = true;                                
+                                    dataValue[j] = 0;
+                                else if (typeof dataSource === "string") {
+                                    sparklineStr = true;
+                                    break;
+                                }
                             }
                             if (sparklineStr) {
                                 xlObj._showAlertDlg("Alert", "SparklineDataAlert", 630);
@@ -787,6 +859,20 @@
 			}
 			if(xlObj._copySheet) 
 				xlObj.getSheet(sheetIdx).shapeMngr.sparkline = sparklineColl;
+		},
+		
+		_renderSparklineContent: function(table, sheetIdx) {
+			var xlObj = this.XLObj, sparkline = xlObj.getSheet(sheetIdx).shapeMngr.sparkline, sparklineObj = xlObj.getObjectKeys(sparkline), cell, sparkDiv,
+				rowIndex, colIndex;
+			for (i = 0, len = sparklineObj.length; i < len; i++) {
+				sparklineProp = sparkline[sparklineObj[i]];
+				rowIndex = sparklineProp.rowIndex;
+				colIndex = sparklineProp.colIndex;
+				cell = table.rows[rowIndex].cells[colIndex];
+				sparkDiv = $("<div id='" + xlObj._id + "_" + "S" + sheetIdx + "_" + sparklineProp.type + "_" + rowIndex + "_" + colIndex + "' class='e-ss-sparkline'  style='height:" + (sparklineProp.height - 1) + "px; width:" + sparklineProp.width + "px;' ></div>");
+				$(cell).append(sparkDiv);
+				$(table).find("#" + sparkDiv[0].id).ejSparkline(sparklineProp);
+			}
 		},
 		
 		_refreshSparklinePos: function (startCell, sheetIdx) {
@@ -853,12 +939,16 @@
 			}
 		},
 		_removeSparklineElem: function(rowIdx, colIdx, sheetIdx, isConainerClear) {
-			var xlObj = this.XLObj, sparklineId = xlObj.XLEdit.getPropertyValue(rowIdx, colIdx, "sparkline", sheetIdx), sparklineElem;
+			var xlObj = this.XLObj, sparklineId = xlObj.XLEdit.getPropertyValue(rowIdx, colIdx, "sparkline", sheetIdx), sparklineElem, shapeMngr = xlObj.getSheet(sheetIdx).shapeMngr.sparkline, sparkline ,details;
 			if(sparklineId) {
 				sparklineId = sparklineId[0];
+                sparkline = shapeMngr[sparklineId];
 				sparklineElem = xlObj._getContent(sheetIdx).find("#" + sparklineId);
 				sparklineElem.ejSparkline("destroy");
 				this._wireSparklineEvents("_off");
+                details = { sheetIndex: sheetIdx, reqType: "sparkline", shapeType: "sparkline", action: "remove" };
+                xlObj._completeAction(details);
+                xlObj._trigActionComplete(details);
 				sparklineElem.remove();
 				if(isConainerClear) {
 					delete xlObj._dataContainer.sheets[sheetIdx][rowIdx][colIdx]["sparkline"];

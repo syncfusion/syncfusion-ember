@@ -351,15 +351,16 @@
             }
 			this._elementWidth = (typeof window.getComputedStyle == "function") ? parseFloat(window.getComputedStyle(this.element[0]).width) : this.element.width()-1; // -1 for IE8 get exact width of an element no border and margin            
             this._liWidth = this._spanWidth;
+            var itemContainer = this.element.children("ol:visible, ul:visible");
             this._spantag.removeClass("e-display-block").addClass("e-display-none");
-            for (var i = 0; i < this.itemsContainer.length; i++) {
-                this._liWidth += $(this.itemsContainer[i]).outerWidth(true)+8;
+            for (var i = 0; i < itemContainer.length; i++) {
+                this._liWidth += $(itemContainer[i]).outerWidth(true)+8;
                 if (this._liWidth > this._elementWidth) {
                     if (!this._spantag.hasClass("e-display-block"))
                     this._spantag.removeClass("e-display-none").addClass("e-display-block");
                     this._spantag.addClass('e-res-pos');
 					this._liTemplte.addClass('e-normal');
-                    this._liTemplte.append(this.itemsContainer[i]);
+                    this._liTemplte.append(itemContainer[i]);
                 }
             }
 			if(this.model.responsiveType=="inline")
@@ -845,7 +846,10 @@
 			this._subControlsSetModel("enabled", true);
         },
 
-
+        refresh: function() {
+            this._reSizeHandler();
+        },
+        
         selectItem: function (lielement) {
             var current = $(lielement);
             if ((current == null) || (current.length <= 0)) return;

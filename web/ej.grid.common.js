@@ -5,7 +5,7 @@
         refreshContent: function (refreshTemplate) {
             if (refreshTemplate) {
                 this.refreshTemplate();
-				if(this._isLocalData) this.refreshHeader();
+                if(this._isLocalData) this.refreshHeader();
             }
             if (this.model.allowFiltering && this.model.filterSettings.filterType == "filterbar")
                 this._renderFilterBarTemplate();
@@ -20,15 +20,37 @@
             this._processBindings(args);
         },
 
+        refreshData: function (param) {
+            if (this._isRemoteSaveAdaptor && this._dataManager.dataSource.url != undefined) {
+                var proxy = this;
+                $.ajax({
+                    url: proxy.model.dataSource.dataSource.url,
+                    type: "POST",
+                    contentType: "application/json; charset=utf-8",
+                    data: JSON.stringify({ value: param }),
+                    dataType: "json",
+                    cache: false,
+                    success: function (data) {
+                        proxy._dataManager.dataSource.json = data;
+                        proxy.dataSource(proxy._dataManager);
+                    }
+                });
+            }
+            else
+                this.refreshContent();
+        },
         
         rowHeightRefresh: function () {
             if (this.model.scrollSettings.frozenColumns > 0 && !ej.isNullOrUndefined(this.model.currentViewData) && this.model.currentViewData.length) {
                 var frozenRows = this.getContentTable().get(0).rows;
                 var movableRows = this.getContentTable().get(1).rows, height = 0;
-                if (this.getContent().find(".e-frozencontentdiv").is(":visible"))
+                if (this.getContent().find(".e-frozencontentdiv").is(":visible")){
                     for (var i = 0; i < frozenRows.length; i++) {
                         if ($(frozenRows[i]).css("display") == "none")
                             continue;
+						if(this._isResized){
+							frozenRows[i].style.height = "";movableRows[i].style.height = "";							
+						}
                         var frozenHeight = frozenRows[i].getClientRects()[0].height;
                         var movableHeight = movableRows[i].getClientRects()[0].height;
                         if (ej.isNullOrUndefined(frozenHeight) || ej.isNullOrUndefined(movableHeight))
@@ -47,6 +69,8 @@
 							$(movableRows[i]).find("#" + this._id + "EditForm td").css("height", height);
 						}
                     }
+					this._isResized = false;
+				}
                 if (this.model.showSummary && this.model.summaryRows.length > 0) {
                     var frozenFooterRows = this.getFooterTable().get(0).rows;
                     var movableFooterRows = this.getFooterTable().get(1).rows, footerHeight = 0;
@@ -71,6 +95,7 @@
             this._dataSource(dataSource);
 			this._currentPage(1);
 			if(this.model.scrollSettings.enableVirtualization){
+				this.model.pageSettings.totalPages = null;
 				this._currentVirtualIndex = 1;
 				if (this.getContent().ejScroller("isVScroll"))
 					this.getContent().ejScroller("scrollY", 0, true);
@@ -359,6 +384,8 @@
                 this._frozenAlign();
                 this.rowHeightRefresh();
             }
+			if(!ej.isNullOrUndefined(this.getFooterContent()))
+				this._scrollFooterColgroup();
 			this._refreshScroller({requestType: "refresh"})
         },
         _setWidthColumnCollection: function (column, width) {
@@ -490,7 +517,7 @@
                     header = $($header[count]);
                     if (!ej.isNullOrUndefined(columns[count].headerTemplateID))
                         headerCell.html($(columns[count]["headerTemplateID"]).html());
-                    else if (columns[count].type == "checkbox")
+                    else if (columns[count].type == "checkbox" && ej.isNullOrUndefined(columns[count]["headerText"]))
                         headerCell.html("<input type = 'checkbox' class = 'e-checkselectall'></input>");
                     else
                     columns[count].disableHtmlEncode ? headerCell.text(columns[count].headerText) : headerCell.html(columns[count].headerText);
@@ -1059,6 +1086,9 @@
         },
         _processDataRequest: function (proxy, args, queryPromise, lastQueryPromise) {
             queryPromise.done(ej.proxy(function (e) {
+                if(e.count > 0 && !proxy._currentPage()){
+                    proxy._currentPage(1);
+                }
                 if (ej.isNullOrUndefined(proxy.element) || proxy._dataSource().adaptor instanceof ej.SqlDataSourceAdaptor)
                     return;
                 if (lastQueryPromise && !proxy._previousPageRendered)
@@ -1114,7 +1144,6 @@
                 }
                 if (ej.isNullOrUndefined(lastQueryPromise) || (ej.isNullOrUndefined(proxy._previousPageRendered) || proxy._previousPageRendered))
                     proxy._processData(e, args);
-                
 				if (!ej.isNullOrUndefined(proxy._unboundRow) && args.selectedRow != proxy._unboundRow && args.requestType == "save") {
                     proxy._unboundRow.find(".e-editbutton").trigger("click");
                     proxy._unboundRow = null;
@@ -1201,7 +1230,7 @@
                             commands[j].buttonOptions.cssClass = ej.isNullOrUndefined(commands[j].buttonOptions.cssClass) ? this.model.cssClass : commands[j].buttonOptions.cssClass;
                             commands[j].buttonOptions.enableRTL = this.model.enableRTL;
                             var $buttons = $unboundDivs.find(".e-" + commands[j].type.replace(/\s+/g, "") + "button");
-                            if (!this.model.isEdit || this._requestType == "cancel") {
+                            if (!this.model.isEdit || this._requestType == "cancel" || this._requestType == "sorting" || this._requestType == "grouping" || this._requestType == "filtering" || this._requestType == "paging") {
 								if ($target.closest(".e-editcell").length) {
 									if (commands[j].type == "save" || commands[j].type == "cancel")
 										$buttons.show();
@@ -1521,7 +1550,7 @@
 			     var exarg = { columnIndex: columnIndex, rowIndex: rowIndex, rowData:rowData, headerText: col.headerText, }
 				 $.extend(sender,exarg);
              }
-            else if (this.getPager().find(targetelement).length > 0 || targetelement.hasClass("e-pager")) {
+            else if (!ej.isNullOrUndefined(this.getPager()) && this.getPager().find(targetelement).length > 0 || targetelement.hasClass("e-pager")) {
                 var a = $(context.find(".e-page"));
                 context.find(".e-head").css("display", "none");
                 context.find(".e-content").css("display", "none");
@@ -1676,8 +1705,9 @@
         changePageSize: function (pageSize) {
             var args = {}, returnValue;
             var pageModel = this.getPager().ejPager("instance");
-            this.model.pageSettings.pageSize = pageModel._pageSize;
-            this.getPager().ejPager({pageSize: pageModel._pageSize});
+            this.model.pageSettings.pageSize = pageSize;
+            this.model.pageSettings.currentPage = pageModel.model.currentPage;
+            this.getPager().ejPager({pageSize: pageSize});
             args.requestType = ej.Grid.Actions.Refresh;
             returnValue = this._processBindings(args);
         },
@@ -1737,6 +1767,7 @@
                     }
                 }
                 this._setForeignKeyData(args);
+				this.model.groupSettings.groupedColumns.length && !this.initialRender && this._setAggregates();
                 this._relationalColumns.length == 0 && this.sendDataRenderingRequest(args);
             }
         },
@@ -2199,7 +2230,7 @@
             if (!this.model.scrollSettings.frozenColumns && this.model.allowPaging && !this.getScrollObject().isVScroll() && !this.getScrollObject().isHScroll() && this.getContentTable().width() != this.getContent().width()) {
                 if (!ej.isNullOrUndefined(this.getFooterTable()))
                     this.getFooterTable().width(this.getContentTable().width());
-            }
+			}
             this._getRowHeights();
             if (temp && !ej.isNullOrUndefined(this.getScrollObject()._vScrollbar) && args.requestType != ej.Grid.Actions.Add && this.model.editSettings.editMode != "inlineformtemplate" && this.model.editSettings.editMode != "inlineform") {
                 this._currentTopFrozenRow = 0;
@@ -2227,6 +2258,9 @@
             if (args.requestType == "virtualscroll") {
                 var top = this.getScrollObject().model.scrollTop + this.getScrollObject().model.height - (this.getScrollObject().model.height * .3);
                 this.getScrollObject().scrollY(top, true);
+            }
+            if (args.requestType == "sorting" && this.model.scrollSettings.virtualScrollMode == "continuous") {
+                this.getScrollObject().scrollY(0, true);
             }
         },
         _isFrozenColumnVisible: function () {
@@ -2301,10 +2335,12 @@
                     this.getFooterContent().find(".e-movablefooter").css(direction, staticWidth + "px");
                 this.model.scrollSettings["targetPane"] = ".e-movablecontent";
             }
+			else
+				this.model.scrollSettings["targetPane"] = null;
             this._initFrozenRows();
             if (this.model.scrollSettings.autoHide)
                 this.model.scrollSettings["show"] = $.proxy(this._showHideScroller, this);
-			if(this.model.scrollSettings.enableVirtualization && this.model.currentIndex > 0 && !this.model.scrollSettings.scrollTop ){
+			if(!this.model.scrollSettings.allowVirtualScrolling && this.model.currentIndex > 0 && !this.model.scrollSettings.scrollTop && ej.isNullOrUndefined(this.getContent().data("ejScroller"))){
 				var sTop = this.model.currentIndex * this.getRowHeight();
 				this.model.scrollSettings["scrollTop"] = sTop;
 			}
@@ -2347,17 +2383,17 @@
                 !this.model.scrollSettings.autoHide && this.getHeaderContent().addClass("e-scrollcss")
             } else
                 this.element.find(".e-gridheader").removeClass("e-scrollcss");
-            if (this.model.scrollSettings.frozenColumns == 0 && !this._mediaQuery) {
-                if (!this.element.find(".e-gridheader").hasClass("e-scrollcss") && (this.model.filterSettings.filteredColumns.length || (this._hiddenColumns.length && !this.model.minWidth))) {
+             if (this.model.scrollSettings.frozenColumns == 0 && !this._mediaQuery) {
+                if (!this.element.find(".e-gridheader").hasClass("e-scrollcss") && (this.model.filterSettings.filteredColumns.length || (this._hiddenColumns.length&&!this.model.minWidth))) {
                     this.getHeaderTable().removeAttr('style');
                     this.getContentTable().removeAttr('style');
                     if (this.model.showSummary && !ej.isNullOrUndefined(this.getFooterTable()))
-                        this.getFooterTable().removeAttr('style');
+                    this.getFooterTable().removeAttr('style');
                 }
                 else {
-                    if (this.model.showSummary && !ej.isNullOrUndefined(this.getFooterContent())) {
-                        if (this.getScrollObject().isVScroll() && this.getScrollObject().isHScroll()) {
-                            if (this.model.minWidth && this.model.isResponsive)
+                        if (this.model.showSummary && !ej.isNullOrUndefined(this.getFooterContent())) {
+                        if(this.getScrollObject().isVScroll() && this.getScrollObject().isHScroll()){
+                            if(this.model.minWidth && this.model.isResponsive)
                                 this.getFooterContent().find("div table").first().width(this.getContentTable().width() + this.model.scrollSettings.scrollerSize);
                             else
                                 this.getFooterContent().find("div table").first().width(this.getContentTable().width());
@@ -2370,8 +2406,8 @@
         },
         _isHscrollcss: function () {
             var scroller = this.getContent().data("ejScroller"), css = (scroller && scroller.isVScroll()) ? "addClass" : "removeClass";
-            this.getHeaderContent().find(".e-headercontent")[css]("e-hscrollcss");
-            this.getHeaderContent()[css]("e-scrollcss");
+            this.getHeaderContent().find(".e-headercontent")[css]("e-hscrollcss")
+			this.getHeaderContent()[css]("e-scrollcss");
 		},
         _initFrozenRows: function () {
             var gridRows = this.getRows();
@@ -2452,7 +2488,7 @@
                                         e.cancel = true;
                                     }
                                 }
-                                if (e.source == "button" || e.source == "key" || e.source == "wheel") {
+                                if (e.source == "button" || e.source == "key" || e.source == "wheel" || (e.source == "custom" && e.model.keyConfigs.down == "") || e.source == "thumb") {
                                     if ($("#" + proxy._id + "_WaitingPopup").is(":visible"))
                                         e.cancel = true;
                                     else {
@@ -2468,8 +2504,12 @@
                                 if (!ej.isNullOrUndefined(e.scrollData) && e.scrollData.handler == "e-hhandle" && proxy.model.allowFiltering && (proxy.model.filterSettings.filterType == "menu" || proxy._isExcelFilter))
                                     !proxy._isExcelFilter ? proxy._closeFilterDlg() : proxy._excelFilter.closeXFDialog();
                                 e["reachedEnd"] = this.content()[0].scrollHeight - e.scrollTop == this.content()[0].clientHeight;
-                                if ((e.source == "button" || e.source == "key" || e.source == "wheel") && proxy.model != null)
-                                    proxy._virtualScroll(e);
+                                if ((e.source == "button" || e.source == "key" || e.source == "wheel") && proxy.model != null) {
+									if ($("#" + proxy._id + "_WaitingPopup").is(":visible")) 
+                                        e.cancel = true;    
+									else
+										proxy._virtualScroll(e);
+								}
                                 if (e.source == "wheel" && e.scrollTop != proxy._scrollValue)
                                     e.scrollTop = proxy._scrollValue;
                                 proxy._checkScroller(e, this);
@@ -2485,6 +2525,26 @@
                                 proxy._scrollValue = e.scrollTop;
                                 proxy.model.currentIndex = e.scrollTop == 0 ? e.scrollTop : Math.floor(e.scrollTop / proxy._vRowHeight);
                             }
+                    },
+					scrollStop: function (e) {
+                        if (proxy.model.scrollSettings.allowVirtualScrolling) {
+                            if (proxy.model.scrollSettings.enableVirtualization && proxy.model.scrollSettings.virtualScrollMode == "continuous")
+                                e["reachedEnd"] = e.scrollData.scrollable - e.model.scrollTop == 0;
+                            else if (e.originalEvent && !$(e.originalEvent.target).hasClass("e-rowcell"))
+                                e["reachedEnd"] = this.content()[0].scrollHeight - e.scrollData.sTop == this.content()[0].clientHeight;
+                            if (e.scrollData.handler == "e-hhandle")
+                                return;
+                            if (proxy.model != null && e.originalEvent) {
+                                if (proxy.model.scrollSettings.enableVirtualization) {
+                                    proxy._isThumbScroll = true;
+								proxy._virtualViewScroll(e);
+								if(proxy.model.scrollSettings.virtualScrollMode == "continuous" && e["reachedEnd"])
+									this.refresh();
+							}
+							else
+								proxy._virtualScroll(e);
+                            }
+                        }
                     },
                     thumbEnd: function (e) {
                         if (proxy.model.scrollSettings.allowVirtualScrolling) {
@@ -2569,7 +2629,8 @@
 		    switch (filterType) {
 		        case ej.Grid.FilterType.FilterBar:
 		            if ($.inArray(this.getColumnByField(field), this.filterColumnCollection) != -1) {
-		                this.getHeaderTable().find("#" + field + "_filterBarcell").val("");
+		                var index = this.getColumnIndexByField(field);
+		                this.getHeaderTable().find(".e-filtertext").eq(index).val("");
 		                this._currentFilterbarValue = "";
 		                var index = $.inArray(field, this.filterColumnCollection);
 		                this._currentFilterColumn = this.getColumnByField(field);
@@ -3202,7 +3263,7 @@
             var lastVirtualRow = $(contentTable).find(".e-virtualrow").last();
             var lastVirtualRowHeight = this.model.scrollSettings.virtualScrollMode == "normal" ? (lastVirtualRow.height() - ($(contentTable).height() - (this._gridRecordsCount * rowHeight))) : 1;
             lastVirtualRow.css("height", lastVirtualRowHeight);
-			if(this._enableCheckSelect )
+			if(this._enableCheckSelect && this.element.find(".e-checkselectall").prop("checked"))
 				this._virtualCheckSelection(currentIndex);
             this._eventBindings();
         },
@@ -3252,6 +3313,7 @@
                 }				
             }						   						
             contentTable.replaceChild(tempTbody[0], contentTable.lastChild);
+			var ind;
             if (this.selectedRowsIndexes.length && !this._enableCheckSelect) {
                 var loadedIndex = $.inArray(this._prevVirtualIndex, this._currentLoadedIndexes);
                 var prevLoadedIndex = $.inArray(this._prevVirtualIndex, this._prevLoadedIndexes);
@@ -3261,6 +3323,7 @@
                     var selectIndex = this._selectedRow() + changes;
                     selectIndex = selectIndex >= 0 ? selectIndex : -1;
                     this._selectedRow(selectIndex);
+					ind = selectIndex;
                 }
             }
             $(contentTable.rows).removeClass("e-hover");
@@ -3283,6 +3346,8 @@
 				}
 			}
 			this._trigger("refresh");
+			if(this._scrollObject.model.keyConfigs.down == "" && !ej.isNullOrUndefined(ind))
+				this.selectRows(selectIndex, null , this.getRowByIndex(selectIndex))
         },
 		_setVirtualTopBottom: function(){
 			var contentTable = this.getContentTable()[0];
@@ -3365,6 +3430,7 @@
 			                    rowIndex = $(contentTable.rows[selIndex]).index();
 			                    this.selectedRowsIndexes.push(rowIndex);
 			                    this._virtualSelectedRecords[rowIndex] = selectedData.data;
+			                    this._virtualCheckSelectedRecords[((viewIndex - 1) * this._virtualRowCount) + rowIndex] = selectedData.data;
 			                    this.model.selectedRecords.push(selectedData.data);
 			                    $(contentTable.rows[selIndex]).find(".e-checkcelldiv [type=checkbox]").prop("checked", true);
 			                }
@@ -3492,6 +3558,7 @@
                     if (ej.gridFeatures.edit) {
                         if (this.model.editSettings.editMode == "batch") {
                             var tr = $(this.getRowByIndex(this._bulkEditCellDetails.rowIndex))
+                            ej.copyObject(this._copyBulkEditCellDetails, this._bulkEditCellDetails, true);
                             if(this.model.isEdit && tr.hasClass('e-insertedrow'))
                                 this._batchCellValidation(this._bulkEditCellDetails.rowIndex);
                             this._moveCurrentCell("down");
@@ -3628,8 +3695,10 @@
                         if (this._selectedRow() != lastRow && this._selectedRow() != -1) {
 							var row = this._selectedRow() == 0 ? this.getRowByIndex(this._selectedRow()):this.getRowByIndex(this._selectedRow() - 1);
                             !this._enableCheckSelect && this.selectRows(this._selectedRow() + 1, null, row);
-                            if (this.model.editSettings.editMode == "batch" && !this.model.scrollSettings.enableVirtualization && $.inArray("cell", this.model.selectionSettings.selectionMode) == -1)
+                            if (this.model.editSettings.editMode == "batch" && !this.model.scrollSettings.enableVirtualization && $.inArray("cell", this.model.selectionSettings.selectionMode) == -1) {
+                                ej.copyObject(this._copyBulkEditCellDetails, this._bulkEditCellDetails, true);
                                 this._moveCurrentCell("down");
+                            }
                         }
                         if (this._previousRowCellIndex && this._previousRowCellIndex.length != 0 && this._lastSelectedCellIndex[0][0] < lastRow && this._allowcellSelection) {
                             this.selectCells([[this._lastSelectedCellIndex[0][0] + 1, this._lastSelectedCellIndex[0][1]]]);
@@ -3673,7 +3742,7 @@
                             cellIndex = $(row.find("td:lt(" + this.model.columns.length + ")").not(".e-hide")[Index]).index();
                         }
                         if (rowIndex != -1 && cellIndex != -1)
-                            this.selectCells([[rowIndex, cellIndex]]);
+                            this.selectCells([[rowIndex, [cellIndex]]]);
                     }
                     break;
                 case "firstCellSelection":
@@ -4314,7 +4383,7 @@
             else {
                 this.getHeaderTable().find(".e-columnheader").removeClass("e-defaultcursor");
                 if (!(this.model.contextMenuSettings.enableContextMenu || this.model.selectionSettings.selectionMode == "column")) {
-                    var propArray = [{ val: this.model.allowSorting, str: "sort" }, { val: this.model.allowGrouping, str: "group" }, { val: this.model.allowReordering, str: "reorder" }, { val: this.model.allowFiltering, str: "filter" }];
+                    var propArray = [{ val: this.model.allowSorting, str: "sort" }, { val: this.model.allowGrouping, str: "group" }, { val: this.model.allowReordering, str: "reorder" }, { val: this.model.allowFiltering, str: "filter" },{ val: this.model.allowResizing, str: "resize" }];
                     var colpropcount = 0;
                     for (var i = 0; i < propArray.length; i++) {
                         if (propArray[i].val == false) {
@@ -4342,6 +4411,10 @@
                                     if (!ej.isNullOrUndefined(this.model.columns[i].allowFiltering) && !this.model.columns[i].allowFiltering)
                                         colpropcount++;
                                     break;
+								case "resize":
+								    if (!ej.isNullOrUndefined(this.model.columns[i].allowResizing) && !this.model.columns[i].allowResizing)
+                                        colpropcount++;
+									break;
                             }
                         }
 						if(!ej.isNullOrUndefined(this.model.columns[i].template) || !ej.isNullOrUndefined(this.model.columns[i].templateID))
@@ -4541,6 +4614,9 @@
                             if (this.model.filterSettings.filterType == "filterbar" && this.model.allowFiltering)
                                 this._createPagerStatusBar();
                         }
+                        break;
+					case "selectionType":
+                            this.multiDeleteMode =  this.model.editSettings.allowDeleting && (this.model.selectionType=="multiple");
                         break;
                     case "allowSearching":
                         this.model.allowSearching = options[prop];
@@ -4756,7 +4832,7 @@
                                 this._addLastRow();
                             }
 						}
-                            if (!isDestroy) {
+                            if (!isDestroy && !ej.isNullOrUndefined(this.model)) {
                                 ej.util.isNullOrUndefined(options["scrollSettings"]) && this._columnsPixelConvert();
                                 if (this.model.allowGrouping && this.model.groupSettings.groupedColumns.length > 0) {
                                     this._groupingAction(true);

@@ -376,6 +376,7 @@
             if (this._overLay) this._overLay.remove();
             this._cloneElement.appendTo(this._ejDialog.parent());
             this._ejDialog.remove();
+            if (this.model.enableAnimation) this._ejDialog.stop();
             this._cloneElement.removeClass("e-dialog");
             this.element = this._cloneElement;
             this._isOpen = false;
@@ -427,7 +428,7 @@
                 this.contentDiv.height(this._ejDialog.height() - $(this._dialogTitlebar).outerHeight() - $(this._dialogFooterbar).outerHeight());
                 this.element.height(this.contentDiv.height());
             }
-			if(!ej.isNullOrUndefined(this.element)) this._resetScroller();
+			if(!ej.isNullOrUndefined(this.element) && !this._collapsible) this._resetScroller();
         },
        
         _setLocaleCulture:function(localizedLabels, isSetModel){
@@ -985,9 +986,7 @@
                 if (_height > _maxHeight) this.model.height = _maxHeight;
                 else this.model.height = _minHeight;
             }
-            else if (this.model.height == "auto" && !ej.isNullOrUndefined(this.model.maxHeight)) {
-                this.model.height = _maxHeight;
-            }
+			 
         },
 
         _setSize: function () {
@@ -1302,6 +1301,8 @@
                 });
             }
             this._resetScroller();
+			if($(this.contentDiv).is(":hidden"))
+			    this.contentDiv.show();
         },
         _actionRestore: function () {
             this.element.height("").width("");
@@ -1583,7 +1584,7 @@
             var contentDivheight = this._ejDialog.height() - ((this.model.showHeader) ? $(this._ejDialog.find("div.e-titlebar")).outerHeight(true) : 0);
             this.contentDiv.height((!ej.isNullOrUndefined(this.contentDiv)) ? (this.contentDiv.css('border-width') == "0px") : false ? contentDivheight : contentDivheight - 1);
             this.element.outerHeight((!ej.isNullOrUndefined(this.contentDiv)) ? (this.contentDiv.css('border-width') == "0px") : false ? contentDivheight : contentDivheight - 1);
-            this.scroller = this.contentDiv.ejScroller({ width: (!ej.isNullOrUndefined(this.contentDiv)) ? (this.contentDiv.css('border-width') == "0px") : false ? this._ejDialog.width() : this._ejDialog.width() - 2, height: (!ej.isNullOrUndefined(this.contentDiv)) ? (this.contentDiv.css('border-width') == "0px") : false ? this.element.outerHeight() : this.element.outerHeight() - 2, rtl: this.model.rtl, enableTouchScroll: false });
+            this.scroller = this.contentDiv.ejScroller({ width: (!ej.isNullOrUndefined(this.contentDiv)) ? (this.contentDiv.css('border-width') == "0px") ? this._ejDialog.width() : this._ejDialog.width() - 2 : false , height: (!ej.isNullOrUndefined(this.contentDiv)) ? (this.contentDiv.css('border-width') == "0px") ? this.element.outerHeight() : this.element.outerHeight() - 2 : false, rtl: this.model.rtl, enableTouchScroll: false });
             this.scroller = this.contentDiv.data("ejScroller");
             this._reRenderScroller();
             if ((this.model.position.X == "" || this.model.position.Y == "" && !this._minimize)||(this._positionChanged)) this._centerPosition();
@@ -1652,6 +1653,7 @@
                         if ((proxy.model.height == "auto" || proxy.model.height == "100%"))
                             height = proxy.model.height;
                         proxy._updateScroller((!ej.isNullOrUndefined(this.contentDiv)) ? (this.contentDiv.css('border-width') == "0px") : false ? height : height - 2, (!ej.isNullOrUndefined(this.contentDiv)) ? (this.contentDiv.css('border-width') == "0px") : false ? proxy._ejDialog.width() : proxy._ejDialog.width() - 2);
+						proxy.scroller.refresh();
                     }
                 }
             });
@@ -1721,7 +1723,6 @@
             $(this.wrapper.find(".e-maximize")[0]).removeClass("e-maximize").addClass("e-restore");
             $(this.wrapper.find(".e-restore")[1]).removeClass("e-restore").addClass("e-minus");
             this._dialogMaximize && this._dialogMaximize.attr('title', this.model.tooltip.restore);
-            this.contentDiv.show();
             this._dialogTitlebar && this._dialogTitlebar.find(".e-minus").parent().show();
             this._hideIcon(true);
             return this;

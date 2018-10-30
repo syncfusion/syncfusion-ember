@@ -323,7 +323,7 @@
                     case "delimiterChar": this.model.enableMultiSelect && this._setDelimiterChar(this._text); break;
                     case "enabled": this._controlState(this.model.enabled); break;
                     case "watermarkText": this._setWatermarkText(this.model.watermarkText); break;
-                    case "value": this.value(this.model.value); break;
+                    case "value": this._setValue(this.model.value); break;
                     case "emptyResultText": this._setEmptyRestultText(); break;
                     case "locale": this._setLocale(options.locale); break;
                     default: refresh = true; break;
@@ -331,6 +331,12 @@
             }
             refresh && this._refresh();
             refresh = false;
+        },
+        _setValue: function (value) {
+            if (!this.element.prop('disabled')) {
+                this.element.val(value);
+                this.value(value);
+            }
         },
         _setEmptyRestultText: function () {
             this._noResultEle.find("a.e-m-lv-content").html(this.model.emptyResultText);

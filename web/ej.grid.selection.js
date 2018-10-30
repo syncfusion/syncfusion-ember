@@ -18,9 +18,12 @@
 					this.model.currentIndex = rowIndex > toIndex ? toIndex : rowIndex;
 				}							
 			}
+            var scrollObj = null;
+			if(this.model.allowScrolling && !ej.isNullOrUndefined(this.getContent().data("ejScroller")))
+			  scrollObj = this.getScrollObject();
             if (!this.multiSelectCtrlRequest && this.model.scrollSettings.allowVirtualScrolling) {
                 if (!this._virtuaOtherPage) {
-                    this.clearSelection();
+                    if (!(scrollObj !=null && scrollObj.model.keyConfigs.down == "" && target)) this.clearSelection();
                     this._virtualScrollingSelection = false;
                 }
                 else
@@ -48,21 +51,25 @@
             }
 
             var $gridRows = $(this.getRows()),Data;
-            if (this.model.allowScrolling && (this.model.scrollSettings.frozenColumns == 0 && this.model.scrollSettings.frozenRows ==0 )) {
+            if (this.model.allowScrolling && !this.multiSelectShiftRequest && (this.model.scrollSettings.frozenColumns == 0 && this.model.scrollSettings.frozenRows ==0 )) {
                 var selectedRow = $gridRows.eq(rowIndex)[0];
                 if (!ej.isNullOrUndefined(selectedRow) && this.model.groupSettings.groupedColumns.length == 0 && !ej.isNullOrUndefined(this.getContent().data("ejScroller"))) {
-                    var scrollTop = this.getScrollObject().scrollTop();
-                    var ContentViewHeight = scrollTop + this.getScrollObject().content()[0].clientHeight;
+                    var scrollTop = scrollObj.scrollTop();
+                    var ContentViewHeight = scrollTop + scrollObj.content()[0].clientHeight;
                     var selectedRowPos = selectedRow.offsetTop + selectedRow.offsetHeight;
-                    var pixel = selectedRow.offsetTop, scrollObj = this.getScrollObject(), currentIndex = !target ? Math.ceil((rowIndex + 1) / this._virtualRowCount) : parseInt($(this._gridRows[rowIndex]).attr("name"), 32);
+                    var pixel = selectedRow.offsetTop, currentIndex = !target ? Math.ceil((rowIndex + 1) / this._virtualRowCount) : parseInt($(this._gridRows[rowIndex]).attr("name"), 32);
                     if (this.model.scrollSettings.allowVirtualScrolling && this.model.scrollSettings.enableVirtualization) {
                         selectedRowPos += (ej.min(this._currentLoadedIndexes) - 1) * this._virtualRowCount * this._vRowHeight;
                         pixel = (this.model.currentIndex * this._vRowHeight) + rowIndex + selectedRow.offsetHeight;
                     }
-                    var scrollBottom = ((selectedRowPos - this._vRowHeight) <= scrollTop && selectedRowPos < ContentViewHeight);
+                    var scrollBottom = ((selectedRowPos - this._vRowHeight) <= scrollTop && selectedRowPos < ContentViewHeight) && (rowIndex || scrollTop) ;
                     if (!ej.isNullOrUndefined(selectedRow) && ContentViewHeight < selectedRowPos || scrollBottom) {
                         if (scrollBottom) pixel = selectedRowPos - selectedRow.offsetHeight;
-                        (!this.model.scrollSettings.enableVirtualization || $.inArray(currentIndex, this._currentLoadedIndexes) != -1) && scrollObj.scrollY(pixel);
+						if(scrollObj.model.keyConfigs.down == "") 
+							pixel = this.model.selectedRowIndex < rowIndex ?  scrollObj.model.scrollTop + selectedRow.offsetHeight :  scrollObj.model.scrollTop - selectedRow.offsetHeight;
+						var loadedIndex = this._currentLoadedIndexes;
+                        (!this.model.scrollSettings.enableVirtualization || $.inArray(currentIndex, this._currentLoadedIndexes) != -1) && scrollObj.scrollY(pixel,true);
+						if(scrollObj.model.keyConfigs.down == "" &&  JSON.stringify(this._currentLoadedIndexes)!= JSON.stringify(loadedIndex)) return;
                     }
                 }
             }
@@ -103,6 +110,12 @@
                 $prevIndex = args.prevRowIndex;
                 $prevRow = args.prevRow;
             }
+			if (target && target.hasClass("e-checkselectall")){
+				if(this._isLocalData)
+					args.data = this._dataSource() instanceof ej.DataManager ? this._dataSource().dataSource.json : this._dataSource();
+				else
+					args.data = this.model.currentViewData;
+			}
             if (this._trigger("rowSelecting", args)) {
                 if (this._enableCheckSelect && !ej.isNullOrUndefined(target) && (args.target.parent(".e-checkcelldiv").length || target.hasClass("e-checkselectall") ))
                     target.prop("checked", this.model.enableTouch);
@@ -151,6 +164,10 @@
 					}
 				}
                 var rows = this.getRowByIndex(this.model.scrollSettings.allowVirtualScrolling ? this._virtaulSel : rowIndexCollection);
+				for(var i = 0;i < rows.length;i++){
+					if(ej.isNullOrUndefined(rows[i]))
+						rows.splice(i,1);
+				}
                 $(rows).attr("aria-selected", "true").find('.e-rowcell, .e-detailrowcollapse, .e-detailrowexpand').addClass("e-selectionbackground e-active");
                 if (this._enableCheckSelect && !this._isMapSelection) {
                     $(rows).find(".e-checkcelldiv input").prop("checked", "checked");
@@ -189,10 +206,12 @@
 								    this.checkSelectedRowsIndexes[curPage].push(checkIndex);
 								}
                                 tr.attr("aria-selected", "true").find('.e-rowcell, .e-detailrowcollapse, .e-detailrowexpand').addClass("e-selectionbackground e-active");
-                                if(!this.model.scrollSettings.enableVirtualization)
-									this._virtualSelectAction(pageIndex, rowIndex, pageSize);
-								else
+                                if (!this.model.scrollSettings.enableVirtualization)
+                                    this._virtualSelectAction(pageIndex, rowIndex, pageSize);
+                                else {
                                     this._virtualSelectedRecords[$rowIndex] = this._getSelectedViewData(rowIndex, target).data;
+                                    this._virtualCheckSelectedRecords[args.rowIndex] = this._getSelectedViewData(rowIndex, target).data;
+                                }
                                 if ((this._enableCheckSelect && target && !target.parent().hasClass("e-checkcelldiv")) || (ej.isNullOrUndefined(target) && this._enableCheckSelect))
                                     tr.find(".e-checkcelldiv input").prop("checked", "checked");
                             }
@@ -205,6 +224,7 @@
                         this.selectedRowsIndexes = [];
                         this.model.selectedRecords = [];
                         this._virtualSelectedRecords = {};
+                        this._virtualCheckSelectedRecords = {};
                         this.selectedRowsIndexes.push($rowIndex);
 						this._selectedMultipleRows(this.selectedRowsIndexes);
 						if(this.model.scrollSettings.enableVirtualization&& (rowIndex > this.getRows().length)){
@@ -213,10 +233,12 @@
 						}
 						else
 							this.getRowByIndex(rowIndex).attr("aria-selected", "true").find('.e-rowcell, .e-detailrowcollapse, .e-detailrowexpand').addClass("e-selectionbackground e-active");
-                                          if(!this.model.scrollSettings.enableVirtualization)
-							this._virtualSelectAction(pageIndex, rowIndex, pageSize);
-						else
-							this._virtualSelectedRecords[$rowIndex] = Data;
+						if (!this.model.scrollSettings.enableVirtualization)
+						    this._virtualSelectAction(pageIndex, rowIndex, pageSize);
+						else {
+						    this._virtualSelectedRecords[$rowIndex] = Data;
+						    this._virtualCheckSelectedRecords[args.rowIndex] = Data;
+						}
                         Array.prototype.push.apply(this.model.selectedRecords, this.getSelectedRecords());
                         this._enableCheckSelect && this.getRowByIndex(rowIndex).find(".e-checkcelldiv [type=checkbox]").prop("checked", true);
                         break;
@@ -228,6 +250,7 @@
                     this.selectedRowsIndexes = [];
                     this.model.selectedRecords = [];                  
                     this._virtualSelectedRecords = {};
+                    this._virtualCheckSelectedRecords = {};
                     this._selectedMultipleRows([]);
 					var $toIndex = toIndex;					
 					this._virtualUnSel = [];
@@ -269,7 +292,6 @@
 					                }
 					            }
 					        }
-                            
 					        if (!(this.model.scrollSettings.enableVirtualization && this._enableCheckSelect) || this.getRowByIndex(i).length)
 					                this.selectedRowsIndexes.push(i);
 					            this._selectedMultipleRows(this.selectedRowsIndexes);
@@ -280,6 +302,14 @@
 					            this.batchChanges.changed.push(cData);
 					        }
 					    }
+						if(this.model.scrollSettings.enableVirtualization && this._enableCheckSelect){
+							var cloneQuery = this.model.query.clone(), data = null;               
+							this._virtualCheckSelectedRecords = {};
+							cloneQuery.queries = cloneQuery.queries.filter(function(e,i){ return e.fn!="onPage" });
+							if(this._isLocalData) 
+								data = !(this._dataSource() instanceof ej.DataManager) ? ej.DataManager(this._dataSource()).executeLocal(cloneQuery).result : this._dataSource().executeLocal(cloneQuery).result;
+							ej.copyObject(true,this._virtualCheckSelectedRecords, ej.isNullOrUndefined(data) ? this._currentJsonData : data);
+						}
 					    if (this._isMapSelection) {
 					        this.batchSave();
 					        return;
@@ -290,8 +320,8 @@
 					    Array.prototype.push.apply(this.model.selectedRecords, this.getSelectedRecords());
 					    if (this._enableCheckSelect)
 					        $(rows).find(".e-checkcelldiv input").prop("checked", "checked");
-	                        if(this.multiSelectShiftRequest)
-								target.prop("checked",false);					
+						    if(this.multiSelectShiftRequest)
+								target.prop("checked",false);
 							this._isCheckboxChecked = false;
 							this._isCheckboxUnchecked = false;
 					}
@@ -312,7 +342,8 @@
             if (target && target.hasClass("e-checkselectall") && !this._isMapSelection) {
                 var gridInstance = this;
 				var totalPage = this._dataSource() instanceof ej.DataManager && this.model.scrollSettings.allowVirtualScrolling && this.model.allowScrolling && !this.model.scrollSettings.enableVirtualization ? Math.ceil(this._gridRecordsCount / this.model.pageSettings.pageSize) :this.model.pageSettings.totalPages;
-				this.checkSelectedRowsIndexes = !target.is(":checked") ? $.map(Array(totalPage), function (x, i) { x = Array($.map(Array(gridInstance.model.pageSettings.pageSize), function (x2, i2) { return i2 })); return x; }) : [];
+				var sel = this.model.enableTouch ? !target.is(":checked") : target.is(":checked");
+				this.checkSelectedRowsIndexes = sel ? $.map(Array(totalPage), function (x, i) { x = Array($.map(Array(gridInstance.model.pageSettings.pageSize), function (x2, i2) { return i2 })); return x; }) : [];
 				var totalcount = [].concat.apply([], this.checkSelectedRowsIndexes).length;
 				if (!target.is(":checked") && totalcount > this._gridRecordsCount) this.checkSelectedRowsIndexes[this.checkSelectedRowsIndexes.length - 1].splice(this._gridRecordsCount - totalcount);
             }
@@ -329,6 +360,12 @@
 			        this.checkSelectedRowsIndexes[i] = [];
 			}
 			this.model._checkSelectedRowsIndexes = this.checkSelectedRowsIndexes;
+			if (target && target.hasClass("e-checkselectall")){
+				if(this._isLocalData)
+					args.data = this._dataSource() instanceof ej.DataManager ? this._dataSource().dataSource.json : this._dataSource();
+				else
+					args.data = this.model.currentViewData;
+			}
 			if ($(this.getRowByIndex(rowIndex)).is('[data-role="row"]') && $(this.getRowByIndex($rowIndex)).attr("aria-selected") == "true")
                 this._trigger("rowSelected", args);            
         },
@@ -357,10 +394,11 @@
 							var remain = rowIndex % this._virtualRowCount;
 							$rowIndex = (viewIndex * this._virtualRowCount) - (this._virtualRowCount - remain);
                         }
-                        else {
-                            var trIndex = parseInt($(this._gridRows[rowIndex]).attr("name"), 32);
-                            var trSiblings = $(this._gridRows[rowIndex]).prevAll("tr[name=" + trIndex + "]").length;
-                            $rowIndex = (trIndex * this._virtualRowCount) - this._virtualRowCount + trSiblings;
+					    else {
+					        var nameAttr = $(this._gridRows[rowIndex]).attr("name");
+					        var trIndex = parseInt(nameAttr, 32);
+					        var trSiblings = $(this._gridRows[rowIndex]).prevAll("tr[name=" + nameAttr + "]").length;
+					        $rowIndex = ((trIndex - 1) * this._virtualRowCount) + trSiblings;
                         }
                     }
 					if(rowIndexCollection.length){												
@@ -368,8 +406,10 @@
 							var viewIndex = this._getSelectedViewData(rowIndexCollection[i]).viewIndex;
 							if($.inArray(viewIndex, this._currentLoadedIndexes) != -1)
 								this._virtaulSel.push(rowIndexCollection[i]);
-							if(!this._virtualSelectedRecords[rowIndexCollection[i]])
-								this._virtualSelectedRecords[rowIndexCollection[i]] =  this._getSelectedViewData(rowIndexCollection[i]).data;
+							if (!this._virtualSelectedRecords[rowIndexCollection[i]]) {
+							    this._virtualSelectedRecords[rowIndexCollection[i]] = this._getSelectedViewData(rowIndexCollection[i]).data;
+							    this._virtualCheckSelectedRecords[rowIndexCollection[i]] = this._getSelectedViewData(rowIndexCollection[i]).data;
+							}
 						}					
 					}
 					Data = this._getSelectedViewData(rowIndex, target, currentIndex).data;
@@ -452,10 +492,14 @@
         },
         _virtualSelectAction: function (pageIndex, rowIndex, pageSize) {
             if (this.model.scrollSettings.allowVirtualScrolling && !ej.isNullOrUndefined(rowIndex)) {
-                if (!ej.isNullOrUndefined(this._virtualLoadedRecords[pageIndex]))
+                if (!ej.isNullOrUndefined(this._virtualLoadedRecords[pageIndex])) {
                     this._virtualSelectedRecords[rowIndex] = this._virtualLoadedRecords[pageIndex][rowIndex % pageSize];
-                else
+                    this._virtualCheckSelectedRecords[((pageIndex - 1) * pageSize) + rowIndex] = this._virtualLoadedRecords[pageIndex][rowIndex % pageSize];
+                }
+                else {
                     this._virtualSelectedRecords[rowIndex] = this._currentJsonData[rowIndex % pageSize];
+                    this._virtualCheckSelectedRecords[((pageIndex - 1) * pageSize) + rowIndex] = this._currentJsonData[rowIndex % pageSize];
+                }
             }
         },
 		_getSelectedViewData: function(rowIndex, target, currentViewIndex){
@@ -1032,18 +1076,36 @@
             var records = [], $gridRows = this.getRows();
             if (this._virtualScrollingSelection)
                 return this._virtualSelRecords;
-            for (var i = 0; i < this.selectedRowsIndexes.length; i++) {
-                if (this.selectedRowsIndexes[i] != -1) {
-                    if (this.model.editSettings.editMode == "batch" && $($gridRows[this.selectedRowsIndexes[i]]).hasClass("e-insertedrow")) {
-                        var addedrecords = this.batchChanges.added.reverse();
-                        records.push(addedrecords[this.selectedRowsIndexes[i]])
-                        this.batchChanges.added.reverse();
+			var loopDone = false;
+            if (this.model.scrollSettings.allowVirtualScrolling && this._enableCheckSelect) {
+                for (var i = 0 ; i < this.checkSelectedRowsIndexes.length; i++) {
+                    if (!ej.isNullOrUndefined(this.checkSelectedRowsIndexes[i])) {
+                        for (var j = 0; j < this.checkSelectedRowsIndexes[i].length ; j++) {
+							if(this._currentJsonData.length <= j && !this._isLocalData) {
+								loopDone = true;
+								break;
+							}
+                            var checkIndex = (i * this.model.pageSettings.pageSize) + this.checkSelectedRowsIndexes[i][j];
+                            records.push(this._virtualCheckSelectedRecords[checkIndex]);
+                        }
                     }
-                    else if (this.model.scrollSettings.allowVirtualScrolling)
-                        records.push(this._virtualSelectedRecords[this.selectedRowsIndexes[i]]);
-                    else
-                        this.model.editSettings.editMode == "batch" ? records.push(this._currentJsonData[this.selectedRowsIndexes[i] - this.batchChanges.added.length]) : records.push(this._currentJsonData[this.selectedRowsIndexes[i]]);
+					if(loopDone) break;
+                }
+            }
+            else {
+                for (var i = 0; i < this.selectedRowsIndexes.length; i++) {
+                    if (this.selectedRowsIndexes[i] != -1) {
+                        if (this.model.editSettings.editMode == "batch" && $($gridRows[this.selectedRowsIndexes[i]]).hasClass("e-insertedrow")) {
+                            var addedrecords = this.batchChanges.added.reverse();
+                            records.push(addedrecords[this.selectedRowsIndexes[i]])
+                            this.batchChanges.added.reverse();
+                        }
+                        else if (this.model.scrollSettings.allowVirtualScrolling && !this._enableCheckSelect)
+                            records.push(this._virtualSelectedRecords[this.selectedRowsIndexes[i]]);
+                        else
+                            this.model.editSettings.editMode == "batch" ? records.push(this._currentJsonData[this.selectedRowsIndexes[i] - this.batchChanges.added.length]) : records.push(this._currentJsonData[this.selectedRowsIndexes[i]]);
 
+                    }
                 }
             }
             return records;

@@ -104,7 +104,7 @@
                     }
                     case "value": {
                         this.setValue(ej.util.getVal(options[key]));
-                        options[key] = this.value();
+                        options[key] = this.model.value;
                         break;
                     }
                     case "enabled": this._enabledAction(options[key]); break;
