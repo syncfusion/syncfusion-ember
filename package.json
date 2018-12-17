@@ -1,6 +1,6 @@
 {
   "name": "syncfusion-ember",
-  "version": "16.4.40-beta",
+  "version": "16.4.42",
   "description": "This ember add-on provides the support to use our Syncfusion controls in any Ember CLI application.",
   "repository": {
     "type": "git",
